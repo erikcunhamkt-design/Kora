@@ -35,13 +35,13 @@ function UsageSummary() {
   ];
 
   return (
-    <div className="orbit-card p-4 space-y-3">
+    <div className="orbit-card p-5 space-y-3 animate-fade-up">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Crown className="h-4 w-4 text-primary" />
           <span className="text-sm font-medium text-foreground">Uso do plano Free</span>
         </div>
-        <button onClick={() => navigate("/upgrade")} className="text-xs text-primary hover:underline font-medium">
+        <button onClick={() => navigate("/upgrade")} className="text-[11px] text-primary hover:underline font-medium">
           Upgrade
         </button>
       </div>
@@ -49,12 +49,12 @@ function UsageSummary() {
         {items.map((item) => {
           const atLimit = item.current >= item.max;
           return (
-            <div key={item.label} className={`p-2.5 rounded-lg border ${atLimit ? "border-destructive/30 bg-destructive/5" : "border-border bg-muted/30"}`}>
+            <div key={item.label} className={`p-3 rounded-lg border transition-all duration-200 ${atLimit ? "border-destructive/30 bg-destructive/5" : "border-border bg-muted/20"}`}>
               <div className="flex items-center gap-1.5 mb-1">
                 {atLimit && <AlertTriangle className="h-3 w-3 text-destructive" />}
-                <span className="text-xs text-muted-foreground">{item.label}</span>
+                <span className="text-[11px] text-muted-foreground uppercase tracking-wider">{item.label}</span>
               </div>
-              <p className={`text-lg font-bold ${atLimit ? "text-destructive" : "text-foreground"}`}>
+              <p className={`text-xl font-bold ${atLimit ? "text-destructive" : "text-foreground"}`}>
                 {item.current}/{item.max === Infinity ? "∞" : item.max}
               </p>
             </div>
@@ -67,38 +67,31 @@ function UsageSummary() {
 
 const Dashboard = () => (
   <div className="space-y-6">
-    {/* Plan Banner */}
     <PlanBanner />
 
     {/* Metric Cards */}
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 stagger-children">
       {metrics.map((m) => (
         <MetricCard key={m.title} {...m} />
       ))}
     </div>
 
-    {/* Usage Summary */}
     <UsageSummary />
 
-    {/* Insights */}
     <InsightsSection />
 
-    {/* Finance + Goals */}
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       <FinanceSummary />
       <GoalsSection />
     </div>
 
-    {/* Chart + Today Tasks */}
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       <PerformanceChart />
       <TodayTasks />
     </div>
 
-    {/* CRM Pipeline */}
     <CRMPipeline />
 
-    {/* Activity Feed */}
     <ActivityFeed />
   </div>
 );

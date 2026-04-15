@@ -32,9 +32,10 @@ export function AppSidebar() {
     path === "/" ? location.pathname === "/" : location.pathname.startsWith(path);
 
   return (
-    <Sidebar collapsible="icon" className="border-r border-border">
-      <div className="flex items-center gap-2 px-4 py-5 border-b border-border">
-        <div className="orbit-gradient rounded-lg p-1.5 flex-shrink-0">
+    <Sidebar collapsible="icon" className="border-r border-border/60">
+      {/* Logo */}
+      <div className="flex items-center gap-2.5 px-4 py-5 border-b border-border/60">
+        <div className="orbit-gradient rounded-lg p-1.5 flex-shrink-0 shadow-[0_0_16px_hsl(263_84%_58%/0.2)]">
           <Orbit className="h-5 w-5 text-white" />
         </div>
         {!collapsed && (
@@ -43,10 +44,12 @@ export function AppSidebar() {
           </span>
         )}
       </div>
+
+      {/* Navigation */}
       <SidebarContent className="px-2 py-4">
         <SidebarGroup>
           <SidebarGroupContent>
-            <SidebarMenu className="space-y-1">
+            <SidebarMenu className="space-y-0.5">
               {navItems.map((item) => {
                 const active = isActive(item.url);
                 return (
@@ -55,14 +58,17 @@ export function AppSidebar() {
                       <NavLink
                         to={item.url}
                         end={item.url === "/"}
-                        className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                        className={`relative flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-all duration-200 ${
                           active
-                            ? "orbit-gradient text-white shadow-lg"
-                            : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                            ? "bg-primary/10 text-primary shadow-[inset_0_0_0_1px_hsl(263_84%_58%/0.15)]"
+                            : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                         }`}
                         activeClassName=""
                       >
-                        <item.icon className="h-4 w-4 flex-shrink-0" />
+                        {active && (
+                          <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-4 rounded-r-full orbit-gradient" />
+                        )}
+                        <item.icon className={`h-4 w-4 flex-shrink-0 transition-colors duration-200 ${active ? "text-primary" : ""}`} />
                         {!collapsed && <span>{item.title}</span>}
                       </NavLink>
                     </SidebarMenuButton>
@@ -73,14 +79,16 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+
+      {/* Upgrade Footer */}
       {!isPro && (
         <SidebarFooter className="p-3">
           <button
             onClick={() => navigate("/upgrade")}
-            className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors text-sm"
+            className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-all duration-200 text-sm press-effect"
           >
             <Crown className="h-4 w-4 text-primary shrink-0" />
-            {!collapsed && <span className="text-primary font-medium">Upgrade Pro</span>}
+            {!collapsed && <span className="text-primary font-medium text-[13px]">Upgrade Pro</span>}
           </button>
         </SidebarFooter>
       )}
