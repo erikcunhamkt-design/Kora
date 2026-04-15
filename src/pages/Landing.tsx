@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { PLAN_PRICE } from "@/contexts/PlanContext";
+import orbitLogo from "@/assets/orbit-logo.png";
 import { useEffect, useRef } from "react";
 
 /* ─── scroll reveal hook ─── */
@@ -106,6 +107,9 @@ const Landing = () => {
       <nav className="fixed top-0 inset-x-0 z-50 border-b border-border/30 glass-panel-subtle">
         <div className="max-w-7xl mx-auto flex items-center justify-between px-6 h-16">
           <div className="flex items-center gap-3">
+            <div className="orbit-logo-container">
+              <img src={orbitLogo} alt="Orbit" className="h-8 w-8 object-contain" />
+            </div>
             <span className="text-xl font-bold orbit-gradient-text tracking-tight">Orbit</span>
             <span className="hidden sm:inline text-xs text-muted-foreground/50 tracking-wide uppercase">Clarity for creative work</span>
           </div>
@@ -453,9 +457,14 @@ const Landing = () => {
       <footer className="border-t border-border/30 py-14 px-6">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-8">
-            <div className="flex flex-col">
-              <span className="text-lg font-bold orbit-gradient-text">Orbit</span>
-              <span className="text-[0.625rem] text-muted-foreground/50 tracking-wide uppercase">Clarity for creative work</span>
+            <div className="flex items-center gap-3">
+              <div className="orbit-logo-container">
+                <img src={orbitLogo} alt="Orbit" className="h-7 w-7 object-contain" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-lg font-bold orbit-gradient-text">Orbit</span>
+                <span className="text-[0.625rem] text-muted-foreground/50 tracking-wide uppercase">Clarity for creative work</span>
+              </div>
             </div>
             <div className="flex gap-5 text-sm text-muted-foreground">
               <button onClick={() => navigate("/login")} className="hover:text-foreground transition-colors">Entrar</button>

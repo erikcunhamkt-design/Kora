@@ -242,7 +242,31 @@
     background-size: 200% 100%;
     animation: shimmer 1.5s ease-in-out infinite;
   }
+  /* Logo light sweep */
+  .orbit-logo-container {
+    position: relative;
+    display: inline-flex;
+    overflow: hidden;
+    border-radius: 0.5rem;
+  }
+  .orbit-logo-container::after {
+    content: '';
+    position: absolute;
+    inset: -50%;
+    background: conic-gradient(
+      from 0deg,
+      transparent 0%,
+      hsl(263 84% 70% / 0.35) 10%,
+      transparent 20%
+    );
+    animation: logoLightSweep 3s linear infinite;
+    pointer-events: none;
+  }
 }
+
+@keyframes logoLightSweep {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 
 @keyframes fadeUp {
   from {

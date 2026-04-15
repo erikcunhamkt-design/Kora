@@ -1,7 +1,8 @@
 import {
   LayoutDashboard, Briefcase, Users, TrendingUp,
-  DollarSign, CheckSquare, Target, Settings, Orbit, Crown
+  DollarSign, CheckSquare, Target, Settings, Crown
 } from "lucide-react";
+import orbitLogo from "@/assets/orbit-logo.png";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
@@ -35,8 +36,8 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" className="border-r border-border/40">
       {/* Logo */}
       <div className="flex items-center gap-2.5 px-5 py-5 border-b border-border/40">
-        <div className="orbit-gradient rounded-lg p-1.5 flex-shrink-0 shadow-[0_0_20px_hsl(263_84%_58%/0.25)]">
-          <Orbit className="h-5 w-5 text-white" />
+        <div className="orbit-logo-container flex-shrink-0">
+          <img src={orbitLogo} alt="Orbit" className="h-9 w-9 object-contain" />
         </div>
         {!collapsed && (
           <div className="flex flex-col">
