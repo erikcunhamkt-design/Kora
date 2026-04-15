@@ -1,9 +1,12 @@
 import { DollarSign, Users, CheckSquare, FileText, Target, Briefcase } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { PerformanceChart } from "@/components/dashboard/PerformanceChart";
-import { RecentTasks } from "@/components/dashboard/RecentTasks";
 import { CRMPipeline } from "@/components/dashboard/CRMPipeline";
 import { GoalsSection } from "@/components/dashboard/GoalsSection";
+import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
+import { InsightsSection } from "@/components/dashboard/InsightsSection";
+import { TodayTasks } from "@/components/dashboard/TodayTasks";
+import { FinanceSummary } from "@/components/dashboard/FinanceSummary";
 
 const metrics = [
   { title: "Faturamento do Mês", value: "R$ 12.450", change: "+12% vs mês anterior", changeType: "positive" as const, icon: DollarSign },
@@ -16,17 +19,33 @@ const metrics = [
 
 const Dashboard = () => (
   <div className="space-y-6">
+    {/* Metric Cards */}
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
       {metrics.map((m) => (
         <MetricCard key={m.title} {...m} />
       ))}
     </div>
+
+    {/* Insights */}
+    <InsightsSection />
+
+    {/* Finance + Goals */}
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <FinanceSummary />
+      <GoalsSection />
+    </div>
+
+    {/* Chart + Today Tasks */}
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       <PerformanceChart />
-      <RecentTasks />
+      <TodayTasks />
     </div>
+
+    {/* CRM Pipeline */}
     <CRMPipeline />
-    <GoalsSection />
+
+    {/* Activity Feed */}
+    <ActivityFeed />
   </div>
 );
 
