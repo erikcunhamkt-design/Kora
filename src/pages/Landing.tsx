@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { PLAN_PRICE } from "@/contexts/PlanContext";
+import orbitLogo from "@/assets/orbit-logo.png";
 import { useEffect, useRef } from "react";
 
 /* ─── scroll reveal hook ─── */
