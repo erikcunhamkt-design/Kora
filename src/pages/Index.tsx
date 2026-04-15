@@ -35,13 +35,13 @@ function UsageSummary() {
   ];
 
   return (
-    <div className="orbit-card p-5 space-y-3 animate-fade-up">
+    <div className="orbit-card p-6 space-y-4 animate-fade-up">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Crown className="h-4 w-4 text-primary" />
-          <span className="text-sm font-medium text-foreground">Uso do plano Free</span>
+          <span className="text-[0.9375rem] font-medium text-foreground">Uso do plano Free</span>
         </div>
-        <button onClick={() => navigate("/upgrade")} className="text-[11px] text-primary hover:underline font-medium">
+        <button onClick={() => navigate("/upgrade")} className="text-[0.8125rem] text-primary hover:underline font-medium">
           Upgrade
         </button>
       </div>
@@ -49,10 +49,10 @@ function UsageSummary() {
         {items.map((item) => {
           const atLimit = item.current >= item.max;
           return (
-            <div key={item.label} className={`p-3 rounded-lg border transition-all duration-200 ${atLimit ? "border-destructive/30 bg-destructive/5" : "border-border bg-muted/20"}`}>
-              <div className="flex items-center gap-1.5 mb-1">
-                {atLimit && <AlertTriangle className="h-3 w-3 text-destructive" />}
-                <span className="text-[11px] text-muted-foreground uppercase tracking-wider">{item.label}</span>
+            <div key={item.label} className={`p-3.5 rounded-lg border transition-all duration-200 ${atLimit ? "border-destructive/30 bg-destructive/5" : "border-border bg-muted/20"}`}>
+              <div className="flex items-center gap-1.5 mb-1.5">
+                {atLimit && <AlertTriangle className="h-3.5 w-3.5 text-destructive" />}
+                <span className="text-[0.8125rem] text-muted-foreground uppercase tracking-wider">{item.label}</span>
               </div>
               <p className={`text-xl font-bold ${atLimit ? "text-destructive" : "text-foreground"}`}>
                 {item.current}/{item.max === Infinity ? "∞" : item.max}
@@ -70,7 +70,7 @@ const Dashboard = () => (
     <PlanBanner />
 
     {/* Metric Cards */}
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 stagger-children">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 stagger-children">
       {metrics.map((m) => (
         <MetricCard key={m.title} {...m} />
       ))}

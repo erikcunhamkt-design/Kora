@@ -42,8 +42,8 @@ export function TopBar() {
       <div className="flex items-center gap-4">
         <SidebarTrigger className="text-muted-foreground hover:text-foreground transition-colors duration-150" />
         <div>
-          <h1 className="text-base font-semibold text-foreground tracking-tight">{page.title}</h1>
-          <p className="text-[11px] text-muted-foreground">{page.subtitle}</p>
+          <h1 className="text-lg font-semibold text-foreground tracking-tight leading-tight">{page.title}</h1>
+          <p className="text-[0.8125rem] text-muted-foreground mt-0.5">{page.subtitle}</p>
         </div>
       </div>
       <div className="flex items-center gap-2.5">
