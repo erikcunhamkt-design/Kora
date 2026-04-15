@@ -105,7 +105,10 @@ const Landing = () => {
       {/* ── Nav ── */}
       <nav className="fixed top-0 inset-x-0 z-50 border-b border-border/30 glass-panel-subtle">
         <div className="max-w-7xl mx-auto flex items-center justify-between px-6 h-16">
-          <span className="text-xl font-bold orbit-gradient-text tracking-tight">Orbit</span>
+          <div className="flex items-center gap-3">
+            <span className="text-xl font-bold orbit-gradient-text tracking-tight">Orbit</span>
+            <span className="hidden sm:inline text-xs text-muted-foreground/50 tracking-wide uppercase">Clarity for creative work</span>
+          </div>
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="sm" onClick={() => navigate("/login")} className="text-muted-foreground hover:text-foreground">Entrar</Button>
             <Button size="sm" className="orbit-gradient border-0 shadow-[0_0_20px_hsl(263_84%_58%/0.25)]" onClick={() => navigate("/signup")}>
@@ -450,7 +453,10 @@ const Landing = () => {
       <footer className="border-t border-border/30 py-14 px-6">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-8">
-            <span className="text-lg font-bold orbit-gradient-text">Orbit</span>
+            <div className="flex flex-col">
+              <span className="text-lg font-bold orbit-gradient-text">Orbit</span>
+              <span className="text-[0.625rem] text-muted-foreground/50 tracking-wide uppercase">Clarity for creative work</span>
+            </div>
             <div className="flex gap-5 text-sm text-muted-foreground">
               <button onClick={() => navigate("/login")} className="hover:text-foreground transition-colors">Entrar</button>
               <button onClick={() => navigate("/signup")} className="hover:text-foreground transition-colors">Criar conta</button>
