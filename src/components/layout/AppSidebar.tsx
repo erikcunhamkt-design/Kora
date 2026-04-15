@@ -32,10 +32,10 @@ export function AppSidebar() {
     path === "/" ? location.pathname === "/" : location.pathname.startsWith(path);
 
   return (
-    <Sidebar collapsible="icon" className="border-r border-border/60">
+    <Sidebar collapsible="icon" className="border-r border-border/40">
       {/* Logo */}
-      <div className="flex items-center gap-2.5 px-4 py-5 border-b border-border/60">
-        <div className="orbit-gradient rounded-lg p-1.5 flex-shrink-0 shadow-[0_0_16px_hsl(263_84%_58%/0.2)]">
+      <div className="flex items-center gap-2.5 px-5 py-5 border-b border-border/40">
+        <div className="orbit-gradient rounded-lg p-1.5 flex-shrink-0 shadow-[0_0_20px_hsl(263_84%_58%/0.25)]">
           <Orbit className="h-5 w-5 text-white" />
         </div>
         {!collapsed && (
@@ -46,10 +46,10 @@ export function AppSidebar() {
       </div>
 
       {/* Navigation */}
-      <SidebarContent className="px-2 py-4">
+      <SidebarContent className="px-3 py-5">
         <SidebarGroup>
           <SidebarGroupContent>
-            <SidebarMenu className="space-y-0.5">
+            <SidebarMenu className="space-y-1">
               {navItems.map((item) => {
                 const active = isActive(item.url);
                 return (
@@ -58,15 +58,18 @@ export function AppSidebar() {
                       <NavLink
                         to={item.url}
                         end={item.url === "/"}
-                        className={`relative flex items-center gap-3 px-3.5 py-3 rounded-lg text-[0.9375rem] font-medium transition-all duration-200 ${
+                        className={`relative flex items-center gap-3.5 px-3.5 py-3 rounded-lg text-[0.9375rem] font-medium transition-all duration-200 ${
                           active
-                            ? "bg-primary/10 text-primary shadow-[inset_0_0_0_1px_hsl(263_84%_58%/0.15)]"
-                            : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                            ? "bg-primary/8 text-primary"
+                            : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
                         }`}
                         activeClassName=""
+                        style={active ? {
+                          boxShadow: 'inset 0 0 0 1px hsl(263 84% 58% / 0.12), 0 0 16px hsl(263 84% 58% / 0.04)'
+                        } : undefined}
                       >
                         {active && (
-                          <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full orbit-gradient" />
+                          <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full orbit-gradient shadow-[0_0_8px_hsl(263_84%_58%/0.3)]" />
                         )}
                         <item.icon className={`h-[18px] w-[18px] flex-shrink-0 transition-colors duration-200 ${active ? "text-primary" : ""}`} />
                         {!collapsed && <span>{item.title}</span>}
@@ -85,10 +88,10 @@ export function AppSidebar() {
         <SidebarFooter className="p-3">
           <button
             onClick={() => navigate("/upgrade")}
-            className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-all duration-200 text-sm press-effect"
+            className="w-full flex items-center gap-2.5 px-4 py-3 rounded-lg border border-primary/15 bg-primary/5 hover:bg-primary/8 transition-all duration-200 text-sm press-effect group"
           >
-            <Crown className="h-4 w-4 text-primary shrink-0" />
-            {!collapsed && <span className="text-primary font-medium text-[13px]">Upgrade Pro</span>}
+            <Crown className="h-4 w-4 text-primary shrink-0 group-hover:scale-110 transition-transform duration-200" />
+            {!collapsed && <span className="text-primary font-medium">Upgrade Pro</span>}
           </button>
         </SidebarFooter>
       )}
