@@ -6,47 +6,49 @@
 
 @layer base {
   :root {
-    --background: 240 15% 5%;
-    --foreground: 210 40% 95%;
+    --background: 240 20% 5%;
+    --foreground: 0 0% 100%;
 
-    --card: 240 12% 9%;
-    --card-foreground: 210 40% 95%;
+    --card: 240 18% 9%;
+    --card-foreground: 0 0% 100%;
 
-    --popover: 240 12% 9%;
-    --popover-foreground: 210 40% 95%;
+    --popover: 240 18% 9%;
+    --popover-foreground: 0 0% 100%;
 
-    --primary: 338 100% 65%;
+    --primary: 263 84% 58%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 262 83% 58%;
+    --secondary: 240 12% 19%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 240 10% 14%;
-    --muted-foreground: 240 10% 50%;
+    --muted: 240 16% 15%;
+    --muted-foreground: 240 5% 65%;
 
-    --accent: 172 100% 48%;
-    --accent-foreground: 0 0% 0%;
+    --accent: 259 94% 76%;
+    --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 240 10% 14%;
-    --input: 240 10% 16%;
-    --ring: 338 100% 65%;
+    --border: 240 16% 15%;
+    --input: 240 12% 19%;
+    --ring: 263 84% 58%;
 
     --radius: 0.75rem;
 
-    --sidebar-background: 240 13% 7%;
-    --sidebar-foreground: 240 10% 50%;
-    --sidebar-primary: 338 100% 65%;
+    --sidebar-background: 240 20% 5%;
+    --sidebar-foreground: 240 5% 65%;
+    --sidebar-primary: 263 84% 58%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 10% 12%;
-    --sidebar-accent-foreground: 210 40% 95%;
-    --sidebar-border: 240 10% 12%;
-    --sidebar-ring: 338 100% 65%;
+    --sidebar-accent: 240 18% 9%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 240 16% 15%;
+    --sidebar-ring: 263 84% 58%;
 
-    --orbit-gradient: linear-gradient(135deg, hsl(338 100% 65%), hsl(262 83% 58%));
-    --orbit-glow: 0 0 20px hsl(338 100% 65% / 0.3);
+    --orbit-gradient: linear-gradient(135deg, hsl(263 84% 58%), hsl(259 94% 76%));
+    --orbit-glow: 0 0 20px hsl(263 84% 58% / 0.3);
+
+    --primary-hover: 263 70% 50%;
   }
 }
 
@@ -63,16 +65,16 @@
 
 @layer utilities {
   .orbit-gradient {
-    background: linear-gradient(135deg, hsl(338 100% 65%), hsl(262 83% 58%));
+    background: linear-gradient(135deg, hsl(263 84% 58%), hsl(259 94% 76%));
   }
   .orbit-gradient-text {
-    background: linear-gradient(135deg, hsl(338 100% 65%), hsl(262 83% 58%));
+    background: linear-gradient(135deg, hsl(263 84% 58%), hsl(259 94% 76%));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
   .orbit-glow {
-    box-shadow: 0 0 20px hsl(338 100% 65% / 0.15);
+    box-shadow: 0 0 20px hsl(263 84% 58% / 0.15);
   }
   .orbit-card {
     @apply bg-card border border-border rounded-xl;
