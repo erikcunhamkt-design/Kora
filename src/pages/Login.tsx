@@ -4,8 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, LogIn } from "lucide-react";
+import { Loader2, LogIn, Orbit } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Login() {
@@ -36,66 +35,70 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <div className="w-full max-w-md space-y-8">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4 relative overflow-hidden">
+      {/* Background glows */}
+      <div className="absolute top-1/4 left-1/4 w-[400px] h-[400px] rounded-full bg-primary/8 blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-1/4 right-1/4 w-[300px] h-[300px] rounded-full bg-accent/5 blur-[100px] pointer-events-none" />
+
+      <div className="w-full max-w-md space-y-8 animate-fade-up relative z-10">
         {/* Logo */}
         <div className="text-center space-y-2">
-          <div className="inline-flex items-center gap-2">
-            <div className="h-10 w-10 rounded-xl orbit-gradient flex items-center justify-center">
-              <span className="text-white font-bold text-lg">O</span>
+          <div className="inline-flex items-center gap-2.5">
+            <div className="h-10 w-10 rounded-xl orbit-gradient flex items-center justify-center shadow-[0_0_20px_hsl(263_84%_58%/0.3)]">
+              <Orbit className="h-5 w-5 text-white" />
             </div>
-            <span className="text-2xl font-bold text-foreground">Orbit</span>
+            <span className="text-2xl font-bold orbit-gradient-text">Orbit</span>
           </div>
           <p className="text-muted-foreground text-sm">Gerencie seu negócio criativo</p>
         </div>
 
-        <Card className="border-border bg-card">
-          <CardHeader className="text-center pb-4">
-            <CardTitle className="text-xl">Entrar na sua conta</CardTitle>
-            <CardDescription>Insira suas credenciais para acessar o painel</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="seu@email.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
+        <div className="rounded-xl border border-border/60 bg-card/80 backdrop-blur-xl p-8 shadow-premium-lg space-y-6">
+          <div className="text-center space-y-1">
+            <h2 className="text-xl font-semibold text-foreground">Entrar na sua conta</h2>
+            <p className="text-sm text-muted-foreground">Insira suas credenciais para acessar o painel</p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email" className="text-sm font-medium">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="seu@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password" className="text-sm font-medium">Senha</Label>
+                <Link to="/forgot-password" className="text-[11px] text-primary hover:underline font-medium">
+                  Esqueci minha senha
+                </Link>
               </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="password">Senha</Label>
-                  <Link to="/forgot-password" className="text-xs text-primary hover:underline">
-                    Esqueci minha senha
-                  </Link>
-                </div>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
-              </div>
-              <Button type="submit" className="w-full orbit-gradient border-0" disabled={loading}>
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
-                Entrar
-              </Button>
-            </form>
-            <p className="text-center text-sm text-muted-foreground mt-6">
-              Não tem conta?{" "}
-              <Link to="/signup" className="text-primary hover:underline font-medium">
-                Criar conta
-              </Link>
-            </p>
-          </CardContent>
-        </Card>
+              <Input
+                id="password"
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </div>
+            <Button type="submit" className="w-full orbit-gradient border-0 h-11" disabled={loading}>
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
+              Entrar
+            </Button>
+          </form>
+
+          <p className="text-center text-sm text-muted-foreground">
+            Não tem conta?{" "}
+            <Link to="/signup" className="text-primary hover:underline font-medium">
+              Criar conta
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   );
