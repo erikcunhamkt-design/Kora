@@ -338,7 +338,7 @@ const NewClientDialog = ({ open, onOpenChange }: { open: boolean; onOpenChange: 
           <FormField label="Email" placeholder="email@empresa.com" type="email" />
           <FormField label="Telefone" placeholder="(11) 99999-9999" />
           <FormField label="WhatsApp" placeholder="(11) 99999-9999" icon={<MessageCircle className="h-4 w-4" />} />
-          <FormField label="Instagram" placeholder="@usuario" icon={<Instagram className="h-4 w-4" />} />
+          <FormField label="Instagram" placeholder="@usuario" icon={<AtSign className="h-4 w-4" />} />
           <FormField label="Site" placeholder="www.site.com" icon={<Globe className="h-4 w-4" />} />
           <div className="space-y-2">
             <Label className="text-sm text-muted-foreground">Tipo de serviço</Label>
@@ -418,7 +418,7 @@ const ClientDetailSheet = ({ client, onClose }: { client: Client | null; onClose
               <InfoRow label="Email" value={client.email} icon={<Mail className="h-3.5 w-3.5" />} />
               <InfoRow label="Telefone" value={client.phone} icon={<Phone className="h-3.5 w-3.5" />} />
               <InfoRow label="WhatsApp" value={client.whatsapp} icon={<MessageCircle className="h-3.5 w-3.5" />} />
-              <InfoRow label="Instagram" value={client.instagram} icon={<Instagram className="h-3.5 w-3.5" />} />
+              <InfoRow label="Instagram" value={client.instagram} icon={<AtSign className="h-3.5 w-3.5" />} />
               <InfoRow label="Site" value={client.site} icon={<Globe className="h-3.5 w-3.5" />} />
             </div>
           </Section>
