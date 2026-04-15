@@ -41,8 +41,9 @@ export function AppSidebar() {
         </div>
         {!collapsed && (
           <div className="flex flex-col">
-            <span className="text-lg font-bold orbit-gradient-text tracking-tight leading-tight">
-              Orbyt Studio
+            <span className="text-lg font-bold tracking-tight leading-tight">
+              <span className="orbit-gradient-text">Orbyt</span>{" "}
+              <span className="text-foreground">Studio</span>
             </span>
             <span className="text-[0.625rem] text-muted-foreground/60 tracking-wide uppercase leading-tight">
               Clarity for creative work
