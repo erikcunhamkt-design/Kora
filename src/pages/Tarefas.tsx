@@ -96,6 +96,17 @@ const Tarefas = () => {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [newTaskOpen, setNewTaskOpen] = useState(false);
   const [draggedId, setDraggedId] = useState<number | null>(null);
+  const { wouldExceed, showPaywall, setUsage } = usePlan();
+
+  useEffect(() => { setUsage("tasks", tasks.length); }, [tasks.length, setUsage]);
+
+  const handleNewTask = () => {
+    if (wouldExceed("maxTasks", tasks.length)) {
+      showPaywall("tasks");
+      return;
+    }
+    setNewTaskOpen(true);
+  };
 
   const filtered = tasks.filter(t => {
     const q = search.toLowerCase();
@@ -142,9 +153,12 @@ const Tarefas = () => {
           <h1 className="text-2xl font-bold text-foreground">Tarefas</h1>
           <p className="text-muted-foreground text-sm mt-1">Organize suas atividades e acompanhe o progresso dos seus projetos</p>
         </div>
-        <Button onClick={() => setNewTaskOpen(true)} className="orbit-gradient text-white border-0 gap-2 shrink-0">
-          <Plus className="h-4 w-4" /> Nova tarefa
-        </Button>
+        <div className="flex items-center gap-3">
+          <UsageBadge resource="tasks" label="tarefas" />
+          <Button onClick={handleNewTask} className="orbit-gradient text-white border-0 gap-2 shrink-0">
+            <Plus className="h-4 w-4" /> Nova tarefa
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
