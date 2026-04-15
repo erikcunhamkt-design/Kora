@@ -1,8 +1,17 @@
-import { Search, Bell } from "lucide-react";
+import { Search, Bell, LogOut, User, ChevronDown } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const pageTitles: Record<string, { title: string; subtitle: string }> = {
   "/": { title: "Dashboard", subtitle: "Visão geral do seu negócio" },
@@ -18,6 +27,11 @@ const pageTitles: Record<string, { title: string; subtitle: string }> = {
 export function TopBar() {
   const location = useLocation();
   const page = pageTitles[location.pathname] || pageTitles["/"];
+  const { profile, signOut } = useAuth();
+
+  const initials = profile?.display_name
+    ? profile.display_name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()
+    : "DS";
 
   return (
     <header className="h-16 border-b border-border flex items-center justify-between px-6 bg-background/80 backdrop-blur-sm sticky top-0 z-10">
@@ -31,20 +45,45 @@ export function TopBar() {
       <div className="flex items-center gap-4">
         <div className="relative hidden md:block">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar..."
-            className="pl-9 w-64 bg-muted border-border h-9 text-sm"
-          />
+          <Input placeholder="Buscar..." className="pl-9 w-64 bg-muted border-border h-9 text-sm" />
         </div>
         <button className="relative p-2 rounded-lg hover:bg-muted transition-colors">
           <Bell className="h-4 w-4 text-muted-foreground" />
           <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full orbit-gradient" />
         </button>
-        <Avatar className="h-8 w-8">
-          <AvatarFallback className="orbit-gradient text-white text-xs font-semibold">
-            DS
-          </AvatarFallback>
-        </Avatar>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger className="flex items-center gap-2 focus:outline-none">
+            <Avatar className="h-8 w-8">
+              <AvatarFallback className="orbit-gradient text-white text-xs font-semibold">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+            <span className="hidden md:block text-sm font-medium text-foreground max-w-[120px] truncate">
+              {profile?.display_name || "Usuário"}
+            </span>
+            <ChevronDown className="h-3 w-3 text-muted-foreground hidden md:block" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuLabel className="font-normal">
+              <div className="flex flex-col space-y-1">
+                <p className="text-sm font-medium">{profile?.display_name || "Usuário"}</p>
+                <p className="text-xs text-muted-foreground">{profile?.email}</p>
+                <p className="text-xs text-muted-foreground capitalize">Plano {profile?.plan || "free"}</p>
+              </div>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => window.location.href = "/configuracoes"}>
+              <User className="mr-2 h-4 w-4" />
+              Perfil
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={signOut} className="text-destructive focus:text-destructive">
+              <LogOut className="mr-2 h-4 w-4" />
+              Sair
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </header>
   );

@@ -3,6 +3,8 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { MainLayout } from "@/components/layout/MainLayout";
 import Index from "./pages/Index";
 import Portfolio from "./pages/Portfolio";
@@ -12,6 +14,10 @@ import Financeiro from "./pages/Financeiro";
 import Tarefas from "./pages/Tarefas";
 import Metas from "./pages/Metas";
 import Configuracoes from "./pages/Configuracoes";
+import Login from "./pages/Login";
+import Signup from "./pages/Signup";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -22,19 +28,27 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <MainLayout>
+        <AuthProvider>
           <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/portfolio" element={<Portfolio />} />
-            <Route path="/clientes" element={<Clientes />} />
-            <Route path="/crm" element={<CRM />} />
-            <Route path="/financeiro" element={<Financeiro />} />
-            <Route path="/tarefas" element={<Tarefas />} />
-            <Route path="/metas" element={<Metas />} />
-            <Route path="/configuracoes" element={<Configuracoes />} />
+            {/* Public routes */}
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<Signup />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+
+            {/* Protected routes */}
+            <Route path="/" element={<ProtectedRoute><MainLayout><Index /></MainLayout></ProtectedRoute>} />
+            <Route path="/portfolio" element={<ProtectedRoute><MainLayout><Portfolio /></MainLayout></ProtectedRoute>} />
+            <Route path="/clientes" element={<ProtectedRoute><MainLayout><Clientes /></MainLayout></ProtectedRoute>} />
+            <Route path="/crm" element={<ProtectedRoute><MainLayout><CRM /></MainLayout></ProtectedRoute>} />
+            <Route path="/financeiro" element={<ProtectedRoute><MainLayout><Financeiro /></MainLayout></ProtectedRoute>} />
+            <Route path="/tarefas" element={<ProtectedRoute><MainLayout><Tarefas /></MainLayout></ProtectedRoute>} />
+            <Route path="/metas" element={<ProtectedRoute><MainLayout><Metas /></MainLayout></ProtectedRoute>} />
+            <Route path="/configuracoes" element={<ProtectedRoute><MainLayout><Configuracoes /></MainLayout></ProtectedRoute>} />
+
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </MainLayout>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
