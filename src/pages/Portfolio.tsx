@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { usePlan } from "@/contexts/PlanContext";
+import { UsageBadge } from "@/components/plan/UsageBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -90,6 +92,17 @@ const Portfolio = () => {
   const [filterStatus, setFilterStatus] = useState("all");
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const { wouldExceed, showPaywall, setUsage } = usePlan();
+
+  useEffect(() => { setUsage("projects", projects.length); }, [projects.length, setUsage]);
+
+  const handleOpenNewDialog = () => {
+    if (wouldExceed("maxProjects", projects.length)) {
+      showPaywall("projects");
+      return;
+    }
+    setDialogOpen(true);
+  };
 
   const filtered = projects.filter((p) => {
     if (search && !p.title.toLowerCase().includes(search.toLowerCase()) && !p.client.toLowerCase().includes(search.toLowerCase())) return false;
@@ -138,11 +151,11 @@ const Portfolio = () => {
           <h1 className="text-2xl font-bold text-foreground">Portfólio</h1>
           <p className="text-sm text-muted-foreground mt-1">Organize e apresente seus melhores projetos</p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="orbit-gradient hover:opacity-90 gap-2"><Plus className="h-4 w-4" /> Novo projeto</Button>
-          </DialogTrigger>
-          <DialogContent className="bg-card border-border max-w-lg max-h-[85vh] overflow-y-auto">
+        <div className="flex items-center gap-3">
+          <UsageBadge resource="projects" label="projetos" />
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <Button onClick={handleOpenNewDialog} className="orbit-gradient hover:opacity-90 gap-2"><Plus className="h-4 w-4" /> Novo projeto</Button>
+            <DialogContent className="bg-card border-border max-w-lg max-h-[85vh] overflow-y-auto">
             <DialogHeader><DialogTitle className="text-foreground">Novo Projeto</DialogTitle></DialogHeader>
             <form onSubmit={handleNew} className="space-y-4">
               <div><Label>Nome do projeto</Label><Input name="title" required className="mt-1.5 bg-muted border-border" /></div>
