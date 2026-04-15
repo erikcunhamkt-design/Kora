@@ -48,50 +48,50 @@ export default function Signup() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4 relative overflow-hidden">
-      <div className="absolute top-1/3 right-1/3 w-[400px] h-[400px] rounded-full bg-primary/8 blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-1/3 left-1/3 w-[300px] h-[300px] rounded-full bg-accent/5 blur-[100px] pointer-events-none" />
+      <div className="absolute top-1/3 right-1/3 w-[500px] h-[500px] rounded-full bg-primary/[0.06] blur-[150px] pointer-events-none" />
+      <div className="absolute bottom-1/3 left-1/3 w-[350px] h-[350px] rounded-full bg-accent/[0.04] blur-[120px] pointer-events-none" />
 
       <div className="w-full max-w-md space-y-8 animate-fade-up relative z-10">
-        <div className="text-center space-y-2">
+        <div className="text-center space-y-3">
           <div className="inline-flex items-center gap-2.5">
-            <div className="h-10 w-10 rounded-xl orbit-gradient flex items-center justify-center shadow-[0_0_20px_hsl(263_84%_58%/0.3)]">
+            <div className="h-11 w-11 rounded-xl orbit-gradient flex items-center justify-center shadow-[0_0_24px_hsl(263_84%_58%/0.3)]">
               <Orbit className="h-5 w-5 text-white" />
             </div>
             <span className="text-2xl font-bold orbit-gradient-text">Orbit</span>
           </div>
-          <p className="text-muted-foreground text-sm">Crie sua conta e comece agora</p>
+          <p className="text-muted-foreground text-[0.9375rem]">Crie sua conta e comece agora</p>
         </div>
 
-        <div className="rounded-xl border border-border/60 bg-card/80 backdrop-blur-xl p-8 shadow-premium-lg space-y-6">
-          <div className="text-center space-y-1">
+        <div className="orbit-card-glass p-8 space-y-6">
+          <div className="text-center space-y-1.5">
             <h2 className="text-xl font-semibold text-foreground">Criar conta</h2>
-            <p className="text-sm text-muted-foreground">Preencha os dados para começar</p>
+            <p className="text-[0.875rem] text-muted-foreground">Preencha os dados para começar</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="name" className="text-sm font-medium">Nome</Label>
+              <Label htmlFor="name">Nome</Label>
               <Input id="name" placeholder="Seu nome" value={name} onChange={(e) => setName(e.target.value)} required />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-sm font-medium">Email</Label>
+              <Label htmlFor="email">Email</Label>
               <Input id="email" type="email" placeholder="seu@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-sm font-medium">Senha</Label>
+              <Label htmlFor="password">Senha</Label>
               <Input id="password" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="confirm" className="text-sm font-medium">Confirmar senha</Label>
+              <Label htmlFor="confirm">Confirmar senha</Label>
               <Input id="confirm" type="password" placeholder="••••••••" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required />
             </div>
-            <Button type="submit" className="w-full orbit-gradient border-0 h-11" disabled={loading}>
+            <Button type="submit" className="w-full orbit-gradient border-0" disabled={loading}>
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
               Criar conta
             </Button>
           </form>
 
-          <p className="text-center text-sm text-muted-foreground">
+          <p className="text-center text-[0.875rem] text-muted-foreground">
             Já tem conta?{" "}
             <Link to="/login" className="text-primary hover:underline font-medium">
               Entrar
