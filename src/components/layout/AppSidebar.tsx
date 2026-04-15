@@ -36,8 +36,8 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" className="border-r border-border/40">
       {/* Logo */}
       <div className="flex items-center gap-2.5 px-5 py-5 border-b border-border/40">
-        <div className="orbit-logo-container flex-shrink-0 animate-glow-pulse rounded-lg">
-          <img src={orbitLogo} alt="Orbyt Studio" className="h-9 w-9 object-contain drop-shadow-[0_0_8px_hsl(263_84%_58%/0.4)]" />
+        <div className="flex-shrink-0">
+          <img src={orbitLogo} alt="Orbyt Studio" className="h-12 w-12 object-contain" />
         </div>
         {!collapsed && (
           <div className="flex flex-col">
