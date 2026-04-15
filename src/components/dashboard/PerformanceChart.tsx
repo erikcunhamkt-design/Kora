@@ -11,30 +11,32 @@ const data = [
 
 export function PerformanceChart() {
   return (
-    <div className="orbit-card p-5">
-      <h3 className="text-sm font-semibold text-foreground mb-1">Desempenho Mensal</h3>
-      <p className="text-xs text-muted-foreground mb-4">Faturamento dos últimos 6 meses</p>
+    <div className="orbit-card p-5 animate-fade-up">
+      <h3 className="text-sm font-semibold text-foreground mb-0.5">Desempenho Mensal</h3>
+      <p className="text-[11px] text-muted-foreground mb-5">Faturamento dos últimos 6 meses</p>
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(230 14% 18%)" />
-            <XAxis dataKey="month" tick={{ fill: "hsl(215 20% 55%)", fontSize: 12 }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fill: "hsl(215 20% 55%)", fontSize: 12 }} axisLine={false} tickLine={false} />
+          <BarChart data={data} barCategoryGap="20%">
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(240 14% 14%)" vertical={false} />
+            <XAxis dataKey="month" tick={{ fill: "hsl(240 5% 65%)", fontSize: 11 }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fill: "hsl(240 5% 65%)", fontSize: 11 }} axisLine={false} tickLine={false} width={45} />
             <Tooltip
+              cursor={{ fill: "hsl(263 84% 58% / 0.05)" }}
               contentStyle={{
-                backgroundColor: "hsl(230 16% 12%)",
-                border: "1px solid hsl(230 14% 18%)",
-                borderRadius: "8px",
-                color: "hsl(210 40% 95%)",
+                backgroundColor: "hsl(240 24% 8%)",
+                border: "1px solid hsl(240 14% 14%)",
+                borderRadius: "10px",
+                color: "#fff",
                 fontSize: 12,
+                boxShadow: "0 8px 32px hsl(0 0% 0% / 0.4)",
               }}
               formatter={(value: number) => [`R$ ${value.toLocaleString("pt-BR")}`, "Faturamento"]}
             />
-            <Bar dataKey="valor" fill="url(#gradient)" radius={[6, 6, 0, 0]} />
+            <Bar dataKey="valor" fill="url(#chartGradient)" radius={[6, 6, 0, 0]} />
             <defs>
-              <linearGradient id="gradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="hsl(217 91% 60%)" />
-                <stop offset="100%" stopColor="hsl(263 70% 58%)" />
+              <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="hsl(263 84% 58%)" />
+                <stop offset="100%" stopColor="hsl(263 84% 58% / 0.4)" />
               </linearGradient>
             </defs>
           </BarChart>
