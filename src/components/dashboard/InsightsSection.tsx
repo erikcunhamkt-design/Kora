@@ -9,16 +9,16 @@ const insights = [
 
 export function InsightsSection() {
   return (
-    <div className="orbit-card p-5 animate-fade-up">
-      <h3 className="text-sm font-semibold text-foreground mb-0.5">Insights</h3>
-      <p className="text-[11px] text-muted-foreground mb-4">Dicas baseadas na sua atividade</p>
-      <div className="space-y-2">
+    <div className="orbit-card p-6 animate-fade-up">
+      <h3 className="text-base font-semibold text-foreground mb-1">Insights</h3>
+      <p className="text-[0.8125rem] text-muted-foreground mb-5">Dicas baseadas na sua atividade</p>
+      <div className="space-y-2.5">
         {insights.map((ins, i) => {
           const Icon = ins.icon;
           return (
-            <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-all duration-200 border border-transparent hover:border-border/50">
-              <div className={`p-1.5 rounded-lg ${ins.color} shrink-0 mt-0.5`}><Icon className="h-4 w-4" /></div>
-              <p className="text-sm text-foreground/90 leading-relaxed">{ins.text}</p>
+            <div key={i} className="flex items-start gap-3 p-3.5 rounded-lg bg-muted/30 hover:bg-muted/50 transition-all duration-200 border border-transparent hover:border-border/50">
+              <div className={`p-2 rounded-lg ${ins.color} shrink-0 mt-0.5`}><Icon className="h-4 w-4" /></div>
+              <p className="text-[0.9375rem] text-foreground/90 leading-relaxed">{ins.text}</p>
             </div>
           );
         })}

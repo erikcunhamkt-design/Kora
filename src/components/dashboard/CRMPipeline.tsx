@@ -25,21 +25,21 @@ const columns = [
 
 export function CRMPipeline() {
   return (
-    <div className="orbit-card p-5 animate-fade-up">
-      <h3 className="text-sm font-semibold text-foreground mb-0.5">Pipeline CRM</h3>
-      <p className="text-[11px] text-muted-foreground mb-4">Oportunidades em andamento</p>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+    <div className="orbit-card p-6 animate-fade-up">
+      <h3 className="text-base font-semibold text-foreground mb-1">Pipeline CRM</h3>
+      <p className="text-[0.8125rem] text-muted-foreground mb-5">Oportunidades em andamento</p>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {columns.map((col) => (
-          <div key={col.title} className="space-y-2">
-            <div className="flex items-center gap-2 mb-2">
+          <div key={col.title} className="space-y-2.5">
+            <div className="flex items-center gap-2 mb-3">
               <div className={`h-2 w-2 rounded-full ${col.color}`} />
-              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">{col.title}</span>
-              <span className="text-[11px] text-muted-foreground ml-auto bg-muted/60 px-1.5 py-0.5 rounded">{col.items.length}</span>
+              <span className="text-[0.8125rem] font-semibold text-muted-foreground uppercase tracking-wider">{col.title}</span>
+              <span className="text-[0.8125rem] text-muted-foreground ml-auto bg-muted/60 px-1.5 py-0.5 rounded">{col.items.length}</span>
             </div>
             {col.items.map((item, i) => (
-              <div key={i} className="p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-all duration-150 border border-transparent hover:border-border/50">
-                <p className="text-sm font-medium text-foreground">{item.name}</p>
-                <p className="text-[11px] text-muted-foreground mt-1 font-medium">{item.value}</p>
+              <div key={i} className="p-3.5 rounded-lg bg-muted/30 hover:bg-muted/50 transition-all duration-150 border border-transparent hover:border-border/50">
+                <p className="text-[0.9375rem] font-medium text-foreground">{item.name}</p>
+                <p className="text-[0.8125rem] text-muted-foreground mt-1 font-medium">{item.value}</p>
               </div>
             ))}
           </div>
