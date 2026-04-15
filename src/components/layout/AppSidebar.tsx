@@ -58,7 +58,7 @@ export function AppSidebar() {
                       <NavLink
                         to={item.url}
                         end={item.url === "/"}
-                        className={`relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                        className={`relative flex items-center gap-3 px-3.5 py-3 rounded-lg text-[0.9375rem] font-medium transition-all duration-200 ${
                           active
                             ? "bg-primary/10 text-primary shadow-[inset_0_0_0_1px_hsl(263_84%_58%/0.15)]"
                             : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
@@ -66,9 +66,9 @@ export function AppSidebar() {
                         activeClassName=""
                       >
                         {active && (
-                          <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-4 rounded-r-full orbit-gradient" />
+                          <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full orbit-gradient" />
                         )}
-                        <item.icon className={`h-4 w-4 flex-shrink-0 transition-colors duration-200 ${active ? "text-primary" : ""}`} />
+                        <item.icon className={`h-[18px] w-[18px] flex-shrink-0 transition-colors duration-200 ${active ? "text-primary" : ""}`} />
                         {!collapsed && <span>{item.title}</span>}
                       </NavLink>
                     </SidebarMenuButton>
