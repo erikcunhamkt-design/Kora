@@ -1,4 +1,6 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { usePlan } from "@/contexts/PlanContext";
+import { UsageBadge } from "@/components/plan/UsageBadge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -222,6 +224,18 @@ const CRM = () => {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [newLeadOpen, setNewLeadOpen] = useState(false);
   const [draggedId, setDraggedId] = useState<number | null>(null);
+  const { wouldExceed, showPaywall, setUsage } = usePlan();
+
+  const activeLeads = leads.filter(l => !["fechado", "perdido"].includes(l.stage)).length;
+  useEffect(() => { setUsage("leads", activeLeads); }, [activeLeads, setUsage]);
+
+  const handleNewLead = () => {
+    if (wouldExceed("maxLeads", activeLeads)) {
+      showPaywall("leads");
+      return;
+    }
+    setNewLeadOpen(true);
+  };
 
   const filtered = leads.filter(l => {
     const q = search.toLowerCase();
@@ -260,9 +274,12 @@ const CRM = () => {
           <h1 className="text-2xl font-bold text-foreground">CRM</h1>
           <p className="text-muted-foreground text-sm mt-1">Acompanhe seus leads e oportunidades de negócio</p>
         </div>
-        <Button onClick={() => setNewLeadOpen(true)} className="orbit-gradient text-white border-0 gap-2 shrink-0">
-          <Plus className="h-4 w-4" /> Novo lead
-        </Button>
+        <div className="flex items-center gap-3">
+          <UsageBadge resource="leads" label="leads" />
+          <Button onClick={handleNewLead} className="orbit-gradient text-white border-0 gap-2 shrink-0">
+            <Plus className="h-4 w-4" /> Novo lead
+          </Button>
+        </div>
       </div>
 
       {/* Summary */}

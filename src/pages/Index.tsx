@@ -7,6 +7,10 @@ import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { InsightsSection } from "@/components/dashboard/InsightsSection";
 import { TodayTasks } from "@/components/dashboard/TodayTasks";
 import { FinanceSummary } from "@/components/dashboard/FinanceSummary";
+import { PlanBanner } from "@/components/plan/PlanBanner";
+import { usePlan } from "@/contexts/PlanContext";
+import { Crown, AlertTriangle } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 const metrics = [
   { title: "Faturamento do Mês", value: "R$ 12.450", change: "+12% vs mês anterior", changeType: "positive" as const, icon: DollarSign },
@@ -17,14 +21,64 @@ const metrics = [
   { title: "Projetos no Portfólio", value: "16", change: "+2 este mês", changeType: "positive" as const, icon: Briefcase },
 ];
 
+function UsageSummary() {
+  const { isPro, limits, usage } = usePlan();
+  const navigate = useNavigate();
+
+  if (isPro) return null;
+
+  const items = [
+    { label: "Clientes", current: usage.clients, max: limits.maxClients },
+    { label: "Projetos", current: usage.projects, max: limits.maxProjects },
+    { label: "Tarefas", current: usage.tasks, max: limits.maxTasks },
+    { label: "Leads", current: usage.leads, max: limits.maxLeads },
+  ];
+
+  return (
+    <div className="orbit-card p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Crown className="h-4 w-4 text-primary" />
+          <span className="text-sm font-medium text-foreground">Uso do plano Free</span>
+        </div>
+        <button onClick={() => navigate("/upgrade")} className="text-xs text-primary hover:underline font-medium">
+          Upgrade
+        </button>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {items.map((item) => {
+          const atLimit = item.current >= item.max;
+          return (
+            <div key={item.label} className={`p-2.5 rounded-lg border ${atLimit ? "border-destructive/30 bg-destructive/5" : "border-border bg-muted/30"}`}>
+              <div className="flex items-center gap-1.5 mb-1">
+                {atLimit && <AlertTriangle className="h-3 w-3 text-destructive" />}
+                <span className="text-xs text-muted-foreground">{item.label}</span>
+              </div>
+              <p className={`text-lg font-bold ${atLimit ? "text-destructive" : "text-foreground"}`}>
+                {item.current}/{item.max === Infinity ? "∞" : item.max}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 const Dashboard = () => (
   <div className="space-y-6">
+    {/* Plan Banner */}
+    <PlanBanner />
+
     {/* Metric Cards */}
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
       {metrics.map((m) => (
         <MetricCard key={m.title} {...m} />
       ))}
     </div>
+
+    {/* Usage Summary */}
+    <UsageSummary />
 
     {/* Insights */}
     <InsightsSection />

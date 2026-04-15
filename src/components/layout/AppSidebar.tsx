@@ -1,13 +1,14 @@
 import {
   LayoutDashboard, Briefcase, Users, TrendingUp,
-  DollarSign, CheckSquare, Target, Settings, Orbit
+  DollarSign, CheckSquare, Target, Settings, Orbit, Crown
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
-  SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar,
+  SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar, SidebarFooter,
 } from "@/components/ui/sidebar";
+import { usePlan } from "@/contexts/PlanContext";
 
 const navItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
@@ -24,6 +25,8 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
+  const navigate = useNavigate();
+  const { isPro } = usePlan();
 
   const isActive = (path: string) =>
     path === "/" ? location.pathname === "/" : location.pathname.startsWith(path);
@@ -70,6 +73,17 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      {!isPro && (
+        <SidebarFooter className="p-3">
+          <button
+            onClick={() => navigate("/upgrade")}
+            className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors text-sm"
+          >
+            <Crown className="h-4 w-4 text-primary shrink-0" />
+            {!collapsed && <span className="text-primary font-medium">Upgrade Pro</span>}
+          </button>
+        </SidebarFooter>
+      )}
     </Sidebar>
   );
 }

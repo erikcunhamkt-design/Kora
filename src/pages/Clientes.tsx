@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { usePlan } from "@/contexts/PlanContext";
+import { UsageBadge } from "@/components/plan/UsageBadge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -145,6 +147,17 @@ const Clientes = () => {
   const [viewMode, setViewMode] = useState<"table" | "grid">("table");
   const [newClientOpen, setNewClientOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const { wouldExceed, showPaywall, setUsage } = usePlan();
+
+  useEffect(() => { setUsage("clients", clients.length); }, [clients.length, setUsage]);
+
+  const handleNewClient = () => {
+    if (wouldExceed("maxClients", clients.length)) {
+      showPaywall("clients");
+      return;
+    }
+    setNewClientOpen(true);
+  };
 
   // Filtering & sorting
   const filtered = clients
@@ -169,9 +182,12 @@ const Clientes = () => {
           <h1 className="text-2xl font-bold text-foreground">Clientes</h1>
           <p className="text-muted-foreground text-sm mt-1">Gerencie seus clientes, contatos e informações importantes em um só lugar</p>
         </div>
-        <Button onClick={() => setNewClientOpen(true)} className="orbit-gradient text-white border-0 gap-2 shrink-0">
-          <Plus className="h-4 w-4" /> Novo cliente
-        </Button>
+        <div className="flex items-center gap-3">
+          <UsageBadge resource="clients" label="clientes" />
+          <Button onClick={handleNewClient} className="orbit-gradient text-white border-0 gap-2 shrink-0">
+            <Plus className="h-4 w-4" /> Novo cliente
+          </Button>
+        </div>
       </div>
 
       {/* Summary cards */}
