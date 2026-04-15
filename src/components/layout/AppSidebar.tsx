@@ -39,9 +39,14 @@ export function AppSidebar() {
           <Orbit className="h-5 w-5 text-white" />
         </div>
         {!collapsed && (
-          <span className="text-lg font-bold orbit-gradient-text tracking-tight">
-            Orbit
-          </span>
+          <div className="flex flex-col">
+            <span className="text-lg font-bold orbit-gradient-text tracking-tight leading-tight">
+              Orbit
+            </span>
+            <span className="text-[0.625rem] text-muted-foreground/60 tracking-wide uppercase leading-tight">
+              Clarity for creative work
+            </span>
+          </div>
         )}
       </div>
 
