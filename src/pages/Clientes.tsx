@@ -12,7 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import {
   Users, UserCheck, UserPlus, FolderKanban, Search, SlidersHorizontal,
   Plus, ArrowUpDown, LayoutGrid, LayoutList, Phone, Mail, Globe,
-  Instagram, MessageCircle, ExternalLink, Calendar, Clock, MoreHorizontal,
+  MessageCircle, ExternalLink, Calendar, Clock, MoreHorizontal, AtSign,
   Briefcase, FileText, CheckSquare, StickyNote
 } from "lucide-react";
 import {
