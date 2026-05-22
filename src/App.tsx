@@ -16,6 +16,7 @@ import Financeiro from "./pages/Financeiro";
 import Tarefas from "./pages/Tarefas";
 import Metas from "./pages/Metas";
 import Configuracoes from "./pages/Configuracoes";
+import Vendas from "./pages/Vendas";
 import Upgrade from "./pages/Upgrade";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
@@ -48,6 +49,7 @@ const App = () => (
               <Route path="/portfolio" element={<ProtectedRoute><MainLayout><Portfolio /></MainLayout></ProtectedRoute>} />
               <Route path="/clientes" element={<ProtectedRoute><MainLayout><Clientes /></MainLayout></ProtectedRoute>} />
               <Route path="/crm" element={<ProtectedRoute><MainLayout><CRM /></MainLayout></ProtectedRoute>} />
+              <Route path="/vendas" element={<ProtectedRoute><MainLayout><Vendas /></MainLayout></ProtectedRoute>} />
               <Route path="/financeiro" element={<ProtectedRoute><MainLayout><Financeiro /></MainLayout></ProtectedRoute>} />
               <Route path="/tarefas" element={<ProtectedRoute><MainLayout><Tarefas /></MainLayout></ProtectedRoute>} />
               <Route path="/metas" element={<ProtectedRoute><MainLayout><Metas /></MainLayout></ProtectedRoute>} />
