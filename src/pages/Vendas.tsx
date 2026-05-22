@@ -62,7 +62,8 @@ export default function Vendas() {
     switch (activeTab) {
       case "home": return <SalesHome />;
       case "prospects": return <ProspectsPage prospects={prospects} onQuickAdd={() => setQuickAddOpen(true)} onNewProspect={() => setNewProspectOpen(true)} />;
-      case "servicos": return <ServicesPage onNewService={() => setNewServiceOpen(true)} />;
+      case "servicos": return <ServicesSection />;
+      case "orcamentos": return <QuotesSection />;
       case "clientes": return <ClientsPage onNewClient={() => setNewClientOpen(true)} />;
       case "ranking": return <RankingPage />;
       case "demandas": return <DemandCenter onNewNote={() => setNoteOpen(true)} />;
