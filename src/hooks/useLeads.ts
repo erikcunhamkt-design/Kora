@@ -19,6 +19,8 @@ export interface Lead {
   description: string;
   history: { date: string; text: string }[];
   notes: string;
+  /** Dados de demonstração — não contam para o limite do plano Free */
+  isDemo?: boolean;
 }
 
 const STORAGE_KEY = "orbyt.leads.v1";
