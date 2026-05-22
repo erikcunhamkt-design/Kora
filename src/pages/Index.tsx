@@ -8,6 +8,7 @@ import { InsightsSection } from "@/components/dashboard/InsightsSection";
 import { TodayTasks } from "@/components/dashboard/TodayTasks";
 import { FinanceSummary } from "@/components/dashboard/FinanceSummary";
 import { PlanBanner } from "@/components/plan/PlanBanner";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { usePlan } from "@/contexts/PlanContext";
 import { Crown, AlertTriangle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -67,7 +68,9 @@ function UsageSummary() {
 
 const Dashboard = () => (
   <div className="space-y-6">
+    <PageHeader title="Dashboard" subtitle="Visão geral do seu negócio" />
     <PlanBanner />
+
 
     {/* Metric Cards */}
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 stagger-children">

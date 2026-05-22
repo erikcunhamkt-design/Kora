@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { usePlan } from "@/contexts/PlanContext";
 import { UsageBadge } from "@/components/plan/UsageBadge";
 import { Button } from "@/components/ui/button";
@@ -145,47 +146,46 @@ const Portfolio = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Portfólio</h1>
-          <p className="text-sm text-muted-foreground mt-1">Organize e apresente seus melhores projetos</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <UsageBadge resource="projects" label="projetos" />
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <Button onClick={handleOpenNewDialog} className="orbit-gradient hover:opacity-90 gap-2"><Plus className="h-4 w-4" /> Novo projeto</Button>
-            <DialogContent className="bg-card border-border max-w-lg max-h-[85vh] overflow-y-auto">
-            <DialogHeader><DialogTitle className="text-foreground">Novo Projeto</DialogTitle></DialogHeader>
-            <form onSubmit={handleNew} className="space-y-4">
-              <div><Label>Nome do projeto</Label><Input name="title" required className="mt-1.5 bg-muted border-border" /></div>
-              <div><Label>Cliente</Label><Input name="client" required className="mt-1.5 bg-muted border-border" /></div>
-              <div><Label>Tipo</Label>
-                <Select name="type" defaultValue="Branding">
-                  <SelectTrigger className="mt-1.5 bg-muted border-border"><SelectValue /></SelectTrigger>
-                  <SelectContent className="bg-card border-border">
-                    {projectTypes.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div><Label>Status</Label>
-                <Select name="status" defaultValue="rascunho">
-                  <SelectTrigger className="mt-1.5 bg-muted border-border"><SelectValue /></SelectTrigger>
-                  <SelectContent className="bg-card border-border">
-                    <SelectItem value="rascunho">Rascunho</SelectItem>
-                    <SelectItem value="publicado">Publicado</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div><Label>Descrição</Label><Textarea name="description" className="mt-1.5 bg-muted border-border" rows={3} /></div>
-              <div><Label>Resultado</Label><Input name="result" className="mt-1.5 bg-muted border-border" placeholder="Ex: aumento de vendas em 30%" /></div>
-              <div><Label>Tags (separadas por vírgula)</Label><Input name="tags" className="mt-1.5 bg-muted border-border" placeholder="logo, branding, premium" /></div>
-              <DialogFooter><Button type="submit" className="orbit-gradient hover:opacity-90">Criar Projeto</Button></DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
-      </div>
-      </div>
+      <PageHeader
+        title="Portfólio"
+        subtitle="Organize e apresente seus melhores projetos"
+        actions={
+          <>
+            <UsageBadge resource="projects" label="projetos" />
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+              <Button onClick={handleOpenNewDialog} className="orbit-gradient hover:opacity-90 gap-2"><Plus className="h-4 w-4" /> Novo projeto</Button>
+              <DialogContent className="bg-card border-border max-w-lg max-h-[85vh] overflow-y-auto">
+                <DialogHeader><DialogTitle className="text-foreground">Novo Projeto</DialogTitle></DialogHeader>
+                <form onSubmit={handleNew} className="space-y-4">
+                  <div><Label>Nome do projeto</Label><Input name="title" required className="mt-1.5 bg-muted border-border" /></div>
+                  <div><Label>Cliente</Label><Input name="client" required className="mt-1.5 bg-muted border-border" /></div>
+                  <div><Label>Tipo</Label>
+                    <Select name="type" defaultValue="Branding">
+                      <SelectTrigger className="mt-1.5 bg-muted border-border"><SelectValue /></SelectTrigger>
+                      <SelectContent className="bg-card border-border">
+                        {projectTypes.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div><Label>Status</Label>
+                    <Select name="status" defaultValue="rascunho">
+                      <SelectTrigger className="mt-1.5 bg-muted border-border"><SelectValue /></SelectTrigger>
+                      <SelectContent className="bg-card border-border">
+                        <SelectItem value="rascunho">Rascunho</SelectItem>
+                        <SelectItem value="publicado">Publicado</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div><Label>Descrição</Label><Textarea name="description" className="mt-1.5 bg-muted border-border" rows={3} /></div>
+                  <div><Label>Resultado</Label><Input name="result" className="mt-1.5 bg-muted border-border" placeholder="Ex: aumento de vendas em 30%" /></div>
+                  <div><Label>Tags (separadas por vírgula)</Label><Input name="tags" className="mt-1.5 bg-muted border-border" placeholder="logo, branding, premium" /></div>
+                  <DialogFooter><Button type="submit" className="orbit-gradient hover:opacity-90">Criar Projeto</Button></DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </>
+        }
+      />
 
       {/* Indicators */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

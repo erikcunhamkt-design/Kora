@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -130,35 +131,34 @@ const Metas = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Metas</h1>
-          <p className="text-sm text-muted-foreground mt-1">Defina objetivos e acompanhe sua evolução profissional</p>
-        </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="orbit-gradient hover:opacity-90 gap-2"><Plus className="h-4 w-4" /> Nova meta</Button>
-          </DialogTrigger>
-          <DialogContent className="bg-card border-border">
-            <DialogHeader><DialogTitle className="text-foreground">Nova Meta</DialogTitle></DialogHeader>
-            <form onSubmit={handleNew} className="space-y-4">
-              <div><Label>Título</Label><Input name="title" required className="mt-1.5 bg-muted border-border" /></div>
-              <div><Label>Tipo</Label>
-                <Select name="type" defaultValue="faturamento">
-                  <SelectTrigger className="mt-1.5 bg-muted border-border"><SelectValue /></SelectTrigger>
-                  <SelectContent className="bg-card border-border">
-                    {goalTypes.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div><Label>Valor Alvo</Label><Input name="target" type="number" required className="mt-1.5 bg-muted border-border" /></div>
-              <div><Label>Descrição</Label><Textarea name="description" className="mt-1.5 bg-muted border-border" /></div>
-              <DialogFooter><Button type="submit" className="orbit-gradient hover:opacity-90">Criar Meta</Button></DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
-      </div>
+      <PageHeader
+        title="Metas"
+        subtitle="Defina objetivos e acompanhe sua evolução profissional"
+        actions={
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="orbit-gradient hover:opacity-90 gap-2"><Plus className="h-4 w-4" /> Nova meta</Button>
+            </DialogTrigger>
+            <DialogContent className="bg-card border-border">
+              <DialogHeader><DialogTitle className="text-foreground">Nova Meta</DialogTitle></DialogHeader>
+              <form onSubmit={handleNew} className="space-y-4">
+                <div><Label>Título</Label><Input name="title" required className="mt-1.5 bg-muted border-border" /></div>
+                <div><Label>Tipo</Label>
+                  <Select name="type" defaultValue="faturamento">
+                    <SelectTrigger className="mt-1.5 bg-muted border-border"><SelectValue /></SelectTrigger>
+                    <SelectContent className="bg-card border-border">
+                      {goalTypes.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div><Label>Valor Alvo</Label><Input name="target" type="number" required className="mt-1.5 bg-muted border-border" /></div>
+                <div><Label>Descrição</Label><Textarea name="description" className="mt-1.5 bg-muted border-border" /></div>
+                <DialogFooter><Button type="submit" className="orbit-gradient hover:opacity-90">Criar Meta</Button></DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        }
+      />
 
       {/* Indicators */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

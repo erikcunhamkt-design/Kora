@@ -1,3 +1,4 @@
+import { PageHeader } from "@/components/layout/PageHeader";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -148,16 +149,15 @@ const Financeiro = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Financeiro</h1>
-          <p className="text-muted-foreground text-sm mt-1">Controle receitas, despesas e acompanhe a saúde financeira do seu negócio</p>
-        </div>
-        <Button onClick={() => setNewTxOpen(true)} className="orbit-gradient text-white border-0 gap-2 shrink-0">
-          <Plus className="h-4 w-4" /> Nova transação
-        </Button>
-      </div>
+      <PageHeader
+        title="Financeiro"
+        subtitle="Controle receitas, despesas e acompanhe a saúde financeira do seu negócio"
+        actions={
+          <Button onClick={() => setNewTxOpen(true)} className="orbit-gradient text-white border-0 gap-2 shrink-0">
+            <Plus className="h-4 w-4" /> Nova transação
+          </Button>
+        }
+      />
 
       {/* Summary cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
