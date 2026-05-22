@@ -3,8 +3,24 @@ import { toast } from "sonner";
 import {
   Plus, Search, Trophy, Users, Briefcase, LayoutGrid, Target, Calendar,
   DollarSign, AlertTriangle, Clock, X, Upload, Zap, Send, Package, UserPlus,
-  StickyNote,
+  StickyNote, ClipboardList,
 } from "lucide-react";
+
+export type ProspectStage =
+  | "Prospectar" | "Abordar" | "Não Respondeu" | "Oferta Feita" | "Pensando" | "Não Quis";
+
+export type Prospect = {
+  id: string;
+  createdAt: string;
+  name: string;
+  company?: string;
+  whatsapp?: string;
+  niche?: string;
+  service?: string;
+  status: ProspectStage;
+};
+
+type QuickAddProspectPayload = Omit<Prospect, "id" | "createdAt">;
 
 type SalesTab = "home" | "prospects" | "servicos" | "clientes" | "ranking" | "demandas";
 
@@ -27,11 +43,22 @@ export default function Vendas() {
   const [newServiceOpen, setNewServiceOpen] = useState(false);
   const [newClientOpen, setNewClientOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
+  const [prospects, setProspects] = useState<Prospect[]>([]);
+
+  const addProspect = (prospect: QuickAddProspectPayload) => {
+    const newProspect: Prospect = {
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+      ...prospect,
+    };
+    setProspects((current) => [newProspect, ...current]);
+    toast.success(`${newProspect.name} adicionado`);
+  };
 
   const renderActiveTab = () => {
     switch (activeTab) {
       case "home": return <SalesHome />;
-      case "prospects": return <ProspectsPage onQuickAdd={() => setQuickAddOpen(true)} onNewProspect={() => setNewProspectOpen(true)} />;
+      case "prospects": return <ProspectsPage prospects={prospects} onQuickAdd={() => setQuickAddOpen(true)} onNewProspect={() => setNewProspectOpen(true)} />;
       case "servicos": return <ServicesPage onNewService={() => setNewServiceOpen(true)} />;
       case "clientes": return <ClientsPage onNewClient={() => setNewClientOpen(true)} />;
       case "ranking": return <RankingPage />;
@@ -76,7 +103,7 @@ export default function Vendas() {
 
       <main className="mx-auto max-w-7xl px-6 py-8">{renderActiveTab()}</main>
 
-      {quickAddOpen && <QuickAddModal onClose={() => setQuickAddOpen(false)} />}
+      {quickAddOpen && <QuickAddModal onClose={() => setQuickAddOpen(false)} onAddProspect={addProspect} />}
       {newProspectOpen && <NewProspectModal onClose={() => setNewProspectOpen(false)} />}
       {newServiceOpen && <NewServiceModal onClose={() => setNewServiceOpen(false)} />}
       {newClientOpen && <NewClientModal onClose={() => setNewClientOpen(false)} />}
@@ -154,8 +181,16 @@ function SalesHome() {
   );
 }
 
-function ProspectsPage({ onQuickAdd, onNewProspect }: { onQuickAdd: () => void; onNewProspect: () => void }) {
+function ProspectsPage({ prospects, onQuickAdd, onNewProspect }: { prospects: Prospect[]; onQuickAdd: () => void; onNewProspect: () => void }) {
   const [view, setView] = useState<"pipeline" | "lista">("pipeline");
+  const [query, setQuery] = useState("");
+
+  const filtered = prospects.filter((p) => {
+    const q = query.trim().toLowerCase();
+    if (!q) return true;
+    return [p.name, p.company, p.niche, p.whatsapp].filter(Boolean).some((v) => v!.toLowerCase().includes(q));
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -183,6 +218,8 @@ function ProspectsPage({ onQuickAdd, onNewProspect }: { onQuickAdd: () => void; 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
         <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
           placeholder="Buscar prospect..."
           className="w-full rounded-xl border border-zinc-800 bg-black py-2.5 pl-10 pr-4 text-sm text-white placeholder:text-zinc-500 focus:border-amber-400 focus:outline-none"
         />
@@ -190,22 +227,53 @@ function ProspectsPage({ onQuickAdd, onNewProspect }: { onQuickAdd: () => void; 
 
       {view === "pipeline" ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-          {prospectStages.map((stage) => (
-            <SalesCard key={stage} className="p-4">
-              <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
-                <span className="text-xs font-black uppercase text-amber-400">{stage}</span>
-                <span className="text-xs text-blue-200">0</span>
-              </div>
-              <div className="mt-4 text-xs text-zinc-500">Sem prospects nesta etapa.</div>
-            </SalesCard>
-          ))}
+          {prospectStages.map((stage) => {
+            const items = filtered.filter((p) => p.status === stage);
+            return (
+              <SalesCard key={stage} className="p-4">
+                <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+                  <span className="text-xs font-black uppercase text-amber-400">{stage}</span>
+                  <span className="text-xs text-blue-200">{items.length}</span>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {items.length === 0 ? (
+                    <div className="text-xs text-zinc-500">Sem prospects nesta etapa.</div>
+                  ) : (
+                    items.map((p) => (
+                      <div key={p.id} className="rounded-xl border border-zinc-800 bg-black p-3">
+                        <div className="text-sm font-bold text-white">{p.name}</div>
+                        {p.company && <div className="text-xs text-blue-200">{p.company}</div>}
+                        {p.whatsapp && <div className="mt-1 text-xs text-zinc-500">{p.whatsapp}</div>}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </SalesCard>
+            );
+          })}
         </div>
+      ) : filtered.length === 0 ? (
+        <SalesCard className="p-6 text-sm text-zinc-500">Nenhum prospect cadastrado.</SalesCard>
       ) : (
-        <SalesCard className="p-6 text-sm text-zinc-500">Modo lista — nenhum prospect cadastrado.</SalesCard>
+        <SalesCard className="divide-y divide-zinc-800">
+          {filtered.map((p) => (
+            <div key={p.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
+              <div>
+                <div className="font-bold">{p.name}</div>
+                <div className="text-xs text-blue-200">{[p.company, p.niche].filter(Boolean).join(" · ")}</div>
+              </div>
+              <div className="flex items-center gap-4 text-xs text-zinc-500">
+                {p.whatsapp && <span>{p.whatsapp}</span>}
+                <span className="rounded-full border border-zinc-800 px-3 py-1 text-amber-400">{p.status}</span>
+              </div>
+            </div>
+          ))}
+        </SalesCard>
       )}
     </div>
   );
 }
+
 
 function ServicesPage({ onNewService }: { onNewService: () => void }) {
   return (
@@ -395,18 +463,208 @@ function useSubmit(onClose: () => void, message: string) {
   };
 }
 
-function QuickAddModal({ onClose }: { onClose: () => void }) {
-  const handleSubmit = useSubmit(onClose, "Adicionado com sucesso");
+function QuickAddModal({
+  onClose,
+  onAddProspect,
+}: {
+  onClose: () => void;
+  onAddProspect: (prospect: QuickAddProspectPayload) => void;
+}) {
+  const [mode, setMode] = useState<"single" | "paste">("single");
+  const [name, setName] = useState("");
+  const [company, setCompany] = useState("");
+  const [whatsapp, setWhatsapp] = useState("");
+  const [niche, setNiche] = useState("");
+  const [service, setService] = useState("Artes para Redes Sociais");
+  const [listText, setListText] = useState("");
+
+  function resetSingleForm() {
+    setName("");
+    setCompany("");
+    setWhatsapp("");
+    setNiche("");
+    setService("Artes para Redes Sociais");
+  }
+
+  function handleSingleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!name.trim()) return;
+    onAddProspect({
+      name: name.trim(),
+      company: company.trim(),
+      whatsapp: whatsapp.trim(),
+      niche: niche.trim(),
+      service: service.trim() || "Artes para Redes Sociais",
+      status: "Prospectar",
+    });
+    resetSingleForm();
+  }
+
+  function parseLineToProspect(line: string): QuickAddProspectPayload | null {
+    const cleanLine = line.trim();
+    if (!cleanLine) return null;
+    const parts = cleanLine.split(/[-–—,;]/).map((p) => p.trim()).filter(Boolean);
+    const firstPart = parts[0] || cleanLine;
+    const phoneMatch = cleanLine.match(/(\+?\d[\d\s().-]{7,}\d)/);
+    return {
+      name: firstPart,
+      company: parts[1] || "",
+      whatsapp: phoneMatch?.[0] || "",
+      niche: parts[2] || "",
+      service: service.trim() || "Artes para Redes Sociais",
+      status: "Prospectar",
+    };
+  }
+
+  function handlePasteSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const prospects = listText
+      .split("\n")
+      .map(parseLineToProspect)
+      .filter(Boolean) as QuickAddProspectPayload[];
+    prospects.forEach(onAddProspect);
+    setListText("");
+    onClose();
+  }
+
   return (
-    <ModalShell title="Adição Rápida" onClose={onClose}>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <FormField label="Nome" placeholder="Nome rápido" />
-        <FormField label="Etapa" placeholder="Prospectar" />
-        <ModalActions onClose={onClose} submitLabel="Adicionar" />
-      </form>
-    </ModalShell>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 backdrop-blur-sm"
+      onMouseDown={onClose}
+    >
+      <div
+        className="relative w-full max-w-[520px] rounded-[28px] border border-zinc-800 bg-[#101012] p-7 text-white shadow-2xl"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="mb-6 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white text-amber-400">
+              <Zap className="h-5 w-5" />
+            </div>
+            <h2 className="text-xl font-black">Adição Rápida</h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-2 text-zinc-500 transition hover:bg-zinc-900 hover:text-white"
+            aria-label="Fechar"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="mb-6 grid grid-cols-2 rounded-xl border border-zinc-800 bg-[#141416] p-1">
+          <button
+            type="button"
+            onClick={() => setMode("single")}
+            className={[
+              "flex items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-black transition",
+              mode === "single" ? "text-amber-400" : "text-zinc-500 hover:text-zinc-300",
+            ].join(" ")}
+          >
+            <Zap className="h-4 w-4" />
+            Um por um
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("paste")}
+            className={[
+              "flex items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-bold transition",
+              mode === "paste" ? "text-amber-400" : "text-zinc-500 hover:text-zinc-300",
+            ].join(" ")}
+          >
+            <ClipboardList className="h-4 w-4" />
+            Colar lista
+          </button>
+        </div>
+
+        {mode === "single" ? (
+          <form onSubmit={handleSingleSubmit} className="space-y-5">
+            <QuickField label="Nome *">
+              <input
+                autoFocus
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="João Silva"
+                className="h-11 w-full rounded-xl border border-amber-500 bg-[#1a1a1d] px-4 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-amber-400"
+              />
+            </QuickField>
+            <QuickField label="Empresa">
+              <input
+                value={company}
+                onChange={(e) => setCompany(e.target.value)}
+                placeholder="Ex: Barbearia do João"
+                className="h-11 w-full rounded-xl border border-zinc-700 bg-[#1a1a1d] px-4 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-amber-400"
+              />
+            </QuickField>
+            <div className="grid grid-cols-2 gap-3">
+              <QuickField label="WhatsApp">
+                <input
+                  value={whatsapp}
+                  onChange={(e) => setWhatsapp(e.target.value)}
+                  placeholder="55 11 999999999"
+                  className="h-11 w-full rounded-xl border border-zinc-700 bg-[#1a1a1d] px-4 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-amber-400"
+                />
+              </QuickField>
+              <QuickField label="Nicho">
+                <input
+                  value={niche}
+                  onChange={(e) => setNiche(e.target.value)}
+                  placeholder="Barbearia"
+                  className="h-11 w-full rounded-xl border border-zinc-700 bg-[#1a1a1d] px-4 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-amber-400"
+                />
+              </QuickField>
+            </div>
+            <QuickField label="O que vai ofertar?">
+              <input
+                value={service}
+                onChange={(e) => setService(e.target.value)}
+                placeholder="Artes para Redes Sociais"
+                className="h-11 w-full rounded-xl border border-zinc-700 bg-[#1a1a1d] px-4 text-sm font-bold text-white outline-none placeholder:text-zinc-600 focus:border-amber-400"
+              />
+            </QuickField>
+            <button
+              type="submit"
+              disabled={!name.trim()}
+              className="mt-2 h-12 w-full rounded-xl bg-[#805209] text-sm font-black text-white transition hover:bg-amber-500 hover:text-black disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Adicionar e próximo ↵
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={handlePasteSubmit} className="space-y-5">
+            <QuickField label="Cole sua lista aqui (qualquer formato)">
+              <textarea
+                autoFocus
+                value={listText}
+                onChange={(e) => setListText(e.target.value)}
+                placeholder={"João Silva - 11999887766 - Barbearia do João\nMaria, estética, 11988776655\nPedro — restaurante — 11977665544"}
+                className="min-h-[150px] w-full resize-none rounded-xl border border-zinc-700 bg-[#1a1a1d] px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-amber-400"
+              />
+            </QuickField>
+            <button
+              type="submit"
+              disabled={!listText.trim()}
+              className="h-12 w-full rounded-xl bg-[#805209] text-sm font-black text-white transition hover:bg-amber-500 hover:text-black disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Importar lista
+            </button>
+          </form>
+        )}
+      </div>
+    </div>
   );
 }
+
+function QuickField({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-2 block text-xs font-black uppercase text-zinc-500">{label}</span>
+      {children}
+    </label>
+  );
+}
+
 
 function NewProspectModal({ onClose }: { onClose: () => void }) {
   const handleSubmit = useSubmit(onClose, "Prospect criado");
