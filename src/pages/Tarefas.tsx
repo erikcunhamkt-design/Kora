@@ -22,15 +22,9 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
 
-type Priority = "alta" | "média" | "baixa";
-type TaskStatus = "a_fazer" | "em_andamento" | "revisao" | "concluido";
-interface SubTask { text: string; done: boolean; }
-interface Task {
-  id: number; title: string; description: string; client: string; project: string;
-  priority: Priority; deadline: string; status: TaskStatus; createdAt: string;
-  tags: string[]; subtasks: SubTask[];
-  comments: { author: string; text: string; date: string }[];
-}
+import { useTasks, type Task, type TaskStatus, type TaskPriority } from "@/hooks/useTasks";
+
+type Priority = TaskPriority;
 interface ColumnConfig { key: TaskStatus; label: string; color: string; dotColor: string; }
 
 const columns: ColumnConfig[] = [
@@ -57,22 +51,8 @@ const statusBadgeStyle: Record<TaskStatus, string> = {
 };
 
 const clientsList = ["Acme Corp", "Studio Zen", "Nova Design", "FitTrack", "Café & Arte", "Brand Co", "StartUp X"];
-const today = "15 Abr 2025";
+const today = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
 
-const initialTasks: Task[] = [
-  { id: 1, title: "Criar logo principal", description: "Desenvolver 3 propostas de logo para aprovação do cliente. Explorar conceitos minimalistas e tipográficos.", client: "Acme Corp", project: "Rebranding Acme 2025", priority: "alta", deadline: "18 Abr 2025", status: "em_andamento", createdAt: "05 Abr 2025", tags: ["branding", "logo"], subtasks: [{ text: "Pesquisa de referências", done: true }, { text: "Esboços iniciais", done: true }, { text: "Versão digital 1", done: false }, { text: "Apresentação ao cliente", done: false }], comments: [{ author: "Você", text: "Referências aprovadas. Seguir linha minimalista.", date: "12 Abr" }] },
-  { id: 2, title: "Wireframe da landing page", description: "Criar wireframe de alta fidelidade para a landing page institucional.", client: "Studio Zen", project: "Landing Page Studio Zen", priority: "alta", deadline: "16 Abr 2025", status: "a_fazer", createdAt: "08 Abr 2025", tags: ["web", "wireframe"], subtasks: [{ text: "Estrutura de seções", done: false }, { text: "Wireframe mobile", done: false }, { text: "Wireframe desktop", done: false }], comments: [] },
-  { id: 3, title: "Revisar paleta de cores", description: "Ajustar paleta conforme feedback do último meeting.", client: "Acme Corp", project: "Rebranding Acme 2025", priority: "média", deadline: "20 Abr 2025", status: "revisao", createdAt: "10 Abr 2025", tags: ["branding", "cores"], subtasks: [{ text: "Versão light mode", done: true }, { text: "Versão dark mode", done: true }, { text: "Aprovação final", done: false }], comments: [{ author: "Você", text: "Cliente pediu tons mais quentes no secundário.", date: "14 Abr" }] },
-  { id: 4, title: "Posts carrossel Instagram", description: "Criar 5 posts em formato carrossel para o feed do cliente.", client: "FitTrack", project: "Social Media FitTrack", priority: "média", deadline: "17 Abr 2025", status: "em_andamento", createdAt: "09 Abr 2025", tags: ["social media", "design"], subtasks: [{ text: "Roteiro dos slides", done: true }, { text: "Design dos 5 posts", done: false }, { text: "Revisão de copy", done: false }], comments: [] },
-  { id: 5, title: "Enviar proposta comercial", description: "Finalizar e enviar proposta com escopo, timeline e investimento.", client: "Nova Design", project: "Catálogo Digital Nova", priority: "alta", deadline: "15 Abr 2025", status: "a_fazer", createdAt: "07 Abr 2025", tags: ["proposta", "comercial"], subtasks: [{ text: "Montar escopo", done: true }, { text: "Definir investimento", done: false }, { text: "Enviar PDF", done: false }], comments: [{ author: "Você", text: "Aguardando aprovação do preço.", date: "13 Abr" }] },
-  { id: 6, title: "Design telas onboarding", description: "Criar fluxo de onboarding com 4 telas para o app mobile.", client: "FitTrack", project: "App UI FitTrack", priority: "alta", deadline: "22 Abr 2025", status: "a_fazer", createdAt: "11 Abr 2025", tags: ["ui", "mobile"], subtasks: [{ text: "Fluxo do usuário", done: false }, { text: "Tela 1 - Boas-vindas", done: false }, { text: "Tela 2 - Configuração", done: false }, { text: "Tela 3 - Permissões", done: false }, { text: "Tela 4 - Conclusão", done: false }], comments: [] },
-  { id: 7, title: "Reunião alinhamento semanal", description: "Call semanal para alinhar entregas e próximos passos.", client: "Acme Corp", project: "Rebranding Acme 2025", priority: "baixa", deadline: "15 Abr 2025", status: "concluido", createdAt: "08 Abr 2025", tags: ["reunião"], subtasks: [{ text: "Preparar pauta", done: true }, { text: "Realizar call", done: true }, { text: "Enviar resumo", done: true }], comments: [{ author: "Você", text: "Tudo alinhado. Próxima entrega dia 18.", date: "15 Abr" }] },
-  { id: 8, title: "Ajustes finais identidade visual", description: "Aplicar últimos ajustes no manual de marca.", client: "Café & Arte", project: "Identidade Visual Café & Arte", priority: "baixa", deadline: "14 Abr 2025", status: "concluido", createdAt: "06 Abr 2025", tags: ["branding", "manual"], subtasks: [{ text: "Corrigir tipografia", done: true }, { text: "Atualizar mockups", done: true }, { text: "Exportar PDF final", done: true }], comments: [{ author: "Você", text: "Manual entregue e aprovado!", date: "14 Abr" }] },
-  { id: 9, title: "Criar grid de stories", description: "Definir template visual para stories semanais.", client: "Brand Co", project: "Social Media Brand Co", priority: "média", deadline: "19 Abr 2025", status: "a_fazer", createdAt: "12 Abr 2025", tags: ["social media", "template"], subtasks: [{ text: "Definir estilo visual", done: false }, { text: "Template editável", done: false }], comments: [] },
-  { id: 10, title: "Protótipo navegável", description: "Montar protótipo clicável no Figma para validação.", client: "Studio Zen", project: "Landing Page Studio Zen", priority: "média", deadline: "24 Abr 2025", status: "a_fazer", createdAt: "13 Abr 2025", tags: ["web", "protótipo"], subtasks: [{ text: "Linkar telas", done: false }, { text: "Animações de transição", done: false }, { text: "Teste interno", done: false }], comments: [] },
-  { id: 11, title: "Revisar banner campanha", description: "Revisão final do banner para Google Ads.", client: "StartUp X", project: "Landing StartUp X", priority: "baixa", deadline: "21 Abr 2025", status: "revisao", createdAt: "10 Abr 2025", tags: ["marketing", "banner"], subtasks: [{ text: "Ajustar CTA", done: true }, { text: "Versão mobile", done: false }], comments: [{ author: "Você", text: "CTA ajustado, falta versão mobile.", date: "14 Abr" }] },
-  { id: 12, title: "Entrega final catálogo", description: "Exportar e enviar catálogo digital em PDF e link interativo.", client: "Nova Design", project: "Catálogo Digital Nova", priority: "alta", deadline: "25 Abr 2025", status: "em_andamento", createdAt: "11 Abr 2025", tags: ["entrega", "catálogo"], subtasks: [{ text: "Revisão de conteúdo", done: true }, { text: "Exportar PDF", done: false }, { text: "Publicar link interativo", done: false }], comments: [] },
-];
 
 const SummaryCard = ({ icon: Icon, label, value, accent }: { icon: any; label: string; value: number; accent?: string }) => (
   <div className="orbit-card p-4 flex items-center gap-3">
