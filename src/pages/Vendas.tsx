@@ -463,18 +463,208 @@ function useSubmit(onClose: () => void, message: string) {
   };
 }
 
-function QuickAddModal({ onClose }: { onClose: () => void }) {
-  const handleSubmit = useSubmit(onClose, "Adicionado com sucesso");
+function QuickAddModal({
+  onClose,
+  onAddProspect,
+}: {
+  onClose: () => void;
+  onAddProspect: (prospect: QuickAddProspectPayload) => void;
+}) {
+  const [mode, setMode] = useState<"single" | "paste">("single");
+  const [name, setName] = useState("");
+  const [company, setCompany] = useState("");
+  const [whatsapp, setWhatsapp] = useState("");
+  const [niche, setNiche] = useState("");
+  const [service, setService] = useState("Artes para Redes Sociais");
+  const [listText, setListText] = useState("");
+
+  function resetSingleForm() {
+    setName("");
+    setCompany("");
+    setWhatsapp("");
+    setNiche("");
+    setService("Artes para Redes Sociais");
+  }
+
+  function handleSingleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!name.trim()) return;
+    onAddProspect({
+      name: name.trim(),
+      company: company.trim(),
+      whatsapp: whatsapp.trim(),
+      niche: niche.trim(),
+      service: service.trim() || "Artes para Redes Sociais",
+      status: "Prospectar",
+    });
+    resetSingleForm();
+  }
+
+  function parseLineToProspect(line: string): QuickAddProspectPayload | null {
+    const cleanLine = line.trim();
+    if (!cleanLine) return null;
+    const parts = cleanLine.split(/[-–—,;]/).map((p) => p.trim()).filter(Boolean);
+    const firstPart = parts[0] || cleanLine;
+    const phoneMatch = cleanLine.match(/(\+?\d[\d\s().-]{7,}\d)/);
+    return {
+      name: firstPart,
+      company: parts[1] || "",
+      whatsapp: phoneMatch?.[0] || "",
+      niche: parts[2] || "",
+      service: service.trim() || "Artes para Redes Sociais",
+      status: "Prospectar",
+    };
+  }
+
+  function handlePasteSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const prospects = listText
+      .split("\n")
+      .map(parseLineToProspect)
+      .filter(Boolean) as QuickAddProspectPayload[];
+    prospects.forEach(onAddProspect);
+    setListText("");
+    onClose();
+  }
+
   return (
-    <ModalShell title="Adição Rápida" onClose={onClose}>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <FormField label="Nome" placeholder="Nome rápido" />
-        <FormField label="Etapa" placeholder="Prospectar" />
-        <ModalActions onClose={onClose} submitLabel="Adicionar" />
-      </form>
-    </ModalShell>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 backdrop-blur-sm"
+      onMouseDown={onClose}
+    >
+      <div
+        className="relative w-full max-w-[520px] rounded-[28px] border border-zinc-800 bg-[#101012] p-7 text-white shadow-2xl"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="mb-6 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white text-amber-400">
+              <Zap className="h-5 w-5" />
+            </div>
+            <h2 className="text-xl font-black">Adição Rápida</h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-2 text-zinc-500 transition hover:bg-zinc-900 hover:text-white"
+            aria-label="Fechar"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="mb-6 grid grid-cols-2 rounded-xl border border-zinc-800 bg-[#141416] p-1">
+          <button
+            type="button"
+            onClick={() => setMode("single")}
+            className={[
+              "flex items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-black transition",
+              mode === "single" ? "text-amber-400" : "text-zinc-500 hover:text-zinc-300",
+            ].join(" ")}
+          >
+            <Zap className="h-4 w-4" />
+            Um por um
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("paste")}
+            className={[
+              "flex items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-bold transition",
+              mode === "paste" ? "text-amber-400" : "text-zinc-500 hover:text-zinc-300",
+            ].join(" ")}
+          >
+            <ClipboardList className="h-4 w-4" />
+            Colar lista
+          </button>
+        </div>
+
+        {mode === "single" ? (
+          <form onSubmit={handleSingleSubmit} className="space-y-5">
+            <QuickField label="Nome *">
+              <input
+                autoFocus
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="João Silva"
+                className="h-11 w-full rounded-xl border border-amber-500 bg-[#1a1a1d] px-4 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-amber-400"
+              />
+            </QuickField>
+            <QuickField label="Empresa">
+              <input
+                value={company}
+                onChange={(e) => setCompany(e.target.value)}
+                placeholder="Ex: Barbearia do João"
+                className="h-11 w-full rounded-xl border border-zinc-700 bg-[#1a1a1d] px-4 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-amber-400"
+              />
+            </QuickField>
+            <div className="grid grid-cols-2 gap-3">
+              <QuickField label="WhatsApp">
+                <input
+                  value={whatsapp}
+                  onChange={(e) => setWhatsapp(e.target.value)}
+                  placeholder="55 11 999999999"
+                  className="h-11 w-full rounded-xl border border-zinc-700 bg-[#1a1a1d] px-4 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-amber-400"
+                />
+              </QuickField>
+              <QuickField label="Nicho">
+                <input
+                  value={niche}
+                  onChange={(e) => setNiche(e.target.value)}
+                  placeholder="Barbearia"
+                  className="h-11 w-full rounded-xl border border-zinc-700 bg-[#1a1a1d] px-4 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-amber-400"
+                />
+              </QuickField>
+            </div>
+            <QuickField label="O que vai ofertar?">
+              <input
+                value={service}
+                onChange={(e) => setService(e.target.value)}
+                placeholder="Artes para Redes Sociais"
+                className="h-11 w-full rounded-xl border border-zinc-700 bg-[#1a1a1d] px-4 text-sm font-bold text-white outline-none placeholder:text-zinc-600 focus:border-amber-400"
+              />
+            </QuickField>
+            <button
+              type="submit"
+              disabled={!name.trim()}
+              className="mt-2 h-12 w-full rounded-xl bg-[#805209] text-sm font-black text-white transition hover:bg-amber-500 hover:text-black disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Adicionar e próximo ↵
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={handlePasteSubmit} className="space-y-5">
+            <QuickField label="Cole sua lista aqui (qualquer formato)">
+              <textarea
+                autoFocus
+                value={listText}
+                onChange={(e) => setListText(e.target.value)}
+                placeholder={"João Silva - 11999887766 - Barbearia do João\nMaria, estética, 11988776655\nPedro — restaurante — 11977665544"}
+                className="min-h-[150px] w-full resize-none rounded-xl border border-zinc-700 bg-[#1a1a1d] px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-amber-400"
+              />
+            </QuickField>
+            <button
+              type="submit"
+              disabled={!listText.trim()}
+              className="h-12 w-full rounded-xl bg-[#805209] text-sm font-black text-white transition hover:bg-amber-500 hover:text-black disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Importar lista
+            </button>
+          </form>
+        )}
+      </div>
+    </div>
   );
 }
+
+function QuickField({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-2 block text-xs font-black uppercase text-zinc-500">{label}</span>
+      {children}
+    </label>
+  );
+}
+
 
 function NewProspectModal({ onClose }: { onClose: () => void }) {
   const handleSubmit = useSubmit(onClose, "Prospect criado");
