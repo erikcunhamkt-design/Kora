@@ -252,7 +252,7 @@ const Clientes = () => {
       )}
 
       {/* New Client Modal */}
-      <NewClientDialog open={newClientOpen} onOpenChange={setNewClientOpen} />
+      <NewClientDialog open={newClientOpen} onOpenChange={setNewClientOpen} onSave={addClient} />
 
       {/* Client Detail Sheet */}
       <ClientDetailSheet client={selectedClient} onClose={() => setSelectedClient(null)} />
@@ -261,7 +261,49 @@ const Clientes = () => {
 };
 
 // ---------- New Client Dialog ----------
-const NewClientDialog = ({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) => {
+const origins = ["Indicação", "Instagram", "LinkedIn", "Site", "Outro"];
+
+const emptyForm = {
+  name: "", company: "", email: "", phone: "", whatsapp: "",
+  instagram: "", site: "", serviceType: "", origin: "",
+  status: "Potencial" as ClientStatus, potentialValue: "", observations: "",
+};
+
+const NewClientDialog = ({
+  open, onOpenChange, onSave,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onSave: (data: Omit<Client, "id" | "projects" | "tasks" | "lastProject" | "lastInteraction">) => void;
+}) => {
+  const [form, setForm] = useState(emptyForm);
+  const set = (k: keyof typeof emptyForm, v: string) => setForm(prev => ({ ...prev, [k]: v }));
+
+  useEffect(() => { if (open) setForm(emptyForm); }, [open]);
+
+  const handleSave = () => {
+    if (!form.name.trim()) return toast.error("Informe o nome do cliente");
+    if (!form.email.trim() && !form.whatsapp.trim() && !form.phone.trim()) {
+      return toast.error("Informe pelo menos um contato (email, telefone ou WhatsApp)");
+    }
+    onSave({
+      name: form.name.trim(),
+      company: form.company.trim(),
+      email: form.email.trim(),
+      phone: form.phone.trim(),
+      whatsapp: form.whatsapp.trim(),
+      instagram: form.instagram.trim(),
+      site: form.site.trim(),
+      serviceType: form.serviceType || "—",
+      origin: form.origin || undefined,
+      status: form.status,
+      potentialValue: Number(form.potentialValue) || 0,
+      observations: form.observations.trim(),
+    });
+    toast.success("Cliente adicionado");
+    onOpenChange(false);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px] bg-card border-border max-h-[90vh] overflow-y-auto">
@@ -270,16 +312,17 @@ const NewClientDialog = ({ open, onOpenChange }: { open: boolean; onOpenChange: 
           <DialogDescription className="text-muted-foreground">Preencha as informações do novo cliente.</DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-4">
-          <FormField label="Nome completo" placeholder="João Silva" />
-          <FormField label="Empresa" placeholder="Empresa Ltda" />
-          <FormField label="Email" placeholder="email@empresa.com" type="email" />
-          <FormField label="Telefone" placeholder="(11) 99999-9999" />
-          <FormField label="WhatsApp" placeholder="(11) 99999-9999" icon={<MessageCircle className="h-4 w-4" />} />
-          <FormField label="Instagram" placeholder="@usuario" icon={<AtSign className="h-4 w-4" />} />
-          <FormField label="Site" placeholder="www.site.com" icon={<Globe className="h-4 w-4" />} />
+          <FormField label="Nome completo*" placeholder="João Silva" value={form.name} onChange={v => set("name", v)} />
+          <FormField label="Empresa" placeholder="Empresa Ltda" value={form.company} onChange={v => set("company", v)} />
+          <FormField label="Email" placeholder="email@empresa.com" type="email" value={form.email} onChange={v => set("email", v)} />
+          <FormField label="Telefone" placeholder="(11) 99999-9999" value={form.phone} onChange={v => set("phone", v)} />
+          <FormField label="WhatsApp" placeholder="(11) 99999-9999" icon={<MessageCircle className="h-4 w-4" />} value={form.whatsapp} onChange={v => set("whatsapp", v)} />
+          <FormField label="Instagram" placeholder="@usuario" icon={<AtSign className="h-4 w-4" />} value={form.instagram} onChange={v => set("instagram", v)} />
+          <FormField label="Site" placeholder="www.site.com" icon={<Globe className="h-4 w-4" />} value={form.site} onChange={v => set("site", v)} />
+          <FormField label="Valor potencial (R$)" placeholder="5000" type="number" value={form.potentialValue} onChange={v => set("potentialValue", v)} />
           <div className="space-y-2">
-            <Label className="text-sm text-muted-foreground">Tipo de serviço</Label>
-            <Select>
+            <Label className="text-sm text-muted-foreground">Serviço de interesse</Label>
+            <Select value={form.serviceType} onValueChange={v => set("serviceType", v)}>
               <SelectTrigger className="bg-muted/50 border-border"><SelectValue placeholder="Selecione" /></SelectTrigger>
               <SelectContent>
                 {serviceTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
@@ -287,8 +330,17 @@ const NewClientDialog = ({ open, onOpenChange }: { open: boolean; onOpenChange: 
             </Select>
           </div>
           <div className="space-y-2">
+            <Label className="text-sm text-muted-foreground">Origem</Label>
+            <Select value={form.origin} onValueChange={v => set("origin", v)}>
+              <SelectTrigger className="bg-muted/50 border-border"><SelectValue placeholder="Selecione" /></SelectTrigger>
+              <SelectContent>
+                {origins.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
             <Label className="text-sm text-muted-foreground">Status</Label>
-            <Select>
+            <Select value={form.status} onValueChange={v => set("status", v as ClientStatus)}>
               <SelectTrigger className="bg-muted/50 border-border"><SelectValue placeholder="Selecione" /></SelectTrigger>
               <SelectContent>
                 {statuses.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
@@ -297,24 +349,24 @@ const NewClientDialog = ({ open, onOpenChange }: { open: boolean; onOpenChange: 
           </div>
           <div className="sm:col-span-2 space-y-2">
             <Label className="text-sm text-muted-foreground">Observações</Label>
-            <Textarea placeholder="Notas sobre o cliente..." className="bg-muted/50 border-border min-h-[80px]" />
+            <Textarea placeholder="Notas sobre o cliente..." className="bg-muted/50 border-border min-h-[80px]" value={form.observations} onChange={e => set("observations", e.target.value)} />
           </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button className="orbit-gradient text-white border-0" onClick={() => onOpenChange(false)}>Salvar cliente</Button>
+          <Button className="orbit-gradient text-white border-0" onClick={handleSave}>Salvar cliente</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 };
 
-const FormField = ({ label, placeholder, type = "text", icon }: { label: string; placeholder: string; type?: string; icon?: React.ReactNode }) => (
+const FormField = ({ label, placeholder, type = "text", icon, value, onChange }: { label: string; placeholder: string; type?: string; icon?: React.ReactNode; value?: string; onChange?: (v: string) => void }) => (
   <div className="space-y-2">
     <Label className="text-sm text-muted-foreground">{label}</Label>
     <div className="relative">
       {icon && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">{icon}</span>}
-      <Input type={type} placeholder={placeholder} className={`bg-muted/50 border-border ${icon ? "pl-9" : ""}`} />
+      <Input type={type} placeholder={placeholder} value={value} onChange={e => onChange?.(e.target.value)} className={`bg-muted/50 border-border ${icon ? "pl-9" : ""}`} />
     </div>
   </div>
 );
