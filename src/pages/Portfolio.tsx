@@ -12,6 +12,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
 } from "@/components/ui/sheet";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { ProjectsSection } from "@/components/projetos/ProjectsSection";
+import { ContentSection } from "@/components/projetos/ContentSection";
 import {
   Plus, Search, Eye, Pencil, FolderOpen, Send, FileCheck, Star,
   Calendar, User, Tag, BarChart3, ExternalLink, X,
@@ -187,92 +190,95 @@ const Portfolio = () => {
         }
       />
 
-      {/* Indicators */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {indicators.map((ind) => {
-          const Icon = ind.icon;
+      <Tabs defaultValue="projetos" className="w-full">
+        <TabsList className="w-full sm:w-auto flex-wrap h-auto">
+          <TabsTrigger value="projetos">Projetos</TabsTrigger>
+          <TabsTrigger value="publicados">Publicados</TabsTrigger>
+          <TabsTrigger value="rascunhos">Rascunhos</TabsTrigger>
+          <TabsTrigger value="conteudo">Conteúdo</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="projetos" className="mt-5">
+          <ProjectsSection />
+        </TabsContent>
+
+        <TabsContent value="conteudo" className="mt-5">
+          <ContentSection />
+        </TabsContent>
+
+        {(["publicados", "rascunhos"] as const).map((tab) => {
+          const status: Project["status"] = tab === "publicados" ? "publicado" : "rascunho";
+          const list = projects.filter((p) => p.status === status && (
+            !search || p.title.toLowerCase().includes(search.toLowerCase()) || p.client.toLowerCase().includes(search.toLowerCase())
+          ) && (filterType === "all" || p.type === filterType));
           return (
-            <div key={ind.label} className="orbit-card p-4 flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-muted"><Icon className={`h-5 w-5 ${ind.color}`} /></div>
-              <div>
-                <p className="text-xs text-muted-foreground">{ind.label}</p>
-                <p className="text-lg font-bold text-foreground">{ind.value}</p>
+            <TabsContent key={tab} value={tab} className="mt-5 space-y-5">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {indicators.map((ind) => {
+                  const Icon = ind.icon;
+                  return (
+                    <div key={ind.label} className="orbit-card p-4 flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-muted"><Icon className={`h-5 w-5 ${ind.color}`} /></div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">{ind.label}</p>
+                        <p className="text-lg font-bold text-foreground">{ind.value}</p>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            </div>
+
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input placeholder="Buscar projeto ou cliente..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 bg-muted border-border" />
+                </div>
+                <Select value={filterType} onValueChange={setFilterType}>
+                  <SelectTrigger className="w-full sm:w-44 bg-muted border-border"><SelectValue placeholder="Tipo" /></SelectTrigger>
+                  <SelectContent className="bg-card border-border">
+                    <SelectItem value="all">Todos os tipos</SelectItem>
+                    {projectTypes.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                {list.map((project) => (
+                  <div
+                    key={project.id}
+                    className="orbit-card overflow-hidden group cursor-pointer hover:orbit-glow transition-all duration-300"
+                    onClick={() => setSelectedProject(project)}
+                  >
+                    <div className="relative aspect-[4/3] overflow-hidden">
+                      <img src={project.cover} alt={project.title} loading="lazy" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                      <div className="absolute top-3 right-3">
+                        <Badge className={project.status === "publicado" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20" : "bg-amber-500/20 text-amber-400 border-amber-500/30 hover:bg-amber-500/20"}>
+                          {project.status === "publicado" ? "Publicado" : "Rascunho"}
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="p-4">
+                      <Badge variant="outline" className="text-xs border-border text-muted-foreground">{project.type}</Badge>
+                      <h3 className="text-sm font-semibold text-foreground mt-2 line-clamp-1">{project.title}</h3>
+                      <div className="flex items-center justify-between mt-2">
+                        <span className="text-xs text-muted-foreground flex items-center gap-1"><User className="h-3 w-3" />{project.client}</span>
+                        <span className="text-xs text-muted-foreground flex items-center gap-1"><Eye className="h-3 w-3" />{project.views}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {list.length === 0 && (
+                <div className="orbit-card p-12 text-center">
+                  <FolderOpen className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-muted-foreground">Nenhum projeto encontrado</p>
+                </div>
+              )}
+            </TabsContent>
           );
         })}
-      </div>
-
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Buscar projeto ou cliente..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 bg-muted border-border" />
-        </div>
-        <Select value={filterType} onValueChange={setFilterType}>
-          <SelectTrigger className="w-full sm:w-44 bg-muted border-border"><SelectValue placeholder="Tipo" /></SelectTrigger>
-          <SelectContent className="bg-card border-border">
-            <SelectItem value="all">Todos os tipos</SelectItem>
-            {projectTypes.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={filterStatus} onValueChange={setFilterStatus}>
-          <SelectTrigger className="w-full sm:w-40 bg-muted border-border"><SelectValue placeholder="Status" /></SelectTrigger>
-          <SelectContent className="bg-card border-border">
-            <SelectItem value="all">Todos</SelectItem>
-            <SelectItem value="publicado">Publicados</SelectItem>
-            <SelectItem value="rascunho">Rascunhos</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-        {filtered.map((project) => (
-          <div
-            key={project.id}
-            className="orbit-card overflow-hidden group cursor-pointer hover:orbit-glow transition-all duration-300"
-            onClick={() => setSelectedProject(project)}
-          >
-            <div className="relative aspect-[4/3] overflow-hidden">
-              <img
-                src={project.cover}
-                alt={project.title}
-                loading="lazy"
-                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-              />
-              <div className="absolute inset-0 bg-background/70 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-3">
-                <button className="p-2.5 rounded-full bg-primary/20 text-primary hover:bg-primary/30 transition-colors">
-                  <Eye className="h-5 w-5" />
-                </button>
-                <button className="p-2.5 rounded-full bg-primary/20 text-primary hover:bg-primary/30 transition-colors" onClick={(e) => e.stopPropagation()}>
-                  <Pencil className="h-5 w-5" />
-                </button>
-              </div>
-              <div className="absolute top-3 right-3">
-                <Badge className={project.status === "publicado" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20" : "bg-amber-500/20 text-amber-400 border-amber-500/30 hover:bg-amber-500/20"}>
-                  {project.status === "publicado" ? "Publicado" : "Rascunho"}
-                </Badge>
-              </div>
-            </div>
-            <div className="p-4">
-              <Badge variant="outline" className="text-xs border-border text-muted-foreground">{project.type}</Badge>
-              <h3 className="text-sm font-semibold text-foreground mt-2 line-clamp-1">{project.title}</h3>
-              <div className="flex items-center justify-between mt-2">
-                <span className="text-xs text-muted-foreground flex items-center gap-1"><User className="h-3 w-3" />{project.client}</span>
-                <span className="text-xs text-muted-foreground flex items-center gap-1"><Eye className="h-3 w-3" />{project.views}</span>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {filtered.length === 0 && (
-        <div className="orbit-card p-12 text-center">
-          <FolderOpen className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-          <p className="text-muted-foreground">Nenhum projeto encontrado</p>
-        </div>
-      )}
+      </Tabs>
 
       {/* Detail Sheet */}
       <Sheet open={!!selectedProject} onOpenChange={(o) => !o && setSelectedProject(null)}>

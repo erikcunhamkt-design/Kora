@@ -1,0 +1,225 @@
+import { useMemo, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Progress } from "@/components/ui/progress";
+import { Plus, Search, FolderOpen, Loader2, Eye, CheckCircle2, DollarSign, AlertTriangle, Calendar, User } from "lucide-react";
+import { useProjects, PROJECT_STATUS_LABEL, PROJECT_PRIORITY_LABEL, type ProjectStatus, type ProjectPriority } from "@/hooks/useProjects";
+import { toast } from "@/hooks/use-toast";
+
+const SERVICE_TYPES = ["Branding", "Web", "Social", "Tráfego", "Vídeo", "Conteúdo", "Outro"];
+
+const statusBadge: Record<ProjectStatus, string> = {
+  planning: "bg-muted text-foreground border-border",
+  in_progress: "bg-amber-500/15 text-amber-400 border-amber-500/30",
+  review: "bg-secondary/15 text-secondary border-secondary/30",
+  delivered: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+  paused: "bg-destructive/15 text-destructive border-destructive/30",
+};
+
+const priorityBadge: Record<ProjectPriority, string> = {
+  high: "bg-destructive/10 text-destructive border-destructive/20",
+  medium: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  low: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+};
+
+const fmtBRL = (v?: number) => (v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0 });
+const fmtDate = (iso?: string) => (iso ? new Date(iso).toLocaleDateString("pt-BR") : "—");
+
+export function ProjectsSection() {
+  const { projects, addProject } = useProjects();
+  const [search, setSearch] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [filterService, setFilterService] = useState("all");
+  const [filterPriority, setFilterPriority] = useState("all");
+  const [open, setOpen] = useState(false);
+
+  const filtered = useMemo(() => projects.filter((p) => {
+    const q = search.toLowerCase();
+    if (q && !p.name.toLowerCase().includes(q) && !p.clientName.toLowerCase().includes(q)) return false;
+    if (filterStatus !== "all" && p.status !== filterStatus) return false;
+    if (filterService !== "all" && p.serviceType !== filterService) return false;
+    if (filterPriority !== "all" && p.priority !== filterPriority) return false;
+    return true;
+  }), [projects, search, filterStatus, filterService, filterPriority]);
+
+  const metrics = useMemo(() => {
+    const today = new Date();
+    const in7 = (iso?: string) => {
+      if (!iso) return false;
+      const d = new Date(iso);
+      const diff = (d.getTime() - today.getTime()) / 86400000;
+      return diff <= 7 && diff >= -1;
+    };
+    return {
+      total: projects.length,
+      inProgress: projects.filter((p) => p.status === "in_progress").length,
+      review: projects.filter((p) => p.status === "review").length,
+      delivered: projects.filter((p) => p.status === "delivered").length,
+      value: projects.reduce((s, p) => s + (p.budget || 0), 0),
+      critical: projects.filter((p) => p.status !== "delivered" && in7(p.dueDate)).length,
+    };
+  }, [projects]);
+
+  const handleCreate = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const name = (fd.get("name") as string).trim();
+    const clientName = (fd.get("clientName") as string).trim();
+    if (!name) { toast({ title: "Informe o nome do projeto", variant: "destructive" }); return; }
+    if (!clientName) { toast({ title: "Informe o cliente", variant: "destructive" }); return; }
+    addProject({
+      name,
+      clientName,
+      description: (fd.get("description") as string) || "",
+      serviceType: (fd.get("serviceType") as string) || "Outro",
+      status: (fd.get("status") as ProjectStatus) || "planning",
+      priority: (fd.get("priority") as ProjectPriority) || "medium",
+      startDate: (fd.get("startDate") as string) || undefined,
+      dueDate: (fd.get("dueDate") as string) || undefined,
+      budget: Number(fd.get("budget")) || 0,
+      tags: ((fd.get("tags") as string) || "").split(",").map((t) => t.trim()).filter(Boolean),
+    });
+    setOpen(false);
+    toast({ title: "Projeto criado" });
+  };
+
+  const cards = [
+    { label: "Total", value: metrics.total, icon: FolderOpen, accent: "text-primary" },
+    { label: "Em andamento", value: metrics.inProgress, icon: Loader2, accent: "text-amber-400" },
+    { label: "Em revisão", value: metrics.review, icon: Eye, accent: "text-secondary" },
+    { label: "Entregues", value: metrics.delivered, icon: CheckCircle2, accent: "text-emerald-400" },
+    { label: "Valor em projetos", value: fmtBRL(metrics.value), icon: DollarSign, accent: "text-foreground" },
+    { label: "Prazo crítico", value: metrics.critical, icon: AlertTriangle, accent: "text-destructive" },
+  ];
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-base font-semibold text-foreground">Projetos</h2>
+          <p className="text-xs text-muted-foreground">Acompanhe a entrega de cada job.</p>
+        </div>
+        <Dialog open={open} onOpenChange={setOpen}>
+          <Button onClick={() => setOpen(true)} className="orbit-gradient hover:opacity-90 gap-2"><Plus className="h-4 w-4" /> Novo projeto</Button>
+          <DialogContent className="bg-card border-border max-w-2xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>Novo Projeto</DialogTitle></DialogHeader>
+            <form onSubmit={handleCreate} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="sm:col-span-2"><Label>Nome do projeto*</Label><Input name="name" required className="mt-1.5" /></div>
+              <div><Label>Cliente*</Label><Input name="clientName" required className="mt-1.5" /></div>
+              <div><Label>Serviço</Label>
+                <Select name="serviceType" defaultValue="Branding">
+                  <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                  <SelectContent>{SERVICE_TYPES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="sm:col-span-2"><Label>Descrição</Label><Textarea name="description" className="mt-1.5" rows={2} /></div>
+              <div><Label>Status</Label>
+                <Select name="status" defaultValue="planning">
+                  <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(PROJECT_STATUS_LABEL).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><Label>Prioridade</Label>
+                <Select name="priority" defaultValue="medium">
+                  <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(PROJECT_PRIORITY_LABEL).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><Label>Data início</Label><Input name="startDate" type="date" className="mt-1.5" /></div>
+              <div><Label>Prazo</Label><Input name="dueDate" type="date" className="mt-1.5" /></div>
+              <div><Label>Orçamento (R$)</Label><Input name="budget" type="number" min="0" step="100" className="mt-1.5" /></div>
+              <div className="sm:col-span-2"><Label>Tags (vírgulas)</Label><Input name="tags" className="mt-1.5" placeholder="branding, landing" /></div>
+              <DialogFooter className="sm:col-span-2 mt-2">
+                <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
+                <Button type="submit" className="orbit-gradient hover:opacity-90">Criar projeto</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+        {cards.map((c) => {
+          const Icon = c.icon;
+          return (
+            <div key={c.label} className="orbit-card p-3">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground"><Icon className={`h-4 w-4 ${c.accent}`} />{c.label}</div>
+              <p className="text-lg font-bold text-foreground mt-1">{c.value}</p>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input placeholder="Buscar projeto ou cliente..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+        </div>
+        <Select value={filterStatus} onValueChange={setFilterStatus}>
+          <SelectTrigger className="w-full sm:w-44"><SelectValue placeholder="Status" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos status</SelectItem>
+            {Object.entries(PROJECT_STATUS_LABEL).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={filterService} onValueChange={setFilterService}>
+          <SelectTrigger className="w-full sm:w-40"><SelectValue placeholder="Serviço" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos serviços</SelectItem>
+            {SERVICE_TYPES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={filterPriority} onValueChange={setFilterPriority}>
+          <SelectTrigger className="w-full sm:w-40"><SelectValue placeholder="Prioridade" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas</SelectItem>
+            {Object.entries(PROJECT_PRIORITY_LABEL).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        {filtered.map((p) => (
+          <div key={p.id} className="orbit-card p-4 space-y-3 hover:orbit-glow transition-all">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <h3 className="text-sm font-semibold text-foreground truncate">{p.name}</h3>
+                <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5"><User className="h-3 w-3" />{p.clientName}</p>
+              </div>
+              {p.isDemo && <Badge variant="outline" className="text-[10px] border-border text-muted-foreground">demo</Badge>}
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              <Badge variant="outline" className={`text-[10px] ${statusBadge[p.status]}`}>{PROJECT_STATUS_LABEL[p.status]}</Badge>
+              <Badge variant="outline" className={`text-[10px] ${priorityBadge[p.priority]}`}>{PROJECT_PRIORITY_LABEL[p.priority]}</Badge>
+              {p.serviceType && <Badge variant="outline" className="text-[10px] border-border text-muted-foreground">{p.serviceType}</Badge>}
+            </div>
+            <div>
+              <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                <span>Progresso</span><span>{p.progress}%</span>
+              </div>
+              <Progress value={p.progress} />
+            </div>
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{fmtDate(p.dueDate)}</span>
+              <span className="font-medium text-foreground">{fmtBRL(p.budget)}</span>
+            </div>
+          </div>
+        ))}
+        {filtered.length === 0 && (
+          <div className="md:col-span-2 xl:col-span-3 orbit-card p-10 text-center text-muted-foreground">
+            <FolderOpen className="h-8 w-8 mx-auto mb-2 opacity-50" /> Nenhum projeto encontrado.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

@@ -22,15 +22,11 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
 
-type Priority = "alta" | "média" | "baixa";
-type TaskStatus = "a_fazer" | "em_andamento" | "revisao" | "concluido";
-interface SubTask { text: string; done: boolean; }
-interface Task {
-  id: number; title: string; description: string; client: string; project: string;
-  priority: Priority; deadline: string; status: TaskStatus; createdAt: string;
-  tags: string[]; subtasks: SubTask[];
-  comments: { author: string; text: string; date: string }[];
-}
+import { useTasks, type Task, type TaskStatus, type TaskPriority } from "@/hooks/useTasks";
+import { useProjects } from "@/hooks/useProjects";
+import { toast } from "@/hooks/use-toast";
+
+type Priority = TaskPriority;
 interface ColumnConfig { key: TaskStatus; label: string; color: string; dotColor: string; }
 
 const columns: ColumnConfig[] = [
@@ -57,22 +53,8 @@ const statusBadgeStyle: Record<TaskStatus, string> = {
 };
 
 const clientsList = ["Acme Corp", "Studio Zen", "Nova Design", "FitTrack", "Café & Arte", "Brand Co", "StartUp X"];
-const today = "15 Abr 2025";
+const today = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
 
-const initialTasks: Task[] = [
-  { id: 1, title: "Criar logo principal", description: "Desenvolver 3 propostas de logo para aprovação do cliente. Explorar conceitos minimalistas e tipográficos.", client: "Acme Corp", project: "Rebranding Acme 2025", priority: "alta", deadline: "18 Abr 2025", status: "em_andamento", createdAt: "05 Abr 2025", tags: ["branding", "logo"], subtasks: [{ text: "Pesquisa de referências", done: true }, { text: "Esboços iniciais", done: true }, { text: "Versão digital 1", done: false }, { text: "Apresentação ao cliente", done: false }], comments: [{ author: "Você", text: "Referências aprovadas. Seguir linha minimalista.", date: "12 Abr" }] },
-  { id: 2, title: "Wireframe da landing page", description: "Criar wireframe de alta fidelidade para a landing page institucional.", client: "Studio Zen", project: "Landing Page Studio Zen", priority: "alta", deadline: "16 Abr 2025", status: "a_fazer", createdAt: "08 Abr 2025", tags: ["web", "wireframe"], subtasks: [{ text: "Estrutura de seções", done: false }, { text: "Wireframe mobile", done: false }, { text: "Wireframe desktop", done: false }], comments: [] },
-  { id: 3, title: "Revisar paleta de cores", description: "Ajustar paleta conforme feedback do último meeting.", client: "Acme Corp", project: "Rebranding Acme 2025", priority: "média", deadline: "20 Abr 2025", status: "revisao", createdAt: "10 Abr 2025", tags: ["branding", "cores"], subtasks: [{ text: "Versão light mode", done: true }, { text: "Versão dark mode", done: true }, { text: "Aprovação final", done: false }], comments: [{ author: "Você", text: "Cliente pediu tons mais quentes no secundário.", date: "14 Abr" }] },
-  { id: 4, title: "Posts carrossel Instagram", description: "Criar 5 posts em formato carrossel para o feed do cliente.", client: "FitTrack", project: "Social Media FitTrack", priority: "média", deadline: "17 Abr 2025", status: "em_andamento", createdAt: "09 Abr 2025", tags: ["social media", "design"], subtasks: [{ text: "Roteiro dos slides", done: true }, { text: "Design dos 5 posts", done: false }, { text: "Revisão de copy", done: false }], comments: [] },
-  { id: 5, title: "Enviar proposta comercial", description: "Finalizar e enviar proposta com escopo, timeline e investimento.", client: "Nova Design", project: "Catálogo Digital Nova", priority: "alta", deadline: "15 Abr 2025", status: "a_fazer", createdAt: "07 Abr 2025", tags: ["proposta", "comercial"], subtasks: [{ text: "Montar escopo", done: true }, { text: "Definir investimento", done: false }, { text: "Enviar PDF", done: false }], comments: [{ author: "Você", text: "Aguardando aprovação do preço.", date: "13 Abr" }] },
-  { id: 6, title: "Design telas onboarding", description: "Criar fluxo de onboarding com 4 telas para o app mobile.", client: "FitTrack", project: "App UI FitTrack", priority: "alta", deadline: "22 Abr 2025", status: "a_fazer", createdAt: "11 Abr 2025", tags: ["ui", "mobile"], subtasks: [{ text: "Fluxo do usuário", done: false }, { text: "Tela 1 - Boas-vindas", done: false }, { text: "Tela 2 - Configuração", done: false }, { text: "Tela 3 - Permissões", done: false }, { text: "Tela 4 - Conclusão", done: false }], comments: [] },
-  { id: 7, title: "Reunião alinhamento semanal", description: "Call semanal para alinhar entregas e próximos passos.", client: "Acme Corp", project: "Rebranding Acme 2025", priority: "baixa", deadline: "15 Abr 2025", status: "concluido", createdAt: "08 Abr 2025", tags: ["reunião"], subtasks: [{ text: "Preparar pauta", done: true }, { text: "Realizar call", done: true }, { text: "Enviar resumo", done: true }], comments: [{ author: "Você", text: "Tudo alinhado. Próxima entrega dia 18.", date: "15 Abr" }] },
-  { id: 8, title: "Ajustes finais identidade visual", description: "Aplicar últimos ajustes no manual de marca.", client: "Café & Arte", project: "Identidade Visual Café & Arte", priority: "baixa", deadline: "14 Abr 2025", status: "concluido", createdAt: "06 Abr 2025", tags: ["branding", "manual"], subtasks: [{ text: "Corrigir tipografia", done: true }, { text: "Atualizar mockups", done: true }, { text: "Exportar PDF final", done: true }], comments: [{ author: "Você", text: "Manual entregue e aprovado!", date: "14 Abr" }] },
-  { id: 9, title: "Criar grid de stories", description: "Definir template visual para stories semanais.", client: "Brand Co", project: "Social Media Brand Co", priority: "média", deadline: "19 Abr 2025", status: "a_fazer", createdAt: "12 Abr 2025", tags: ["social media", "template"], subtasks: [{ text: "Definir estilo visual", done: false }, { text: "Template editável", done: false }], comments: [] },
-  { id: 10, title: "Protótipo navegável", description: "Montar protótipo clicável no Figma para validação.", client: "Studio Zen", project: "Landing Page Studio Zen", priority: "média", deadline: "24 Abr 2025", status: "a_fazer", createdAt: "13 Abr 2025", tags: ["web", "protótipo"], subtasks: [{ text: "Linkar telas", done: false }, { text: "Animações de transição", done: false }, { text: "Teste interno", done: false }], comments: [] },
-  { id: 11, title: "Revisar banner campanha", description: "Revisão final do banner para Google Ads.", client: "StartUp X", project: "Landing StartUp X", priority: "baixa", deadline: "21 Abr 2025", status: "revisao", createdAt: "10 Abr 2025", tags: ["marketing", "banner"], subtasks: [{ text: "Ajustar CTA", done: true }, { text: "Versão mobile", done: false }], comments: [{ author: "Você", text: "CTA ajustado, falta versão mobile.", date: "14 Abr" }] },
-  { id: 12, title: "Entrega final catálogo", description: "Exportar e enviar catálogo digital em PDF e link interativo.", client: "Nova Design", project: "Catálogo Digital Nova", priority: "alta", deadline: "25 Abr 2025", status: "em_andamento", createdAt: "11 Abr 2025", tags: ["entrega", "catálogo"], subtasks: [{ text: "Revisão de conteúdo", done: true }, { text: "Exportar PDF", done: false }, { text: "Publicar link interativo", done: false }], comments: [] },
-];
 
 const SummaryCard = ({ icon: Icon, label, value, accent }: { icon: any; label: string; value: number; accent?: string }) => (
   <div className="orbit-card p-4 flex items-center gap-3">
@@ -87,7 +69,7 @@ const SummaryCard = ({ icon: Icon, label, value, accent }: { icon: any; label: s
 );
 
 const Tarefas = () => {
-  const [tasks, setTasks] = useState<Task[]>(initialTasks);
+  const { tasks, setTasks, addTask } = useTasks();
   const [search, setSearch] = useState("");
   const [filterClient, setFilterClient] = useState("all");
   const [filterPriority, setFilterPriority] = useState("all");
@@ -99,10 +81,11 @@ const Tarefas = () => {
   const [draggedId, setDraggedId] = useState<number | null>(null);
   const { wouldExceed, showPaywall, setUsage } = usePlan();
 
-  useEffect(() => { setUsage("tasks", tasks.length); }, [tasks.length, setUsage]);
+  const realTaskCount = tasks.filter(t => !t.isDemo).length;
+  useEffect(() => { setUsage("tasks", realTaskCount); }, [realTaskCount, setUsage]);
 
   const handleNewTask = () => {
-    if (wouldExceed("maxTasks", tasks.length)) {
+    if (wouldExceed("maxTasks", realTaskCount)) {
       showPaywall("tasks");
       return;
     }
@@ -142,6 +125,8 @@ const Tarefas = () => {
   const overdue = tasks.filter(t => t.status !== "concluido" && t.deadline < today).length;
   const doneMonth = tasks.filter(t => t.status === "concluido").length;
   const inProgress = tasks.filter(t => t.status === "em_andamento").length;
+  const highPriority = tasks.filter(t => t.priority === "alta" && t.status !== "concluido").length;
+  const noProject = tasks.filter(t => !t.project || t.project.trim() === "").length;
 
   const handleDrop = (status: TaskStatus) => {
     if (draggedId !== null) { moveTask(draggedId, status); setDraggedId(null); }
@@ -162,11 +147,13 @@ const Tarefas = () => {
         }
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
         <SummaryCard icon={CalendarDays} label="Tarefas do dia" value={todayTasks} />
         <SummaryCard icon={AlertCircle} label="Atrasadas" value={overdue} accent="bg-destructive/15" />
-        <SummaryCard icon={CheckCircle2} label="Concluídas no mês" value={doneMonth} accent="bg-emerald-500/15" />
+        <SummaryCard icon={CheckCircle2} label="Concluídas" value={doneMonth} accent="bg-emerald-500/15" />
         <SummaryCard icon={Timer} label="Em andamento" value={inProgress} accent="bg-amber-500/15" />
+        <SummaryCard icon={Flag} label="Alta prioridade" value={highPriority} accent="bg-destructive/15" />
+        <SummaryCard icon={Briefcase} label="Sem projeto" value={noProject} accent="bg-muted" />
       </div>
 
       <div className="orbit-card p-3 flex flex-wrap items-center gap-3">
@@ -318,70 +305,108 @@ const Tarefas = () => {
         </div>
       )}
 
-      <NewTaskDialog open={newTaskOpen} onOpenChange={setNewTaskOpen} />
+      <NewTaskDialog open={newTaskOpen} onOpenChange={setNewTaskOpen} onCreate={addTask} />
       <TaskDetailSheet task={selectedTask} onClose={() => setSelectedTask(null)} onMove={moveTask} onToggleSubtask={toggleSubtask} />
     </div>
   );
 };
 
-const NewTaskDialog = ({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) => (
-  <Dialog open={open} onOpenChange={onOpenChange}>
-    <DialogContent className="sm:max-w-[580px] bg-card border-border max-h-[90vh] overflow-y-auto">
-      <DialogHeader>
-        <DialogTitle className="text-foreground">Nova tarefa</DialogTitle>
-        <DialogDescription className="text-muted-foreground">Adicione uma nova tarefa ao seu board.</DialogDescription>
-      </DialogHeader>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-4">
-        <div className="sm:col-span-2 space-y-2">
-          <Label className="text-sm text-muted-foreground">Título</Label>
-          <Input placeholder="Ex: Criar logo principal" className="bg-muted/50 border-border" />
-        </div>
-        <div className="sm:col-span-2 space-y-2">
-          <Label className="text-sm text-muted-foreground">Descrição</Label>
-          <Textarea placeholder="Descreva a tarefa..." className="bg-muted/50 border-border min-h-[80px]" />
-        </div>
-        <div className="space-y-2">
-          <Label className="text-sm text-muted-foreground">Cliente</Label>
-          <Select><SelectTrigger className="bg-muted/50 border-border"><SelectValue placeholder="Selecione" /></SelectTrigger>
-            <SelectContent>{clientsList.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2">
-          <Label className="text-sm text-muted-foreground">Projeto</Label>
-          <Input placeholder="Nome do projeto" className="bg-muted/50 border-border" />
-        </div>
-        <div className="space-y-2">
-          <Label className="text-sm text-muted-foreground">Prioridade</Label>
-          <Select><SelectTrigger className="bg-muted/50 border-border"><SelectValue placeholder="Selecione" /></SelectTrigger>
-            <SelectContent><SelectItem value="alta">Alta</SelectItem><SelectItem value="média">Média</SelectItem><SelectItem value="baixa">Baixa</SelectItem></SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2">
-          <Label className="text-sm text-muted-foreground">Prazo</Label>
-          <Input type="date" className="bg-muted/50 border-border" />
-        </div>
-        <div className="space-y-2">
-          <Label className="text-sm text-muted-foreground">Status</Label>
-          <Select><SelectTrigger className="bg-muted/50 border-border"><SelectValue placeholder="Selecione" /></SelectTrigger>
-            <SelectContent>{columns.map(c => <SelectItem key={c.key} value={c.key}>{c.label}</SelectItem>)}</SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2">
-          <Label className="text-sm text-muted-foreground">Etiquetas</Label>
-          <Input placeholder="Ex: branding, logo" className="bg-muted/50 border-border" />
-        </div>
-        <div className="sm:col-span-2 space-y-2">
-          <Label className="text-sm text-muted-foreground">Checklist inicial</Label>
-          <Textarea placeholder="Uma subtarefa por linha..." className="bg-muted/50 border-border min-h-[60px]" />
-        </div>
-      </div>
-      <DialogFooter>
-        <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-        <Button className="orbit-gradient text-white border-0" onClick={() => onOpenChange(false)}>Criar tarefa</Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
-);
+const NewTaskDialog = ({ open, onOpenChange, onCreate }: { open: boolean; onOpenChange: (v: boolean) => void; onCreate: (data: Omit<Task, "id" | "isDemo" | "createdAt">) => void }) => {
+  const { projects } = useProjects();
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const title = (fd.get("title") as string).trim();
+    if (!title) { toast({ title: "Informe o título da tarefa", variant: "destructive" }); return; }
+    const projectId = (fd.get("projectId") as string) || undefined;
+    const projectName = projectId && projectId !== "none" ? (projects.find(p => p.id === projectId)?.name || "") : ((fd.get("projectName") as string) || "");
+    const deadlineIso = (fd.get("deadline") as string) || "";
+    const deadline = deadlineIso ? new Date(deadlineIso).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+    const checklistRaw = (fd.get("checklist") as string) || "";
+    onCreate({
+      title,
+      description: (fd.get("description") as string) || "",
+      client: (fd.get("client") as string) || "",
+      project: projectName,
+      projectId: projectId === "none" ? undefined : projectId,
+      priority: ((fd.get("priority") as TaskPriority) || "média"),
+      deadline,
+      status: ((fd.get("status") as TaskStatus) || "a_fazer"),
+      tags: ((fd.get("tags") as string) || "").split(",").map(t => t.trim()).filter(Boolean),
+      subtasks: checklistRaw.split("\n").map(l => l.trim()).filter(Boolean).map(text => ({ text, done: false })),
+      comments: [],
+    });
+    onOpenChange(false);
+    toast({ title: "Tarefa criada" });
+  };
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[580px] bg-card border-border max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-foreground">Nova tarefa</DialogTitle>
+          <DialogDescription className="text-muted-foreground">Adicione uma nova tarefa ao seu board.</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
+          <div className="sm:col-span-2 space-y-2">
+            <Label className="text-sm text-muted-foreground">Título*</Label>
+            <Input name="title" placeholder="Ex: Criar logo principal" className="bg-muted/50 border-border" />
+          </div>
+          <div className="sm:col-span-2 space-y-2">
+            <Label className="text-sm text-muted-foreground">Descrição</Label>
+            <Textarea name="description" placeholder="Descreva a tarefa..." className="bg-muted/50 border-border min-h-[80px]" />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm text-muted-foreground">Cliente</Label>
+            <Select name="client">
+              <SelectTrigger className="bg-muted/50 border-border"><SelectValue placeholder="Selecione" /></SelectTrigger>
+              <SelectContent>{clientsList.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm text-muted-foreground">Projeto</Label>
+            <Select name="projectId" defaultValue="none">
+              <SelectTrigger className="bg-muted/50 border-border"><SelectValue placeholder="Selecione" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Sem projeto</SelectItem>
+                {projects.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm text-muted-foreground">Prioridade</Label>
+            <Select name="priority" defaultValue="média">
+              <SelectTrigger className="bg-muted/50 border-border"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="alta">Alta</SelectItem><SelectItem value="média">Média</SelectItem><SelectItem value="baixa">Baixa</SelectItem></SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm text-muted-foreground">Prazo</Label>
+            <Input name="deadline" type="date" className="bg-muted/50 border-border" />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm text-muted-foreground">Status</Label>
+            <Select name="status" defaultValue="a_fazer">
+              <SelectTrigger className="bg-muted/50 border-border"><SelectValue /></SelectTrigger>
+              <SelectContent>{columns.map(c => <SelectItem key={c.key} value={c.key}>{c.label}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm text-muted-foreground">Etiquetas (vírgulas)</Label>
+            <Input name="tags" placeholder="Ex: branding, logo" className="bg-muted/50 border-border" />
+          </div>
+          <div className="sm:col-span-2 space-y-2">
+            <Label className="text-sm text-muted-foreground">Checklist inicial</Label>
+            <Textarea name="checklist" placeholder="Uma subtarefa por linha..." className="bg-muted/50 border-border min-h-[60px]" />
+          </div>
+          <DialogFooter className="sm:col-span-2">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+            <Button type="submit" className="orbit-gradient text-white border-0">Criar tarefa</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+};
 
 const TaskDetailSheet = ({ task, onClose, onMove, onToggleSubtask }: {
   task: Task | null; onClose: () => void;
