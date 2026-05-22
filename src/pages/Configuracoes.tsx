@@ -65,10 +65,32 @@ const Configuracoes = () => (
         <Switch defaultChecked />
       </div>
     </div>
+
+    <OnboardingResetCard />
     </div>
   </div>
 );
 
+function OnboardingResetCard() {
+  const { resetOnboarding } = useOnboarding();
+  return (
+    <div className="orbit-card p-6">
+      <h3 className="text-sm font-semibold text-foreground mb-2">Onboarding</h3>
+      <p className="text-xs text-muted-foreground mb-4">
+        Reinicie o assistente inicial para reconfigurar os dados do seu estúdio.
+      </p>
+      <Button
+        variant="outline"
+        onClick={() => {
+          resetOnboarding();
+          window.location.href = "/onboarding";
+        }}
+      >
+        Reiniciar onboarding
+      </Button>
+    </div>
+  );
+}
 
 export default Configuracoes;
 
