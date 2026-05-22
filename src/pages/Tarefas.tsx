@@ -81,7 +81,8 @@ const Tarefas = () => {
   const [draggedId, setDraggedId] = useState<number | null>(null);
   const { wouldExceed, showPaywall, setUsage } = usePlan();
 
-  useEffect(() => { setUsage("tasks", tasks.length); }, [tasks.length, setUsage]);
+  const realTaskCount = tasks.filter(t => !t.isDemo).length;
+  useEffect(() => { setUsage("tasks", realTaskCount); }, [realTaskCount, setUsage]);
 
   const handleNewTask = () => {
     if (wouldExceed("maxTasks", tasks.length)) {
