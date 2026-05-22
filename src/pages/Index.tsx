@@ -7,6 +7,9 @@ import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { InsightsSection } from "@/components/dashboard/InsightsSection";
 import { TodayTasks } from "@/components/dashboard/TodayTasks";
 import { FinanceSummary } from "@/components/dashboard/FinanceSummary";
+import { NextActions } from "@/components/dashboard/NextActions";
+import { QuickShortcuts } from "@/components/dashboard/QuickShortcuts";
+import { StudioProgress } from "@/components/dashboard/StudioProgress";
 import { PlanBanner } from "@/components/plan/PlanBanner";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { usePlan } from "@/contexts/PlanContext";
@@ -83,6 +86,8 @@ const Dashboard = () => (
 
     <InsightsSection />
 
+    <QuickShortcuts />
+
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       <FinanceSummary />
       <GoalsSection />
@@ -91,6 +96,11 @@ const Dashboard = () => (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       <PerformanceChart />
       <TodayTasks />
+    </div>
+
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <NextActions />
+      <StudioProgress />
     </div>
 
     <CRMPipeline />
