@@ -275,7 +275,7 @@ const CRM = () => {
       </div>
 
       {/* New Lead Dialog */}
-      <NewLeadDialog open={newLeadOpen} onOpenChange={setNewLeadOpen} />
+      <NewLeadDialog open={newLeadOpen} onOpenChange={setNewLeadOpen} onSave={addLead} />
 
       {/* Lead Detail Sheet */}
       <LeadDetailSheet
@@ -289,34 +289,73 @@ const CRM = () => {
 };
 
 // ---------- New Lead Dialog ----------
-const NewLeadDialog = ({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) => {
+const emptyLead = {
+  name: "", company: "", email: "", phone: "", serviceType: "",
+  origin: "", estimatedValue: "", priority: "média" as Priority,
+  stage: "lead" as StageKey, nextAction: "", description: "",
+};
+
+const NewLeadDialog = ({
+  open, onOpenChange, onSave,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onSave: (data: Omit<Lead, "id" | "history" | "lastInteraction" | "notes" | "description"> & Partial<Pick<Lead, "description">>) => void;
+}) => {
+  const [form, setForm] = useState(emptyLead);
+  const set = (k: keyof typeof emptyLead, v: string) => setForm(prev => ({ ...prev, [k]: v }));
+
+  useEffect(() => { if (open) setForm(emptyLead); }, [open]);
+
+  const handleSave = () => {
+    if (!form.name.trim()) return toast.error("Informe o nome do lead");
+    if (!form.email.trim() && !form.phone.trim()) {
+      return toast.error("Informe email ou WhatsApp/telefone");
+    }
+    onSave({
+      name: form.name.trim(),
+      company: form.company.trim(),
+      email: form.email.trim(),
+      phone: form.phone.trim(),
+      serviceType: form.serviceType || "—",
+      origin: form.origin || undefined,
+      estimatedValue: Number(form.estimatedValue) || 0,
+      priority: form.priority,
+      stage: form.stage,
+      nextAction: form.nextAction.trim() || undefined,
+      description: form.description.trim(),
+    });
+    toast.success("Lead adicionado ao pipeline");
+    onOpenChange(false);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[560px] bg-card border-border max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[600px] bg-card border-border max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-foreground">Novo lead</DialogTitle>
           <DialogDescription className="text-muted-foreground">Adicione um novo lead ao seu pipeline.</DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-4">
           <div className="space-y-2">
-            <Label className="text-sm text-muted-foreground">Nome completo</Label>
-            <Input placeholder="João Silva" className="bg-muted/50 border-border" />
+            <Label className="text-sm text-muted-foreground">Nome completo*</Label>
+            <Input placeholder="João Silva" value={form.name} onChange={e => set("name", e.target.value)} className="bg-muted/50 border-border" />
           </div>
           <div className="space-y-2">
             <Label className="text-sm text-muted-foreground">Empresa</Label>
-            <Input placeholder="Empresa Ltda" className="bg-muted/50 border-border" />
+            <Input placeholder="Empresa Ltda" value={form.company} onChange={e => set("company", e.target.value)} className="bg-muted/50 border-border" />
           </div>
           <div className="space-y-2">
             <Label className="text-sm text-muted-foreground">Email</Label>
-            <Input type="email" placeholder="email@empresa.com" className="bg-muted/50 border-border" />
+            <Input type="email" placeholder="email@empresa.com" value={form.email} onChange={e => set("email", e.target.value)} className="bg-muted/50 border-border" />
           </div>
           <div className="space-y-2">
-            <Label className="text-sm text-muted-foreground">Telefone</Label>
-            <Input placeholder="(11) 99999-9999" className="bg-muted/50 border-border" />
+            <Label className="text-sm text-muted-foreground">WhatsApp / Telefone</Label>
+            <Input placeholder="(11) 99999-9999" value={form.phone} onChange={e => set("phone", e.target.value)} className="bg-muted/50 border-border" />
           </div>
           <div className="space-y-2">
-            <Label className="text-sm text-muted-foreground">Tipo de serviço</Label>
-            <Select>
+            <Label className="text-sm text-muted-foreground">Serviço de interesse</Label>
+            <Select value={form.serviceType} onValueChange={v => set("serviceType", v)}>
               <SelectTrigger className="bg-muted/50 border-border"><SelectValue placeholder="Selecione" /></SelectTrigger>
               <SelectContent>
                 {serviceTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
@@ -324,13 +363,22 @@ const NewLeadDialog = ({ open, onOpenChange }: { open: boolean; onOpenChange: (v
             </Select>
           </div>
           <div className="space-y-2">
-            <Label className="text-sm text-muted-foreground">Valor estimado</Label>
-            <Input type="number" placeholder="5000" className="bg-muted/50 border-border" />
+            <Label className="text-sm text-muted-foreground">Valor estimado (R$)</Label>
+            <Input type="number" placeholder="5000" value={form.estimatedValue} onChange={e => set("estimatedValue", e.target.value)} className="bg-muted/50 border-border" />
           </div>
           <div className="space-y-2">
-            <Label className="text-sm text-muted-foreground">Prioridade</Label>
-            <Select>
+            <Label className="text-sm text-muted-foreground">Origem</Label>
+            <Select value={form.origin} onValueChange={v => set("origin", v)}>
               <SelectTrigger className="bg-muted/50 border-border"><SelectValue placeholder="Selecione" /></SelectTrigger>
+              <SelectContent>
+                {origins.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm text-muted-foreground">Temperatura</Label>
+            <Select value={form.priority} onValueChange={v => set("priority", v)}>
+              <SelectTrigger className="bg-muted/50 border-border"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="alta">Alta</SelectItem>
                 <SelectItem value="média">Média</SelectItem>
@@ -339,22 +387,26 @@ const NewLeadDialog = ({ open, onOpenChange }: { open: boolean; onOpenChange: (v
             </Select>
           </div>
           <div className="space-y-2">
-            <Label className="text-sm text-muted-foreground">Etapa</Label>
-            <Select>
-              <SelectTrigger className="bg-muted/50 border-border"><SelectValue placeholder="Selecione" /></SelectTrigger>
+            <Label className="text-sm text-muted-foreground">Etapa inicial</Label>
+            <Select value={form.stage} onValueChange={v => set("stage", v)}>
+              <SelectTrigger className="bg-muted/50 border-border"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {stageConfigs.slice(0, -1).map(s => <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
+          <div className="space-y-2">
+            <Label className="text-sm text-muted-foreground">Próxima ação</Label>
+            <Input placeholder="Ex.: Marcar call de diagnóstico" value={form.nextAction} onChange={e => set("nextAction", e.target.value)} className="bg-muted/50 border-border" />
+          </div>
           <div className="sm:col-span-2 space-y-2">
-            <Label className="text-sm text-muted-foreground">Descrição do projeto</Label>
-            <Textarea placeholder="Descreva o projeto..." className="bg-muted/50 border-border min-h-[80px]" />
+            <Label className="text-sm text-muted-foreground">Observações</Label>
+            <Textarea placeholder="Descreva o projeto ou contexto..." className="bg-muted/50 border-border min-h-[80px]" value={form.description} onChange={e => set("description", e.target.value)} />
           </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button className="orbit-gradient text-white border-0" onClick={() => onOpenChange(false)}>Adicionar lead</Button>
+          <Button className="orbit-gradient text-white border-0" onClick={handleSave}>Adicionar lead</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
