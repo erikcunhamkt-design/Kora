@@ -132,7 +132,7 @@ export function useClients() {
     } catch {}
   }, [clients]);
 
-  const addClient = useCallback((data: Omit<Client, "id" | "projects" | "tasks" | "lastProject" | "lastInteraction"> & Partial<Pick<Client, "lastInteraction" | "lastProject">>) => {
+  const addClient = useCallback((data: Omit<Client, "id" | "projects" | "tasks" | "lastProject" | "lastInteraction" | "isDemo"> & Partial<Pick<Client, "lastInteraction" | "lastProject">>) => {
     setClients((prev) => [
       {
         id: Date.now(),
@@ -141,6 +141,7 @@ export function useClients() {
         lastProject: data.lastProject ?? "—",
         lastInteraction: data.lastInteraction ?? new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }),
         ...data,
+        isDemo: false,
       } as Client,
       ...prev,
     ]);
