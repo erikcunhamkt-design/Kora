@@ -410,13 +410,114 @@ function QuickAddModal({ onClose }: { onClose: () => void }) {
 
 function NewProspectModal({ onClose }: { onClose: () => void }) {
   const handleSubmit = useSubmit(onClose, "Prospect criado");
+  const [origem, setOrigem] = useState<"Local" | "Internet" | "Indicação">("Local");
+  const [temperatura, setTemperatura] = useState<"Frio" | "Morno" | "Quente">("Frio");
+
+  const segBtn = (active: boolean) =>
+    [
+      "rounded-xl px-5 py-2 text-xs font-black uppercase transition",
+      active ? "border border-white text-amber-400" : "border border-zinc-800 text-zinc-400 hover:text-white",
+    ].join(" ");
+
   return (
     <ModalShell title="Novo Prospect" onClose={onClose}>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <FormField label="Nome" placeholder="Nome do prospect" />
-        <FormField label="Contato" placeholder="@instagram ou telefone" />
-        <FormField label="Origem" placeholder="Indicação, anúncio, etc." />
-        <ModalActions onClose={onClose} submitLabel="Adicionar Prospect" />
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <FormField label="Primeiro Nome *" placeholder="Ex: João" />
+
+        <div className="space-y-1.5">
+          <label className="text-xs font-bold uppercase text-amber-400">Origem *</label>
+          <div className="flex gap-2">
+            {(["Local", "Internet", "Indicação"] as const).map((o) => (
+              <button key={o} type="button" onClick={() => setOrigem(o)} className={segBtn(origem === o)}>
+                {o}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-xs font-bold uppercase text-amber-400">Tipo de Serviço a Ofertar *</label>
+          <select className="w-full rounded-xl border border-zinc-800 bg-black px-4 py-2.5 text-sm text-white focus:border-amber-400 focus:outline-none">
+            <option>Artes para Redes Sociais</option>
+            <option>Identidade Visual</option>
+            <option>Landing Page</option>
+            <option>Gestão de Tráfego</option>
+            <option>Outro</option>
+          </select>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <FormField label="Empresa" placeholder="Ex: Barbearia X" />
+          <FormField label="Nicho" placeholder="Ex: Estética" />
+        </div>
+
+        <FormField label="Cidade" placeholder="Ex: Campinas" />
+
+        <div className="grid grid-cols-2 gap-4">
+          <FormField label="WhatsApp" placeholder="55 11 999999999" />
+          <FormField label="Instagram" placeholder="sem o @" />
+        </div>
+
+        <FormField label="E-mail" type="email" placeholder="email@exemplo.com" />
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold uppercase text-amber-400">Nível do Cliente</label>
+            <select className="w-full rounded-xl border border-zinc-800 bg-black px-4 py-2.5 text-sm text-white focus:border-amber-400 focus:outline-none">
+              <option>Pequeno</option>
+              <option>Médio</option>
+              <option>Grande</option>
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold uppercase text-amber-400">Temperatura</label>
+            <div className="flex gap-2">
+              {(["Frio", "Morno", "Quente"] as const).map((t) => (
+                <button key={t} type="button" onClick={() => setTemperatura(t)} className={segBtn(temperatura === t)}>
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold uppercase text-amber-400">Serviço de Interesse</label>
+            <select className="w-full rounded-xl border border-zinc-800 bg-black px-4 py-2.5 text-sm text-white focus:border-amber-400 focus:outline-none">
+              <option>Nenhum</option>
+              <option>Artes para Redes Sociais</option>
+              <option>Identidade Visual</option>
+              <option>Landing Page</option>
+            </select>
+          </div>
+          <FormField label="Valor Estimado (R$)" type="number" placeholder="0.00" />
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-xs font-bold uppercase text-amber-400">Anotações</label>
+          <textarea
+            rows={3}
+            placeholder="Notas sobre esse prospect..."
+            className="w-full rounded-xl border border-zinc-800 bg-black px-4 py-2.5 text-sm text-white placeholder:text-zinc-500 focus:border-amber-400 focus:outline-none"
+          />
+        </div>
+
+        <div className="flex gap-3 pt-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 rounded-xl border border-zinc-800 px-4 py-2.5 text-sm font-bold text-white hover:border-amber-400 hover:text-amber-400 transition"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            className="flex-1 rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-black uppercase text-black hover:bg-amber-400 transition"
+          >
+            Adicionar
+          </button>
+        </div>
       </form>
     </ModalShell>
   );
