@@ -68,8 +68,8 @@ export default function Vendas() {
   };
 
   return (
-    <div className="min-h-screen -m-6 bg-black text-white">
-      <header className="sticky top-0 z-30 border-b border-zinc-800 bg-black/90 backdrop-blur">
+    <div className="min-h-full -m-6 bg-background text-foreground">
+      <header className="sticky top-0 z-30 border-b border-border/60 bg-background/90 backdrop-blur">
         <div className="flex h-14 items-center justify-between gap-4 px-6">
           <div className="flex items-center gap-2 font-bold shrink-0">
             <Target className="h-4 w-4 text-amber-400" />
@@ -83,7 +83,9 @@ export default function Vendas() {
                 onClick={() => setActiveTab(id)}
                 className={[
                   "flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold transition whitespace-nowrap",
-                  activeTab === id ? "border border-white text-amber-400" : "border border-transparent text-zinc-500 hover:text-white",
+                  activeTab === id
+                    ? "border border-primary/60 bg-primary/10 text-amber-400"
+                    : "border border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/40",
                 ].join(" ")}
               >
                 <Icon className="h-4 w-4" />
@@ -94,7 +96,7 @@ export default function Vendas() {
           <button
             type="button"
             onClick={() => setNewProspectOpen(true)}
-            className="rounded-full border border-white px-5 py-2 text-sm font-bold text-amber-400 hover:bg-white hover:text-black transition shrink-0"
+            className="rounded-full border border-primary/60 bg-primary/10 px-5 py-2 text-sm font-bold text-amber-400 hover:bg-primary/20 transition shrink-0"
           >
             + Novo Prospect
           </button>
@@ -102,6 +104,7 @@ export default function Vendas() {
       </header>
 
       <main className="mx-auto max-w-7xl px-6 py-8">{renderActiveTab()}</main>
+
 
       {quickAddOpen && <QuickAddModal onClose={() => setQuickAddOpen(false)} onAddProspect={addProspect} />}
       {newProspectOpen && <NewProspectModal onClose={() => setNewProspectOpen(false)} />}
