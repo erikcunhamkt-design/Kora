@@ -122,6 +122,8 @@ const Tarefas = () => {
   const overdue = tasks.filter(t => t.status !== "concluido" && t.deadline < today).length;
   const doneMonth = tasks.filter(t => t.status === "concluido").length;
   const inProgress = tasks.filter(t => t.status === "em_andamento").length;
+  const highPriority = tasks.filter(t => t.priority === "alta" && t.status !== "concluido").length;
+  const noProject = tasks.filter(t => !t.project || t.project.trim() === "").length;
 
   const handleDrop = (status: TaskStatus) => {
     if (draggedId !== null) { moveTask(draggedId, status); setDraggedId(null); }
