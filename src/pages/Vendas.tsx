@@ -24,7 +24,7 @@ export type Prospect = {
 
 type QuickAddProspectPayload = Omit<Prospect, "id" | "createdAt">;
 
-type SalesTab = "home" | "prospects" | "servicos" | "clientes" | "ranking" | "demandas";
+type SalesTab = "home" | "prospects" | "servicos" | "orcamentos" | "clientes" | "ranking" | "demandas";
 
 const prospectStages = ["Prospectar", "Abordar", "Não Respondeu", "Oferta Feita", "Pensando", "Não Quis"];
 const demandPipeline = ["Rascunho", "Aprovação Copy", "Copy Aprovado", "Aprovação Post", "Aprovado", "Agendado", "Postado"];
@@ -33,6 +33,7 @@ const tabs: { id: SalesTab; label: string; icon: typeof LayoutGrid }[] = [
   { id: "home", label: "Home", icon: LayoutGrid },
   { id: "prospects", label: "Prospects", icon: Users },
   { id: "servicos", label: "Serviços", icon: Briefcase },
+  { id: "orcamentos", label: "Orçamentos", icon: FileText },
   { id: "clientes", label: "Clientes", icon: Users },
   { id: "ranking", label: "Ranking", icon: Trophy },
   { id: "demandas", label: "Demandas", icon: Calendar },
