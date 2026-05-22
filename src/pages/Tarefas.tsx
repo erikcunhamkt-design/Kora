@@ -302,70 +302,108 @@ const Tarefas = () => {
         </div>
       )}
 
-      <NewTaskDialog open={newTaskOpen} onOpenChange={setNewTaskOpen} />
+      <NewTaskDialog open={newTaskOpen} onOpenChange={setNewTaskOpen} onCreate={addTask} />
       <TaskDetailSheet task={selectedTask} onClose={() => setSelectedTask(null)} onMove={moveTask} onToggleSubtask={toggleSubtask} />
     </div>
   );
 };
 
-const NewTaskDialog = ({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) => (
-  <Dialog open={open} onOpenChange={onOpenChange}>
-    <DialogContent className="sm:max-w-[580px] bg-card border-border max-h-[90vh] overflow-y-auto">
-      <DialogHeader>
-        <DialogTitle className="text-foreground">Nova tarefa</DialogTitle>
-        <DialogDescription className="text-muted-foreground">Adicione uma nova tarefa ao seu board.</DialogDescription>
-      </DialogHeader>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-4">
-        <div className="sm:col-span-2 space-y-2">
-          <Label className="text-sm text-muted-foreground">Título</Label>
-          <Input placeholder="Ex: Criar logo principal" className="bg-muted/50 border-border" />
-        </div>
-        <div className="sm:col-span-2 space-y-2">
-          <Label className="text-sm text-muted-foreground">Descrição</Label>
-          <Textarea placeholder="Descreva a tarefa..." className="bg-muted/50 border-border min-h-[80px]" />
-        </div>
-        <div className="space-y-2">
-          <Label className="text-sm text-muted-foreground">Cliente</Label>
-          <Select><SelectTrigger className="bg-muted/50 border-border"><SelectValue placeholder="Selecione" /></SelectTrigger>
-            <SelectContent>{clientsList.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2">
-          <Label className="text-sm text-muted-foreground">Projeto</Label>
-          <Input placeholder="Nome do projeto" className="bg-muted/50 border-border" />
-        </div>
-        <div className="space-y-2">
-          <Label className="text-sm text-muted-foreground">Prioridade</Label>
-          <Select><SelectTrigger className="bg-muted/50 border-border"><SelectValue placeholder="Selecione" /></SelectTrigger>
-            <SelectContent><SelectItem value="alta">Alta</SelectItem><SelectItem value="média">Média</SelectItem><SelectItem value="baixa">Baixa</SelectItem></SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2">
-          <Label className="text-sm text-muted-foreground">Prazo</Label>
-          <Input type="date" className="bg-muted/50 border-border" />
-        </div>
-        <div className="space-y-2">
-          <Label className="text-sm text-muted-foreground">Status</Label>
-          <Select><SelectTrigger className="bg-muted/50 border-border"><SelectValue placeholder="Selecione" /></SelectTrigger>
-            <SelectContent>{columns.map(c => <SelectItem key={c.key} value={c.key}>{c.label}</SelectItem>)}</SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2">
-          <Label className="text-sm text-muted-foreground">Etiquetas</Label>
-          <Input placeholder="Ex: branding, logo" className="bg-muted/50 border-border" />
-        </div>
-        <div className="sm:col-span-2 space-y-2">
-          <Label className="text-sm text-muted-foreground">Checklist inicial</Label>
-          <Textarea placeholder="Uma subtarefa por linha..." className="bg-muted/50 border-border min-h-[60px]" />
-        </div>
-      </div>
-      <DialogFooter>
-        <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-        <Button className="orbit-gradient text-white border-0" onClick={() => onOpenChange(false)}>Criar tarefa</Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
-);
+const NewTaskDialog = ({ open, onOpenChange, onCreate }: { open: boolean; onOpenChange: (v: boolean) => void; onCreate: (data: Omit<Task, "id" | "isDemo" | "createdAt">) => void }) => {
+  const { projects } = useProjects();
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const title = (fd.get("title") as string).trim();
+    if (!title) { toast({ title: "Informe o título da tarefa", variant: "destructive" }); return; }
+    const projectId = (fd.get("projectId") as string) || undefined;
+    const projectName = projectId && projectId !== "none" ? (projects.find(p => p.id === projectId)?.name || "") : ((fd.get("projectName") as string) || "");
+    const deadlineIso = (fd.get("deadline") as string) || "";
+    const deadline = deadlineIso ? new Date(deadlineIso).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+    const checklistRaw = (fd.get("checklist") as string) || "";
+    onCreate({
+      title,
+      description: (fd.get("description") as string) || "",
+      client: (fd.get("client") as string) || "",
+      project: projectName,
+      projectId: projectId === "none" ? undefined : projectId,
+      priority: ((fd.get("priority") as TaskPriority) || "média"),
+      deadline,
+      status: ((fd.get("status") as TaskStatus) || "a_fazer"),
+      tags: ((fd.get("tags") as string) || "").split(",").map(t => t.trim()).filter(Boolean),
+      subtasks: checklistRaw.split("\n").map(l => l.trim()).filter(Boolean).map(text => ({ text, done: false })),
+      comments: [],
+    });
+    onOpenChange(false);
+    toast({ title: "Tarefa criada" });
+  };
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[580px] bg-card border-border max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-foreground">Nova tarefa</DialogTitle>
+          <DialogDescription className="text-muted-foreground">Adicione uma nova tarefa ao seu board.</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
+          <div className="sm:col-span-2 space-y-2">
+            <Label className="text-sm text-muted-foreground">Título*</Label>
+            <Input name="title" placeholder="Ex: Criar logo principal" className="bg-muted/50 border-border" />
+          </div>
+          <div className="sm:col-span-2 space-y-2">
+            <Label className="text-sm text-muted-foreground">Descrição</Label>
+            <Textarea name="description" placeholder="Descreva a tarefa..." className="bg-muted/50 border-border min-h-[80px]" />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm text-muted-foreground">Cliente</Label>
+            <Select name="client">
+              <SelectTrigger className="bg-muted/50 border-border"><SelectValue placeholder="Selecione" /></SelectTrigger>
+              <SelectContent>{clientsList.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm text-muted-foreground">Projeto</Label>
+            <Select name="projectId" defaultValue="none">
+              <SelectTrigger className="bg-muted/50 border-border"><SelectValue placeholder="Selecione" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Sem projeto</SelectItem>
+                {projects.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm text-muted-foreground">Prioridade</Label>
+            <Select name="priority" defaultValue="média">
+              <SelectTrigger className="bg-muted/50 border-border"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="alta">Alta</SelectItem><SelectItem value="média">Média</SelectItem><SelectItem value="baixa">Baixa</SelectItem></SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm text-muted-foreground">Prazo</Label>
+            <Input name="deadline" type="date" className="bg-muted/50 border-border" />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm text-muted-foreground">Status</Label>
+            <Select name="status" defaultValue="a_fazer">
+              <SelectTrigger className="bg-muted/50 border-border"><SelectValue /></SelectTrigger>
+              <SelectContent>{columns.map(c => <SelectItem key={c.key} value={c.key}>{c.label}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm text-muted-foreground">Etiquetas (vírgulas)</Label>
+            <Input name="tags" placeholder="Ex: branding, logo" className="bg-muted/50 border-border" />
+          </div>
+          <div className="sm:col-span-2 space-y-2">
+            <Label className="text-sm text-muted-foreground">Checklist inicial</Label>
+            <Textarea name="checklist" placeholder="Uma subtarefa por linha..." className="bg-muted/50 border-border min-h-[60px]" />
+          </div>
+          <DialogFooter className="sm:col-span-2">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+            <Button type="submit" className="orbit-gradient text-white border-0">Criar tarefa</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+};
 
 const TaskDetailSheet = ({ task, onClose, onMove, onToggleSubtask }: {
   task: Task | null; onClose: () => void;
