@@ -5,7 +5,9 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { PlanProvider } from "@/contexts/PlanContext";
+import { OnboardingProvider } from "@/contexts/OnboardingContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { OnboardingGate } from "@/components/onboarding/OnboardingGate";
 import { PaywallModal } from "@/components/plan/PaywallModal";
 import { MainLayout } from "@/components/layout/MainLayout";
 import Index from "./pages/Index";
@@ -23,6 +25,7 @@ import Signup from "./pages/Signup";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import Landing from "./pages/Landing";
+import Onboarding from "./pages/Onboarding";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -35,32 +38,38 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <PlanProvider>
-            <PaywallModal />
-            <Routes>
-              {/* Public routes */}
-              <Route path="/landing" element={<Landing />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/signup" element={<Signup />} />
-              <Route path="/forgot-password" element={<ForgotPassword />} />
-              <Route path="/reset-password" element={<ResetPassword />} />
+            <OnboardingProvider>
+              <PaywallModal />
+              <Routes>
+                {/* Public routes */}
+                <Route path="/landing" element={<Landing />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/signup" element={<Signup />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
 
-              {/* Protected routes */}
-              <Route path="/" element={<ProtectedRoute><MainLayout><Index /></MainLayout></ProtectedRoute>} />
-              <Route path="/portfolio" element={<ProtectedRoute><MainLayout><Portfolio /></MainLayout></ProtectedRoute>} />
-              <Route path="/clientes" element={<ProtectedRoute><MainLayout><Clientes /></MainLayout></ProtectedRoute>} />
-              <Route path="/crm" element={<ProtectedRoute><MainLayout><CRM /></MainLayout></ProtectedRoute>} />
-              <Route path="/vendas" element={<ProtectedRoute><MainLayout><Vendas /></MainLayout></ProtectedRoute>} />
-              <Route path="/financeiro" element={<ProtectedRoute><MainLayout><Financeiro /></MainLayout></ProtectedRoute>} />
-              <Route path="/tarefas" element={<ProtectedRoute><MainLayout><Tarefas /></MainLayout></ProtectedRoute>} />
-              <Route path="/metas" element={<ProtectedRoute><MainLayout><Metas /></MainLayout></ProtectedRoute>} />
-              <Route path="/configuracoes" element={<ProtectedRoute><MainLayout><Configuracoes /></MainLayout></ProtectedRoute>} />
-              <Route path="/upgrade" element={<ProtectedRoute><MainLayout><Upgrade /></MainLayout></ProtectedRoute>} />
+                {/* Onboarding (gated by completion check inside) */}
+                <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
 
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+                {/* Protected routes */}
+                <Route path="/" element={<ProtectedRoute><OnboardingGate><MainLayout><Index /></MainLayout></OnboardingGate></ProtectedRoute>} />
+                <Route path="/portfolio" element={<ProtectedRoute><OnboardingGate><MainLayout><Portfolio /></MainLayout></OnboardingGate></ProtectedRoute>} />
+                <Route path="/clientes" element={<ProtectedRoute><OnboardingGate><MainLayout><Clientes /></MainLayout></OnboardingGate></ProtectedRoute>} />
+                <Route path="/crm" element={<ProtectedRoute><OnboardingGate><MainLayout><CRM /></MainLayout></OnboardingGate></ProtectedRoute>} />
+                <Route path="/vendas" element={<ProtectedRoute><OnboardingGate><MainLayout><Vendas /></MainLayout></OnboardingGate></ProtectedRoute>} />
+                <Route path="/financeiro" element={<ProtectedRoute><OnboardingGate><MainLayout><Financeiro /></MainLayout></OnboardingGate></ProtectedRoute>} />
+                <Route path="/tarefas" element={<ProtectedRoute><OnboardingGate><MainLayout><Tarefas /></MainLayout></OnboardingGate></ProtectedRoute>} />
+                <Route path="/metas" element={<ProtectedRoute><OnboardingGate><MainLayout><Metas /></MainLayout></OnboardingGate></ProtectedRoute>} />
+                <Route path="/configuracoes" element={<ProtectedRoute><OnboardingGate><MainLayout><Configuracoes /></MainLayout></OnboardingGate></ProtectedRoute>} />
+                <Route path="/upgrade" element={<ProtectedRoute><OnboardingGate><MainLayout><Upgrade /></MainLayout></OnboardingGate></ProtectedRoute>} />
+
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </OnboardingProvider>
           </PlanProvider>
         </AuthProvider>
       </BrowserRouter>
+
     </TooltipProvider>
   </QueryClientProvider>
 );
