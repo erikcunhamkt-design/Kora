@@ -181,12 +181,6 @@ export function useLeads() {
     } catch {}
     return initialLeads;
   });
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) return JSON.parse(raw) as Lead[];
-    } catch {}
-    return initialLeads;
-  });
 
   useEffect(() => {
     try {
