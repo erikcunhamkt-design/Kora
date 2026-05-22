@@ -12,6 +12,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
 } from "@/components/ui/sheet";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { ProjectsSection } from "@/components/projetos/ProjectsSection";
+import { ContentSection } from "@/components/projetos/ContentSection";
 import {
   Plus, Search, Eye, Pencil, FolderOpen, Send, FileCheck, Star,
   Calendar, User, Tag, BarChart3, ExternalLink, X,
