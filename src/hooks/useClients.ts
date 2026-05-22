@@ -107,11 +107,21 @@ const rawInitialClients: Omit<Client, "isDemo">[] = [
   },
 ];
 
+export const initialClients: Client[] = rawInitialClients.map((c) => ({ ...c, isDemo: true }));
+
+const SEED_IDS = new Set(rawInitialClients.map((c) => c.id));
+
+function migrate(list: Client[]): Client[] {
+  return list.map((c) =>
+    c.isDemo === undefined && SEED_IDS.has(c.id) ? { ...c, isDemo: true } : c
+  );
+}
+
 export function useClients() {
   const [clients, setClients] = useState<Client[]>(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) return JSON.parse(raw) as Client[];
+      if (raw) return migrate(JSON.parse(raw) as Client[]);
     } catch {}
     return initialClients;
   });
