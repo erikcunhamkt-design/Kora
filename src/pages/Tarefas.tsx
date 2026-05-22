@@ -23,6 +23,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 import { useTasks, type Task, type TaskStatus, type TaskPriority } from "@/hooks/useTasks";
+import { useProjects } from "@/hooks/useProjects";
+import { toast } from "@/hooks/use-toast";
 
 type Priority = TaskPriority;
 interface ColumnConfig { key: TaskStatus; label: string; color: string; dotColor: string; }
