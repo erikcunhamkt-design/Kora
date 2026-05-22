@@ -5,6 +5,7 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { useOnboarding } from "@/contexts/OnboardingContext";
 
 const Configuracoes = () => (
   <div className="max-w-2xl">
