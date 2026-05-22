@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { toast } from "sonner";
-import { FileText, Plus, X, Download, Send, Copy, Pencil, Check, Trash2 } from "lucide-react";
+import { FileText, Plus, X, Download, Send, Copy, Check, Trash2 } from "lucide-react";
 import { useQuotes, type Quote, type QuoteItem, type QuoteStatus } from "@/hooks/useQuotes";
 import { useServices } from "@/hooks/useServices";
 import { useClients } from "@/hooks/useClients";
