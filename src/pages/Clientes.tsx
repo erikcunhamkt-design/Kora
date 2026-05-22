@@ -61,10 +61,11 @@ const Clientes = () => {
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const { wouldExceed, showPaywall, setUsage } = usePlan();
 
-  useEffect(() => { setUsage("clients", clients.length); }, [clients.length, setUsage]);
+  const realClientsCount = clients.filter((c) => !c.isDemo).length;
+  useEffect(() => { setUsage("clients", realClientsCount); }, [realClientsCount, setUsage]);
 
   const handleNewClient = () => {
-    if (wouldExceed("maxClients", clients.length)) {
+    if (wouldExceed("maxClients", realClientsCount)) {
       showPaywall("clients");
       return;
     }
