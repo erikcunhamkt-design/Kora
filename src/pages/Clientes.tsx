@@ -12,11 +12,13 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
+import { toast } from "sonner";
+import { useClients, type Client, type ClientStatus } from "@/hooks/useClients";
 import {
   Users, UserCheck, UserPlus, FolderKanban, Search, SlidersHorizontal,
   Plus, ArrowUpDown, LayoutGrid, LayoutList, Phone, Mail, Globe,
   MessageCircle, ExternalLink, Calendar, Clock, MoreHorizontal, AtSign,
-  Briefcase, FileText, CheckSquare, StickyNote
+  Briefcase, FileText, CheckSquare, StickyNote, DollarSign, AlertCircle
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
