@@ -148,18 +148,18 @@ const Tarefas = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Tarefas</h1>
-          <p className="text-muted-foreground text-sm mt-1">Organize suas atividades e acompanhe o progresso dos seus projetos</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <UsageBadge resource="tasks" label="tarefas" />
-          <Button onClick={handleNewTask} className="orbit-gradient text-white border-0 gap-2 shrink-0">
-            <Plus className="h-4 w-4" /> Nova tarefa
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Tarefas"
+        subtitle="Organize suas atividades e acompanhe o progresso dos seus projetos"
+        actions={
+          <>
+            <UsageBadge resource="tasks" label="tarefas" />
+            <Button onClick={handleNewTask} className="orbit-gradient text-white border-0 gap-2 shrink-0">
+              <Plus className="h-4 w-4" /> Nova tarefa
+            </Button>
+          </>
+        }
+      />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <SummaryCard icon={CalendarDays} label="Tarefas do dia" value={todayTasks} />

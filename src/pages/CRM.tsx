@@ -268,19 +268,18 @@ const CRM = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">CRM</h1>
-          <p className="text-muted-foreground text-sm mt-1">Acompanhe seus leads e oportunidades de negócio</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <UsageBadge resource="leads" label="leads" />
-          <Button onClick={handleNewLead} className="orbit-gradient text-white border-0 gap-2 shrink-0">
-            <Plus className="h-4 w-4" /> Novo lead
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="CRM"
+        subtitle="Acompanhe seus leads e oportunidades de negócio"
+        actions={
+          <>
+            <UsageBadge resource="leads" label="leads" />
+            <Button onClick={handleNewLead} className="orbit-gradient text-white border-0 gap-2 shrink-0">
+              <Plus className="h-4 w-4" /> Novo lead
+            </Button>
+          </>
+        }
+      />
 
       {/* Summary */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

@@ -176,19 +176,18 @@ const Clientes = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Clientes</h1>
-          <p className="text-muted-foreground text-sm mt-1">Gerencie seus clientes, contatos e informações importantes em um só lugar</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <UsageBadge resource="clients" label="clientes" />
-          <Button onClick={handleNewClient} className="orbit-gradient text-white border-0 gap-2 shrink-0">
-            <Plus className="h-4 w-4" /> Novo cliente
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Clientes"
+        subtitle="Gerencie seus clientes, contatos e informações importantes em um só lugar"
+        actions={
+          <>
+            <UsageBadge resource="clients" label="clientes" />
+            <Button onClick={handleNewClient} className="orbit-gradient text-white border-0 gap-2 shrink-0">
+              <Plus className="h-4 w-4" /> Novo cliente
+            </Button>
+          </>
+        }
+      />
 
       {/* Summary cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
