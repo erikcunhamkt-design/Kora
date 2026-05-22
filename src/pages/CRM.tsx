@@ -1,5 +1,5 @@
 import { PageHeader } from "@/components/layout/PageHeader";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { usePlan } from "@/contexts/PlanContext";
 import { UsageBadge } from "@/components/plan/UsageBadge";
 import { Badge } from "@/components/ui/badge";
@@ -9,11 +9,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
+import { useLeads, type Lead, type Priority, type StageKey } from "@/hooks/useLeads";
 import {
   Plus, Search, TrendingUp, DollarSign, CheckCircle2, BarChart3,
   Phone, Mail, Globe, Clock, MoreHorizontal, ChevronRight, ChevronLeft,
   User, Briefcase, Calendar, MessageCircle, StickyNote, X as XIcon,
-  ArrowRight, XCircle, GripVertical, AlertCircle
+  ArrowRight, XCircle, GripVertical, AlertCircle, Sparkles, Flame
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger
@@ -22,26 +24,6 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-
-// ---------- Types ----------
-type Priority = "alta" | "média" | "baixa";
-type StageKey = "lead" | "contato" | "proposta" | "negociacao" | "fechado" | "perdido";
-
-interface Lead {
-  id: number;
-  name: string;
-  company: string;
-  email: string;
-  phone: string;
-  serviceType: string;
-  estimatedValue: number;
-  priority: Priority;
-  lastInteraction: string;
-  stage: StageKey;
-  description: string;
-  history: { date: string; text: string }[];
-  notes: string;
-}
 
 interface StageConfig {
   key: StageKey;
@@ -68,136 +50,9 @@ const priorityStyles: Record<Priority, string> = {
 };
 
 const serviceTypes = ["Branding", "Social Media", "Web Design", "Design Gráfico"];
+const origins = ["Indicação", "Instagram", "LinkedIn", "Site", "WhatsApp", "Outro"];
 
-// ---------- Mock Data ----------
-const initialLeads: Lead[] = [
-  {
-    id: 1, name: "Marina Costa", company: "Acme Corp", email: "marina@acme.com",
-    phone: "(11) 99812-3456", serviceType: "Branding", estimatedValue: 8500,
-    priority: "alta", lastInteraction: "12 Abr 2025", stage: "negociacao",
-    description: "Rebranding completo incluindo logo, paleta e guidelines.",
-    notes: "Prefere reuniões às terças.",
-    history: [
-      { date: "12 Abr", text: "Reunião de alinhamento sobre guidelines" },
-      { date: "08 Abr", text: "Apresentação da proposta de rebranding" },
-      { date: "02 Abr", text: "Primeiro contato via email" },
-    ],
-  },
-  {
-    id: 2, name: "Rafael Mendes", company: "Studio Zen", email: "rafael@studiozen.com",
-    phone: "(21) 98765-4321", serviceType: "Web Design", estimatedValue: 12000,
-    priority: "alta", lastInteraction: "10 Abr 2025", stage: "proposta",
-    description: "Redesign completo do website institucional com e-commerce.",
-    notes: "Deadline apertado — precisa entregar até maio.",
-    history: [
-      { date: "10 Abr", text: "Proposta enviada via email" },
-      { date: "06 Abr", text: "Briefing detalhado recebido" },
-      { date: "01 Abr", text: "Indicação do cliente Fernanda Lima" },
-    ],
-  },
-  {
-    id: 3, name: "Camila Andrade", company: "Nova Design", email: "camila@novadesign.com",
-    phone: "(31) 97654-3210", serviceType: "Design Gráfico", estimatedValue: 4500,
-    priority: "média", lastInteraction: "08 Abr 2025", stage: "proposta",
-    description: "Catálogo digital de produtos para distribuição B2B.",
-    notes: "Aguardando aprovação do diretor financeiro.",
-    history: [
-      { date: "08 Abr", text: "Proposta de catálogo digital enviada" },
-      { date: "03 Abr", text: "Reunião online para entender o escopo" },
-    ],
-  },
-  {
-    id: 4, name: "Lucas Ferreira", company: "Tech Solutions", email: "lucas@techsol.com",
-    phone: "(41) 96543-2109", serviceType: "Branding", estimatedValue: 3500,
-    priority: "baixa", lastInteraction: "05 Abr 2025", stage: "lead",
-    description: "Identidade visual para startup de tecnologia.",
-    notes: "Contato feito via LinkedIn.",
-    history: [
-      { date: "05 Abr", text: "Primeiro contato via LinkedIn" },
-    ],
-  },
-  {
-    id: 5, name: "Juliana Rocha", company: "Brand Co", email: "juliana@brandco.com",
-    phone: "(51) 95432-1098", serviceType: "Social Media", estimatedValue: 15000,
-    priority: "alta", lastInteraction: "14 Abr 2025", stage: "fechado",
-    description: "Pacote anual de gestão de redes sociais com criação de conteúdo.",
-    notes: "Contrato assinado. Início em maio.",
-    history: [
-      { date: "14 Abr", text: "Contrato assinado ✓" },
-      { date: "10 Abr", text: "Última rodada de negociação" },
-      { date: "05 Abr", text: "Proposta ajustada conforme feedback" },
-      { date: "28 Mar", text: "Primeira proposta enviada" },
-    ],
-  },
-  {
-    id: 6, name: "Diego Martins", company: "StartUp X", email: "diego@startupx.io",
-    phone: "(11) 94321-0987", serviceType: "Web Design", estimatedValue: 2800,
-    priority: "baixa", lastInteraction: "11 Abr 2025", stage: "contato",
-    description: "Landing page para produto MVP.",
-    notes: "Budget limitado. Avaliar pacote simplificado.",
-    history: [
-      { date: "11 Abr", text: "Call de 30min para entender necessidades" },
-      { date: "07 Abr", text: "Respondeu formulário de contato no site" },
-    ],
-  },
-  {
-    id: 7, name: "Fernanda Lima", company: "FitTrack", email: "fernanda@fittrack.app",
-    phone: "(21) 93210-9876", serviceType: "Design Gráfico", estimatedValue: 6000,
-    priority: "média", lastInteraction: "13 Abr 2025", stage: "negociacao",
-    description: "UI Kit e design system para o aplicativo FitTrack.",
-    notes: "Contrato mensal de design de interfaces.",
-    history: [
-      { date: "13 Abr", text: "Negociação de escopo e timeline" },
-      { date: "09 Abr", text: "Proposta apresentada em call" },
-      { date: "04 Abr", text: "Briefing recebido" },
-    ],
-  },
-  {
-    id: 8, name: "André Souza", company: "Café & Arte", email: "andre@cafearte.com.br",
-    phone: "(85) 92109-8765", serviceType: "Branding", estimatedValue: 5200,
-    priority: "média", lastInteraction: "09 Abr 2025", stage: "fechado",
-    description: "Identidade visual completa para cafeteria artesanal.",
-    notes: "Projeto entregue. Avaliar pacote mensal de social media.",
-    history: [
-      { date: "09 Abr", text: "Projeto entregue com sucesso ✓" },
-      { date: "01 Abr", text: "Revisão final aprovada" },
-      { date: "20 Mar", text: "Primeira versão apresentada" },
-    ],
-  },
-  {
-    id: 9, name: "Patrícia Oliveira", company: "EcoVerde", email: "patricia@ecoverde.com.br",
-    phone: "(62) 91098-7654", serviceType: "Social Media", estimatedValue: 3200,
-    priority: "baixa", lastInteraction: "02 Abr 2025", stage: "perdido",
-    description: "Gestão de redes sociais para marca sustentável.",
-    notes: "Perdido por budget. Recontatar em 3 meses.",
-    history: [
-      { date: "02 Abr", text: "Cliente informou que não vai prosseguir" },
-      { date: "28 Mar", text: "Proposta enviada" },
-      { date: "22 Mar", text: "Primeiro contato" },
-    ],
-  },
-  {
-    id: 10, name: "Marcos Almeida", company: "PixelLab", email: "marcos@pixellab.design",
-    phone: "(11) 90987-6543", serviceType: "Web Design", estimatedValue: 9500,
-    priority: "alta", lastInteraction: "14 Abr 2025", stage: "lead",
-    description: "Portal de cursos online com área de membros.",
-    notes: "Grande potencial. Marcar call esta semana.",
-    history: [
-      { date: "14 Abr", text: "Recebeu indicação, enviou mensagem no WhatsApp" },
-    ],
-  },
-  {
-    id: 11, name: "Isabela Santos", company: "Moda Viva", email: "isabela@modaviva.com",
-    phone: "(31) 99876-5432", serviceType: "Branding", estimatedValue: 7000,
-    priority: "média", lastInteraction: "11 Abr 2025", stage: "contato",
-    description: "Rebranding de marca de moda feminina.",
-    notes: "Muito interessada, mas precisa aprovar com sócia.",
-    history: [
-      { date: "11 Abr", text: "Apresentação do portfólio por videochamada" },
-      { date: "08 Abr", text: "Primeiro contato via Instagram" },
-    ],
-  },
-];
+// Mock data lives in src/hooks/useLeads.ts
 
 const formatCurrency = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0 });
@@ -218,10 +73,12 @@ const SummaryCard = ({ icon: Icon, label, value, sub }: { icon: any; label: stri
 
 // ---------- Main Component ----------
 const CRM = () => {
-  const [leads, setLeads] = useState<Lead[]>(initialLeads);
+  const { leads, addLead, moveLead } = useLeads();
   const [search, setSearch] = useState("");
   const [filterStage, setFilterStage] = useState("all");
   const [filterType, setFilterType] = useState("all");
+  const [filterPriority, setFilterPriority] = useState("all");
+  const [filterOrigin, setFilterOrigin] = useState("all");
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [newLeadOpen, setNewLeadOpen] = useState(false);
   const [draggedId, setDraggedId] = useState<number | null>(null);
@@ -229,6 +86,14 @@ const CRM = () => {
 
   const activeLeads = leads.filter(l => !["fechado", "perdido"].includes(l.stage)).length;
   useEffect(() => { setUsage("leads", activeLeads); }, [activeLeads, setUsage]);
+
+  // Keep selectedLead in sync after moves
+  useEffect(() => {
+    if (selectedLead) {
+      const fresh = leads.find(l => l.id === selectedLead.id);
+      if (fresh && fresh.stage !== selectedLead.stage) setSelectedLead(fresh);
+    }
+  }, [leads, selectedLead]);
 
   const handleNewLead = () => {
     if (wouldExceed("maxLeads", activeLeads)) {
@@ -240,20 +105,19 @@ const CRM = () => {
 
   const filtered = leads.filter(l => {
     const q = search.toLowerCase();
-    const matchSearch = !q || l.name.toLowerCase().includes(q) || l.company.toLowerCase().includes(q);
+    const matchSearch = !q || l.name.toLowerCase().includes(q) || l.company.toLowerCase().includes(q) || (l.serviceType || "").toLowerCase().includes(q);
     const matchStage = filterStage === "all" || l.stage === filterStage;
     const matchType = filterType === "all" || l.serviceType === filterType;
-    return matchSearch && matchStage && matchType;
+    const matchPriority = filterPriority === "all" || l.priority === filterPriority;
+    const matchOrigin = filterOrigin === "all" || l.origin === filterOrigin;
+    return matchSearch && matchStage && matchType && matchPriority && matchOrigin;
   });
-
-  const moveLead = useCallback((id: number, newStage: StageKey) => {
-    setLeads(prev => prev.map(l => l.id === id ? { ...l, stage: newStage } : l));
-    setSelectedLead(prev => prev?.id === id ? { ...prev, stage: newStage } : prev);
-  }, []);
 
   const totalPipeline = leads.filter(l => !["fechado", "perdido"].includes(l.stage)).reduce((s, l) => s + l.estimatedValue, 0);
   const totalNegociacao = leads.filter(l => l.stage === "negociacao").reduce((s, l) => s + l.estimatedValue, 0);
   const fechadosMes = leads.filter(l => l.stage === "fechado").length;
+  const novosLeads = leads.filter(l => l.stage === "lead").length;
+  const valorPerdido = leads.filter(l => l.stage === "perdido").reduce((s, l) => s + l.estimatedValue, 0);
   const totalLeads = leads.filter(l => !["perdido"].includes(l.stage)).length;
   const taxaConversao = totalLeads > 0 ? Math.round((fechadosMes / totalLeads) * 100) : 0;
 
@@ -283,28 +147,49 @@ const CRM = () => {
       />
 
       {/* Summary */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         <SummaryCard icon={TrendingUp} label="Total em pipeline" value={formatCurrency(totalPipeline)} />
         <SummaryCard icon={DollarSign} label="Em negociação" value={formatCurrency(totalNegociacao)} />
+        <SummaryCard icon={Sparkles} label="Leads novos" value={String(novosLeads)} />
         <SummaryCard icon={CheckCircle2} label="Fechados no mês" value={String(fechadosMes)} sub={formatCurrency(leads.filter(l => l.stage === "fechado").reduce((s, l) => s + l.estimatedValue, 0))} />
         <SummaryCard icon={BarChart3} label="Taxa de conversão" value={`${taxaConversao}%`} />
+        <SummaryCard icon={XCircle} label="Valor perdido" value={formatCurrency(valorPerdido)} />
       </div>
 
       {/* Filters */}
       <div className="orbit-card p-3 flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Buscar por nome ou empresa..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 bg-muted/50 border-border" />
+          <Input placeholder="Buscar por nome, empresa ou serviço..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 bg-muted/50 border-border" />
         </div>
         <Select value={filterStage} onValueChange={setFilterStage}>
-          <SelectTrigger className="w-[170px] bg-muted/50 border-border"><SelectValue placeholder="Etapa" /></SelectTrigger>
+          <SelectTrigger className="w-[160px] bg-muted/50 border-border"><SelectValue placeholder="Etapa" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas as etapas</SelectItem>
             {stageConfigs.map(s => <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>)}
           </SelectContent>
         </Select>
+        <Select value={filterPriority} onValueChange={setFilterPriority}>
+          <SelectTrigger className="w-[150px] bg-muted/50 border-border">
+            <Flame className="h-4 w-4 mr-2 text-muted-foreground" />
+            <SelectValue placeholder="Temperatura" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas</SelectItem>
+            <SelectItem value="alta">Alta</SelectItem>
+            <SelectItem value="média">Média</SelectItem>
+            <SelectItem value="baixa">Baixa</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={filterOrigin} onValueChange={setFilterOrigin}>
+          <SelectTrigger className="w-[150px] bg-muted/50 border-border"><SelectValue placeholder="Origem" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas as origens</SelectItem>
+            {origins.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+          </SelectContent>
+        </Select>
         <Select value={filterType} onValueChange={setFilterType}>
-          <SelectTrigger className="w-[170px] bg-muted/50 border-border"><SelectValue placeholder="Serviço" /></SelectTrigger>
+          <SelectTrigger className="w-[160px] bg-muted/50 border-border"><SelectValue placeholder="Serviço" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos os tipos</SelectItem>
             {serviceTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
@@ -390,7 +275,7 @@ const CRM = () => {
       </div>
 
       {/* New Lead Dialog */}
-      <NewLeadDialog open={newLeadOpen} onOpenChange={setNewLeadOpen} />
+      <NewLeadDialog open={newLeadOpen} onOpenChange={setNewLeadOpen} onSave={addLead} />
 
       {/* Lead Detail Sheet */}
       <LeadDetailSheet
@@ -404,34 +289,73 @@ const CRM = () => {
 };
 
 // ---------- New Lead Dialog ----------
-const NewLeadDialog = ({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) => {
+const emptyLead = {
+  name: "", company: "", email: "", phone: "", serviceType: "",
+  origin: "", estimatedValue: "", priority: "média" as Priority,
+  stage: "lead" as StageKey, nextAction: "", description: "",
+};
+
+const NewLeadDialog = ({
+  open, onOpenChange, onSave,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onSave: (data: Omit<Lead, "id" | "history" | "lastInteraction" | "notes" | "description"> & Partial<Pick<Lead, "description">>) => void;
+}) => {
+  const [form, setForm] = useState(emptyLead);
+  const set = (k: keyof typeof emptyLead, v: string) => setForm(prev => ({ ...prev, [k]: v }));
+
+  useEffect(() => { if (open) setForm(emptyLead); }, [open]);
+
+  const handleSave = () => {
+    if (!form.name.trim()) return toast.error("Informe o nome do lead");
+    if (!form.email.trim() && !form.phone.trim()) {
+      return toast.error("Informe email ou WhatsApp/telefone");
+    }
+    onSave({
+      name: form.name.trim(),
+      company: form.company.trim(),
+      email: form.email.trim(),
+      phone: form.phone.trim(),
+      serviceType: form.serviceType || "—",
+      origin: form.origin || undefined,
+      estimatedValue: Number(form.estimatedValue) || 0,
+      priority: form.priority,
+      stage: form.stage,
+      nextAction: form.nextAction.trim() || undefined,
+      description: form.description.trim(),
+    });
+    toast.success("Lead adicionado ao pipeline");
+    onOpenChange(false);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[560px] bg-card border-border max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[600px] bg-card border-border max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-foreground">Novo lead</DialogTitle>
           <DialogDescription className="text-muted-foreground">Adicione um novo lead ao seu pipeline.</DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-4">
           <div className="space-y-2">
-            <Label className="text-sm text-muted-foreground">Nome completo</Label>
-            <Input placeholder="João Silva" className="bg-muted/50 border-border" />
+            <Label className="text-sm text-muted-foreground">Nome completo*</Label>
+            <Input placeholder="João Silva" value={form.name} onChange={e => set("name", e.target.value)} className="bg-muted/50 border-border" />
           </div>
           <div className="space-y-2">
             <Label className="text-sm text-muted-foreground">Empresa</Label>
-            <Input placeholder="Empresa Ltda" className="bg-muted/50 border-border" />
+            <Input placeholder="Empresa Ltda" value={form.company} onChange={e => set("company", e.target.value)} className="bg-muted/50 border-border" />
           </div>
           <div className="space-y-2">
             <Label className="text-sm text-muted-foreground">Email</Label>
-            <Input type="email" placeholder="email@empresa.com" className="bg-muted/50 border-border" />
+            <Input type="email" placeholder="email@empresa.com" value={form.email} onChange={e => set("email", e.target.value)} className="bg-muted/50 border-border" />
           </div>
           <div className="space-y-2">
-            <Label className="text-sm text-muted-foreground">Telefone</Label>
-            <Input placeholder="(11) 99999-9999" className="bg-muted/50 border-border" />
+            <Label className="text-sm text-muted-foreground">WhatsApp / Telefone</Label>
+            <Input placeholder="(11) 99999-9999" value={form.phone} onChange={e => set("phone", e.target.value)} className="bg-muted/50 border-border" />
           </div>
           <div className="space-y-2">
-            <Label className="text-sm text-muted-foreground">Tipo de serviço</Label>
-            <Select>
+            <Label className="text-sm text-muted-foreground">Serviço de interesse</Label>
+            <Select value={form.serviceType} onValueChange={v => set("serviceType", v)}>
               <SelectTrigger className="bg-muted/50 border-border"><SelectValue placeholder="Selecione" /></SelectTrigger>
               <SelectContent>
                 {serviceTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
@@ -439,13 +363,22 @@ const NewLeadDialog = ({ open, onOpenChange }: { open: boolean; onOpenChange: (v
             </Select>
           </div>
           <div className="space-y-2">
-            <Label className="text-sm text-muted-foreground">Valor estimado</Label>
-            <Input type="number" placeholder="5000" className="bg-muted/50 border-border" />
+            <Label className="text-sm text-muted-foreground">Valor estimado (R$)</Label>
+            <Input type="number" placeholder="5000" value={form.estimatedValue} onChange={e => set("estimatedValue", e.target.value)} className="bg-muted/50 border-border" />
           </div>
           <div className="space-y-2">
-            <Label className="text-sm text-muted-foreground">Prioridade</Label>
-            <Select>
+            <Label className="text-sm text-muted-foreground">Origem</Label>
+            <Select value={form.origin} onValueChange={v => set("origin", v)}>
               <SelectTrigger className="bg-muted/50 border-border"><SelectValue placeholder="Selecione" /></SelectTrigger>
+              <SelectContent>
+                {origins.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm text-muted-foreground">Temperatura</Label>
+            <Select value={form.priority} onValueChange={v => set("priority", v)}>
+              <SelectTrigger className="bg-muted/50 border-border"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="alta">Alta</SelectItem>
                 <SelectItem value="média">Média</SelectItem>
@@ -454,22 +387,26 @@ const NewLeadDialog = ({ open, onOpenChange }: { open: boolean; onOpenChange: (v
             </Select>
           </div>
           <div className="space-y-2">
-            <Label className="text-sm text-muted-foreground">Etapa</Label>
-            <Select>
-              <SelectTrigger className="bg-muted/50 border-border"><SelectValue placeholder="Selecione" /></SelectTrigger>
+            <Label className="text-sm text-muted-foreground">Etapa inicial</Label>
+            <Select value={form.stage} onValueChange={v => set("stage", v)}>
+              <SelectTrigger className="bg-muted/50 border-border"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {stageConfigs.slice(0, -1).map(s => <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
+          <div className="space-y-2">
+            <Label className="text-sm text-muted-foreground">Próxima ação</Label>
+            <Input placeholder="Ex.: Marcar call de diagnóstico" value={form.nextAction} onChange={e => set("nextAction", e.target.value)} className="bg-muted/50 border-border" />
+          </div>
           <div className="sm:col-span-2 space-y-2">
-            <Label className="text-sm text-muted-foreground">Descrição do projeto</Label>
-            <Textarea placeholder="Descreva o projeto..." className="bg-muted/50 border-border min-h-[80px]" />
+            <Label className="text-sm text-muted-foreground">Observações</Label>
+            <Textarea placeholder="Descreva o projeto ou contexto..." className="bg-muted/50 border-border min-h-[80px]" value={form.description} onChange={e => set("description", e.target.value)} />
           </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button className="orbit-gradient text-white border-0" onClick={() => onOpenChange(false)}>Adicionar lead</Button>
+          <Button className="orbit-gradient text-white border-0" onClick={handleSave}>Adicionar lead</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

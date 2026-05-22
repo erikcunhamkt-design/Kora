@@ -12,108 +12,19 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
+import { toast } from "sonner";
+import { useClients, type Client, type ClientStatus } from "@/hooks/useClients";
 import {
   Users, UserCheck, UserPlus, FolderKanban, Search, SlidersHorizontal,
   Plus, ArrowUpDown, LayoutGrid, LayoutList, Phone, Mail, Globe,
   MessageCircle, ExternalLink, Calendar, Clock, MoreHorizontal, AtSign,
-  Briefcase, FileText, CheckSquare, StickyNote
+  Briefcase, FileText, CheckSquare, StickyNote, DollarSign, AlertCircle
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
 
-// ---------- Types ----------
-interface Client {
-  id: number;
-  name: string;
-  company: string;
-  email: string;
-  phone: string;
-  whatsapp: string;
-  instagram: string;
-  site: string;
-  serviceType: string;
-  status: "Ativo" | "Em negociação" | "Inativo" | "Potencial";
-  lastProject: string;
-  lastInteraction: string;
-  observations: string;
-  projects: { name: string; status: string }[];
-  tasks: { name: string; done: boolean }[];
-}
-
-// ---------- Mock Data ----------
-const initialClients: Client[] = [
-  {
-    id: 1, name: "Marina Costa", company: "Acme Corp", email: "marina@acme.com",
-    phone: "(11) 99812-3456", whatsapp: "(11) 99812-3456", instagram: "@acmecorp",
-    site: "acme.com", serviceType: "Branding", status: "Ativo",
-    lastProject: "Rebranding Acme 2025", lastInteraction: "12 Abr 2025",
-    observations: "Cliente desde 2023. Prefere reuniões às terças.",
-    projects: [{ name: "Rebranding Acme 2025", status: "Em andamento" }, { name: "Website Acme", status: "Concluído" }],
-    tasks: [{ name: "Enviar proposta atualizada", done: false }, { name: "Revisão logo final", done: true }],
-  },
-  {
-    id: 2, name: "Rafael Mendes", company: "Studio Zen", email: "rafael@studiozen.com",
-    phone: "(21) 98765-4321", whatsapp: "(21) 98765-4321", instagram: "@studiozen",
-    site: "studiozen.com", serviceType: "Web Design", status: "Ativo",
-    lastProject: "Landing Page Studio Zen", lastInteraction: "10 Abr 2025",
-    observations: "Projeto recorrente mensal de social media.",
-    projects: [{ name: "Landing Page Studio Zen", status: "Em andamento" }],
-    tasks: [{ name: "Wireframe da home", done: false }],
-  },
-  {
-    id: 3, name: "Camila Andrade", company: "Nova Design", email: "camila@novadesign.com",
-    phone: "(31) 97654-3210", whatsapp: "(31) 97654-3210", instagram: "@novadesign",
-    site: "novadesign.com", serviceType: "Design Gráfico", status: "Em negociação",
-    lastProject: "Catálogo Digital Nova", lastInteraction: "08 Abr 2025",
-    observations: "Aguardando aprovação de orçamento.",
-    projects: [{ name: "Catálogo Digital Nova", status: "Proposta" }],
-    tasks: [{ name: "Montar orçamento detalhado", done: false }],
-  },
-  {
-    id: 4, name: "Lucas Ferreira", company: "Tech Solutions", email: "lucas@techsol.com",
-    phone: "(41) 96543-2109", whatsapp: "(41) 96543-2109", instagram: "@techsolutions",
-    site: "techsol.com", serviceType: "Branding", status: "Potencial",
-    lastProject: "—", lastInteraction: "05 Abr 2025",
-    observations: "Contato feito via LinkedIn. Interessado em identidade visual.",
-    projects: [], tasks: [],
-  },
-  {
-    id: 5, name: "Juliana Rocha", company: "Brand Co", email: "juliana@brandco.com",
-    phone: "(51) 95432-1098", whatsapp: "(51) 95432-1098", instagram: "@brandco",
-    site: "brandco.com", serviceType: "Social Media", status: "Inativo",
-    lastProject: "Social Media Q3 2024", lastInteraction: "15 Jan 2025",
-    observations: "Parou de contratar por corte de budget. Recontatar em 6 meses.",
-    projects: [{ name: "Social Media Q3 2024", status: "Concluído" }, { name: "Branding Brand Co", status: "Concluído" }],
-    tasks: [],
-  },
-  {
-    id: 6, name: "Diego Martins", company: "StartUp X", email: "diego@startupx.io",
-    phone: "(11) 94321-0987", whatsapp: "(11) 94321-0987", instagram: "@startupx",
-    site: "startupx.io", serviceType: "Web Design", status: "Em negociação",
-    lastProject: "—", lastInteraction: "11 Abr 2025",
-    observations: "Startup em estágio inicial. Budget limitado.",
-    projects: [], tasks: [{ name: "Enviar portfólio", done: true }],
-  },
-  {
-    id: 7, name: "Fernanda Lima", company: "FitTrack", email: "fernanda@fittrack.app",
-    phone: "(21) 93210-9876", whatsapp: "(21) 93210-9876", instagram: "@fittrackapp",
-    site: "fittrack.app", serviceType: "Design Gráfico", status: "Ativo",
-    lastProject: "App UI FitTrack", lastInteraction: "13 Abr 2025",
-    observations: "Contrato mensal de design de interfaces.",
-    projects: [{ name: "App UI FitTrack", status: "Em andamento" }],
-    tasks: [{ name: "Entregar telas do onboarding", done: false }],
-  },
-  {
-    id: 8, name: "André Souza", company: "Café & Arte", email: "andre@cafearte.com.br",
-    phone: "(85) 92109-8765", whatsapp: "(85) 92109-8765", instagram: "@cafearte",
-    site: "cafearte.com.br", serviceType: "Branding", status: "Ativo",
-    lastProject: "Identidade Visual Café & Arte", lastInteraction: "09 Abr 2025",
-    observations: "Projeto de branding completo entregue. Avaliando pacote mensal.",
-    projects: [{ name: "Identidade Visual Café & Arte", status: "Concluído" }],
-    tasks: [{ name: "Proposta pacote mensal", done: false }],
-  },
-];
+// ---------- Static configs ----------
 
 const statusStyles: Record<string, string> = {
   "Ativo": "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
@@ -140,7 +51,7 @@ const SummaryCard = ({ icon: Icon, label, value, accent }: { icon: any; label: s
 
 // ---------- Main Component ----------
 const Clientes = () => {
-  const [clients] = useState<Client[]>(initialClients);
+  const { clients, addClient } = useClients();
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterType, setFilterType] = useState("all");
@@ -174,6 +85,14 @@ const Clientes = () => {
   const activeCount = clients.filter(c => c.status === "Ativo").length;
   const newThisMonth = 3;
   const ongoingProjects = clients.reduce((sum, c) => sum + c.projects.filter(p => p.status === "Em andamento").length, 0);
+  const potentialValue = clients.reduce((s, c) => s + (c.potentialValue || 0), 0);
+  const now = Date.now();
+  const noFollowUp = clients.filter(c => {
+    const parsed = Date.parse(c.lastInteraction);
+    if (Number.isNaN(parsed)) return false;
+    return (now - parsed) > 1000 * 60 * 60 * 24 * 30; // 30 dias
+  }).length;
+  const fmtBRL = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0 });
 
   return (
     <div className="space-y-6">
@@ -191,11 +110,13 @@ const Clientes = () => {
       />
 
       {/* Summary cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <SummaryCard icon={Users} label="Total de clientes" value={clients.length} />
-        <SummaryCard icon={UserCheck} label="Clientes ativos" value={activeCount} accent="bg-emerald-500/15" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+        <SummaryCard icon={Users} label="Total" value={clients.length} />
+        <SummaryCard icon={UserCheck} label="Ativos" value={activeCount} accent="bg-emerald-500/15" />
         <SummaryCard icon={UserPlus} label="Novos este mês" value={newThisMonth} accent="bg-secondary/15" />
-        <SummaryCard icon={FolderKanban} label="Projetos em andamento" value={ongoingProjects} accent="bg-accent/15" />
+        <SummaryCard icon={FolderKanban} label="Projetos ativos" value={ongoingProjects} accent="bg-accent/15" />
+        <SummaryCard icon={DollarSign} label="Valor potencial" value={fmtBRL(potentialValue)} accent="bg-primary/15" />
+        <SummaryCard icon={AlertCircle} label="Sem follow-up" value={noFollowUp} accent="bg-amber-500/15" />
       </div>
 
       {/* Actions bar */}
@@ -331,7 +252,7 @@ const Clientes = () => {
       )}
 
       {/* New Client Modal */}
-      <NewClientDialog open={newClientOpen} onOpenChange={setNewClientOpen} />
+      <NewClientDialog open={newClientOpen} onOpenChange={setNewClientOpen} onSave={addClient} />
 
       {/* Client Detail Sheet */}
       <ClientDetailSheet client={selectedClient} onClose={() => setSelectedClient(null)} />
@@ -340,7 +261,49 @@ const Clientes = () => {
 };
 
 // ---------- New Client Dialog ----------
-const NewClientDialog = ({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) => {
+const origins = ["Indicação", "Instagram", "LinkedIn", "Site", "Outro"];
+
+const emptyForm = {
+  name: "", company: "", email: "", phone: "", whatsapp: "",
+  instagram: "", site: "", serviceType: "", origin: "",
+  status: "Potencial" as ClientStatus, potentialValue: "", observations: "",
+};
+
+const NewClientDialog = ({
+  open, onOpenChange, onSave,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onSave: (data: Omit<Client, "id" | "projects" | "tasks" | "lastProject" | "lastInteraction">) => void;
+}) => {
+  const [form, setForm] = useState(emptyForm);
+  const set = (k: keyof typeof emptyForm, v: string) => setForm(prev => ({ ...prev, [k]: v }));
+
+  useEffect(() => { if (open) setForm(emptyForm); }, [open]);
+
+  const handleSave = () => {
+    if (!form.name.trim()) return toast.error("Informe o nome do cliente");
+    if (!form.email.trim() && !form.whatsapp.trim() && !form.phone.trim()) {
+      return toast.error("Informe pelo menos um contato (email, telefone ou WhatsApp)");
+    }
+    onSave({
+      name: form.name.trim(),
+      company: form.company.trim(),
+      email: form.email.trim(),
+      phone: form.phone.trim(),
+      whatsapp: form.whatsapp.trim(),
+      instagram: form.instagram.trim(),
+      site: form.site.trim(),
+      serviceType: form.serviceType || "—",
+      origin: form.origin || undefined,
+      status: form.status,
+      potentialValue: Number(form.potentialValue) || 0,
+      observations: form.observations.trim(),
+    });
+    toast.success("Cliente adicionado");
+    onOpenChange(false);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px] bg-card border-border max-h-[90vh] overflow-y-auto">
@@ -349,16 +312,17 @@ const NewClientDialog = ({ open, onOpenChange }: { open: boolean; onOpenChange: 
           <DialogDescription className="text-muted-foreground">Preencha as informações do novo cliente.</DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-4">
-          <FormField label="Nome completo" placeholder="João Silva" />
-          <FormField label="Empresa" placeholder="Empresa Ltda" />
-          <FormField label="Email" placeholder="email@empresa.com" type="email" />
-          <FormField label="Telefone" placeholder="(11) 99999-9999" />
-          <FormField label="WhatsApp" placeholder="(11) 99999-9999" icon={<MessageCircle className="h-4 w-4" />} />
-          <FormField label="Instagram" placeholder="@usuario" icon={<AtSign className="h-4 w-4" />} />
-          <FormField label="Site" placeholder="www.site.com" icon={<Globe className="h-4 w-4" />} />
+          <FormField label="Nome completo*" placeholder="João Silva" value={form.name} onChange={v => set("name", v)} />
+          <FormField label="Empresa" placeholder="Empresa Ltda" value={form.company} onChange={v => set("company", v)} />
+          <FormField label="Email" placeholder="email@empresa.com" type="email" value={form.email} onChange={v => set("email", v)} />
+          <FormField label="Telefone" placeholder="(11) 99999-9999" value={form.phone} onChange={v => set("phone", v)} />
+          <FormField label="WhatsApp" placeholder="(11) 99999-9999" icon={<MessageCircle className="h-4 w-4" />} value={form.whatsapp} onChange={v => set("whatsapp", v)} />
+          <FormField label="Instagram" placeholder="@usuario" icon={<AtSign className="h-4 w-4" />} value={form.instagram} onChange={v => set("instagram", v)} />
+          <FormField label="Site" placeholder="www.site.com" icon={<Globe className="h-4 w-4" />} value={form.site} onChange={v => set("site", v)} />
+          <FormField label="Valor potencial (R$)" placeholder="5000" type="number" value={form.potentialValue} onChange={v => set("potentialValue", v)} />
           <div className="space-y-2">
-            <Label className="text-sm text-muted-foreground">Tipo de serviço</Label>
-            <Select>
+            <Label className="text-sm text-muted-foreground">Serviço de interesse</Label>
+            <Select value={form.serviceType} onValueChange={v => set("serviceType", v)}>
               <SelectTrigger className="bg-muted/50 border-border"><SelectValue placeholder="Selecione" /></SelectTrigger>
               <SelectContent>
                 {serviceTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
@@ -366,8 +330,17 @@ const NewClientDialog = ({ open, onOpenChange }: { open: boolean; onOpenChange: 
             </Select>
           </div>
           <div className="space-y-2">
+            <Label className="text-sm text-muted-foreground">Origem</Label>
+            <Select value={form.origin} onValueChange={v => set("origin", v)}>
+              <SelectTrigger className="bg-muted/50 border-border"><SelectValue placeholder="Selecione" /></SelectTrigger>
+              <SelectContent>
+                {origins.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
             <Label className="text-sm text-muted-foreground">Status</Label>
-            <Select>
+            <Select value={form.status} onValueChange={v => set("status", v as ClientStatus)}>
               <SelectTrigger className="bg-muted/50 border-border"><SelectValue placeholder="Selecione" /></SelectTrigger>
               <SelectContent>
                 {statuses.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
@@ -376,24 +349,24 @@ const NewClientDialog = ({ open, onOpenChange }: { open: boolean; onOpenChange: 
           </div>
           <div className="sm:col-span-2 space-y-2">
             <Label className="text-sm text-muted-foreground">Observações</Label>
-            <Textarea placeholder="Notas sobre o cliente..." className="bg-muted/50 border-border min-h-[80px]" />
+            <Textarea placeholder="Notas sobre o cliente..." className="bg-muted/50 border-border min-h-[80px]" value={form.observations} onChange={e => set("observations", e.target.value)} />
           </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button className="orbit-gradient text-white border-0" onClick={() => onOpenChange(false)}>Salvar cliente</Button>
+          <Button className="orbit-gradient text-white border-0" onClick={handleSave}>Salvar cliente</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 };
 
-const FormField = ({ label, placeholder, type = "text", icon }: { label: string; placeholder: string; type?: string; icon?: React.ReactNode }) => (
+const FormField = ({ label, placeholder, type = "text", icon, value, onChange }: { label: string; placeholder: string; type?: string; icon?: React.ReactNode; value?: string; onChange?: (v: string) => void }) => (
   <div className="space-y-2">
     <Label className="text-sm text-muted-foreground">{label}</Label>
     <div className="relative">
       {icon && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">{icon}</span>}
-      <Input type={type} placeholder={placeholder} className={`bg-muted/50 border-border ${icon ? "pl-9" : ""}`} />
+      <Input type={type} placeholder={placeholder} value={value} onChange={e => onChange?.(e.target.value)} className={`bg-muted/50 border-border ${icon ? "pl-9" : ""}`} />
     </div>
   </div>
 );
