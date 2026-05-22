@@ -85,6 +85,14 @@ const Clientes = () => {
   const activeCount = clients.filter(c => c.status === "Ativo").length;
   const newThisMonth = 3;
   const ongoingProjects = clients.reduce((sum, c) => sum + c.projects.filter(p => p.status === "Em andamento").length, 0);
+  const potentialValue = clients.reduce((s, c) => s + (c.potentialValue || 0), 0);
+  const now = Date.now();
+  const noFollowUp = clients.filter(c => {
+    const parsed = Date.parse(c.lastInteraction);
+    if (Number.isNaN(parsed)) return false;
+    return (now - parsed) > 1000 * 60 * 60 * 24 * 30; // 30 dias
+  }).length;
+  const fmtBRL = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0 });
 
   return (
     <div className="space-y-6">
@@ -102,11 +110,13 @@ const Clientes = () => {
       />
 
       {/* Summary cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <SummaryCard icon={Users} label="Total de clientes" value={clients.length} />
-        <SummaryCard icon={UserCheck} label="Clientes ativos" value={activeCount} accent="bg-emerald-500/15" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+        <SummaryCard icon={Users} label="Total" value={clients.length} />
+        <SummaryCard icon={UserCheck} label="Ativos" value={activeCount} accent="bg-emerald-500/15" />
         <SummaryCard icon={UserPlus} label="Novos este mês" value={newThisMonth} accent="bg-secondary/15" />
-        <SummaryCard icon={FolderKanban} label="Projetos em andamento" value={ongoingProjects} accent="bg-accent/15" />
+        <SummaryCard icon={FolderKanban} label="Projetos ativos" value={ongoingProjects} accent="bg-accent/15" />
+        <SummaryCard icon={DollarSign} label="Valor potencial" value={fmtBRL(potentialValue)} accent="bg-primary/15" />
+        <SummaryCard icon={AlertCircle} label="Sem follow-up" value={noFollowUp} accent="bg-amber-500/15" />
       </div>
 
       {/* Actions bar */}
