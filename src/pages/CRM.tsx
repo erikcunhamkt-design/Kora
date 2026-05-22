@@ -1,5 +1,5 @@
 import { PageHeader } from "@/components/layout/PageHeader";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { usePlan } from "@/contexts/PlanContext";
 import { UsageBadge } from "@/components/plan/UsageBadge";
 import { Badge } from "@/components/ui/badge";
@@ -9,11 +9,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
+import { useLeads, type Lead, type Priority, type StageKey } from "@/hooks/useLeads";
 import {
   Plus, Search, TrendingUp, DollarSign, CheckCircle2, BarChart3,
   Phone, Mail, Globe, Clock, MoreHorizontal, ChevronRight, ChevronLeft,
   User, Briefcase, Calendar, MessageCircle, StickyNote, X as XIcon,
-  ArrowRight, XCircle, GripVertical, AlertCircle
+  ArrowRight, XCircle, GripVertical, AlertCircle, Sparkles, Flame
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger
@@ -22,26 +24,6 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-
-// ---------- Types ----------
-type Priority = "alta" | "média" | "baixa";
-type StageKey = "lead" | "contato" | "proposta" | "negociacao" | "fechado" | "perdido";
-
-interface Lead {
-  id: number;
-  name: string;
-  company: string;
-  email: string;
-  phone: string;
-  serviceType: string;
-  estimatedValue: number;
-  priority: Priority;
-  lastInteraction: string;
-  stage: StageKey;
-  description: string;
-  history: { date: string; text: string }[];
-  notes: string;
-}
 
 interface StageConfig {
   key: StageKey;
@@ -68,6 +50,7 @@ const priorityStyles: Record<Priority, string> = {
 };
 
 const serviceTypes = ["Branding", "Social Media", "Web Design", "Design Gráfico"];
+const origins = ["Indicação", "Instagram", "LinkedIn", "Site", "WhatsApp", "Outro"];
 
 // ---------- Mock Data ----------
 const initialLeads: Lead[] = [
