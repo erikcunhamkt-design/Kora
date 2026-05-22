@@ -163,8 +163,24 @@ const rawInitialLeads: Omit<Lead, "isDemo">[] = [
   },
 ];
 
+export const initialLeads: Lead[] = rawInitialLeads.map((l) => ({ ...l, isDemo: true }));
+
+const SEED_IDS = new Set(rawInitialLeads.map((l) => l.id));
+
+function migrate(list: Lead[]): Lead[] {
+  return list.map((l) =>
+    l.isDemo === undefined && SEED_IDS.has(l.id) ? { ...l, isDemo: true } : l
+  );
+}
+
 export function useLeads() {
   const [leads, setLeads] = useState<Lead[]>(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) return migrate(JSON.parse(raw) as Lead[]);
+    } catch {}
+    return initialLeads;
+  });
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) return JSON.parse(raw) as Lead[];
