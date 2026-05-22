@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
+import { toast } from "sonner";
 import {
   Plus, Search, Trophy, Users, Briefcase, LayoutGrid, Target, Calendar,
-  DollarSign, AlertTriangle, Clock, ArrowRight, X, Upload, Zap, Send,
-  Package, UserPlus,
+  DollarSign, AlertTriangle, Clock, X, Upload, Zap, Send, Package, UserPlus,
+  StickyNote,
 } from "lucide-react";
 
 type SalesTab = "home" | "prospects" | "servicos" | "clientes" | "ranking" | "demandas";
@@ -10,51 +11,72 @@ type SalesTab = "home" | "prospects" | "servicos" | "clientes" | "ranking" | "de
 const prospectStages = ["Prospectar", "Abordar", "Não Respondeu", "Oferta Feita", "Pensando", "Não Quis"];
 const demandPipeline = ["Rascunho", "Aprovação Copy", "Copy Aprovado", "Aprovação Post", "Aprovado", "Agendado", "Postado"];
 
+const tabs: { id: SalesTab; label: string; icon: typeof LayoutGrid }[] = [
+  { id: "home", label: "Home", icon: LayoutGrid },
+  { id: "prospects", label: "Prospects", icon: Users },
+  { id: "servicos", label: "Serviços", icon: Briefcase },
+  { id: "clientes", label: "Clientes", icon: Users },
+  { id: "ranking", label: "Ranking", icon: Trophy },
+  { id: "demandas", label: "Demandas", icon: Calendar },
+];
+
 export default function Vendas() {
-  const [tab, setTab] = useState<SalesTab>("home");
+  const [activeTab, setActiveTab] = useState<SalesTab>("home");
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [newProspectOpen, setNewProspectOpen] = useState(false);
   const [newServiceOpen, setNewServiceOpen] = useState(false);
   const [newClientOpen, setNewClientOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
 
+  const renderActiveTab = () => {
+    switch (activeTab) {
+      case "home": return <SalesHome />;
+      case "prospects": return <ProspectsPage onQuickAdd={() => setQuickAddOpen(true)} onNewProspect={() => setNewProspectOpen(true)} />;
+      case "servicos": return <ServicesPage onNewService={() => setNewServiceOpen(true)} />;
+      case "clientes": return <ClientsPage onNewClient={() => setNewClientOpen(true)} />;
+      case "ranking": return <RankingPage />;
+      case "demandas": return <DemandCenter onNewNote={() => setNoteOpen(true)} />;
+      default: return <SalesHome />;
+    }
+  };
+
   return (
     <div className="min-h-screen -m-6 bg-black text-white">
       <header className="sticky top-0 z-30 border-b border-zinc-800 bg-black/90 backdrop-blur">
-        <div className="flex h-14 items-center justify-between px-6">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 font-bold">
-              <Target className="h-4 w-4 text-amber-400" />
-              Vendas
-            </div>
+        <div className="flex h-14 items-center justify-between gap-4 px-6">
+          <div className="flex items-center gap-2 font-bold shrink-0">
+            <Target className="h-4 w-4 text-amber-400" />
+            Vendas
           </div>
-          <nav className="flex items-center gap-1">
-            <SalesNavButton active={tab === "home"} onClick={() => setTab("home")}><LayoutGrid className="h-4 w-4" />Home</SalesNavButton>
-            <SalesNavButton active={tab === "prospects"} onClick={() => setTab("prospects")}><Users className="h-4 w-4" />Prospects</SalesNavButton>
-            <SalesNavButton active={tab === "servicos"} onClick={() => setTab("servicos")}><Briefcase className="h-4 w-4" />Serviços</SalesNavButton>
-            <SalesNavButton active={tab === "clientes"} onClick={() => setTab("clientes")}><Users className="h-4 w-4" />Clientes</SalesNavButton>
-            <SalesNavButton active={tab === "ranking"} onClick={() => setTab("ranking")}><Trophy className="h-4 w-4" />Ranking</SalesNavButton>
-            <SalesNavButton active={tab === "demandas"} onClick={() => setTab("demandas")}><Calendar className="h-4 w-4" />Demandas</SalesNavButton>
+          <nav className="flex items-center gap-1 overflow-x-auto">
+            {tabs.map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setActiveTab(id)}
+                className={[
+                  "flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold transition whitespace-nowrap",
+                  activeTab === id ? "border border-white text-amber-400" : "border border-transparent text-zinc-500 hover:text-white",
+                ].join(" ")}
+              >
+                <Icon className="h-4 w-4" />
+                {label}
+              </button>
+            ))}
           </nav>
           <button
+            type="button"
             onClick={() => setNewProspectOpen(true)}
-            className="rounded-full border border-white px-5 py-2 text-sm font-bold text-amber-400 hover:bg-white hover:text-black transition"
+            className="rounded-full border border-white px-5 py-2 text-sm font-bold text-amber-400 hover:bg-white hover:text-black transition shrink-0"
           >
             + Novo Prospect
           </button>
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-6 py-8">
-        {tab === "home" && <SalesHome />}
-        {tab === "prospects" && <ProspectsPage onQuickAdd={() => setQuickAddOpen(true)} onNewProspect={() => setNewProspectOpen(true)} />}
-        {tab === "servicos" && <ServicesPage onNewService={() => setNewServiceOpen(true)} />}
-        {tab === "clientes" && <ClientsPage onNewClient={() => setNewClientOpen(true)} />}
-        {tab === "ranking" && <RankingPage />}
-        {tab === "demandas" && <DemandCenter onNewNote={() => setNoteOpen(true)} />}
-      </main>
+      <main className="mx-auto max-w-7xl px-6 py-8">{renderActiveTab()}</main>
 
-      {quickAddOpen && <ModalShell title="Adicionar Rápido" onClose={() => setQuickAddOpen(false)}><p className="text-blue-200">Em breve.</p></ModalShell>}
+      {quickAddOpen && <QuickAddModal onClose={() => setQuickAddOpen(false)} />}
       {newProspectOpen && <NewProspectModal onClose={() => setNewProspectOpen(false)} />}
       {newServiceOpen && <NewServiceModal onClose={() => setNewServiceOpen(false)} />}
       {newClientOpen && <NewClientModal onClose={() => setNewClientOpen(false)} />}
@@ -63,25 +85,11 @@ export default function Vendas() {
   );
 }
 
-function SalesNavButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      onClick={onClick}
-      className={[
-        "flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold transition",
-        active ? "border border-white text-amber-400" : "text-zinc-500 hover:text-white",
-      ].join(" ")}
-    >
-      {children}
-    </button>
-  );
-}
-
-function SalesCard({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+function SalesCard({ children, className = "" }: { children: ReactNode; className?: string }) {
   return <div className={`rounded-2xl border border-zinc-800 bg-[#080808] ${className}`}>{children}</div>;
 }
 
-function MetricPill({ icon, value, label }: { icon: React.ReactNode; value: string; label: string }) {
+function MetricPill({ icon, value, label }: { icon: ReactNode; value: string; label: string }) {
   return (
     <div className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-black px-4 py-3">
       <div className="text-amber-400 [&_svg]:h-4 [&_svg]:w-4">{icon}</div>
@@ -115,8 +123,7 @@ function SalesHome() {
 
       <section>
         <h2 className="mb-4 flex items-center gap-2 font-black text-amber-400">
-          <Target className="h-4 w-4" />
-          META DO DIA
+          <Target className="h-4 w-4" /> META DO DIA
         </h2>
         <SalesCard className="border-white p-6">
           <div className="flex items-center gap-5">
@@ -124,11 +131,6 @@ function SalesHome() {
             <div className="flex-1">
               <h3 className="font-black">Adicionar prospects (1/5)</h3>
               <p className="text-blue-200">Faltam 4 para bater a meta.</p>
-              <div className="mt-5 flex gap-2">
-                <button className="rounded-xl border border-white px-5 py-2 font-black text-amber-400 hover:bg-white hover:text-black transition">
-                  ADICIONAR →
-                </button>
-              </div>
             </div>
           </div>
         </SalesCard>
@@ -153,19 +155,27 @@ function SalesHome() {
 }
 
 function ProspectsPage({ onQuickAdd, onNewProspect }: { onQuickAdd: () => void; onNewProspect: () => void }) {
+  const [view, setView] = useState<"pipeline" | "lista">("pipeline");
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-black">Prospects</h1>
           <p className="text-blue-200">Gerencie seu pipeline de prospecção.</p>
         </div>
-        <div className="flex gap-2">
-          <button onClick={onQuickAdd} className="rounded-xl border border-zinc-800 px-4 py-2 text-sm font-bold text-white hover:border-amber-400 hover:text-amber-400 transition flex items-center gap-2">
-            <Zap className="h-4 w-4" /> Rápido
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setView(view === "pipeline" ? "lista" : "pipeline")}
+            className="rounded-xl border border-zinc-800 px-4 py-2 text-sm font-bold text-white hover:border-amber-400 hover:text-amber-400 transition flex items-center gap-2"
+          >
+            <LayoutGrid className="h-4 w-4" /> {view === "pipeline" ? "Ver lista" : "Pipeline"}
           </button>
-          <button onClick={onNewProspect} className="rounded-xl border border-white px-4 py-2 text-sm font-bold text-amber-400 hover:bg-white hover:text-black transition flex items-center gap-2">
-            <Plus className="h-4 w-4" /> Novo Prospect
+          <button type="button" onClick={onQuickAdd} className="rounded-xl border border-zinc-800 px-4 py-2 text-sm font-bold text-white hover:border-amber-400 hover:text-amber-400 transition flex items-center gap-2">
+            <Zap className="h-4 w-4" /> Adição rápida
+          </button>
+          <button type="button" onClick={onNewProspect} className="rounded-xl border border-white px-4 py-2 text-sm font-bold text-amber-400 hover:bg-white hover:text-black transition flex items-center gap-2">
+            <Plus className="h-4 w-4" /> Novo
           </button>
         </div>
       </div>
@@ -178,17 +188,21 @@ function ProspectsPage({ onQuickAdd, onNewProspect }: { onQuickAdd: () => void; 
         />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        {prospectStages.map((stage) => (
-          <SalesCard key={stage} className="p-4">
-            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
-              <span className="text-xs font-black uppercase text-amber-400">{stage}</span>
-              <span className="text-xs text-blue-200">0</span>
-            </div>
-            <div className="mt-4 text-xs text-zinc-500">Sem prospects nesta etapa.</div>
-          </SalesCard>
-        ))}
-      </div>
+      {view === "pipeline" ? (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+          {prospectStages.map((stage) => (
+            <SalesCard key={stage} className="p-4">
+              <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+                <span className="text-xs font-black uppercase text-amber-400">{stage}</span>
+                <span className="text-xs text-blue-200">0</span>
+              </div>
+              <div className="mt-4 text-xs text-zinc-500">Sem prospects nesta etapa.</div>
+            </SalesCard>
+          ))}
+        </div>
+      ) : (
+        <SalesCard className="p-6 text-sm text-zinc-500">Modo lista — nenhum prospect cadastrado.</SalesCard>
+      )}
     </div>
   );
 }
@@ -201,24 +215,22 @@ function ServicesPage({ onNewService }: { onNewService: () => void }) {
           <h1 className="text-2xl font-black">Serviços</h1>
           <p className="text-blue-200">Catálogo de ofertas e pacotes.</p>
         </div>
-        <button onClick={onNewService} className="rounded-xl border border-white px-4 py-2 text-sm font-bold text-amber-400 hover:bg-white hover:text-black transition flex items-center gap-2">
+        <button type="button" onClick={onNewService} className="rounded-xl border border-white px-4 py-2 text-sm font-bold text-amber-400 hover:bg-white hover:text-black transition flex items-center gap-2">
           <Plus className="h-4 w-4" /> Novo Serviço
         </button>
       </div>
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {[1, 2, 3].map((i) => (
-          <SalesCard key={i} className="p-5">
-            <div className="flex items-center gap-3">
-              <div className="rounded-xl border border-zinc-800 p-2"><Package className="h-4 w-4 text-amber-400" /></div>
-              <div>
-                <h3 className="font-black">Serviço {i}</h3>
-                <p className="text-xs text-blue-200">A partir de R$ 0,00</p>
-              </div>
-            </div>
-            <p className="mt-4 text-sm text-zinc-400">Descrição curta do serviço.</p>
-          </SalesCard>
-        ))}
-      </div>
+      <SalesCard className="p-10 text-center">
+        <Package className="mx-auto h-10 w-10 text-amber-400" />
+        <h2 className="mt-4 text-xl font-black">Nenhum serviço cadastrado</h2>
+        <p className="mt-1 text-sm text-blue-200">Comece criando seu primeiro serviço para vender.</p>
+        <button
+          type="button"
+          onClick={onNewService}
+          className="mt-6 rounded-xl border border-white px-5 py-2.5 text-sm font-black text-amber-400 hover:bg-white hover:text-black transition"
+        >
+          Criar primeiro serviço
+        </button>
+      </SalesCard>
     </div>
   );
 }
@@ -231,26 +243,21 @@ function ClientsPage({ onNewClient }: { onNewClient: () => void }) {
           <h1 className="text-2xl font-black">Clientes</h1>
           <p className="text-blue-200">Base ativa de clientes.</p>
         </div>
-        <button onClick={onNewClient} className="rounded-xl border border-white px-4 py-2 text-sm font-bold text-amber-400 hover:bg-white hover:text-black transition flex items-center gap-2">
+        <button type="button" onClick={onNewClient} className="rounded-xl border border-white px-4 py-2 text-sm font-bold text-amber-400 hover:bg-white hover:text-black transition flex items-center gap-2">
           <Plus className="h-4 w-4" /> Novo Cliente
         </button>
       </div>
-      <SalesCard className="overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="border-b border-zinc-800 text-left text-xs uppercase text-amber-400">
-            <tr>
-              <th className="px-5 py-3 font-black">Cliente</th>
-              <th className="px-5 py-3 font-black">Contato</th>
-              <th className="px-5 py-3 font-black">Status</th>
-              <th className="px-5 py-3 font-black">Valor</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr className="border-b border-zinc-900">
-              <td className="px-5 py-4 text-zinc-500" colSpan={4}>Nenhum cliente cadastrado.</td>
-            </tr>
-          </tbody>
-        </table>
+      <SalesCard className="p-10 text-center">
+        <Users className="mx-auto h-10 w-10 text-amber-400" />
+        <h2 className="mt-4 text-xl font-black">Nenhum cliente cadastrado</h2>
+        <p className="mt-1 text-sm text-blue-200">Cadastre seu primeiro cliente para começar.</p>
+        <button
+          type="button"
+          onClick={onNewClient}
+          className="mt-6 rounded-xl border border-white px-5 py-2.5 text-sm font-black text-amber-400 hover:bg-white hover:text-black transition"
+        >
+          Cadastrar primeiro cliente
+        </button>
       </SalesCard>
     </div>
   );
@@ -296,10 +303,19 @@ function DemandCenter({ onNewNote }: { onNewNote: () => void }) {
           <h1 className="text-2xl font-black">Central de Demandas</h1>
           <p className="text-blue-200">Pipeline de entregáveis e aprovações.</p>
         </div>
-        <button onClick={onNewNote} className="rounded-xl border border-white px-4 py-2 text-sm font-bold text-amber-400 hover:bg-white hover:text-black transition flex items-center gap-2">
+        <button type="button" onClick={onNewNote} className="rounded-xl border border-white px-4 py-2 text-sm font-bold text-amber-400 hover:bg-white hover:text-black transition flex items-center gap-2">
           <Plus className="h-4 w-4" /> Nova Nota
         </button>
       </div>
+
+      <button
+        type="button"
+        onClick={onNewNote}
+        className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-zinc-700 bg-transparent px-4 py-6 text-sm font-bold text-blue-200 hover:border-amber-400 hover:text-amber-400 transition"
+      >
+        <StickyNote className="h-4 w-4" /> Adicionar nota
+      </button>
+
       <div className="flex gap-4 overflow-x-auto pb-4">
         {demandPipeline.map((stage) => (
           <SalesCard key={stage} className="w-64 shrink-0 p-4">
@@ -319,13 +335,18 @@ function DemandCenter({ onNewNote }: { onNewNote: () => void }) {
 
 /* ---------------- Modals ---------------- */
 
-function ModalShell({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+function ModalShell({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={onClose}>
-      <div className="w-full max-w-lg rounded-2xl border border-zinc-800 bg-[#080808] p-6" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={onClose}>
+      <div
+        className="relative max-h-[90vh] w-full max-w-xl overflow-auto rounded-[28px] border border-zinc-800 bg-[#101012] p-8 text-white shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="mb-5 flex items-center justify-between">
           <h2 className="text-lg font-black">{title}</h2>
-          <button onClick={onClose} className="rounded-lg p-1 text-zinc-500 hover:text-white"><X className="h-4 w-4" /></button>
+          <button type="button" onClick={onClose} className="rounded-lg p-1 text-zinc-500 hover:text-white" aria-label="Fechar">
+            <X className="h-4 w-4" />
+          </button>
         </div>
         {children}
       </div>
@@ -346,65 +367,116 @@ function FormField({ label, placeholder, type = "text" }: { label: string; place
   );
 }
 
+function ModalActions({ onClose, submitLabel }: { onClose: () => void; submitLabel: string }) {
+  return (
+    <div className="flex gap-3 pt-2">
+      <button
+        type="button"
+        onClick={onClose}
+        className="flex-1 rounded-xl border border-zinc-800 px-4 py-2.5 text-sm font-bold text-white hover:border-amber-400 hover:text-amber-400 transition"
+      >
+        Cancelar
+      </button>
+      <button
+        type="submit"
+        className="flex-1 rounded-xl border border-white px-4 py-2.5 text-sm font-black text-amber-400 hover:bg-white hover:text-black transition"
+      >
+        {submitLabel}
+      </button>
+    </div>
+  );
+}
+
+function useSubmit(onClose: () => void, message: string) {
+  return (event: FormEvent) => {
+    event.preventDefault();
+    toast.success(message);
+    onClose();
+  };
+}
+
+function QuickAddModal({ onClose }: { onClose: () => void }) {
+  const handleSubmit = useSubmit(onClose, "Adicionado com sucesso");
+  return (
+    <ModalShell title="Adição Rápida" onClose={onClose}>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <FormField label="Nome" placeholder="Nome rápido" />
+        <FormField label="Etapa" placeholder="Prospectar" />
+        <ModalActions onClose={onClose} submitLabel="Adicionar" />
+      </form>
+    </ModalShell>
+  );
+}
+
 function NewProspectModal({ onClose }: { onClose: () => void }) {
+  const handleSubmit = useSubmit(onClose, "Prospect criado");
   return (
     <ModalShell title="Novo Prospect" onClose={onClose}>
-      <div className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4">
         <FormField label="Nome" placeholder="Nome do prospect" />
         <FormField label="Contato" placeholder="@instagram ou telefone" />
         <FormField label="Origem" placeholder="Indicação, anúncio, etc." />
-        <button className="w-full rounded-xl border border-white px-4 py-2.5 text-sm font-black text-amber-400 hover:bg-white hover:text-black transition">
-          Adicionar Prospect
-        </button>
-      </div>
+        <ModalActions onClose={onClose} submitLabel="Adicionar Prospect" />
+      </form>
     </ModalShell>
   );
 }
 
 function NewServiceModal({ onClose }: { onClose: () => void }) {
+  const handleSubmit = useSubmit(onClose, "Serviço criado");
   return (
     <ModalShell title="Novo Serviço" onClose={onClose}>
-      <div className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4">
         <FormField label="Nome do Serviço" />
         <FormField label="Preço" type="number" placeholder="0,00" />
         <FormField label="Descrição" />
-        <button className="w-full rounded-xl border border-white px-4 py-2.5 text-sm font-black text-amber-400 hover:bg-white hover:text-black transition">
-          Criar Serviço
-        </button>
-      </div>
+        <ModalActions onClose={onClose} submitLabel="Criar Serviço" />
+      </form>
     </ModalShell>
   );
 }
 
 function NewClientModal({ onClose }: { onClose: () => void }) {
+  const handleSubmit = useSubmit(onClose, "Cliente cadastrado");
   return (
     <ModalShell title="Novo Cliente" onClose={onClose}>
-      <div className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4">
         <FormField label="Nome" />
         <FormField label="Email" type="email" />
         <FormField label="Telefone" />
-        <button className="w-full rounded-xl border border-white px-4 py-2.5 text-sm font-black text-amber-400 hover:bg-white hover:text-black transition">
-          Cadastrar Cliente
-        </button>
-      </div>
+        <ModalActions onClose={onClose} submitLabel="Cadastrar Cliente" />
+      </form>
     </ModalShell>
   );
 }
 
 function NoteModal({ onClose }: { onClose: () => void }) {
+  const handleSubmit = useSubmit(onClose, "Nota salva");
   return (
     <ModalShell title="Nova Nota" onClose={onClose}>
-      <div className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4">
         <FormField label="Título" />
         <textarea
           placeholder="Conteúdo da nota..."
           rows={5}
           className="w-full rounded-xl border border-zinc-800 bg-black px-4 py-2.5 text-sm text-white placeholder:text-zinc-500 focus:border-amber-400 focus:outline-none"
         />
-        <button className="w-full rounded-xl border border-white px-4 py-2.5 text-sm font-black text-amber-400 hover:bg-white hover:text-black transition flex items-center justify-center gap-2">
-          <Upload className="h-4 w-4" /> Salvar Nota
-        </button>
-      </div>
+        <div className="flex gap-3 pt-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 rounded-xl border border-zinc-800 px-4 py-2.5 text-sm font-bold text-white hover:border-amber-400 hover:text-amber-400 transition"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-white px-4 py-2.5 text-sm font-black text-amber-400 hover:bg-white hover:text-black transition"
+          >
+            <Upload className="h-4 w-4" /> Salvar Nota
+          </button>
+        </div>
+      </form>
     </ModalShell>
   );
 }
