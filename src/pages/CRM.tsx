@@ -85,7 +85,8 @@ const CRM = () => {
   const { wouldExceed, showPaywall, setUsage } = usePlan();
 
   const activeLeads = leads.filter(l => !["fechado", "perdido"].includes(l.stage)).length;
-  useEffect(() => { setUsage("leads", activeLeads); }, [activeLeads, setUsage]);
+  const realActiveLeads = leads.filter(l => !l.isDemo && !["fechado", "perdido"].includes(l.stage)).length;
+  useEffect(() => { setUsage("leads", realActiveLeads); }, [realActiveLeads, setUsage]);
 
   // Keep selectedLead in sync after moves
   useEffect(() => {
@@ -96,7 +97,7 @@ const CRM = () => {
   }, [leads, selectedLead]);
 
   const handleNewLead = () => {
-    if (wouldExceed("maxLeads", activeLeads)) {
+    if (wouldExceed("maxLeads", realActiveLeads)) {
       showPaywall("leads");
       return;
     }

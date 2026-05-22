@@ -20,11 +20,13 @@ export interface Client {
   observations: string;
   projects: { name: string; status: string }[];
   tasks: { name: string; done: boolean }[];
+  /** Dados de demonstração — não contam para o limite do plano Free */
+  isDemo?: boolean;
 }
 
 const STORAGE_KEY = "orbyt.clients.v1";
 
-export const initialClients: Client[] = [
+const rawInitialClients: Omit<Client, "isDemo">[] = [
   {
     id: 1, name: "Marina Costa", company: "Acme Corp", email: "marina@acme.com",
     phone: "(11) 99812-3456", whatsapp: "(11) 99812-3456", instagram: "@acmecorp",
@@ -105,11 +107,21 @@ export const initialClients: Client[] = [
   },
 ];
 
+export const initialClients: Client[] = rawInitialClients.map((c) => ({ ...c, isDemo: true }));
+
+const SEED_IDS = new Set(rawInitialClients.map((c) => c.id));
+
+function migrate(list: Client[]): Client[] {
+  return list.map((c) =>
+    c.isDemo === undefined && SEED_IDS.has(c.id) ? { ...c, isDemo: true } : c
+  );
+}
+
 export function useClients() {
   const [clients, setClients] = useState<Client[]>(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) return JSON.parse(raw) as Client[];
+      if (raw) return migrate(JSON.parse(raw) as Client[]);
     } catch {}
     return initialClients;
   });
@@ -120,7 +132,7 @@ export function useClients() {
     } catch {}
   }, [clients]);
 
-  const addClient = useCallback((data: Omit<Client, "id" | "projects" | "tasks" | "lastProject" | "lastInteraction"> & Partial<Pick<Client, "lastInteraction" | "lastProject">>) => {
+  const addClient = useCallback((data: Omit<Client, "id" | "projects" | "tasks" | "lastProject" | "lastInteraction" | "isDemo"> & Partial<Pick<Client, "lastInteraction" | "lastProject">>) => {
     setClients((prev) => [
       {
         id: Date.now(),
@@ -129,6 +141,7 @@ export function useClients() {
         lastProject: data.lastProject ?? "—",
         lastInteraction: data.lastInteraction ?? new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }),
         ...data,
+        isDemo: false,
       } as Client,
       ...prev,
     ]);

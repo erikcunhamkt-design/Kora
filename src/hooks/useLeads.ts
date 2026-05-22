@@ -19,11 +19,13 @@ export interface Lead {
   description: string;
   history: { date: string; text: string }[];
   notes: string;
+  /** Dados de demonstração — não contam para o limite do plano Free */
+  isDemo?: boolean;
 }
 
 const STORAGE_KEY = "orbyt.leads.v1";
 
-export const initialLeads: Lead[] = [
+const rawInitialLeads: Omit<Lead, "isDemo">[] = [
   {
     id: 1, name: "Marina Costa", company: "Acme Corp", email: "marina@acme.com",
     phone: "(11) 99812-3456", serviceType: "Branding", origin: "Indicação", estimatedValue: 8500,
@@ -161,11 +163,21 @@ export const initialLeads: Lead[] = [
   },
 ];
 
+export const initialLeads: Lead[] = rawInitialLeads.map((l) => ({ ...l, isDemo: true }));
+
+const SEED_IDS = new Set(rawInitialLeads.map((l) => l.id));
+
+function migrate(list: Lead[]): Lead[] {
+  return list.map((l) =>
+    l.isDemo === undefined && SEED_IDS.has(l.id) ? { ...l, isDemo: true } : l
+  );
+}
+
 export function useLeads() {
   const [leads, setLeads] = useState<Lead[]>(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) return JSON.parse(raw) as Lead[];
+      if (raw) return migrate(JSON.parse(raw) as Lead[]);
     } catch {}
     return initialLeads;
   });
@@ -177,7 +189,7 @@ export function useLeads() {
   }, [leads]);
 
   const addLead = useCallback(
-    (data: Omit<Lead, "id" | "history" | "lastInteraction" | "notes" | "description"> & Partial<Pick<Lead, "notes" | "description" | "lastInteraction">>) => {
+    (data: Omit<Lead, "id" | "history" | "lastInteraction" | "notes" | "description" | "isDemo"> & Partial<Pick<Lead, "notes" | "description" | "lastInteraction">>) => {
       setLeads((prev) => [
         {
           id: Date.now(),
@@ -186,6 +198,7 @@ export function useLeads() {
           notes: data.notes ?? "",
           description: data.description ?? "",
           ...data,
+          isDemo: false,
         } as Lead,
         ...prev,
       ]);
