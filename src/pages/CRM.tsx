@@ -73,10 +73,12 @@ const SummaryCard = ({ icon: Icon, label, value, sub }: { icon: any; label: stri
 
 // ---------- Main Component ----------
 const CRM = () => {
-  const [leads, setLeads] = useState<Lead[]>(initialLeads);
+  const { leads, addLead, moveLead } = useLeads();
   const [search, setSearch] = useState("");
   const [filterStage, setFilterStage] = useState("all");
   const [filterType, setFilterType] = useState("all");
+  const [filterPriority, setFilterPriority] = useState("all");
+  const [filterOrigin, setFilterOrigin] = useState("all");
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [newLeadOpen, setNewLeadOpen] = useState(false);
   const [draggedId, setDraggedId] = useState<number | null>(null);
@@ -84,6 +86,14 @@ const CRM = () => {
 
   const activeLeads = leads.filter(l => !["fechado", "perdido"].includes(l.stage)).length;
   useEffect(() => { setUsage("leads", activeLeads); }, [activeLeads, setUsage]);
+
+  // Keep selectedLead in sync after moves
+  useEffect(() => {
+    if (selectedLead) {
+      const fresh = leads.find(l => l.id === selectedLead.id);
+      if (fresh && fresh.stage !== selectedLead.stage) setSelectedLead(fresh);
+    }
+  }, [leads, selectedLead]);
 
   const handleNewLead = () => {
     if (wouldExceed("maxLeads", activeLeads)) {
@@ -95,20 +105,19 @@ const CRM = () => {
 
   const filtered = leads.filter(l => {
     const q = search.toLowerCase();
-    const matchSearch = !q || l.name.toLowerCase().includes(q) || l.company.toLowerCase().includes(q);
+    const matchSearch = !q || l.name.toLowerCase().includes(q) || l.company.toLowerCase().includes(q) || (l.serviceType || "").toLowerCase().includes(q);
     const matchStage = filterStage === "all" || l.stage === filterStage;
     const matchType = filterType === "all" || l.serviceType === filterType;
-    return matchSearch && matchStage && matchType;
+    const matchPriority = filterPriority === "all" || l.priority === filterPriority;
+    const matchOrigin = filterOrigin === "all" || l.origin === filterOrigin;
+    return matchSearch && matchStage && matchType && matchPriority && matchOrigin;
   });
-
-  const moveLead = useCallback((id: number, newStage: StageKey) => {
-    setLeads(prev => prev.map(l => l.id === id ? { ...l, stage: newStage } : l));
-    setSelectedLead(prev => prev?.id === id ? { ...prev, stage: newStage } : prev);
-  }, []);
 
   const totalPipeline = leads.filter(l => !["fechado", "perdido"].includes(l.stage)).reduce((s, l) => s + l.estimatedValue, 0);
   const totalNegociacao = leads.filter(l => l.stage === "negociacao").reduce((s, l) => s + l.estimatedValue, 0);
   const fechadosMes = leads.filter(l => l.stage === "fechado").length;
+  const novosLeads = leads.filter(l => l.stage === "lead").length;
+  const valorPerdido = leads.filter(l => l.stage === "perdido").reduce((s, l) => s + l.estimatedValue, 0);
   const totalLeads = leads.filter(l => !["perdido"].includes(l.stage)).length;
   const taxaConversao = totalLeads > 0 ? Math.round((fechadosMes / totalLeads) * 100) : 0;
 
@@ -138,28 +147,49 @@ const CRM = () => {
       />
 
       {/* Summary */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         <SummaryCard icon={TrendingUp} label="Total em pipeline" value={formatCurrency(totalPipeline)} />
         <SummaryCard icon={DollarSign} label="Em negociação" value={formatCurrency(totalNegociacao)} />
+        <SummaryCard icon={Sparkles} label="Leads novos" value={String(novosLeads)} />
         <SummaryCard icon={CheckCircle2} label="Fechados no mês" value={String(fechadosMes)} sub={formatCurrency(leads.filter(l => l.stage === "fechado").reduce((s, l) => s + l.estimatedValue, 0))} />
         <SummaryCard icon={BarChart3} label="Taxa de conversão" value={`${taxaConversao}%`} />
+        <SummaryCard icon={XCircle} label="Valor perdido" value={formatCurrency(valorPerdido)} />
       </div>
 
       {/* Filters */}
       <div className="orbit-card p-3 flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Buscar por nome ou empresa..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 bg-muted/50 border-border" />
+          <Input placeholder="Buscar por nome, empresa ou serviço..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 bg-muted/50 border-border" />
         </div>
         <Select value={filterStage} onValueChange={setFilterStage}>
-          <SelectTrigger className="w-[170px] bg-muted/50 border-border"><SelectValue placeholder="Etapa" /></SelectTrigger>
+          <SelectTrigger className="w-[160px] bg-muted/50 border-border"><SelectValue placeholder="Etapa" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas as etapas</SelectItem>
             {stageConfigs.map(s => <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>)}
           </SelectContent>
         </Select>
+        <Select value={filterPriority} onValueChange={setFilterPriority}>
+          <SelectTrigger className="w-[150px] bg-muted/50 border-border">
+            <Flame className="h-4 w-4 mr-2 text-muted-foreground" />
+            <SelectValue placeholder="Temperatura" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas</SelectItem>
+            <SelectItem value="alta">Alta</SelectItem>
+            <SelectItem value="média">Média</SelectItem>
+            <SelectItem value="baixa">Baixa</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={filterOrigin} onValueChange={setFilterOrigin}>
+          <SelectTrigger className="w-[150px] bg-muted/50 border-border"><SelectValue placeholder="Origem" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas as origens</SelectItem>
+            {origins.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+          </SelectContent>
+        </Select>
         <Select value={filterType} onValueChange={setFilterType}>
-          <SelectTrigger className="w-[170px] bg-muted/50 border-border"><SelectValue placeholder="Serviço" /></SelectTrigger>
+          <SelectTrigger className="w-[160px] bg-muted/50 border-border"><SelectValue placeholder="Serviço" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos os tipos</SelectItem>
             {serviceTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
