@@ -3,8 +3,24 @@ import { toast } from "sonner";
 import {
   Plus, Search, Trophy, Users, Briefcase, LayoutGrid, Target, Calendar,
   DollarSign, AlertTriangle, Clock, X, Upload, Zap, Send, Package, UserPlus,
-  StickyNote,
+  StickyNote, ClipboardList,
 } from "lucide-react";
+
+export type ProspectStage =
+  | "Prospectar" | "Abordar" | "Não Respondeu" | "Oferta Feita" | "Pensando" | "Não Quis";
+
+export type Prospect = {
+  id: string;
+  createdAt: string;
+  name: string;
+  company?: string;
+  whatsapp?: string;
+  niche?: string;
+  service?: string;
+  status: ProspectStage;
+};
+
+type QuickAddProspectPayload = Omit<Prospect, "id" | "createdAt">;
 
 type SalesTab = "home" | "prospects" | "servicos" | "clientes" | "ranking" | "demandas";
 
