@@ -67,7 +67,7 @@ const SummaryCard = ({ icon: Icon, label, value, accent }: { icon: any; label: s
 );
 
 const Tarefas = () => {
-  const [tasks, setTasks] = useState<Task[]>(initialTasks);
+  const { tasks, setTasks, addTask } = useTasks();
   const [search, setSearch] = useState("");
   const [filterClient, setFilterClient] = useState("all");
   const [filterPriority, setFilterPriority] = useState("all");
