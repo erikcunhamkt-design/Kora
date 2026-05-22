@@ -16,6 +16,7 @@ import Financeiro from "./pages/Financeiro";
 import Tarefas from "./pages/Tarefas";
 import Metas from "./pages/Metas";
 import Configuracoes from "./pages/Configuracoes";
+import Vendas from "./pages/Vendas";
 import Upgrade from "./pages/Upgrade";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
