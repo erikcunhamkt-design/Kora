@@ -20,6 +20,8 @@ export interface Client {
   observations: string;
   projects: { name: string; status: string }[];
   tasks: { name: string; done: boolean }[];
+  /** Dados de demonstração — não contam para o limite do plano Free */
+  isDemo?: boolean;
 }
 
 const STORAGE_KEY = "orbyt.clients.v1";
