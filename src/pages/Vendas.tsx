@@ -3,8 +3,10 @@ import { toast } from "sonner";
 import {
   Plus, Search, Trophy, Users, Briefcase, LayoutGrid, Target, Calendar,
   DollarSign, AlertTriangle, Clock, X, Upload, Zap, Send, Package, UserPlus,
-  StickyNote, ClipboardList,
+  StickyNote, ClipboardList, FileText,
 } from "lucide-react";
+import { ServicesSection } from "@/components/vendas/ServicesSection";
+import { QuotesSection } from "@/components/vendas/QuotesSection";
 
 export type ProspectStage =
   | "Prospectar" | "Abordar" | "Não Respondeu" | "Oferta Feita" | "Pensando" | "Não Quis";
