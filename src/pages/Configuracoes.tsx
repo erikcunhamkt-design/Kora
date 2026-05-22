@@ -4,9 +4,13 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 const Configuracoes = () => (
-  <div className="max-w-2xl space-y-8">
+  <div className="max-w-2xl">
+    <PageHeader title="Configurações" subtitle="Preferências do sistema e perfil" />
+    <div className="space-y-8">
+
     <div className="orbit-card p-6">
       <h3 className="text-sm font-semibold text-foreground mb-4">Perfil</h3>
       <div className="flex items-center gap-4 mb-6">
@@ -65,3 +69,4 @@ const Configuracoes = () => (
 );
 
 export default Configuracoes;
+

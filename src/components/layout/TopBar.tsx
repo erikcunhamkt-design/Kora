@@ -1,6 +1,5 @@
 import { Search, Bell, LogOut, User, ChevronDown, Crown, Zap } from "lucide-react";
-import { useLocation, useNavigate } from "react-router-dom";
-import { Input } from "@/components/ui/input";
+import { useNavigate } from "react-router-dom";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useAuth } from "@/contexts/AuthContext";
@@ -14,22 +13,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-const pageTitles: Record<string, { title: string; subtitle: string }> = {
-  "/": { title: "Dashboard", subtitle: "Visão geral do seu negócio" },
-  "/portfolio": { title: "Portfólio", subtitle: "Seus projetos e trabalhos" },
-  "/clientes": { title: "Clientes", subtitle: "Gerencie sua base de clientes" },
-  "/crm": { title: "CRM", subtitle: "Pipeline de oportunidades" },
-  "/financeiro": { title: "Financeiro", subtitle: "Controle financeiro" },
-  "/tarefas": { title: "Tarefas", subtitle: "Gerencie suas atividades" },
-  "/metas": { title: "Metas", subtitle: "Acompanhe seus objetivos" },
-  "/configuracoes": { title: "Configurações", subtitle: "Preferências do sistema" },
-  "/upgrade": { title: "Upgrade", subtitle: "Desbloqueie todo o potencial" },
-};
-
 export function TopBar() {
-  const location = useLocation();
   const navigate = useNavigate();
-  const page = pageTitles[location.pathname] || pageTitles["/"];
   const { profile, signOut } = useAuth();
   const { isPro, plan } = usePlan();
 
@@ -38,14 +23,11 @@ export function TopBar() {
     : "DS";
 
   return (
-    <header className="h-16 border-b border-border/40 flex items-center justify-between px-6 glass-panel-subtle sticky top-0 z-10">
-      <div className="flex items-center gap-4">
+    <header className="h-16 shrink-0 border-b border-border/40 flex items-center justify-between gap-3 px-6 glass-panel-subtle sticky top-0 z-20">
+      <div className="flex items-center gap-3 min-w-0">
         <SidebarTrigger className="text-muted-foreground hover:text-foreground transition-colors duration-150" />
-        <div>
-          <h1 className="text-lg font-semibold text-foreground tracking-tight leading-tight">{page.title}</h1>
-          <p className="text-[0.8125rem] text-muted-foreground mt-0.5">{page.subtitle}</p>
-        </div>
       </div>
+
       <div className="flex items-center gap-3">
         <div className="relative hidden md:block">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
