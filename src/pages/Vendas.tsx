@@ -181,8 +181,16 @@ function SalesHome() {
   );
 }
 
-function ProspectsPage({ onQuickAdd, onNewProspect }: { onQuickAdd: () => void; onNewProspect: () => void }) {
+function ProspectsPage({ prospects, onQuickAdd, onNewProspect }: { prospects: Prospect[]; onQuickAdd: () => void; onNewProspect: () => void }) {
   const [view, setView] = useState<"pipeline" | "lista">("pipeline");
+  const [query, setQuery] = useState("");
+
+  const filtered = prospects.filter((p) => {
+    const q = query.trim().toLowerCase();
+    if (!q) return true;
+    return [p.name, p.company, p.niche, p.whatsapp].filter(Boolean).some((v) => v!.toLowerCase().includes(q));
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -210,6 +218,8 @@ function ProspectsPage({ onQuickAdd, onNewProspect }: { onQuickAdd: () => void; 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
         <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
           placeholder="Buscar prospect..."
           className="w-full rounded-xl border border-zinc-800 bg-black py-2.5 pl-10 pr-4 text-sm text-white placeholder:text-zinc-500 focus:border-amber-400 focus:outline-none"
         />
@@ -217,22 +227,53 @@ function ProspectsPage({ onQuickAdd, onNewProspect }: { onQuickAdd: () => void; 
 
       {view === "pipeline" ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-          {prospectStages.map((stage) => (
-            <SalesCard key={stage} className="p-4">
-              <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
-                <span className="text-xs font-black uppercase text-amber-400">{stage}</span>
-                <span className="text-xs text-blue-200">0</span>
-              </div>
-              <div className="mt-4 text-xs text-zinc-500">Sem prospects nesta etapa.</div>
-            </SalesCard>
-          ))}
+          {prospectStages.map((stage) => {
+            const items = filtered.filter((p) => p.status === stage);
+            return (
+              <SalesCard key={stage} className="p-4">
+                <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+                  <span className="text-xs font-black uppercase text-amber-400">{stage}</span>
+                  <span className="text-xs text-blue-200">{items.length}</span>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {items.length === 0 ? (
+                    <div className="text-xs text-zinc-500">Sem prospects nesta etapa.</div>
+                  ) : (
+                    items.map((p) => (
+                      <div key={p.id} className="rounded-xl border border-zinc-800 bg-black p-3">
+                        <div className="text-sm font-bold text-white">{p.name}</div>
+                        {p.company && <div className="text-xs text-blue-200">{p.company}</div>}
+                        {p.whatsapp && <div className="mt-1 text-xs text-zinc-500">{p.whatsapp}</div>}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </SalesCard>
+            );
+          })}
         </div>
+      ) : filtered.length === 0 ? (
+        <SalesCard className="p-6 text-sm text-zinc-500">Nenhum prospect cadastrado.</SalesCard>
       ) : (
-        <SalesCard className="p-6 text-sm text-zinc-500">Modo lista — nenhum prospect cadastrado.</SalesCard>
+        <SalesCard className="divide-y divide-zinc-800">
+          {filtered.map((p) => (
+            <div key={p.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
+              <div>
+                <div className="font-bold">{p.name}</div>
+                <div className="text-xs text-blue-200">{[p.company, p.niche].filter(Boolean).join(" · ")}</div>
+              </div>
+              <div className="flex items-center gap-4 text-xs text-zinc-500">
+                {p.whatsapp && <span>{p.whatsapp}</span>}
+                <span className="rounded-full border border-zinc-800 px-3 py-1 text-amber-400">{p.status}</span>
+              </div>
+            </div>
+          ))}
+        </SalesCard>
       )}
     </div>
   );
 }
+
 
 function ServicesPage({ onNewService }: { onNewService: () => void }) {
   return (
