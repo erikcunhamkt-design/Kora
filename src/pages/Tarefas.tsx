@@ -85,7 +85,7 @@ const Tarefas = () => {
   useEffect(() => { setUsage("tasks", realTaskCount); }, [realTaskCount, setUsage]);
 
   const handleNewTask = () => {
-    if (wouldExceed("maxTasks", tasks.length)) {
+    if (wouldExceed("maxTasks", realTaskCount)) {
       showPaywall("tasks");
       return;
     }
