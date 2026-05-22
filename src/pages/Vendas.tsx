@@ -3,8 +3,10 @@ import { toast } from "sonner";
 import {
   Plus, Search, Trophy, Users, Briefcase, LayoutGrid, Target, Calendar,
   DollarSign, AlertTriangle, Clock, X, Upload, Zap, Send, Package, UserPlus,
-  StickyNote, ClipboardList,
+  StickyNote, ClipboardList, FileText,
 } from "lucide-react";
+import { ServicesSection } from "@/components/vendas/ServicesSection";
+import { QuotesSection } from "@/components/vendas/QuotesSection";
 
 export type ProspectStage =
   | "Prospectar" | "Abordar" | "Não Respondeu" | "Oferta Feita" | "Pensando" | "Não Quis";
@@ -22,7 +24,7 @@ export type Prospect = {
 
 type QuickAddProspectPayload = Omit<Prospect, "id" | "createdAt">;
 
-type SalesTab = "home" | "prospects" | "servicos" | "clientes" | "ranking" | "demandas";
+type SalesTab = "home" | "prospects" | "servicos" | "orcamentos" | "clientes" | "ranking" | "demandas";
 
 const prospectStages = ["Prospectar", "Abordar", "Não Respondeu", "Oferta Feita", "Pensando", "Não Quis"];
 const demandPipeline = ["Rascunho", "Aprovação Copy", "Copy Aprovado", "Aprovação Post", "Aprovado", "Agendado", "Postado"];
@@ -31,6 +33,7 @@ const tabs: { id: SalesTab; label: string; icon: typeof LayoutGrid }[] = [
   { id: "home", label: "Home", icon: LayoutGrid },
   { id: "prospects", label: "Prospects", icon: Users },
   { id: "servicos", label: "Serviços", icon: Briefcase },
+  { id: "orcamentos", label: "Orçamentos", icon: FileText },
   { id: "clientes", label: "Clientes", icon: Users },
   { id: "ranking", label: "Ranking", icon: Trophy },
   { id: "demandas", label: "Demandas", icon: Calendar },
@@ -59,7 +62,8 @@ export default function Vendas() {
     switch (activeTab) {
       case "home": return <SalesHome />;
       case "prospects": return <ProspectsPage prospects={prospects} onQuickAdd={() => setQuickAddOpen(true)} onNewProspect={() => setNewProspectOpen(true)} />;
-      case "servicos": return <ServicesPage onNewService={() => setNewServiceOpen(true)} />;
+      case "servicos": return <ServicesSection />;
+      case "orcamentos": return <QuotesSection />;
       case "clientes": return <ClientsPage onNewClient={() => setNewClientOpen(true)} />;
       case "ranking": return <RankingPage />;
       case "demandas": return <DemandCenter onNewNote={() => setNoteOpen(true)} />;
