@@ -43,11 +43,22 @@ export default function Vendas() {
   const [newServiceOpen, setNewServiceOpen] = useState(false);
   const [newClientOpen, setNewClientOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
+  const [prospects, setProspects] = useState<Prospect[]>([]);
+
+  const addProspect = (prospect: QuickAddProspectPayload) => {
+    const newProspect: Prospect = {
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+      ...prospect,
+    };
+    setProspects((current) => [newProspect, ...current]);
+    toast.success(`${newProspect.name} adicionado`);
+  };
 
   const renderActiveTab = () => {
     switch (activeTab) {
       case "home": return <SalesHome />;
-      case "prospects": return <ProspectsPage onQuickAdd={() => setQuickAddOpen(true)} onNewProspect={() => setNewProspectOpen(true)} />;
+      case "prospects": return <ProspectsPage prospects={prospects} onQuickAdd={() => setQuickAddOpen(true)} onNewProspect={() => setNewProspectOpen(true)} />;
       case "servicos": return <ServicesPage onNewService={() => setNewServiceOpen(true)} />;
       case "clientes": return <ClientsPage onNewClient={() => setNewClientOpen(true)} />;
       case "ranking": return <RankingPage />;
@@ -92,7 +103,7 @@ export default function Vendas() {
 
       <main className="mx-auto max-w-7xl px-6 py-8">{renderActiveTab()}</main>
 
-      {quickAddOpen && <QuickAddModal onClose={() => setQuickAddOpen(false)} />}
+      {quickAddOpen && <QuickAddModal onClose={() => setQuickAddOpen(false)} onAddProspect={addProspect} />}
       {newProspectOpen && <NewProspectModal onClose={() => setNewProspectOpen(false)} />}
       {newServiceOpen && <NewServiceModal onClose={() => setNewServiceOpen(false)} />}
       {newClientOpen && <NewClientModal onClose={() => setNewClientOpen(false)} />}
