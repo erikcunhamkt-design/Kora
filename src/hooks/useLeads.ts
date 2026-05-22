@@ -189,7 +189,7 @@ export function useLeads() {
   }, [leads]);
 
   const addLead = useCallback(
-    (data: Omit<Lead, "id" | "history" | "lastInteraction" | "notes" | "description"> & Partial<Pick<Lead, "notes" | "description" | "lastInteraction">>) => {
+    (data: Omit<Lead, "id" | "history" | "lastInteraction" | "notes" | "description" | "isDemo"> & Partial<Pick<Lead, "notes" | "description" | "lastInteraction">>) => {
       setLeads((prev) => [
         {
           id: Date.now(),
@@ -198,6 +198,7 @@ export function useLeads() {
           notes: data.notes ?? "",
           description: data.description ?? "",
           ...data,
+          isDemo: false,
         } as Lead,
         ...prev,
       ]);
