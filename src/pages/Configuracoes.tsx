@@ -65,8 +65,10 @@ const Configuracoes = () => (
         <Switch defaultChecked />
       </div>
     </div>
+    </div>
   </div>
 );
+
 
 export default Configuracoes;
 
