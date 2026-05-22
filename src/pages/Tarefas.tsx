@@ -144,11 +144,13 @@ const Tarefas = () => {
         }
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
         <SummaryCard icon={CalendarDays} label="Tarefas do dia" value={todayTasks} />
         <SummaryCard icon={AlertCircle} label="Atrasadas" value={overdue} accent="bg-destructive/15" />
-        <SummaryCard icon={CheckCircle2} label="Concluídas no mês" value={doneMonth} accent="bg-emerald-500/15" />
+        <SummaryCard icon={CheckCircle2} label="Concluídas" value={doneMonth} accent="bg-emerald-500/15" />
         <SummaryCard icon={Timer} label="Em andamento" value={inProgress} accent="bg-amber-500/15" />
+        <SummaryCard icon={Flag} label="Alta prioridade" value={highPriority} accent="bg-destructive/15" />
+        <SummaryCard icon={Briefcase} label="Sem projeto" value={noProject} accent="bg-muted" />
       </div>
 
       <div className="orbit-card p-3 flex flex-wrap items-center gap-3">
