@@ -25,7 +25,7 @@ export interface Lead {
 
 const STORAGE_KEY = "orbyt.leads.v1";
 
-export const initialLeads: Lead[] = [
+const rawInitialLeads: Omit<Lead, "isDemo">[] = [
   {
     id: 1, name: "Marina Costa", company: "Acme Corp", email: "marina@acme.com",
     phone: "(11) 99812-3456", serviceType: "Branding", origin: "Indicação", estimatedValue: 8500,
