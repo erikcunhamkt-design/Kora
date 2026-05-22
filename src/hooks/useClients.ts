@@ -26,7 +26,7 @@ export interface Client {
 
 const STORAGE_KEY = "orbyt.clients.v1";
 
-export const initialClients: Client[] = [
+const rawInitialClients: Omit<Client, "isDemo">[] = [
   {
     id: 1, name: "Marina Costa", company: "Acme Corp", email: "marina@acme.com",
     phone: "(11) 99812-3456", whatsapp: "(11) 99812-3456", instagram: "@acmecorp",
