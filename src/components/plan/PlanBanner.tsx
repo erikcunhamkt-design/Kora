@@ -19,7 +19,7 @@ export function PlanBanner() {
         </div>
         <div className="text-left">
           <p className="text-sm font-medium text-foreground">Plano Free</p>
-          <p className="text-xs text-muted-foreground">Desbloqueie recursos ilimitados</p>
+          <p className="text-xs text-muted-foreground">Desbloqueie recursos avançados para acelerar seu estúdio</p>
         </div>
       </div>
       <div className="flex items-center gap-1 text-xs font-medium text-primary group-hover:underline">
