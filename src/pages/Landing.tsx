@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { PLAN_PRICE } from "@/contexts/PlanContext";
-import orbitLogo from "@/assets/orbit-logo.png";
+import orbitLogo from "@/assets/kora-logo.png";
 import { useEffect, useRef } from "react";
 
 /* ─── scroll reveal hook ─── */
@@ -108,9 +108,9 @@ const Landing = () => {
         <div className="max-w-7xl mx-auto flex items-center justify-between px-6 h-16">
           <div className="flex items-center gap-3">
             <div className="orbit-logo-container">
-              <img src={orbitLogo} alt="Orbit" className="h-8 w-8 object-contain" />
+              <img src={orbitLogo} alt="KORA HUB" className="h-8 w-8 object-contain" />
             </div>
-            <span className="text-xl font-bold orbit-gradient-text tracking-tight">Orbit</span>
+            <span className="text-xl font-bold orbit-gradient-text tracking-tight">KORA HUB</span>
             <span className="hidden sm:inline text-xs text-muted-foreground/50 tracking-wide uppercase">Clarity for creative work</span>
           </div>
           <div className="flex items-center gap-3">
@@ -459,10 +459,10 @@ const Landing = () => {
           <div className="flex items-center gap-8">
             <div className="flex items-center gap-3">
               <div className="orbit-logo-container">
-                <img src={orbitLogo} alt="Orbit" className="h-7 w-7 object-contain" />
+                <img src={orbitLogo} alt="KORA HUB" className="h-7 w-7 object-contain" />
               </div>
               <div className="flex flex-col">
-                <span className="text-lg font-bold orbit-gradient-text">Orbit</span>
+                <span className="text-lg font-bold orbit-gradient-text">KORA HUB</span>
                 <span className="text-[0.625rem] text-muted-foreground/50 tracking-wide uppercase">Clarity for creative work</span>
               </div>
             </div>

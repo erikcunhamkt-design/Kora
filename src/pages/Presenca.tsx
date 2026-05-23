@@ -180,8 +180,8 @@ function BioSection() {
           <div className="max-w-[280px] mx-auto bg-background rounded-3xl p-4 border border-border space-y-3">
             <div className="text-center py-3">
               <div className="h-16 w-16 mx-auto rounded-full orbit-gradient mb-2" />
-              <p className="text-sm font-bold text-foreground">Orbyt Studio</p>
-              <p className="text-[10px] text-muted-foreground">@orbyt.studio</p>
+              <p className="text-sm font-bold text-foreground">KORA HUB</p>
+              <p className="text-[10px] text-muted-foreground">@kora.hub</p>
             </div>
             {links.filter((l) => l.active).sort((a, b) => a.order - b.order).map((l) => (
               <div key={l.id} className="w-full p-3 rounded-xl bg-muted text-center text-sm font-medium text-foreground border border-border">

@@ -21,15 +21,15 @@ export interface PublicProfile {
 const KEY = "orbyt.publicProfile.v1";
 
 const DEFAULT: PublicProfile = {
-  studioName: "Orbyt Studio",
-  slug: "orbyt-studio",
+  studioName: "KORA HUB",
+  slug: "kora-hub",
   headline: "Design e estratégia para marcas que querem crescer",
   description:
     "Estúdio criativo focado em branding, web design e conteúdo. Transformamos ideias em marcas memoráveis.",
   location: "São Paulo, BR",
-  contactEmail: "contato@orbyt.studio",
+  contactEmail: "contato@kora.hub",
   whatsapp: "(11) 99999-0000",
-  website: "https://orbyt.studio",
+  website: "https://kora.hub",
   primaryColor: "#F81040",
   layout: "premium",
   showPortfolio: true,
