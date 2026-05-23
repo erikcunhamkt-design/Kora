@@ -473,7 +473,7 @@ function QuotePreview({
         <div className="flex items-start justify-between border-b border-zinc-200 pb-4">
           <div>
             <div className="text-xs uppercase tracking-wider text-zinc-500">Orçamento</div>
-            <div className="text-2xl font-black">Orbyt Studio</div>
+            <div className="text-2xl font-black">KORA HUB</div>
           </div>
           <div className="text-right text-xs text-zinc-500">
             <div>Emitido em {quote.createdAt}</div>
