@@ -20,6 +20,8 @@ import Metas from "./pages/Metas";
 import Configuracoes from "./pages/Configuracoes";
 import Vendas from "./pages/Vendas";
 import Automacoes from "./pages/Automacoes";
+import Presenca from "./pages/Presenca";
+import PublicProfilePage from "./pages/PublicProfile";
 import Upgrade from "./pages/Upgrade";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
@@ -44,6 +46,7 @@ const App = () => (
               <Routes>
                 {/* Public routes */}
                 <Route path="/landing" element={<Landing />} />
+                <Route path="/publico/:slug" element={<PublicProfilePage />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/signup" element={<Signup />} />
                 <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -62,6 +65,7 @@ const App = () => (
                 <Route path="/tarefas" element={<ProtectedRoute><OnboardingGate><MainLayout><Tarefas /></MainLayout></OnboardingGate></ProtectedRoute>} />
                 <Route path="/metas" element={<ProtectedRoute><OnboardingGate><MainLayout><Metas /></MainLayout></OnboardingGate></ProtectedRoute>} />
                 <Route path="/automacoes" element={<ProtectedRoute><OnboardingGate><MainLayout><Automacoes /></MainLayout></OnboardingGate></ProtectedRoute>} />
+                <Route path="/presenca" element={<ProtectedRoute><OnboardingGate><MainLayout><Presenca /></MainLayout></OnboardingGate></ProtectedRoute>} />
                 <Route path="/configuracoes" element={<ProtectedRoute><OnboardingGate><MainLayout><Configuracoes /></MainLayout></OnboardingGate></ProtectedRoute>} />
                 <Route path="/upgrade" element={<ProtectedRoute><OnboardingGate><MainLayout><Upgrade /></MainLayout></OnboardingGate></ProtectedRoute>} />
 
