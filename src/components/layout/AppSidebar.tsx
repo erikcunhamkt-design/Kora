@@ -75,7 +75,7 @@ export function AppSidebar() {
                         }`}
                         activeClassName=""
                         style={active ? {
-                          boxShadow: 'inset 0 0 0 1px hsl(263 84% 58% / 0.12), 0 0 16px hsl(263 84% 58% / 0.04)'
+                          boxShadow: 'inset 0 0 0 1px hsl(348 94% 52% / 0.12), 0 0 16px hsl(348 94% 52% / 0.04)'
                         } : undefined}
                       >
                         {active && (

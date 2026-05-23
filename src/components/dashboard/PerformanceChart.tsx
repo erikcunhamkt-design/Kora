@@ -21,11 +21,11 @@ export function PerformanceChart() {
             <XAxis dataKey="month" tick={{ fill: "hsl(240 5% 65%)", fontSize: 13, fontWeight: 500 }} axisLine={false} tickLine={false} dy={8} />
             <YAxis tick={{ fill: "hsl(240 5% 65%)", fontSize: 12 }} axisLine={false} tickLine={false} width={50} />
             <Tooltip
-              cursor={{ fill: "hsl(263 84% 58% / 0.04)", radius: 8 }}
+              cursor={{ fill: "hsl(348 94% 52% / 0.04)", radius: 8 }}
               contentStyle={{
-                backgroundColor: "hsl(240 24% 8% / 0.95)",
+                backgroundColor: "hsl(0 0% 8% / 0.95)",
                 backdropFilter: "blur(16px)",
-                border: "1px solid hsl(240 14% 18% / 0.6)",
+                border: "1px solid hsl(0 0% 18% / 0.6)",
                 borderRadius: "12px",
                 color: "#fff",
                 fontSize: 14,
@@ -37,8 +37,8 @@ export function PerformanceChart() {
             <Bar dataKey="valor" fill="url(#chartGradientPremium)" radius={[8, 8, 0, 0]} />
             <defs>
               <linearGradient id="chartGradientPremium" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="hsl(263 84% 58%)" />
-                <stop offset="100%" stopColor="hsl(263 84% 58% / 0.3)" />
+                <stop offset="0%" stopColor="hsl(348 94% 52%)" />
+                <stop offset="100%" stopColor="hsl(348 94% 52% / 0.3)" />
               </linearGradient>
             </defs>
           </BarChart>
