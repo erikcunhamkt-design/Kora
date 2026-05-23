@@ -98,7 +98,10 @@ export function AppSidebar() {
         <SidebarFooter className="p-3">
           <button
             onClick={() => navigate("/upgrade")}
-            className="w-full flex items-center gap-2.5 px-4 py-3 rounded-lg border border-primary/15 bg-primary/5 hover:bg-primary/8 transition-all duration-200 text-sm press-effect group"
+            title="Upgrade Pro"
+            className={`w-full flex items-center rounded-lg border border-primary/15 bg-primary/5 hover:bg-primary/8 transition-all duration-200 text-sm press-effect group ${
+              collapsed ? "justify-center p-2" : "gap-2.5 px-4 py-3"
+            }`}
           >
             <Crown className="h-4 w-4 text-primary shrink-0 group-hover:scale-110 transition-transform duration-200" />
             {!collapsed && <span className="text-primary font-medium">Upgrade Pro</span>}
