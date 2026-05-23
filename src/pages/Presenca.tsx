@@ -315,7 +315,7 @@ function AgendaSection() {
   const [tName, setTName] = useState("");
   const [tDur, setTDur] = useState("30");
   const [tDesc, setTDesc] = useState("");
-  const [tColor, setTColor] = useState("#7c3aed");
+  const [tColor, setTColor] = useState("#F81040");
 
   // booking fields
   const [bTypeId, setBTypeId] = useState("");

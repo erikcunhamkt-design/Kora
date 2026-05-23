@@ -30,7 +30,7 @@ const DEFAULT: PublicProfile = {
   contactEmail: "contato@orbyt.studio",
   whatsapp: "(11) 99999-0000",
   website: "https://orbyt.studio",
-  primaryColor: "#7c3aed",
+  primaryColor: "#F81040",
   layout: "premium",
   showPortfolio: true,
   showServices: true,
