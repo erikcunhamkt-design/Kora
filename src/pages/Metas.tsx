@@ -67,8 +67,8 @@ const initialGoals: Goal[] = [
     id: "6", title: "Taxa de Conversão", type: "clientes",
     current: 65, target: 80, unit: "%", prefix: "",
     period: "Abril 2026", description: "Melhorar conversão de leads em clientes",
-    icon: Target, color: "text-pink-400",
-    gradient: "from-pink-500/20 to-pink-500/5",
+    icon: Target, color: "text-primary",
+    gradient: "from-primary/20 to-primary/5",
   },
 ];
 
