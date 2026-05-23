@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, Briefcase, Users, TrendingUp,
-  DollarSign, CheckSquare, Target, Settings, Crown, Trophy
+  DollarSign, CheckSquare, Target, Settings, Crown, Trophy, Zap
 } from "lucide-react";
 import orbitLogo from "@/assets/orbit-logo.png";
 import { NavLink } from "@/components/NavLink";
@@ -19,6 +19,7 @@ const navItems = [
   { title: "Vendas", url: "/vendas", icon: Trophy },
   { title: "Financeiro", url: "/financeiro", icon: DollarSign },
   { title: "Tarefas", url: "/tarefas", icon: CheckSquare },
+  { title: "Automações", url: "/automacoes", icon: Zap },
   { title: "Metas", url: "/metas", icon: Target },
   { title: "Configurações", url: "/configuracoes", icon: Settings },
 ];

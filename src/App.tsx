@@ -19,6 +19,7 @@ import Tarefas from "./pages/Tarefas";
 import Metas from "./pages/Metas";
 import Configuracoes from "./pages/Configuracoes";
 import Vendas from "./pages/Vendas";
+import Automacoes from "./pages/Automacoes";
 import Upgrade from "./pages/Upgrade";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
@@ -60,6 +61,7 @@ const App = () => (
                 <Route path="/financeiro" element={<ProtectedRoute><OnboardingGate><MainLayout><Financeiro /></MainLayout></OnboardingGate></ProtectedRoute>} />
                 <Route path="/tarefas" element={<ProtectedRoute><OnboardingGate><MainLayout><Tarefas /></MainLayout></OnboardingGate></ProtectedRoute>} />
                 <Route path="/metas" element={<ProtectedRoute><OnboardingGate><MainLayout><Metas /></MainLayout></OnboardingGate></ProtectedRoute>} />
+                <Route path="/automacoes" element={<ProtectedRoute><OnboardingGate><MainLayout><Automacoes /></MainLayout></OnboardingGate></ProtectedRoute>} />
                 <Route path="/configuracoes" element={<ProtectedRoute><OnboardingGate><MainLayout><Configuracoes /></MainLayout></OnboardingGate></ProtectedRoute>} />
                 <Route path="/upgrade" element={<ProtectedRoute><OnboardingGate><MainLayout><Upgrade /></MainLayout></OnboardingGate></ProtectedRoute>} />
 
