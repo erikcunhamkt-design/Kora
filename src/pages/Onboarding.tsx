@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Check, Plus, Sparkles, X } from "lucide-react";
-import orbitLogo from "@/assets/orbit-logo.png";
+import orbitLogo from "@/assets/kora-logo.png";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -134,10 +134,10 @@ export default function Onboarding() {
       {/* Header */}
       <header className="flex items-center justify-between px-6 py-5 border-b border-border/40">
         <div className="flex items-center gap-2.5">
-          <img src={orbitLogo} alt="Orbyt Studio" className="h-10 w-10 object-contain" />
+          <img src={orbitLogo} alt="KORA HUB" className="h-10 w-10 object-contain" />
           <span className="text-lg font-bold tracking-tight">
-            <span className="orbit-gradient-text">Orbyt</span>{" "}
-            <span className="text-foreground">Studio</span>
+            <span className="orbit-gradient-text">KORA</span>{" "}
+            <span className="text-foreground">HUB</span>
           </span>
         </div>
         {step < TOTAL_STEPS - 1 && (
@@ -173,7 +173,7 @@ export default function Onboarding() {
               </div>
               <h1 className="text-3xl font-bold tracking-tight">Vamos configurar seu estúdio</h1>
               <p className="text-muted-foreground max-w-md mx-auto">
-                São poucos passos para personalizar o Orbyt Studio à sua rotina. Você pode pular e configurar mais tarde.
+                São poucos passos para personalizar o KORA HUB à sua rotina. Você pode pular e configurar mais tarde.
               </p>
               <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
                 <Button onClick={next} size="lg" className="orbit-gradient text-white border-0 gap-2">
@@ -194,7 +194,7 @@ export default function Onboarding() {
                   <Input value={data.ownerName} onChange={(e) => update("ownerName", e.target.value)} placeholder="Seu nome" />
                 </Field>
                 <Field label="Nome do estúdio/empresa *">
-                  <Input value={data.studioName} onChange={(e) => update("studioName", e.target.value)} placeholder="Ex: Orbyt Studio" />
+                  <Input value={data.studioName} onChange={(e) => update("studioName", e.target.value)} placeholder="Ex: KORA HUB" />
                 </Field>
                 <Field label="Telefone/WhatsApp">
                   <Input value={data.phone} onChange={(e) => update("phone", e.target.value)} placeholder="(11) 99999-0000" />

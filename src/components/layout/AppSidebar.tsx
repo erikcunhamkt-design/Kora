@@ -2,7 +2,7 @@ import {
   LayoutDashboard, Briefcase, Users, TrendingUp,
   DollarSign, CheckSquare, Target, Settings, Crown, Trophy, Zap, Globe
 } from "lucide-react";
-import orbitLogo from "@/assets/orbit-logo.png";
+import koraLogo from "@/assets/kora-logo.png";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
@@ -38,17 +38,17 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" className="border-r border-border/40">
       {/* Logo */}
-      <div className="flex items-center gap-2.5 px-5 py-5 border-b border-border/40">
+      <div className={`flex items-center border-b border-border/40 ${collapsed ? "justify-center px-2 py-4" : "gap-2.5 px-5 py-5"}`}>
         <div className="flex-shrink-0">
-          <img src={orbitLogo} alt="Orbyt Studio" className="h-12 w-12 object-contain" />
+          <img src={koraLogo} alt="KORA HUB" className={collapsed ? "h-8 w-8 object-contain" : "h-10 w-10 object-contain"} />
         </div>
         {!collapsed && (
-          <div className="flex flex-col">
-            <span className="text-lg font-bold tracking-tight leading-tight">
-              <span className="orbit-gradient-text">Orbyt</span>{" "}
-              <span className="text-foreground">Studio</span>
+          <div className="flex flex-col min-w-0">
+            <span className="text-lg font-bold tracking-tight leading-tight truncate">
+              <span className="orbit-gradient-text">KORA</span>{" "}
+              <span className="text-foreground">HUB</span>
             </span>
-            <span className="text-[0.625rem] text-muted-foreground/60 tracking-wide uppercase leading-tight">
+            <span className="text-[0.625rem] text-muted-foreground/60 tracking-wide uppercase leading-tight truncate">
               Clarity for creative work
             </span>
           </div>
@@ -98,7 +98,10 @@ export function AppSidebar() {
         <SidebarFooter className="p-3">
           <button
             onClick={() => navigate("/upgrade")}
-            className="w-full flex items-center gap-2.5 px-4 py-3 rounded-lg border border-primary/15 bg-primary/5 hover:bg-primary/8 transition-all duration-200 text-sm press-effect group"
+            title="Upgrade Pro"
+            className={`w-full flex items-center rounded-lg border border-primary/15 bg-primary/5 hover:bg-primary/8 transition-all duration-200 text-sm press-effect group ${
+              collapsed ? "justify-center p-2" : "gap-2.5 px-4 py-3"
+            }`}
           >
             <Crown className="h-4 w-4 text-primary shrink-0 group-hover:scale-110 transition-transform duration-200" />
             {!collapsed && <span className="text-primary font-medium">Upgrade Pro</span>}

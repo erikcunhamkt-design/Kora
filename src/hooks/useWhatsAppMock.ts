@@ -70,7 +70,7 @@ export function useWhatsAppMock() {
   const simulateConnect = useCallback(() => {
     setConnection({ status: "connecting" });
     setTimeout(() => {
-      setConnection({ status: "connected", phoneName: "Orbyt Studio", connectedAt: new Date().toISOString() });
+      setConnection({ status: "connected", phoneName: "KORA HUB", connectedAt: new Date().toISOString() });
     }, 800);
   }, []);
 
