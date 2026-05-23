@@ -26,7 +26,7 @@ const MT_KEY = "orbyt.meetingTypes.v1";
 const APP_KEY = "orbyt.appointments.v1";
 
 const MT_SEEDS: MeetingType[] = [
-  { id: "m1", name: "Reunião de diagnóstico", durationMinutes: 30, description: "Primeiro contato para entender o projeto.", color: "#7c3aed", active: true, isDemo: true },
+  { id: "m1", name: "Reunião de diagnóstico", durationMinutes: 30, description: "Primeiro contato para entender o projeto.", color: "#F81040", active: true, isDemo: true },
   { id: "m2", name: "Apresentação de proposta", durationMinutes: 45, description: "Apresentação detalhada da proposta comercial.", color: "#0ea5e9", active: true, isDemo: true },
   { id: "m3", name: "Revisão de projeto", durationMinutes: 60, description: "Revisão de andamento e ajustes.", color: "#10b981", active: true, isDemo: true },
 ];
