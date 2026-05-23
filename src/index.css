@@ -6,29 +6,29 @@
 
 @layer base {
   :root {
-    --background: 240 33% 4%;
-    --background-secondary: 240 28% 5%;
+    --background: 0 0% 5%;
+    --background-secondary: 0 0% 7%;
     --foreground: 0 0% 100%;
 
-    --card: 240 24% 8%;
+    --card: 0 0% 8%;
     --card-foreground: 0 0% 100%;
 
-    --card-elevated: 240 22% 10%;
+    --card-elevated: 0 0% 11%;
 
-    --popover: 240 24% 8%;
+    --popover: 0 0% 7%;
     --popover-foreground: 0 0% 100%;
 
-    --primary: 263 84% 58%;
+    --primary: 348 94% 52%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 240 14% 14%;
+    --secondary: 0 0% 12%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 240 16% 12%;
-    --muted-foreground: 240 5% 65%;
-    --muted-soft: 240 4% 46%;
+    --muted: 0 0% 10%;
+    --muted-foreground: 0 0% 65%;
+    --muted-soft: 0 0% 46%;
 
-    --accent: 259 94% 76%;
+    --accent: 348 85% 45%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
@@ -40,31 +40,31 @@
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 0%;
 
-    --border: 240 14% 14%;
-    --input: 240 14% 14%;
-    --ring: 263 84% 58%;
+    --border: 0 0% 16%;
+    --input: 0 0% 13%;
+    --ring: 348 94% 52%;
 
-    --divider: 240 12% 17%;
+    --divider: 0 0% 17%;
 
     --radius: 0.75rem;
 
-    --sidebar-background: 240 33% 4%;
-    --sidebar-foreground: 240 5% 65%;
-    --sidebar-primary: 263 84% 58%;
+    --sidebar-background: 0 0% 4%;
+    --sidebar-foreground: 0 0% 65%;
+    --sidebar-primary: 348 94% 52%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 24% 8%;
+    --sidebar-accent: 0 0% 8%;
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 240 14% 14%;
-    --sidebar-ring: 263 84% 58%;
+    --sidebar-border: 0 0% 14%;
+    --sidebar-ring: 348 94% 52%;
 
-    --orbit-gradient: linear-gradient(135deg, hsl(263 84% 58%), hsl(259 94% 76%));
-    --orbit-glow: 0 0 20px hsl(263 84% 58% / 0.3);
+    --orbit-gradient: linear-gradient(135deg, hsl(348 94% 52%), hsl(348 85% 45%));
+    --orbit-glow: 0 0 20px hsl(348 94% 52% / 0.3);
 
-    --primary-hover: 263 70% 50%;
-    --primary-deep: 263 72% 36%;
+    --primary-hover: 348 90% 46%;
+    --primary-deep: 348 85% 38%;
 
-    --glass-bg: hsl(240 24% 8% / 0.7);
-    --glass-border: hsl(240 14% 20% / 0.5);
+    --glass-bg: hsl(0 0% 8% / 0.7);
+    --glass-border: hsl(0 0% 18% / 0.5);
     --glass-highlight: hsl(0 0% 100% / 0.03);
   }
 }
