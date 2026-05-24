@@ -1396,4 +1396,154 @@ const TaskDetailSheet = ({
   );
 };
 
+/* ------------------------------------------------------------------ */
+/*  Drawer de Projetos de tarefas                                     */
+/* ------------------------------------------------------------------ */
+
+const ProjectsSheet = ({
+  open, onOpenChange, projects, tasks, onAdd, onRename, onArchive, onDelete, onFilter,
+}: {
+  open: boolean; onOpenChange: (v: boolean) => void;
+  projects: TaskProject[];
+  tasks: Task[];
+  onAdd: (name: string, type: TaskProjectType) => void;
+  onRename: (id: string, name: string) => void;
+  onArchive: (id: string, archived: boolean) => void;
+  onDelete: (id: string) => void;
+  onFilter: (id: string) => void;
+}) => {
+  const [name, setName] = useState("");
+  const [type, setType] = useState<TaskProjectType>("work");
+  const [editing, setEditing] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+
+  const countFor = (id: string) =>
+    tasks.filter(t => (t.taskProjectId ?? "tp-noproject") === id && !t.archived).length;
+
+  const active = projects.filter(p => !p.archived);
+  const archived = projects.filter(p => p.archived);
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="bg-card border-border w-full sm:max-w-[420px] overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle className="text-foreground flex items-center gap-2">
+            <FolderKanban className="h-4 w-4 text-primary" /> Projetos de tarefas
+          </SheetTitle>
+          <SheetDescription>
+            Organize tarefas por cliente, entrega ou área da vida.
+          </SheetDescription>
+        </SheetHeader>
+
+        <div className="orbit-card p-3 mt-4 space-y-2">
+          <Label className="text-xs text-muted-foreground">Novo projeto</Label>
+          <Input
+            value={name} onChange={(e) => setName(e.target.value)}
+            placeholder="Ex: Casa, Cliente Acme, Lançamento..."
+            className="bg-muted/40 h-9 text-sm"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && name.trim()) {
+                onAdd(name.trim(), type); setName("");
+                toast({ title: "Projeto criado" });
+              }
+            }}
+          />
+          <div className="flex gap-2">
+            <Select value={type} onValueChange={(v) => setType(v as TaskProjectType)}>
+              <SelectTrigger className="bg-muted/40 h-9 text-sm flex-1"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="work">Trabalho</SelectItem>
+                <SelectItem value="personal">Pessoal</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              size="sm" className="orbit-gradient text-white border-0"
+              onClick={() => {
+                if (!name.trim()) return;
+                onAdd(name.trim(), type); setName("");
+                toast({ title: "Projeto criado" });
+              }}
+            >
+              <FolderPlus className="h-3.5 w-3.5 mr-1" /> Criar
+            </Button>
+          </div>
+        </div>
+
+        <div className="mt-6 space-y-2">
+          <h4 className="text-xs uppercase tracking-wider text-muted-foreground px-1">Ativos</h4>
+          {active.length === 0 && (
+            <p className="text-xs text-muted-foreground px-1">Crie projetos para organizar tarefas por cliente, entrega ou área da vida.</p>
+          )}
+          {active.map(p => {
+            const count = countFor(p.id);
+            const isEditing = editing === p.id;
+            return (
+              <div key={p.id} className="orbit-card p-2.5 flex items-center gap-2 group">
+                <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: p.color }} />
+                {isEditing ? (
+                  <Input
+                    value={editName} onChange={(e) => setEditName(e.target.value)}
+                    autoFocus
+                    onBlur={() => { if (editName.trim()) onRename(p.id, editName); setEditing(null); }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") { if (editName.trim()) onRename(p.id, editName); setEditing(null); }
+                      if (e.key === "Escape") setEditing(null);
+                    }}
+                    className="h-7 text-sm bg-muted/40 flex-1"
+                  />
+                ) : (
+                  <button onClick={() => onFilter(p.id)} className="flex-1 text-left text-sm font-medium text-foreground truncate hover:text-primary">
+                    {p.name}
+                  </button>
+                )}
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">{count}</span>
+                {p.type === "personal" && (
+                  <Badge variant="outline" className="text-[9px] h-4 py-0 bg-pink-500/10 text-pink-400 border-pink-500/25">Pessoal</Badge>
+                )}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100">
+                      <MoreHorizontal className="h-3.5 w-3.5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => { setEditing(p.id); setEditName(p.name); }} disabled={p.isSeed}>
+                      <Pencil className="h-3.5 w-3.5 mr-2" /> Renomear
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => onArchive(p.id, true)} disabled={p.isSeed}>
+                      <Archive className="h-3.5 w-3.5 mr-2" /> Arquivar
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem className="text-destructive" onClick={() => onDelete(p.id)} disabled={p.isSeed}>
+                      <Trash2 className="h-3.5 w-3.5 mr-2" /> Excluir
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            );
+          })}
+        </div>
+
+        {archived.length > 0 && (
+          <div className="mt-6 space-y-2">
+            <h4 className="text-xs uppercase tracking-wider text-muted-foreground px-1">Arquivados</h4>
+            {archived.map(p => (
+              <div key={p.id} className="orbit-card p-2.5 flex items-center gap-2 opacity-70">
+                <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: p.color }} />
+                <span className="flex-1 text-sm text-muted-foreground truncate">{p.name}</span>
+                <Button size="sm" variant="ghost" onClick={() => onArchive(p.id, false)}>Restaurar</Button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <p className="text-[11px] text-muted-foreground mt-6 px-1">
+          Google Calendar e lembretes sincronizados serão ativados em uma etapa futura.
+        </p>
+      </SheetContent>
+    </Sheet>
+  );
+};
+
 export default Tarefas;
+
