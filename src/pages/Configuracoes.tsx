@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
   User,
@@ -77,11 +78,37 @@ const ActiveBadge = () => (
   <Badge variant="success" className="text-[10px] uppercase tracking-wide">Ativo</Badge>
 );
 
+const TAB_ALIASES: Record<string, string> = {
+  perfil: "profile",
+  empresa: "company",
+  aparencia: "appearance",
+  notificacoes: "notifications",
+  seguranca: "security",
+  plano: "plan",
+  integracoes: "integrations",
+  suporte: "support",
+  dados: "data",
+};
+
 const Configuracoes = () => {
-  const [active, setActive] = useState("profile");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = TAB_ALIASES[searchParams.get("tab") ?? ""] ?? searchParams.get("tab") ?? "profile";
+  const [active, setActive] = useState(initialTab);
   const [supportOpen, setSupportOpen] = useState(false);
   const { profile, company, notifications, updateProfile, updateCompany, toggleNotification } = useAppSettings();
   const { resetOnboarding } = useOnboarding();
+
+  useEffect(() => {
+    const raw = searchParams.get("tab");
+    const resolved = TAB_ALIASES[raw ?? ""] ?? raw;
+    if (resolved && resolved !== active) setActive(resolved);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  const handleSelect = (id: string) => {
+    setActive(id);
+    setSearchParams({ tab: id }, { replace: true });
+  };
 
   // local form drafts so saving feels intentional
   const [profileDraft, setProfileDraft] = useState(profile);
