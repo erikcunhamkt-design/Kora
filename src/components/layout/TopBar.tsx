@@ -71,6 +71,14 @@ export function TopBar() {
           </span>
         )}
 
+        <button
+          onClick={() => setSupportOpen(true)}
+          aria-label="Suporte"
+          className="p-2.5 rounded-lg hover:bg-muted/40 transition-all duration-150 press-effect"
+        >
+          <Headphones className="h-4 w-4 text-muted-foreground" />
+        </button>
+
         <button className="relative p-2.5 rounded-lg hover:bg-muted/40 transition-all duration-150 press-effect">
           <Bell className="h-4 w-4 text-muted-foreground" />
           <span className="absolute top-2 right-2 h-1.5 w-1.5 rounded-full orbit-gradient shadow-[0_0_6px_hsl(263_84%_58%/0.5)]" />
