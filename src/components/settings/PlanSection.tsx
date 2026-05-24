@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/accordion";
 import { SettingsSection } from "./SettingsSection";
 import { SettingsCard } from "./SettingsCard";
+import { PlanAdvisor } from "./PlanAdvisor";
 import { usePlan } from "@/contexts/PlanContext";
 
 type Billing = "monthly" | "yearly";
