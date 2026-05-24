@@ -666,6 +666,12 @@ const CRM = () => {
           }}
         />
       )}
+
+      <NewClientTypeDialog
+        open={newTypeOpen}
+        onOpenChange={setNewTypeOpen}
+        onCreated={(name) => setFilterType(name)}
+      />
     </div>
   );
 };
