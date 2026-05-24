@@ -20,16 +20,21 @@ import {
   MoreHorizontal, GripVertical, CheckCircle2, AlertCircle, Timer,
   Briefcase, Tag, MessageSquare, ListChecks, CalendarDays, CircleDot, Flag,
   Inbox, Archive, Copy, Trash2, Sparkles, ChevronRight, Filter, Sun, CalendarRange,
+  Bell, BellRing, BellOff, FolderKanban, User, Pencil, FolderPlus, Move,
 } from "lucide-react";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+  DropdownMenuSeparator, DropdownMenuLabel, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import {
-  useTasks, type Task, type TaskStatus, type TaskPriority, type TaskRecurrence,
+  useTasks, type Task, type TaskStatus, type TaskPriority, type TaskRecurrence, type TaskScope,
   toIsoDate, formatPtBr,
 } from "@/hooks/useTasks";
-import { useProjects } from "@/hooks/useProjects";
+import { useTaskProjects, type TaskProject } from "@/hooks/useTaskProjects";
+import {
+  useTaskReminders, computeReminderAt, REMINDER_PRESET_LABELS, type ReminderPreset,
+} from "@/hooks/useTaskReminders";
 import { toast } from "@/hooks/use-toast";
 
 /* ------------------------------------------------------------------ */
