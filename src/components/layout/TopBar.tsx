@@ -1,9 +1,11 @@
 import { Search, Bell, LogOut, User, ChevronDown, Crown, Zap } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useState } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePlan } from "@/contexts/PlanContext";
+import { CommandCenter } from "@/components/command/CommandCenter";
 import {
   DropdownMenu,
   DropdownMenuContent,
