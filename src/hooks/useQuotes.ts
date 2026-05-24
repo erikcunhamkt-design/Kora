@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { emitNotification } from "@/lib/notify";
 
 export type QuoteStatus = "rascunho" | "enviado" | "aprovado" | "recusado";
 
