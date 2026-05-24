@@ -165,7 +165,7 @@ export function CommandCenter({ open, onOpenChange }: Props) {
             <CmdItem
               value={`ai-ask-${query}`}
               onSelect={askAi}
-              className="gap-3 aria-selected:bg-primary/15"
+              className="gap-3"
             >
               <div className="h-8 w-8 rounded-md orbit-gradient flex items-center justify-center">
                 <Sparkles className="h-4 w-4 text-white" />
