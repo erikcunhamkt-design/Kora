@@ -219,29 +219,26 @@ export function AISection() {
         </div>
       </Card>
 
-      {/* New agent */}
-      <Dialog open={newOpen} onOpenChange={setNewOpen}>
+      {/* Suggest agent */}
+      <Dialog open={suggestOpen} onOpenChange={setSuggestOpen}>
         <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>Novo agente</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Lightbulb className="h-4 w-4 text-primary" /> Sugerir agente</DialogTitle>
+            <DialogDescription className="text-xs">
+              Conte qual agente você gostaria de ver no KORA.
+            </DialogDescription>
+          </DialogHeader>
           <div className="space-y-3">
-            <div><Label>Nome *</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
-            <div><Label>Função *</Label><Input value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} placeholder="Ex: Copywriter de campanhas" /></div>
-            <div>
-              <Label>Categoria</Label>
-              <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v as AgentCategory })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {categoryOrder.map((c) => <SelectItem key={c} value={c}>{categoryLabels[c]}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div><Label>Descrição</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} /></div>
-            <div><Label>Prompt base</Label><Textarea value={form.systemPrompt} onChange={(e) => setForm({ ...form, systemPrompt: e.target.value })} rows={3} /></div>
-            <div className="flex items-center justify-between"><Label>Ativo</Label><Switch checked={form.active} onCheckedChange={(v) => setForm({ ...form, active: v })} /></div>
+            <Textarea
+              value={suggestText}
+              onChange={(e) => setSuggestText(e.target.value)}
+              placeholder="Ex: gostaria de um agente que analise concorrência e sugere posicionamento diferenciado..."
+              rows={4}
+            />
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setNewOpen(false)}>Cancelar</Button>
-            <Button onClick={handleCreate}>Criar</Button>
+            <Button variant="ghost" onClick={() => setSuggestOpen(false)}>Cancelar</Button>
+            <Button onClick={handleSuggest}>Enviar sugestão</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
