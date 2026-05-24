@@ -49,6 +49,7 @@ const App = () => (
                 {/* Public routes */}
                 <Route path="/landing" element={<Landing />} />
                 <Route path="/publico/:slug" element={<PublicProfilePage />} />
+                <Route path="/cadastro/:slug" element={<PublicClientSignup />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/signup" element={<Signup />} />
                 <Route path="/forgot-password" element={<ForgotPassword />} />
