@@ -287,6 +287,9 @@ const Clientes = () => {
       {/* New Client Modal */}
       <NewClientDialog open={newClientOpen} onOpenChange={setNewClientOpen} onSave={addClient} />
 
+      {/* Standalone "New type" dialog (triggered from filter or sub-modal) */}
+      <NewClientTypeDialog open={newTypeOpen} onOpenChange={setNewTypeOpen} onCreated={(name) => setFilterType(name)} />
+
       {/* Signup link drawer */}
       <SignupLinkDrawer open={signupLinkOpen} onOpenChange={setSignupLinkOpen} pendingCount={pendingCount} />
 
