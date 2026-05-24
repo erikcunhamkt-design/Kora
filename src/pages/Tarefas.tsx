@@ -1279,6 +1279,57 @@ const TaskDetailSheet = ({
                   </SelectContent>
                 </Select>
               </div>
+              <div className="flex justify-between text-sm gap-3 items-center">
+                <span className="text-muted-foreground flex items-center gap-1"><Briefcase className="h-3.5 w-3.5" />Projeto</span>
+                <Select
+                  defaultValue={task.taskProjectId || "tp-noproject"}
+                  onValueChange={(v) => {
+                    const p = taskProjects.find(x => x.id === v);
+                    onUpdate(task.id, { taskProjectId: v, scope: p?.type === "personal" ? "personal" : (task.scope ?? "work") });
+                  }}>
+                  <SelectTrigger className="h-8 w-[180px] bg-muted/40 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {taskProjects.filter(p => !p.archived).map(p => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex justify-between text-sm gap-3 items-center">
+                <span className="text-muted-foreground flex items-center gap-1"><User className="h-3.5 w-3.5" />Tipo</span>
+                <Select defaultValue={task.scope ?? "work"} onValueChange={(v) => onUpdate(task.id, { scope: v as TaskScope })}>
+                  <SelectTrigger className="h-8 w-[140px] bg-muted/40 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="work">Trabalho</SelectItem>
+                    <SelectItem value="personal">Pessoal</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex justify-between text-sm gap-3 items-center">
+                <span className="text-muted-foreground flex items-center gap-1"><Bell className="h-3.5 w-3.5" />Lembrete</span>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="datetime-local"
+                    defaultValue={task.reminderAt ? new Date(task.reminderAt).toISOString().slice(0, 16) : ""}
+                    onBlur={(e) => {
+                      const v = e.target.value;
+                      onUpdate(task.id, {
+                        reminderAt: v ? new Date(v).toISOString() : undefined,
+                        reminderEnabled: !!v,
+                        reminderSentAt: undefined,
+                      });
+                    }}
+                    className="h-8 w-[200px] bg-muted/40 text-sm"
+                  />
+                  <Button
+                    type="button" variant="ghost" size="icon" className="h-8 w-8"
+                    onClick={() => onUpdate(task.id, { reminderEnabled: !task.reminderEnabled, reminderSentAt: undefined })}
+                    title={task.reminderEnabled ? "Desativar lembrete" : "Ativar lembrete"}
+                  >
+                    {task.reminderEnabled ? <BellRing className="h-4 w-4 text-primary" /> : <BellOff className="h-4 w-4 text-muted-foreground" />}
+                  </Button>
+                </div>
+              </div>
             </div>
           </Section>
 
