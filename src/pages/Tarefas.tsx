@@ -347,8 +347,15 @@ const Tarefas = () => {
         actions={
           <>
             <UsageBadge resource="tasks" label="tarefas" />
-            <Button variant="outline" onClick={() => document.getElementById("quick-capture")?.focus()} className="gap-2">
-              <Sparkles className="h-4 w-4" /> Tarefa rápida
+            {permission !== "granted" && (
+              <Button variant="outline" onClick={requestPermission} className="gap-2" title="Ativar lembretes locais">
+                {permission === "denied" ? <BellOff className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
+                <span className="hidden sm:inline">Ativar notificações</span>
+              </Button>
+            )}
+            <Button variant="outline" onClick={() => setProjectsOpen(true)} className="gap-2">
+              <FolderKanban className="h-4 w-4" />
+              <span className="hidden sm:inline">Projetos</span>
             </Button>
             <Button onClick={handleNewTask} className="orbit-gradient text-white border-0 gap-2 shrink-0">
               <Plus className="h-4 w-4" /> Nova tarefa
@@ -356,6 +363,11 @@ const Tarefas = () => {
           </>
         }
       />
+      {permission === "denied" && (
+        <p className="text-[11px] text-muted-foreground -mt-3">
+          Notificações bloqueadas. Para reativar, ajuste as permissões do site no seu navegador. Lembretes locais funcionam enquanto o app estiver aberto — integração com Google Calendar será adicionada em uma etapa futura.
+        </p>
+      )}
 
       {/* Métricas compactas */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
