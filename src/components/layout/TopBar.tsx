@@ -127,6 +127,7 @@ export function TopBar() {
         </DropdownMenu>
       </div>
       <CommandCenter open={cmdOpen} onOpenChange={setCmdOpen} />
+      <SupportCenter open={supportOpen} onOpenChange={setSupportOpen} />
     </header>
   );
 }
