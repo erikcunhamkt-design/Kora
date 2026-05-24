@@ -257,7 +257,6 @@ function NotificationRow({
 }) {
   const meta = CATEGORY_META[n.category];
   const { Icon } = meta;
-  const isImportant = n.priority === "high" || n.priority === "critical";
 
   return (
     <div
