@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { useAiAgents, AgentCategory, AiAgent } from "@/hooks/useAiAgents";
-import { useAiCredits } from "@/hooks/useAiCredits";
+import { useAiCredits, openCreditsWallet } from "@/hooks/useAiCredits";
 
 const categoryLabels: Record<AgentCategory, string> = {
   copywriter: "Copywriter", designer: "Designer", analyst: "Analista", strategist: "Estrategista", support: "Atendimento", custom: "Personalizado",
