@@ -3,7 +3,7 @@ import {
   Bot, Plus, Sparkles, Power, Send, MessageSquare, Coins, ShoppingCart,
   Compass, LineChart, Wallet, SearchCheck, Radar, Handshake, Tag,
   Shield, ListChecks, Workflow, CalendarClock, PenLine, Palette, LifeBuoy,
-  KeyRound, Lock, Info, Star,
+  KeyRound, Lock, Info, Star, Lightbulb,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -13,7 +13,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { useAiAgents, AgentCategory, AiAgent, AgentBadge } from "@/hooks/useAiAgents";
@@ -62,21 +61,17 @@ const packs = [
 ];
 
 export function AISection() {
-  const { agents, addAgent, toggleAgentStatus, incrementUsage } = useAiAgents();
+  const { agents, toggleAgentStatus, incrementUsage } = useAiAgents();
   const credits = useAiCredits();
 
   const [tab, setTab] = useState<"all" | AgentCategory>("all");
-  const [newOpen, setNewOpen] = useState(false);
   const [buyOpen, setBuyOpen] = useState(false);
   const [apiOpen, setApiOpen] = useState(false);
+  const [suggestOpen, setSuggestOpen] = useState(false);
+  const [suggestText, setSuggestText] = useState("");
   const [chatAgent, setChatAgent] = useState<AiAgent | null>(null);
   const [chatHistory, setChatHistory] = useState<{ role: "user" | "assistant"; text: string }[]>([]);
   const [chatInput, setChatInput] = useState("");
-
-  const [form, setForm] = useState({
-    name: "", role: "", category: "strategy" as AgentCategory,
-    description: "", systemPrompt: "", active: true,
-  });
 
   const heroAgent = agents.find((a) => a.hero);
   const visibleAgents = useMemo(() => agents.filter((a) => !a.hero), [agents]);
@@ -90,20 +85,13 @@ export function AISection() {
 
   const activeCount = agents.filter((a) => a.status === "active").length;
   const totalUsage = agents.reduce((s, a) => s + a.usageCount, 0);
-  const customCount = agents.filter((a) => !a.isDemo).length;
+  const koraAgentCount = agents.filter((a) => a.isDemo).length;
 
-  const handleCreate = () => {
-    if (!form.name.trim()) return toast.error("Nome é obrigatório");
-    if (!form.role.trim()) return toast.error("Função é obrigatória");
-    addAgent({
-      name: form.name, role: form.role, description: form.description,
-      category: form.category, systemPrompt: form.systemPrompt,
-      status: form.active ? "active" : "inactive",
-      badges: ["simulated", "uses-credits"],
-    });
-    toast.success("Agente criado");
-    setForm({ name: "", role: "", category: "strategy", description: "", systemPrompt: "", active: true });
-    setNewOpen(false);
+  const handleSuggest = () => {
+    if (!suggestText.trim()) return toast.error("Descreva o agente que você gostaria de ver");
+    toast.success("Sugestão enviada. Obrigado!");
+    setSuggestText("");
+    setSuggestOpen(false);
   };
 
   const openChat = (agent: AiAgent) => {
