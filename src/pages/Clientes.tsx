@@ -269,8 +269,14 @@ const Clientes = () => {
         </div>
       )}
 
+      {/* Public signup requests panel */}
+      <SignupRequestsPanel />
+
       {/* New Client Modal */}
       <NewClientDialog open={newClientOpen} onOpenChange={setNewClientOpen} onSave={addClient} />
+
+      {/* Signup link drawer */}
+      <SignupLinkDrawer open={signupLinkOpen} onOpenChange={setSignupLinkOpen} pendingCount={pendingCount} />
 
       {/* Client Detail Sheet */}
       <ClientDetailSheet client={selectedClient} onClose={() => setSelectedClient(null)} />
