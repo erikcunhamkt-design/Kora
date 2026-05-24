@@ -409,10 +409,6 @@ const ClientWorkspace = ({
 
 };
 
-/* re-declared via closure */
-let _newDate: string | undefined;
-const setNewInitialDate = (v: string | undefined) => { _newDate = v; };
-const newInitialDate = (() => _newDate)();
 
 /* ------------------------------------------------------------------ */
 /*  Métrica                                                           */
