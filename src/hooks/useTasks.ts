@@ -95,6 +95,9 @@ function migrate(list: Task[]): Task[] {
     dueDate: t.dueDate ?? parsePtBrDate(t.deadline),
     archived: t.archived ?? false,
     recurrence: t.recurrence ?? "none",
+    scope: t.scope ?? (t.client ? "work" : (t.scope || "work")),
+    taskProjectId: t.taskProjectId ?? (t.project && t.project.trim() !== "" ? undefined : "tp-noproject"),
+    reminderEnabled: t.reminderEnabled ?? false,
   }));
 }
 
