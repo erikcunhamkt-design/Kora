@@ -31,7 +31,7 @@ import {
   useTasks, type Task, type TaskStatus, type TaskPriority, type TaskRecurrence, type TaskScope,
   toIsoDate, formatPtBr,
 } from "@/hooks/useTasks";
-import { useTaskProjects, type TaskProject } from "@/hooks/useTaskProjects";
+import { useTaskProjects, type TaskProject, type TaskProjectType } from "@/hooks/useTaskProjects";
 import {
   useTaskReminders, computeReminderAt, REMINDER_PRESET_LABELS, type ReminderPreset,
 } from "@/hooks/useTaskReminders";
