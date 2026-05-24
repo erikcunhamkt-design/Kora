@@ -811,6 +811,19 @@ const TaskRow = ({
           <DropdownMenuItem onClick={() => onDuplicate(task.id)}>
             <Copy className="h-4 w-4 mr-2" /> Duplicar
           </DropdownMenuItem>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <Move className="h-4 w-4 mr-2" /> Mover para projeto
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              {taskProjects.filter(p => !p.archived).map(p => (
+                <DropdownMenuItem key={p.id} onClick={() => onMoveToProject(task.id, p.id)}>
+                  <span className="h-2 w-2 rounded-full mr-2" style={{ background: p.color }} />
+                  {p.name}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
           <DropdownMenuSeparator />
           {task.archived ? (
             <DropdownMenuItem onClick={() => onUnarchive(task.id)}>
