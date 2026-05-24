@@ -140,7 +140,7 @@ export function CommandCenter({ open, onOpenChange }: Props) {
                   key={it.id}
                   value={searchValue}
                   onSelect={() => run(it.route)}
-                  className="gap-3 aria-selected:bg-primary/15"
+                  className="gap-3"
                 >
                   <div className="h-8 w-8 rounded-md bg-primary/10 flex items-center justify-center">
                     <Icon className="h-4 w-4 text-primary" />
