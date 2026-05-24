@@ -31,7 +31,7 @@ export const SignupRequestsPanel = () => {
         </div>
         <p className="text-sm font-medium">Nenhuma solicitação ainda</p>
         <p className="text-xs text-muted-foreground mt-1">
-          Compartilhe o link de cadastro para começar a receber clientes.
+          Compartilhe o link de cadastro para receber novos clientes.
         </p>
       </div>
     );
