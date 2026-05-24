@@ -98,8 +98,11 @@ const TAB_ALIASES: Record<string, string> = {
   plano: "plan",
   integracoes: "integrations",
   suporte: "support",
+  portal: "portal",
+  "portal-cliente": "portal",
   dados: "data",
 };
+
 
 const Configuracoes = () => {
   const [searchParams, setSearchParams] = useSearchParams();
