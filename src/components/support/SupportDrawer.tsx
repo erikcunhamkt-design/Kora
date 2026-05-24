@@ -136,8 +136,8 @@ export function SupportDrawer({ open, onOpenChange }: SupportDrawerProps) {
                   <span className="ml-1 text-[10px] text-muted-foreground">{userTickets.length}</span>
                 )}
               </TabsTrigger>
-              <TabsTrigger value="chat" className="text-[0.75rem]">Chat</TabsTrigger>
               <TabsTrigger value="channels" className="text-[0.75rem]">Canais</TabsTrigger>
+              <TabsTrigger value="chat" className="text-[0.75rem]">Chat</TabsTrigger>
             </TabsList>
           </div>
 
@@ -305,7 +305,7 @@ export function SupportDrawer({ open, onOpenChange }: SupportDrawerProps) {
             </TabsContent>
 
             {/* Chat ao vivo */}
-            <TabsContent value="chat" className="mt-0">
+            <TabsContent value="chat" className="mt-0 space-y-5">
               <div className="rounded-xl border border-border/50 bg-background/40 px-5 py-8 text-center">
                 <div className="mx-auto h-10 w-10 rounded-full bg-muted/40 border border-border/50 flex items-center justify-center mb-3">
                   <MessagesSquare className="h-4 w-4 text-muted-foreground" />
@@ -319,11 +319,17 @@ export function SupportDrawer({ open, onOpenChange }: SupportDrawerProps) {
                 <p className="text-[0.8125rem] text-muted-foreground leading-relaxed max-w-[320px] mx-auto mt-2">
                   O atendimento em tempo real será ativado quando a equipe de suporte estiver configurada.
                 </p>
-                <Button disabled size="sm" className="mt-5">Iniciar chat</Button>
+                <Button disabled size="sm" className="mt-5 opacity-50 cursor-not-allowed">Em breve</Button>
               </div>
-              <p className="text-[0.75rem] text-muted-foreground mt-4 leading-relaxed">
-                Enquanto isso, registre um chamado em <span className="text-foreground font-medium">Novo</span> — a equipe responderá com prioridade.
-              </p>
+
+              <div className="rounded-lg border border-border/50 bg-background/40 px-5 py-5 text-center">
+                <p className="text-[0.8125rem] text-muted-foreground leading-relaxed max-w-[320px] mx-auto">
+                  Precisa de ajuda agora? Abra um chamado e nossa equipe responderá por lá.
+                </p>
+                <Button variant="secondary" size="sm" className="mt-3" onClick={() => setTab("new")}>
+                  Criar chamado
+                </Button>
+              </div>
             </TabsContent>
 
             {/* Canais */}
