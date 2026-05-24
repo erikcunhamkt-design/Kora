@@ -301,9 +301,11 @@ const Tarefas = () => {
       if (filterPriority !== "all" && t.priority !== filterPriority) return false;
       if (filterStatus !== "all" && t.status !== filterStatus) return false;
       if (filterTag !== "all" && !t.tags.includes(filterTag)) return false;
+      if (filterScope !== "all" && (t.scope ?? "work") !== filterScope) return false;
+      if (filterTaskProject !== "all" && (t.taskProjectId ?? "tp-noproject") !== filterTaskProject) return false;
       return true;
     });
-  }, [tasks, view, search, filterClient, filterPriority, filterStatus, filterTag]);
+  }, [tasks, view, search, filterClient, filterPriority, filterStatus, filterTag, filterScope, filterTaskProject]);
 
   /* ---------------- Ações ---------------- */
   const handleQuickCreate = () => {
