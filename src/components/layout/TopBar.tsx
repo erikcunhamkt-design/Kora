@@ -1,4 +1,4 @@
-import { Search, Bell, LogOut, User, ChevronDown, Crown, Zap, LifeBuoy } from "lucide-react";
+import { Search, Bell, LogOut, User, ChevronDown, Crown, Zap, MessageCircleQuestion } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -80,13 +80,15 @@ export function TopBar() {
           onClick={() => setSupportOpen(true)}
           aria-label="Suporte"
           title="Suporte"
-          className="relative p-2.5 rounded-lg hover:bg-muted/40 transition-all duration-150 press-effect"
+          className="relative flex items-center gap-1.5 px-2.5 md:px-3 py-2 rounded-lg hover:bg-muted/40 text-muted-foreground hover:text-foreground transition-all duration-150 press-effect"
         >
-          <LifeBuoy className="h-4 w-4 text-muted-foreground" />
+          <MessageCircleQuestion className="h-4 w-4" />
+          <span className="hidden md:inline text-[0.8125rem] font-medium">Ajuda</span>
           {hasOpenTickets && (
-            <span className="absolute top-2 right-2 h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_6px_hsl(var(--primary)/0.6)]" />
+            <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_6px_hsl(var(--primary)/0.6)]" />
           )}
         </button>
+
 
 
         <button className="relative p-2.5 rounded-lg hover:bg-muted/40 transition-all duration-150 press-effect">
