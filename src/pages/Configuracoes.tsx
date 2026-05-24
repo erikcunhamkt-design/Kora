@@ -30,6 +30,9 @@ import {
   History,
   ShieldCheck,
   FileText,
+  Link2,
+  Copy,
+  ExternalLink,
 } from "lucide-react";
 
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -50,6 +53,7 @@ import { SupportDrawer } from "@/components/support/SupportDrawer";
 const NAV_ITEMS: SettingsNavItem[] = [
   { id: "profile", label: "Perfil", icon: User },
   { id: "company", label: "Empresa", icon: Building2 },
+  { id: "links", label: "Links públicos", icon: Link2 },
   { id: "appearance", label: "Aparência", icon: Palette },
   { id: "notifications", label: "Notificações", icon: Bell },
   { id: "security", label: "Segurança", icon: Shield },
@@ -81,6 +85,7 @@ const ActiveBadge = () => (
 const TAB_ALIASES: Record<string, string> = {
   perfil: "profile",
   empresa: "company",
+  links: "links",
   aparencia: "appearance",
   notificacoes: "notifications",
   seguranca: "security",
@@ -95,7 +100,7 @@ const Configuracoes = () => {
   const initialTab = TAB_ALIASES[searchParams.get("tab") ?? ""] ?? searchParams.get("tab") ?? "profile";
   const [active, setActive] = useState(initialTab);
   const [supportOpen, setSupportOpen] = useState(false);
-  const { profile, company, notifications, updateProfile, updateCompany, toggleNotification } = useAppSettings();
+  const { profile, company, notifications, publicLinks, updateProfile, updateCompany, updatePublicLinks, toggleNotification } = useAppSettings();
   const { resetOnboarding } = useOnboarding();
 
   useEffect(() => {
@@ -113,6 +118,7 @@ const Configuracoes = () => {
   // local form drafts so saving feels intentional
   const [profileDraft, setProfileDraft] = useState(profile);
   const [companyDraft, setCompanyDraft] = useState(company);
+  const [linksDraft, setLinksDraft] = useState(publicLinks);
 
   const profileInitials = useMemo(() => initials(profileDraft.name), [profileDraft.name]);
   const companyInitials = useMemo(() => initials(companyDraft.name), [companyDraft.name]);
@@ -197,6 +203,12 @@ const Configuracoes = () => {
                   <Field label="Segmento">
                     <Input value={companyDraft.segment} onChange={(e) => setCompanyDraft({ ...companyDraft, segment: e.target.value })} />
                   </Field>
+                  <Field label="CPF / CNPJ">
+                    <Input value={companyDraft.taxId} onChange={(e) => setCompanyDraft({ ...companyDraft, taxId: e.target.value })} placeholder="000.000.000-00" />
+                  </Field>
+                  <Field label="Moeda padrão">
+                    <Input value={companyDraft.currency} onChange={(e) => setCompanyDraft({ ...companyDraft, currency: e.target.value })} placeholder="BRL" />
+                  </Field>
                   <Field label="Site">
                     <Input value={companyDraft.website} onChange={(e) => setCompanyDraft({ ...companyDraft, website: e.target.value })} />
                   </Field>
@@ -206,10 +218,26 @@ const Configuracoes = () => {
                   <Field label="Instagram">
                     <Input value={companyDraft.instagram} onChange={(e) => setCompanyDraft({ ...companyDraft, instagram: e.target.value })} />
                   </Field>
-                  <Field label="Cidade / País">
+                  <Field label="País">
+                    <Input value={companyDraft.country} onChange={(e) => setCompanyDraft({ ...companyDraft, country: e.target.value })} />
+                  </Field>
+                  <Field label="Cidade">
                     <Input value={companyDraft.city} onChange={(e) => setCompanyDraft({ ...companyDraft, city: e.target.value })} />
                   </Field>
+                  <Field label="Estado">
+                    <Input value={companyDraft.state} onChange={(e) => setCompanyDraft({ ...companyDraft, state: e.target.value })} />
+                  </Field>
+                  <Field label="Endereço">
+                    <Input value={companyDraft.address} onChange={(e) => setCompanyDraft({ ...companyDraft, address: e.target.value })} />
+                  </Field>
+                  <Field label="Número">
+                    <Input value={companyDraft.number} onChange={(e) => setCompanyDraft({ ...companyDraft, number: e.target.value })} />
+                  </Field>
+                  <Field label="CEP / Código postal">
+                    <Input value={companyDraft.postalCode} onChange={(e) => setCompanyDraft({ ...companyDraft, postalCode: e.target.value })} />
+                  </Field>
                 </div>
+
                 <div className="flex justify-end mt-6">
                   <Button
                     onClick={() => {
@@ -223,6 +251,51 @@ const Configuracoes = () => {
               </SettingsCard>
             </SettingsSection>
           )}
+
+          {active === "links" && (
+            <SettingsSection title="Links públicos" description="Slugs que apontam para suas páginas externas.">
+              <SettingsCard>
+                <div className="space-y-4">
+                  <PublicLinkRow
+                    label="Página pública"
+                    hint="Perfil completo do seu estúdio"
+                    basePath="/p/"
+                    slug={linksDraft.profileSlug}
+                    onChange={(v) => setLinksDraft({ ...linksDraft, profileSlug: v })}
+                  />
+                  <PublicLinkRow
+                    label="Link da bio"
+                    hint="Página estilo linktree"
+                    basePath="/bio/"
+                    slug={linksDraft.bioSlug}
+                    onChange={(v) => setLinksDraft({ ...linksDraft, bioSlug: v })}
+                  />
+                  <PublicLinkRow
+                    label="Agendamento"
+                    hint="Página de agendamento de horários"
+                    basePath="/agendar/"
+                    slug={linksDraft.bookingSlug}
+                    onChange={(v) => setLinksDraft({ ...linksDraft, bookingSlug: v })}
+                  />
+                </div>
+                <div className="flex justify-end mt-6">
+                  <Button
+                    onClick={() => {
+                      updatePublicLinks(linksDraft);
+                      toast.success("Links públicos atualizados");
+                    }}
+                  >
+                    Salvar links
+                  </Button>
+                </div>
+              </SettingsCard>
+              <p className="text-xs text-muted-foreground px-1">
+                Domínio oficial será configurado em uma etapa futura. Por enquanto usamos o endereço atual.
+              </p>
+            </SettingsSection>
+          )}
+
+
 
           {active === "appearance" && (
             <SettingsSection title="Aparência" description="Personalize o visual do KORA HUB.">
@@ -439,7 +512,67 @@ const Configuracoes = () => {
 
 /* ---------- helper sub-components ---------- */
 
+function PublicLinkRow({
+  label,
+  hint,
+  basePath,
+  slug,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  basePath: string;
+  slug: string;
+  onChange: (v: string) => void;
+}) {
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const fullUrl = `${origin}${basePath}${slug}`;
+  return (
+    <div className="rounded-lg border border-border/60 bg-muted/10 p-3 space-y-2">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-foreground">{label}</p>
+          <p className="text-xs text-muted-foreground">{hint}</p>
+        </div>
+        <Badge variant="outline" className="text-[10px] uppercase">Ativo</Badge>
+      </div>
+      <div className="flex items-stretch gap-1.5 flex-wrap">
+        <div className="flex items-center flex-1 min-w-[200px] rounded-md border border-border/60 bg-background/40 overflow-hidden">
+          <span className="px-2.5 text-[11px] text-muted-foreground whitespace-nowrap border-r border-border/40 py-2">
+            {basePath}
+          </span>
+          <Input
+            value={slug}
+            onChange={(e) => onChange(e.target.value.replace(/\s/g, "-").toLowerCase())}
+            className="border-0 bg-transparent h-9 px-2 text-[0.8125rem] focus-visible:ring-0"
+          />
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            navigator.clipboard?.writeText(fullUrl);
+            toast.success("Link copiado");
+          }}
+          className="gap-1.5"
+        >
+          <Copy className="h-3.5 w-3.5" /> Copiar
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => window.open(fullUrl, "_blank", "noopener,noreferrer")}
+          className="gap-1.5"
+        >
+          <ExternalLink className="h-3.5 w-3.5" /> Abrir
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+
   return (
     <div className="space-y-1.5">
       <Label className="text-xs text-muted-foreground font-medium">{label}</Label>
