@@ -116,6 +116,7 @@ export function TopBar() {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+      <CommandCenter open={cmdOpen} onOpenChange={setCmdOpen} />
     </header>
   );
 }
