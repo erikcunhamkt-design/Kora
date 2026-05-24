@@ -134,6 +134,9 @@ const seed: AiAgent[] = [
     isDemo: true,
     badges: ["simulated", "uses-credits"],
     examples: ["Propostas paradas há 7+ dias", "Leads quentes esquecidos", "Sugestões de upsell"],
+    mission: "Maximizar receita com leads e contas existentes",
+    dataSources: ["pipeline", "propostas", "histórico de follow-up"],
+    capabilities: ["Detecção", "Sugestão de ação", "Upsell"],
   },
   {
     id: "agent-sales",
@@ -149,6 +152,9 @@ const seed: AiAgent[] = [
     isDemo: true,
     badges: ["simulated", "uses-credits"],
     examples: ["Qualificar lead", "Próximo follow-up", "Argumento de venda"],
+    mission: "Aumentar taxa de conversão do pipeline",
+    dataSources: ["leads", "interações", "propostas"],
+    capabilities: ["Qualificação", "Follow-up", "Argumentação"],
   },
   {
     id: "agent-pricing",
@@ -164,6 +170,9 @@ const seed: AiAgent[] = [
     isDemo: true,
     badges: ["simulated", "uses-credits"],
     examples: ["Preço sugerido", "Comparar com histórico", "Faixa por complexidade"],
+    mission: "Precificar com confiança e margem saudável",
+    dataSources: ["projetos anteriores", "escopo", "posicionamento"],
+    capabilities: ["Benchmark de preço", "Margem", "Escopo"],
   },
 
   // ---------- Operação ----------
