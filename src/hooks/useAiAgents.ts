@@ -4,6 +4,9 @@ export type AgentCategory = "strategy" | "commercial" | "operations" | "content"
 export type AgentStatus = "active" | "inactive";
 export type AgentBadge = "simulated" | "coming-soon" | "uses-credits" | "own-api";
 
+// NOTE: systemPrompt and final agent prompts must live on the backend when real AI execution is activated.
+// Frontend stores only structural metadata for planning/local simulation.
+
 export interface AiAgent {
   id: string;
   name: string;
@@ -26,6 +29,12 @@ export interface AiAgent {
   hero?: boolean;
   /** If true: only shows informational UI, can't run yet */
   comingSoon?: boolean;
+  /** Structural fields for local planning — not system prompts */
+  mission?: string;
+  dataSources?: string[];
+  capabilities?: string[];
+  outputExamples?: string[];
+  suggestedActions?: string[];
 }
 
 const STORAGE_KEY = "orbyt.ai.agents.v2";
