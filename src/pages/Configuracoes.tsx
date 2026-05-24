@@ -52,6 +52,7 @@ import { useAppSettings, type NotificationSettings } from "@/hooks/useAppSetting
 import { useOnboarding } from "@/contexts/OnboardingContext";
 import { SupportDrawer } from "@/components/support/SupportDrawer";
 import { ClientPortalSection } from "@/components/settings/ClientPortalSection";
+import { PlanSection } from "@/components/settings/PlanSection";
 
 
 const NAV_ITEMS: SettingsNavItem[] = [
@@ -378,40 +379,8 @@ const Configuracoes = () => {
             </SettingsSection>
           )}
 
-          {active === "plan" && (
-            <SettingsSection title="Plano" description="Sua assinatura atual e benefícios.">
-              <SettingsCard>
-                <div className="flex items-start justify-between gap-4 flex-wrap">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <p className="text-2xl font-bold text-foreground">Free</p>
-                      <Badge variant="outline" className="text-[10px] uppercase">Atual</Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground">Acesso aos módulos essenciais com limites do plano gratuito.</p>
-                  </div>
-                  <Button disabled className="gap-2">
-                    Gerenciar assinatura <SoonBadge />
-                  </Button>
-                </div>
-                <Separator className="my-5" />
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-                  <UsageStat label="Projetos" value="3 / 5" />
-                  <UsageStat label="Leads" value="12 / 50" />
-                  <UsageStat label="Créditos IA" value="40 / 100" />
-                </div>
-              </SettingsCard>
+          {active === "plan" && <PlanSection />}
 
-              <SettingsCard title="Recursos inclusos">
-                <ul className="space-y-2 text-sm">
-                  <FeatureLi>CRM essencial e Kanban de leads</FeatureLi>
-                  <FeatureLi>Tarefas, agenda e Central do Dia</FeatureLi>
-                  <FeatureLi>Notificações e inbox premium</FeatureLi>
-                  <FeatureLi muted>Comunidade KORA — disponível futuramente nos planos Pro/Studio</FeatureLi>
-                  <FeatureLi muted>Integrações avançadas e automações ilimitadas (Pro)</FeatureLi>
-                </ul>
-              </SettingsCard>
-            </SettingsSection>
-          )}
 
           {active === "integrations" && (
             <SettingsSection title="Integrações" description="Conecte ferramentas externas ao seu fluxo.">
