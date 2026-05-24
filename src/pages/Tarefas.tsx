@@ -596,8 +596,19 @@ const Tarefas = () => {
 /* ------------------------------------------------------------------ */
 
 const ListView = ({
-  view, tasks, onSelect, onToggleComplete, onArchive, onUnarchive, onDuplicate, onDelete,
+  view, tasks, taskProjects, onSelect, onToggleComplete, onArchive, onUnarchive, onDuplicate, onDelete, onMoveToProject,
 }: {
+  view: ViewKey;
+  tasks: Task[];
+  taskProjects: TaskProject[];
+  onSelect: (t: Task) => void;
+  onToggleComplete: (t: Task) => void;
+  onArchive: (id: number) => void;
+  onUnarchive: (id: number) => void;
+  onDuplicate: (id: number) => void;
+  onDelete: (t: Task) => void;
+  onMoveToProject: (taskId: number, projectId: string) => void;
+}) => {
   view: ViewKey;
   tasks: Task[];
   onSelect: (t: Task) => void;
