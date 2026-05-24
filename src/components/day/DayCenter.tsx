@@ -356,24 +356,25 @@ export function DayCenter({ open, onOpenChange }: Props) {
                 />
               ) : (
                 <div className="space-y-1.5">
-                  {data.followUps.map((l) => (
+                  {data.followUps.slice(0, 3).map((l) => (
                     <button
                       key={l.id}
                       onClick={() => go("/crm")}
-                      className="w-full text-left flex items-center gap-3 px-3 py-2 rounded-lg border border-border/50 bg-card hover:bg-muted/20 transition-colors"
+                      className="w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-lg border border-border/50 bg-card hover:bg-muted/20 transition-colors"
                     >
                       <div className="h-7 w-7 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-[0.65rem] font-semibold text-primary shrink-0">
                         {l.name.split(" ").map((n) => n[0]).slice(0, 2).join("")}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-[0.8125rem] font-medium truncate">{l.name}</p>
-                        <p className="text-[0.7rem] text-muted-foreground/80 truncate">
+                        <p className="text-[0.8125rem] font-medium text-foreground truncate">{l.name}</p>
+                        <p className="text-[0.7rem] text-muted-foreground truncate">
                           {l.nextAction ?? `${l.company} · ${l.stage}`}
                         </p>
                       </div>
                       <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                     </button>
                   ))}
+                  <SeeAllLink label="Ver todos no CRM" onClick={() => go("/crm")} />
                 </div>
               )}
             </Section>
