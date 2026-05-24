@@ -26,6 +26,8 @@ import {
 import { SignupLinkDrawer } from "@/components/clientes/SignupLinkDrawer";
 import { SignupRequestsPanel } from "@/components/clientes/SignupRequestsPanel";
 import { useSignupRequests } from "@/hooks/useSignupRequests";
+import { useClientTypes } from "@/hooks/useClientTypes";
+import { NewClientTypeDialog } from "@/components/clientes/NewClientTypeDialog";
 
 // ---------- Static configs ----------
 
@@ -36,7 +38,7 @@ const statusStyles: Record<string, string> = {
   "Potencial": "bg-primary/10 text-primary border-primary/20",
 };
 
-const serviceTypes = ["Branding", "Social Media", "Web Design", "Design Gráfico"];
+const NEW_TYPE_VALUE = "__new_type__";
 const statuses = ["Ativo", "Em negociação", "Inativo", "Potencial"];
 
 // ---------- Summary Card ----------
@@ -55,6 +57,7 @@ const SummaryCard = ({ icon: Icon, label, value, accent }: { icon: any; label: s
 // ---------- Main Component ----------
 const Clientes = () => {
   const { clients, addClient } = useClients();
+  const { activeTypes } = useClientTypes();
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterType, setFilterType] = useState("all");
@@ -63,6 +66,7 @@ const Clientes = () => {
   const [newClientOpen, setNewClientOpen] = useState(false);
   const [signupLinkOpen, setSignupLinkOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [newTypeOpen, setNewTypeOpen] = useState(false);
   const { wouldExceed, showPaywall, setUsage } = usePlan();
   const { pendingCount } = useSignupRequests();
 
@@ -158,13 +162,21 @@ const Clientes = () => {
             {statuses.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Select value={filterType} onValueChange={setFilterType}>
+        <Select
+          value={filterType}
+          onValueChange={(v) => {
+            if (v === NEW_TYPE_VALUE) { setNewTypeOpen(true); return; }
+            setFilterType(v);
+          }}
+        >
           <SelectTrigger className="w-[170px] bg-muted/50 border-border">
-            <SelectValue placeholder="Tipo" />
+            <SelectValue placeholder="Tipos" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="max-h-[280px]">
             <SelectItem value="all">Todos os tipos</SelectItem>
-            {serviceTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+            {activeTypes.map(t => <SelectItem key={t.id} value={t.name}>{t.name}</SelectItem>)}
+            <div className="my-1 h-px bg-border" />
+            <SelectItem value={NEW_TYPE_VALUE} className="text-primary">+ Novo tipo</SelectItem>
           </SelectContent>
         </Select>
         <Button variant="outline" size="icon" onClick={() => setSortAsc(!sortAsc)} className="border-border">
@@ -275,6 +287,9 @@ const Clientes = () => {
       {/* New Client Modal */}
       <NewClientDialog open={newClientOpen} onOpenChange={setNewClientOpen} onSave={addClient} />
 
+      {/* Standalone "New type" dialog (triggered from filter or sub-modal) */}
+      <NewClientTypeDialog open={newTypeOpen} onOpenChange={setNewTypeOpen} onCreated={(name) => setFilterType(name)} />
+
       {/* Signup link drawer */}
       <SignupLinkDrawer open={signupLinkOpen} onOpenChange={setSignupLinkOpen} pendingCount={pendingCount} />
 
@@ -300,7 +315,9 @@ const NewClientDialog = ({
   onOpenChange: (v: boolean) => void;
   onSave: (data: Omit<Client, "id" | "projects" | "tasks" | "lastProject" | "lastInteraction">) => void;
 }) => {
+  const { activeTypes } = useClientTypes();
   const [form, setForm] = useState(emptyForm);
+  const [typeDialogOpen, setTypeDialogOpen] = useState(false);
   const set = (k: keyof typeof emptyForm, v: string) => setForm(prev => ({ ...prev, [k]: v }));
 
   useEffect(() => { if (open) setForm(emptyForm); }, [open]);
@@ -346,10 +363,18 @@ const NewClientDialog = ({
           <FormField label="Valor potencial (R$)" placeholder="5000" type="number" value={form.potentialValue} onChange={v => set("potentialValue", v)} />
           <div className="space-y-2">
             <Label className="text-sm text-muted-foreground">Serviço de interesse</Label>
-            <Select value={form.serviceType} onValueChange={v => set("serviceType", v)}>
+            <Select
+              value={form.serviceType}
+              onValueChange={(v) => {
+                if (v === NEW_TYPE_VALUE) { setTypeDialogOpen(true); return; }
+                set("serviceType", v);
+              }}
+            >
               <SelectTrigger className="bg-muted/50 border-border"><SelectValue placeholder="Selecione" /></SelectTrigger>
-              <SelectContent>
-                {serviceTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+              <SelectContent className="max-h-[280px]">
+                {activeTypes.map(t => <SelectItem key={t.id} value={t.name}>{t.name}</SelectItem>)}
+                <div className="my-1 h-px bg-border" />
+                <SelectItem value={NEW_TYPE_VALUE} className="text-primary">+ Novo tipo</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -380,6 +405,11 @@ const NewClientDialog = ({
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
           <Button className="orbit-gradient text-white border-0" onClick={handleSave}>Salvar cliente</Button>
         </DialogFooter>
+        <NewClientTypeDialog
+          open={typeDialogOpen}
+          onOpenChange={setTypeDialogOpen}
+          onCreated={(name) => set("serviceType", name)}
+        />
       </DialogContent>
     </Dialog>
   );

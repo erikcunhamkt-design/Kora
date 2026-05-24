@@ -38,6 +38,8 @@ import { ScheduleMeetingDialog } from "@/components/crm/ScheduleMeetingDialog";
 import { EditTagsDialog } from "@/components/crm/EditTagsDialog";
 import { MoveToPipelineDialog } from "@/components/crm/MoveToPipelineDialog";
 import { useClients } from "@/hooks/useClients";
+import { useClientTypes } from "@/hooks/useClientTypes";
+import { NewClientTypeDialog } from "@/components/clientes/NewClientTypeDialog";
 
 const priorityStyles: Record<Priority, string> = {
   alta: "bg-destructive/10 text-destructive border-destructive/20",
@@ -45,7 +47,7 @@ const priorityStyles: Record<Priority, string> = {
   baixa: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
 };
 
-const serviceTypes = ["Branding", "Social Media", "Web Design", "Design Gráfico"];
+const NEW_TYPE_VALUE = "__new_type__";
 const origins = ["Indicação", "Instagram", "LinkedIn", "Site", "WhatsApp", "Outro"];
 
 const formatCurrency = (v: number) =>
@@ -84,8 +86,10 @@ const CRM = () => {
   } = usePipelines();
   const { getRulesForPipeline } = usePipelineAutomations();
   const { addClient } = useClients();
+  const { activeTypes } = useClientTypes();
   const { wouldExceed, showPaywall, setUsage } = usePlan();
 
+  const [newTypeOpen, setNewTypeOpen] = useState(false);
   const [view, setView] = useState<"kanban" | "list">("kanban");
   const [search, setSearch] = useState("");
   const [filterStage, setFilterStage] = useState("all");
@@ -406,24 +410,32 @@ const CRM = () => {
             />
           </div>
           <Select value={filterStage} onValueChange={setFilterStage}>
-            <SelectTrigger className="w-[150px] h-8 bg-muted/40 border-border text-[13px]"><SelectValue placeholder="Etapa" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas as etapas</SelectItem>
+            <SelectTrigger className="w-[140px] h-8 bg-muted/40 border-border text-[13px]"><SelectValue placeholder="Etapas" /></SelectTrigger>
+            <SelectContent className="max-h-[280px]">
+              <SelectItem value="all">Etapas</SelectItem>
               {stages.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={filterOrigin} onValueChange={setFilterOrigin}>
-            <SelectTrigger className="w-[130px] h-8 bg-muted/40 border-border text-[13px]"><SelectValue placeholder="Origem" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas as origens</SelectItem>
+            <SelectTrigger className="w-[140px] h-8 bg-muted/40 border-border text-[13px]"><SelectValue placeholder="Origens" /></SelectTrigger>
+            <SelectContent className="max-h-[280px]">
+              <SelectItem value="all">Origens</SelectItem>
               {origins.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Select value={filterType} onValueChange={setFilterType}>
-            <SelectTrigger className="w-[140px] h-8 bg-muted/40 border-border text-[13px]"><SelectValue placeholder="Serviço" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os tipos</SelectItem>
-              {serviceTypes.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+          <Select
+            value={filterType}
+            onValueChange={(v) => {
+              if (v === NEW_TYPE_VALUE) { setNewTypeOpen(true); return; }
+              setFilterType(v);
+            }}
+          >
+            <SelectTrigger className="w-[150px] h-8 bg-muted/40 border-border text-[13px]"><SelectValue placeholder="Tipos" /></SelectTrigger>
+            <SelectContent className="max-h-[280px]">
+              <SelectItem value="all">Tipos</SelectItem>
+              {activeTypes.map((t) => <SelectItem key={t.id} value={t.name}>{t.name}</SelectItem>)}
+              <div className="my-1 h-px bg-border" />
+              <SelectItem value={NEW_TYPE_VALUE} className="text-primary">+ Novo tipo</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -431,7 +443,8 @@ const CRM = () => {
 
       {/* View */}
       {view === "kanban" ? (
-        <div className="flex gap-4 overflow-x-auto pb-4 -mx-2 px-2">
+        <div className="w-full max-w-full overflow-x-auto overflow-y-visible pb-4">
+          <div className="flex gap-4 pr-6 min-w-min">
           {stages.map((stage) => {
             const stageLeads = filtered.filter((l) => l.stageId === stage.id);
             const stageTotal = stageLeads.reduce((s, l) => s + l.estimatedValue, 0);
@@ -496,6 +509,7 @@ const CRM = () => {
               </div>
             );
           })}
+          </div>
         </div>
       ) : (
         <div className="orbit-card overflow-hidden">
@@ -652,6 +666,12 @@ const CRM = () => {
           }}
         />
       )}
+
+      <NewClientTypeDialog
+        open={newTypeOpen}
+        onOpenChange={setNewTypeOpen}
+        onCreated={(name) => setFilterType(name)}
+      />
     </div>
   );
 };
@@ -850,12 +870,14 @@ const NewLeadDialog = ({
   stages: PipelineStage[];
   pipelineId: string;
 }) => {
+  const { activeTypes } = useClientTypes();
   const emptyForm = {
     name: "", company: "", email: "", phone: "", serviceType: "",
     origin: "", estimatedValue: "", priority: "média" as Priority,
     stageId: stages[0]?.id || "", nextAction: "", description: "",
   };
   const [form, setForm] = useState(emptyForm);
+  const [typeDialogOpen, setTypeDialogOpen] = useState(false);
   const set = (k: keyof typeof emptyForm, v: string) => setForm((p) => ({ ...p, [k]: v }));
 
   useEffect(() => {
@@ -919,10 +941,18 @@ const NewLeadDialog = ({
           </div>
           <div className="space-y-2">
             <Label className="text-sm text-muted-foreground">Serviço</Label>
-            <Select value={form.serviceType} onValueChange={(v) => set("serviceType", v)}>
+            <Select
+              value={form.serviceType}
+              onValueChange={(v) => {
+                if (v === NEW_TYPE_VALUE) { setTypeDialogOpen(true); return; }
+                set("serviceType", v);
+              }}
+            >
               <SelectTrigger className="bg-muted/50 border-border"><SelectValue placeholder="Selecione" /></SelectTrigger>
-              <SelectContent>
-                {serviceTypes.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+              <SelectContent className="max-h-[280px]">
+                {activeTypes.map((t) => <SelectItem key={t.id} value={t.name}>{t.name}</SelectItem>)}
+                <div className="my-1 h-px bg-border" />
+                <SelectItem value={NEW_TYPE_VALUE} className="text-primary">+ Novo tipo</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -972,6 +1002,11 @@ const NewLeadDialog = ({
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
           <Button className="orbit-gradient text-white border-0" onClick={handleSave}>Adicionar lead</Button>
         </DialogFooter>
+        <NewClientTypeDialog
+          open={typeDialogOpen}
+          onOpenChange={setTypeDialogOpen}
+          onCreated={(name) => set("serviceType", name)}
+        />
       </DialogContent>
     </Dialog>
   );
