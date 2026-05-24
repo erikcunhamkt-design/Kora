@@ -20,11 +20,14 @@ export default function ResetPassword() {
   const [valid, setValid] = useState(false);
 
   useEffect(() => {
-    // Check for recovery token in URL hash
     const hash = window.location.hash;
-    if (hash.includes("type=recovery")) {
+    if (hash.includes("type=recovery") || hash.includes("access_token")) {
       setValid(true);
     }
+    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") setValid(true);
+    });
+    return () => sub.subscription.unsubscribe();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -33,16 +36,22 @@ export default function ResetPassword() {
       toast({ title: "Erro", description: "As senhas não coincidem.", variant: "destructive" });
       return;
     }
+    const { valid: ok, failing } = validatePassword(password);
+    if (!ok) {
+      toast({ title: "Senha não atende aos requisitos", description: failing.join(" • "), variant: "destructive" });
+      return;
+    }
     setLoading(true);
     const { error } = await supabase.auth.updateUser({ password });
     setLoading(false);
     if (error) {
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
+      toast({ title: "Erro", description: translateAuthError(error.message), variant: "destructive" });
     } else {
       toast({ title: "Senha atualizada!", description: "Você já pode fazer login com a nova senha." });
       navigate("/login");
     }
   };
+
 
   if (!valid) {
     return (
