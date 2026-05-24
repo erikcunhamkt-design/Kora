@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/accordion";
 import { SettingsSection } from "./SettingsSection";
 import { SettingsCard } from "./SettingsCard";
+import { PlanAdvisor } from "./PlanAdvisor";
 import { usePlan } from "@/contexts/PlanContext";
 
 type Billing = "monthly" | "yearly";
@@ -118,8 +119,18 @@ export function PlanSection() {
         </div>
       </SettingsCard>
 
+      {/* Assistente de Plano */}
+      <PlanAdvisor
+        onSeePlan={(p) => {
+          if (p === "scale") setProfile("team");
+          else setProfile("individual");
+          document.getElementById("kora-plans-grid")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }}
+      />
+
       {/* 2. Hero de conversão */}
-      <div className="rounded-xl border border-border/60 bg-gradient-to-br from-primary/10 via-card to-card p-6 sm:p-8 text-center space-y-3">
+      <div id="kora-plans-grid" className="rounded-xl border border-border/60 bg-gradient-to-br from-primary/10 via-card to-card p-6 sm:p-8 text-center space-y-3">
+
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-[11px] font-semibold uppercase tracking-wide">
           <Sparkles className="h-3.5 w-3.5" /> Planos KORA HUB
         </div>
