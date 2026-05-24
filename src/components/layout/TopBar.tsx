@@ -1,6 +1,6 @@
-import { Search, Bell, LogOut, User, ChevronDown, Crown, Zap, MessageCircleQuestion } from "lucide-react";
+import { Search, Bell, LogOut, User, ChevronDown, Crown, Zap, MessageCircleQuestion, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useAuth } from "@/contexts/AuthContext";
@@ -10,6 +10,8 @@ import { SupportDrawer } from "@/components/support/SupportDrawer";
 import { useSupportTickets } from "@/hooks/useSupportTickets";
 import { NotificationInbox } from "@/components/notifications/NotificationInbox";
 import { useNotificationsCenter } from "@/hooks/useNotificationsCenter";
+import { AiCreditsDrawer } from "@/components/credits/AiCreditsDrawer";
+import { useAiCredits } from "@/hooks/useAiCredits";
 import { cn } from "@/lib/utils";
 
 import {
