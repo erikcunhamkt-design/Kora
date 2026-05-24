@@ -56,15 +56,19 @@ export function AppSidebar() {
       </div>
 
       {/* Navigation */}
-      <SidebarContent className="px-3 py-5">
-        <SidebarGroup>
+      <SidebarContent className={collapsed ? "px-2 py-5" : "px-3 py-5"}>
+        <SidebarGroup className={collapsed ? "p-0" : undefined}>
           <SidebarGroupContent>
-            <SidebarMenu className="space-y-1">
+            <SidebarMenu className="space-y-1 items-stretch">
               {navItems.map((item) => {
                 const active = isActive(item.url);
                 return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild tooltip={item.title}>
+                  <SidebarMenuItem key={item.title} className={collapsed ? "flex justify-center" : undefined}>
+                    <SidebarMenuButton
+                      asChild
+                      tooltip={item.title}
+                      className="group-data-[collapsible=icon]:!w-10 group-data-[collapsible=icon]:!h-10 group-data-[collapsible=icon]:!p-0"
+                    >
                       <NavLink
                         to={item.url}
                         end={item.url === "/"}
