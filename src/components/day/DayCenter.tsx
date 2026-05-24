@@ -289,12 +289,12 @@ export function DayCenter({ open, onOpenChange }: Props) {
                         className="w-full text-left flex items-center gap-3 px-3 py-2 rounded-lg border border-border/50 bg-card hover:bg-muted/20 transition-colors"
                       >
                         <div className="flex flex-col items-center justify-center w-12 shrink-0">
-                          <span className="text-[0.7rem] text-muted-foreground/70">Hoje</span>
-                          <span className="text-[0.8125rem] font-semibold text-foreground tabular-nums">{a.time}</span>
+                          <span className="text-[0.65rem] text-muted-foreground uppercase tracking-wide">Hoje</span>
+                          <span className="text-[0.875rem] font-semibold text-foreground tabular-nums">{a.time}</span>
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-[0.8125rem] font-medium truncate">{a.name}</p>
-                          <p className="text-[0.7rem] text-muted-foreground/80 truncate">
+                          <p className="text-[0.8125rem] font-medium text-foreground truncate">{a.name}</p>
+                          <p className="text-[0.7rem] text-muted-foreground truncate">
                             {mt?.name ?? "Reunião"} · {mt?.durationMinutes ?? 30} min
                           </p>
                         </div>
