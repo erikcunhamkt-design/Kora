@@ -162,13 +162,21 @@ const Clientes = () => {
             {statuses.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Select value={filterType} onValueChange={setFilterType}>
+        <Select
+          value={filterType}
+          onValueChange={(v) => {
+            if (v === NEW_TYPE_VALUE) { setNewTypeOpen(true); return; }
+            setFilterType(v);
+          }}
+        >
           <SelectTrigger className="w-[170px] bg-muted/50 border-border">
-            <SelectValue placeholder="Tipo" />
+            <SelectValue placeholder="Tipos" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="max-h-[280px]">
             <SelectItem value="all">Todos os tipos</SelectItem>
-            {serviceTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+            {activeTypes.map(t => <SelectItem key={t.id} value={t.name}>{t.name}</SelectItem>)}
+            <div className="my-1 h-px bg-border" />
+            <SelectItem value={NEW_TYPE_VALUE} className="text-primary">+ Novo tipo</SelectItem>
           </SelectContent>
         </Select>
         <Button variant="outline" size="icon" onClick={() => setSortAsc(!sortAsc)} className="border-border">
