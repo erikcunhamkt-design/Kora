@@ -104,12 +104,12 @@ export function AppSidebar() {
 
       {/* Upgrade Footer */}
       {!isPro && (
-        <SidebarFooter className="p-3">
+        <SidebarFooter className={collapsed ? "p-2" : "p-3"}>
           <button
             onClick={() => navigate("/upgrade")}
             title="Upgrade Pro"
-            className={`w-full flex items-center rounded-lg border border-primary/15 bg-primary/5 hover:bg-primary/8 transition-all duration-200 text-sm press-effect group ${
-              collapsed ? "justify-center p-2" : "gap-2.5 px-4 py-3"
+            className={`flex items-center rounded-lg border border-primary/15 bg-primary/5 hover:bg-primary/8 transition-all duration-200 text-sm press-effect group ${
+              collapsed ? "h-10 w-10 mx-auto justify-center p-0" : "w-full gap-2.5 px-4 py-3"
             }`}
           >
             <Crown className="h-4 w-4 text-primary shrink-0 group-hover:scale-110 transition-transform duration-200" />
