@@ -32,6 +32,8 @@ import Onboarding from "./pages/Onboarding";
 import NotFound from "./pages/NotFound";
 import AuthCallback from "./pages/AuthCallback";
 import PublicClientSignup from "./pages/PublicClientSignup";
+import Briefings from "./pages/Briefings";
+import BriefingPublicForm from "./components/briefings/BriefingPublicForm";
 
 const queryClient = new QueryClient();
 
@@ -50,6 +52,7 @@ const App = () => (
                 <Route path="/landing" element={<Landing />} />
                 <Route path="/publico/:slug" element={<PublicProfilePage />} />
                 <Route path="/cadastro/:slug" element={<PublicClientSignup />} />
+                <Route path="/briefing/:token" element={<BriefingPublicForm />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/signup" element={<Signup />} />
                 <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -67,6 +70,7 @@ const App = () => (
                 <Route path="/vendas" element={<ProtectedRoute><OnboardingGate><MainLayout><Vendas /></MainLayout></OnboardingGate></ProtectedRoute>} />
                 <Route path="/financeiro" element={<ProtectedRoute><OnboardingGate><MainLayout><Financeiro /></MainLayout></OnboardingGate></ProtectedRoute>} />
                 <Route path="/tarefas" element={<ProtectedRoute><OnboardingGate><MainLayout><Tarefas /></MainLayout></OnboardingGate></ProtectedRoute>} />
+                <Route path="/briefings" element={<ProtectedRoute><OnboardingGate><MainLayout><Briefings /></MainLayout></OnboardingGate></ProtectedRoute>} />
                 <Route path="/metas" element={<ProtectedRoute><OnboardingGate><MainLayout><Metas /></MainLayout></OnboardingGate></ProtectedRoute>} />
                 <Route path="/automacoes" element={<ProtectedRoute><OnboardingGate><MainLayout><Automacoes /></MainLayout></OnboardingGate></ProtectedRoute>} />
                 <Route path="/presenca" element={<ProtectedRoute><OnboardingGate><MainLayout><Presenca /></MainLayout></OnboardingGate></ProtectedRoute>} />
