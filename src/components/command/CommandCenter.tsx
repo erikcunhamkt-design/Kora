@@ -91,19 +91,14 @@ export function CommandCenter({ open, onOpenChange }: Props) {
 
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange}>
-      <div className="flex items-center border-b border-border/60 px-4">
-        <SearchIcon className="h-4 w-4 text-muted-foreground mr-2" />
-        <CommandInput
-          placeholder="Buscar páginas, ações, clientes..."
-          value={query}
-          onValueChange={setQuery}
-          className="h-14 text-base border-0"
-        />
-        <kbd className="hidden sm:inline-flex items-center gap-1 px-2 py-1 text-[10px] font-medium text-muted-foreground bg-muted/40 rounded border border-border/40">
-          ESC
-        </kbd>
-      </div>
-      <CommandList className="max-h-[420px] p-2">
+      <CommandInput
+        placeholder="Buscar no KORA HUB..."
+        value={query}
+        onValueChange={setQuery}
+        className="h-14 text-base"
+        autoFocus
+      />
+      <CommandList className="p-2">
         <CommandEmpty>
           <div className="py-6 text-center space-y-2">
             <p className="text-sm font-medium text-foreground">Nenhum resultado encontrado</p>
@@ -120,7 +115,7 @@ export function CommandCenter({ open, onOpenChange }: Props) {
                 key={r.id}
                 value={`local-${r.id}-${r.title}`}
                 onSelect={() => run(r.route)}
-                className="gap-3 aria-selected:bg-primary/15 aria-selected:text-primary-foreground"
+                className="gap-3"
               >
                 <div className="h-8 w-8 rounded-md bg-muted/40 flex items-center justify-center">
                   <SearchIcon className="h-4 w-4 text-muted-foreground" />
@@ -145,7 +140,7 @@ export function CommandCenter({ open, onOpenChange }: Props) {
                   key={it.id}
                   value={searchValue}
                   onSelect={() => run(it.route)}
-                  className="gap-3 aria-selected:bg-primary/15"
+                  className="gap-3"
                 >
                   <div className="h-8 w-8 rounded-md bg-primary/10 flex items-center justify-center">
                     <Icon className="h-4 w-4 text-primary" />
@@ -170,7 +165,7 @@ export function CommandCenter({ open, onOpenChange }: Props) {
             <CmdItem
               value={`ai-ask-${query}`}
               onSelect={askAi}
-              className="gap-3 aria-selected:bg-primary/15"
+              className="gap-3"
             >
               <div className="h-8 w-8 rounded-md orbit-gradient flex items-center justify-center">
                 <Sparkles className="h-4 w-4 text-white" />
