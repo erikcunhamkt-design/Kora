@@ -2,8 +2,11 @@ import {
   LayoutDashboard, Users, Target, ShoppingCart, DollarSign, CheckSquare,
   Trophy, Briefcase, Bot, Globe, Settings, UserPlus, UserCheck, Plus,
   FileText, Wrench, Link2, FormInput, Calendar, MessageCircle, Zap, Plug,
+  ShoppingBag, Package, Layers, CreditCard, Image as ImageIcon, FolderKanban,
+  Receipt, Sparkles, CalendarCheck, LifeBuoy,
   type LucideIcon,
 } from "lucide-react";
+
 
 export type CommandItem = {
   id: string;
