@@ -1,0 +1,1 @@
+UPDATE public.profiles SET plan='pro' WHERE user_id='6ea1a642-a3dd-4528-a9b3-5db94803e660';
