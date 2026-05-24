@@ -20,16 +20,21 @@ import {
   MoreHorizontal, GripVertical, CheckCircle2, AlertCircle, Timer,
   Briefcase, Tag, MessageSquare, ListChecks, CalendarDays, CircleDot, Flag,
   Inbox, Archive, Copy, Trash2, Sparkles, ChevronRight, Filter, Sun, CalendarRange,
+  Bell, BellRing, BellOff, FolderKanban, User, Pencil, FolderPlus, Move,
 } from "lucide-react";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+  DropdownMenuSeparator, DropdownMenuLabel, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import {
-  useTasks, type Task, type TaskStatus, type TaskPriority, type TaskRecurrence,
+  useTasks, type Task, type TaskStatus, type TaskPriority, type TaskRecurrence, type TaskScope,
   toIsoDate, formatPtBr,
 } from "@/hooks/useTasks";
-import { useProjects } from "@/hooks/useProjects";
+import { useTaskProjects, type TaskProject, type TaskProjectType } from "@/hooks/useTaskProjects";
+import {
+  useTaskReminders, computeReminderAt, REMINDER_PRESET_LABELS, type ReminderPreset,
+} from "@/hooks/useTaskReminders";
 import { toast } from "@/hooks/use-toast";
 
 /* ------------------------------------------------------------------ */
@@ -179,6 +184,10 @@ const Tarefas = () => {
     tasks, addTask, updateTask, moveTask, toggleSubtask, addSubtask,
     duplicateTask, archiveTask, deleteTask,
   } = useTasks();
+  const {
+    projects: taskProjects, addProject: addTaskProject, renameProject: renameTaskProject,
+    archiveProject: archiveTaskProject, deleteProject: deleteTaskProject,
+  } = useTaskProjects();
   const { wouldExceed, showPaywall, setUsage } = usePlan();
 
   const [view, setView] = useState<ViewKey>("hoje");
@@ -187,12 +196,21 @@ const Tarefas = () => {
   const [filterPriority, setFilterPriority] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterTag, setFilterTag] = useState("all");
+  const [filterScope, setFilterScope] = useState<"all" | TaskScope>("all");
+  const [filterTaskProject, setFilterTaskProject] = useState<string>("all");
   const [quick, setQuick] = useState("");
   const [quickDate, setQuickDate] = useState<string>("");
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [newTaskOpen, setNewTaskOpen] = useState(false);
   const [draggedId, setDraggedId] = useState<number | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Task | null>(null);
+  const [projectsOpen, setProjectsOpen] = useState(false);
+
+  // Reminders locais (Notification API + fallback toast)
+  const { permission, requestPermission, supported: notifSupported } = useTaskReminders(
+    tasks,
+    (id, sentAt) => updateTask(id, { reminderSentAt: sentAt }),
+  );
 
   const realTaskCount = tasks.filter(t => !t.isDemo).length;
   useEffect(() => { setUsage("tasks", realTaskCount); }, [realTaskCount, setUsage]);
@@ -283,9 +301,11 @@ const Tarefas = () => {
       if (filterPriority !== "all" && t.priority !== filterPriority) return false;
       if (filterStatus !== "all" && t.status !== filterStatus) return false;
       if (filterTag !== "all" && !t.tags.includes(filterTag)) return false;
+      if (filterScope !== "all" && (t.scope ?? "work") !== filterScope) return false;
+      if (filterTaskProject !== "all" && (t.taskProjectId ?? "tp-noproject") !== filterTaskProject) return false;
       return true;
     });
-  }, [tasks, view, search, filterClient, filterPriority, filterStatus, filterTag]);
+  }, [tasks, view, search, filterClient, filterPriority, filterStatus, filterTag, filterScope, filterTaskProject]);
 
   /* ---------------- Ações ---------------- */
   const handleQuickCreate = () => {
@@ -327,8 +347,15 @@ const Tarefas = () => {
         actions={
           <>
             <UsageBadge resource="tasks" label="tarefas" />
-            <Button variant="outline" onClick={() => document.getElementById("quick-capture")?.focus()} className="gap-2">
-              <Sparkles className="h-4 w-4" /> Tarefa rápida
+            {permission !== "granted" && (
+              <Button variant="outline" onClick={requestPermission} className="gap-2" title="Ativar lembretes locais">
+                {permission === "denied" ? <BellOff className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
+                <span className="hidden sm:inline">Ativar notificações</span>
+              </Button>
+            )}
+            <Button variant="outline" onClick={() => setProjectsOpen(true)} className="gap-2">
+              <FolderKanban className="h-4 w-4" />
+              <span className="hidden sm:inline">Projetos</span>
             </Button>
             <Button onClick={handleNewTask} className="orbit-gradient text-white border-0 gap-2 shrink-0">
               <Plus className="h-4 w-4" /> Nova tarefa
@@ -336,6 +363,11 @@ const Tarefas = () => {
           </>
         }
       />
+      {permission === "denied" && (
+        <p className="text-[11px] text-muted-foreground -mt-3">
+          Notificações bloqueadas. Para reativar, ajuste as permissões do site no seu navegador. Lembretes locais funcionam enquanto o app estiver aberto — integração com Google Calendar será adicionada em uma etapa futura.
+        </p>
+      )}
 
       {/* Métricas compactas */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
@@ -426,9 +458,27 @@ const Tarefas = () => {
             {allTags.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
           </SelectContent>
         </Select>
-        {(search || filterClient !== "all" || filterPriority !== "all" || filterStatus !== "all" || filterTag !== "all") && (
+        <Select value={filterScope} onValueChange={(v) => setFilterScope(v as any)}>
+          <SelectTrigger className="w-[130px] bg-muted/40 h-10"><SelectValue placeholder="Tipo" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos os tipos</SelectItem>
+            <SelectItem value="work">Trabalho</SelectItem>
+            <SelectItem value="personal">Pessoais</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={filterTaskProject} onValueChange={setFilterTaskProject}>
+          <SelectTrigger className="w-[160px] bg-muted/40 h-10"><SelectValue placeholder="Projeto" /></SelectTrigger>
+          <SelectContent className="max-h-[280px]">
+            <SelectItem value="all">Todos os projetos</SelectItem>
+            {taskProjects.filter(p => !p.archived).map(p => (
+              <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {(search || filterClient !== "all" || filterPriority !== "all" || filterStatus !== "all" || filterTag !== "all" || filterScope !== "all" || filterTaskProject !== "all") && (
           <Button variant="ghost" size="sm" onClick={() => {
             setSearch(""); setFilterClient("all"); setFilterPriority("all"); setFilterStatus("all"); setFilterTag("all");
+            setFilterScope("all"); setFilterTaskProject("all");
           }}>
             Limpar
           </Button>
@@ -439,6 +489,7 @@ const Tarefas = () => {
       {view === "kanban" ? (
         <KanbanView
           tasks={visibleTasks}
+          taskProjects={taskProjects}
           draggedId={draggedId}
           setDraggedId={setDraggedId}
           onSelect={setSelectedTask}
@@ -448,18 +499,30 @@ const Tarefas = () => {
         <ListView
           view={view}
           tasks={visibleTasks}
+          taskProjects={taskProjects}
           onSelect={setSelectedTask}
           onToggleComplete={handleToggleComplete}
           onArchive={(id) => archiveTask(id, true)}
           onUnarchive={(id) => archiveTask(id, false)}
           onDuplicate={duplicateTask}
           onDelete={(t) => setConfirmDelete(t)}
+          onMoveToProject={(taskId, projectId) => {
+            const p = taskProjects.find(x => x.id === projectId);
+            updateTask(taskId, { taskProjectId: projectId, scope: p?.type === "personal" ? "personal" : "work" });
+            toast({ title: "Tarefa movida", description: p?.name });
+          }}
         />
       )}
 
-      <NewTaskDialog open={newTaskOpen} onOpenChange={setNewTaskOpen} onCreate={addTask} />
+      <NewTaskDialog
+        open={newTaskOpen}
+        onOpenChange={setNewTaskOpen}
+        onCreate={addTask}
+        taskProjects={taskProjects}
+      />
       <TaskDetailSheet
         task={selectedTask}
+        taskProjects={taskProjects}
         onClose={() => setSelectedTask(null)}
         onMove={moveTask}
         onToggleSubtask={toggleSubtask}
@@ -469,6 +532,30 @@ const Tarefas = () => {
         onArchive={(id, v) => { archiveTask(id, v); toast({ title: v ? "Tarefa arquivada" : "Tarefa restaurada" }); setSelectedTask(null); }}
         onDelete={(t) => setConfirmDelete(t)}
       />
+
+      <ProjectsSheet
+        open={projectsOpen}
+        onOpenChange={setProjectsOpen}
+        projects={taskProjects}
+        tasks={tasks}
+        onAdd={(name, type) => { addTaskProject({ name, type }); }}
+        onRename={renameTaskProject}
+        onArchive={archiveTaskProject}
+        onDelete={(id) => {
+          const used = tasks.some(t => (t.taskProjectId ?? "tp-noproject") === id);
+          if (used) {
+            const ok = window.confirm("Este projeto contém tarefas. Excluir mesmo assim? As tarefas serão movidas para Sem projeto.");
+            if (!ok) return;
+            tasks.forEach(t => {
+              if ((t.taskProjectId ?? "tp-noproject") === id) updateTask(t.id, { taskProjectId: "tp-noproject" });
+            });
+          }
+          deleteTaskProject(id);
+          toast({ title: "Projeto excluído" });
+        }}
+        onFilter={(id) => { setFilterTaskProject(id); setProjectsOpen(false); }}
+      />
+
 
       <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
         <AlertDialogContent>
@@ -509,16 +596,18 @@ const Tarefas = () => {
 /* ------------------------------------------------------------------ */
 
 const ListView = ({
-  view, tasks, onSelect, onToggleComplete, onArchive, onUnarchive, onDuplicate, onDelete,
+  view, tasks, taskProjects, onSelect, onToggleComplete, onArchive, onUnarchive, onDuplicate, onDelete, onMoveToProject,
 }: {
   view: ViewKey;
   tasks: Task[];
+  taskProjects: TaskProject[];
   onSelect: (t: Task) => void;
   onToggleComplete: (t: Task) => void;
   onArchive: (id: number) => void;
   onUnarchive: (id: number) => void;
   onDuplicate: (id: number) => void;
   onDelete: (t: Task) => void;
+  onMoveToProject: (taskId: number, projectId: string) => void;
 }) => {
   const groups = useMemo(() => {
     const g: { key: string; label: string; items: Task[] }[] = [];
@@ -570,12 +659,14 @@ const ListView = ({
               <TaskRow
                 key={t.id}
                 task={t}
+                taskProjects={taskProjects}
                 onSelect={onSelect}
                 onToggleComplete={onToggleComplete}
                 onArchive={onArchive}
                 onUnarchive={onUnarchive}
                 onDuplicate={onDuplicate}
                 onDelete={onDelete}
+                onMoveToProject={onMoveToProject}
               />
             ))}
           </div>
@@ -602,20 +693,24 @@ const sortByDueOrPriority = (a: Task, b: Task) => {
 /* ------------------------------------------------------------------ */
 
 const TaskRow = ({
-  task, onSelect, onToggleComplete, onArchive, onUnarchive, onDuplicate, onDelete,
+  task, taskProjects, onSelect, onToggleComplete, onArchive, onUnarchive, onDuplicate, onDelete, onMoveToProject,
 }: {
   task: Task;
+  taskProjects: TaskProject[];
   onSelect: (t: Task) => void;
   onToggleComplete: (t: Task) => void;
   onArchive: (id: number) => void;
   onUnarchive: (id: number) => void;
   onDuplicate: (id: number) => void;
   onDelete: (t: Task) => void;
+  onMoveToProject: (taskId: number, projectId: string) => void;
 }) => {
   const done = task.status === "concluido";
   const overdue = isOverdue(task);
   const subsDone = task.subtasks.filter(s => s.done).length;
   const prio = priorityMeta[task.priority];
+  const isPersonal = (task.scope ?? "work") === "personal";
+  const tProj = taskProjects.find(p => p.id === (task.taskProjectId ?? "tp-noproject"));
 
   return (
     <div
@@ -676,6 +771,23 @@ const TaskRow = ({
           <Badge variant="outline" className={cn("text-[10px] h-4.5 py-0", statusBadgeStyle[task.status])}>
             {statusLabels[task.status]}
           </Badge>
+          {isPersonal && (
+            <Badge variant="outline" className="text-[10px] h-4.5 py-0 bg-pink-500/10 text-pink-400 border-pink-500/25">
+              <User className="h-2.5 w-2.5 mr-1" /> Pessoal
+            </Badge>
+          )}
+          {tProj && tProj.id !== "tp-noproject" && (
+            <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+              <span className="h-2 w-2 rounded-full" style={{ background: tProj.color }} />
+              {tProj.name}
+            </span>
+          )}
+          {task.reminderEnabled && task.reminderAt && (
+            <span className="inline-flex items-center gap-1 text-[10px] text-primary">
+              <BellRing className="h-3 w-3" />
+              {new Date(task.reminderAt).toLocaleString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+            </span>
+          )}
           {task.tags.slice(0, 3).map(tg => (
             <span key={tg} className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">#{tg}</span>
           ))}
@@ -699,6 +811,19 @@ const TaskRow = ({
           <DropdownMenuItem onClick={() => onDuplicate(task.id)}>
             <Copy className="h-4 w-4 mr-2" /> Duplicar
           </DropdownMenuItem>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <Move className="h-4 w-4 mr-2" /> Mover para projeto
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              {taskProjects.filter(p => !p.archived).map(p => (
+                <DropdownMenuItem key={p.id} onClick={() => onMoveToProject(task.id, p.id)}>
+                  <span className="h-2 w-2 rounded-full mr-2" style={{ background: p.color }} />
+                  {p.name}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
           <DropdownMenuSeparator />
           {task.archived ? (
             <DropdownMenuItem onClick={() => onUnarchive(task.id)}>
@@ -752,8 +877,9 @@ const EmptyState = ({ view }: { view: ViewKey }) => {
 /*  Kanban                                                            */
 /* ------------------------------------------------------------------ */
 
-const KanbanView = ({ tasks, draggedId, setDraggedId, onSelect, onDrop }: {
+const KanbanView = ({ tasks, taskProjects, draggedId, setDraggedId, onSelect, onDrop }: {
   tasks: Task[];
+  taskProjects: TaskProject[];
   draggedId: number | null;
   setDraggedId: (n: number | null) => void;
   onSelect: (t: Task) => void;
@@ -852,28 +978,37 @@ const KanbanView = ({ tasks, draggedId, setDraggedId, onSelect, onDrop }: {
 /*  Dialog: nova tarefa                                               */
 /* ------------------------------------------------------------------ */
 
-const NewTaskDialog = ({ open, onOpenChange, onCreate }: {
+const NewTaskDialog = ({ open, onOpenChange, onCreate, taskProjects }: {
   open: boolean; onOpenChange: (v: boolean) => void;
   onCreate: (data: Omit<Task, "id" | "isDemo" | "createdAt">) => void;
+  taskProjects: TaskProject[];
 }) => {
-  const { projects } = useProjects();
+  const [scope, setScope] = useState<TaskScope>("work");
+  const [reminderPreset, setReminderPreset] = useState<ReminderPreset>("none");
+  const visibleProjects = taskProjects.filter(p => !p.archived && (scope === "personal" ? p.type === "personal" : p.type === "work"));
+
+  // Reset scope-dependent fields when dialog opens
+  useEffect(() => { if (open) { setScope("work"); setReminderPreset("none"); } }, [open]);
+
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     const title = (fd.get("title") as string).trim();
     if (!title) { toast({ title: "Informe o título da tarefa", variant: "destructive" }); return; }
-    const projectId = (fd.get("projectId") as string) || undefined;
-    const projectName = projectId && projectId !== "none"
-      ? (projects.find(p => p.id === projectId)?.name || "")
-      : "";
+    const taskProjectId = (fd.get("taskProjectId") as string) || "tp-noproject";
+    const projectName = taskProjects.find(p => p.id === taskProjectId)?.name || "";
     const dueIso = (fd.get("deadline") as string) || "";
     const checklistRaw = (fd.get("checklist") as string) || "";
+    const customReminder = (fd.get("reminderCustom") as string) || "";
+    const reminderAt = computeReminderAt(dueIso, reminderPreset, customReminder ? new Date(customReminder).toISOString() : undefined);
+
     onCreate({
       title,
       description: (fd.get("description") as string) || "",
-      client: (fd.get("client") as string) || "",
-      project: projectName,
-      projectId: projectId === "none" ? undefined : projectId,
+      client: scope === "personal" ? "" : ((fd.get("client") as string) || ""),
+      project: scope === "personal" ? projectName : projectName,
+      taskProjectId,
+      scope,
       priority: ((fd.get("priority") as TaskPriority) || "média"),
       deadline: dueIso ? formatPtBr(dueIso) : "—",
       dueDate: dueIso || undefined,
@@ -883,6 +1018,8 @@ const NewTaskDialog = ({ open, onOpenChange, onCreate }: {
       comments: [],
       recurrence: ((fd.get("recurrence") as TaskRecurrence) || "none"),
       archived: false,
+      reminderAt,
+      reminderEnabled: !!reminderAt,
     });
     onOpenChange(false);
     toast({ title: "Tarefa criada" });
@@ -903,20 +1040,38 @@ const NewTaskDialog = ({ open, onOpenChange, onCreate }: {
             <Label className="text-sm text-muted-foreground">Descrição</Label>
             <Textarea name="description" placeholder="Detalhes, contexto, links..." className="bg-muted/40 min-h-[80px]" />
           </div>
-          <div className="space-y-2">
-            <Label className="text-sm text-muted-foreground">Cliente</Label>
-            <Select name="client">
-              <SelectTrigger className="bg-muted/40"><SelectValue placeholder="Selecione" /></SelectTrigger>
-              <SelectContent>{clientsList.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-            </Select>
+          <div className="sm:col-span-2 space-y-2">
+            <Label className="text-sm text-muted-foreground">Tipo</Label>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setScope("work")}
+                className={cn("flex-1 h-10 rounded-lg border text-sm font-medium inline-flex items-center justify-center gap-2 transition-colors",
+                  scope === "work" ? "border-primary/50 bg-primary/10 text-primary" : "border-border bg-muted/40 text-muted-foreground hover:text-foreground")}>
+                <Briefcase className="h-4 w-4" /> Trabalho
+              </button>
+              <button type="button" onClick={() => setScope("personal")}
+                className={cn("flex-1 h-10 rounded-lg border text-sm font-medium inline-flex items-center justify-center gap-2 transition-colors",
+                  scope === "personal" ? "border-pink-500/50 bg-pink-500/10 text-pink-400" : "border-border bg-muted/40 text-muted-foreground hover:text-foreground")}>
+                <User className="h-4 w-4" /> Pessoal
+              </button>
+            </div>
           </div>
-          <div className="space-y-2">
+          {scope === "work" && (
+            <div className="space-y-2">
+              <Label className="text-sm text-muted-foreground">Cliente</Label>
+              <Select name="client">
+                <SelectTrigger className="bg-muted/40"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>{clientsList.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+          )}
+          <div className={cn("space-y-2", scope === "personal" && "sm:col-span-2")}>
             <Label className="text-sm text-muted-foreground">Projeto</Label>
-            <Select name="projectId" defaultValue="none">
+            <Select name="taskProjectId" defaultValue="tp-noproject" key={scope}>
               <SelectTrigger className="bg-muted/40"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">Sem projeto</SelectItem>
-                {projects.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                {visibleProjects.map(p => (
+                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -953,6 +1108,26 @@ const NewTaskDialog = ({ open, onOpenChange, onCreate }: {
               </SelectContent>
             </Select>
           </div>
+          <div className={cn("space-y-2", reminderPreset === "custom" ? "" : "sm:col-span-2")}>
+            <Label className="text-sm text-muted-foreground flex items-center gap-1.5"><Bell className="h-3.5 w-3.5" /> Lembrete</Label>
+            <Select value={reminderPreset} onValueChange={(v) => setReminderPreset(v as ReminderPreset)}>
+              <SelectTrigger className="bg-muted/40"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {(Object.keys(REMINDER_PRESET_LABELS) as ReminderPreset[]).map(k =>
+                  <SelectItem key={k} value={k}>{REMINDER_PRESET_LABELS[k]}</SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+          {reminderPreset === "custom" && (
+            <div className="space-y-2">
+              <Label className="text-sm text-muted-foreground">Data e hora do lembrete</Label>
+              <Input type="datetime-local" name="reminderCustom" className="bg-muted/40" />
+            </div>
+          )}
+          <p className="sm:col-span-2 text-[11px] text-muted-foreground -mt-1">
+            Lembretes locais funcionam enquanto o app estiver aberto. Integração com Google Calendar será adicionada futuramente.
+          </p>
           <div className="sm:col-span-2 space-y-2">
             <Label className="text-sm text-muted-foreground">Etiquetas (vírgulas)</Label>
             <Input name="tags" placeholder="Ex: branding, logo" className="bg-muted/40" />
@@ -976,9 +1151,11 @@ const NewTaskDialog = ({ open, onOpenChange, onCreate }: {
 /* ------------------------------------------------------------------ */
 
 const TaskDetailSheet = ({
-  task, onClose, onMove, onToggleSubtask, onAddSubtask, onUpdate, onDuplicate, onArchive, onDelete,
+  task, taskProjects, onClose, onMove, onToggleSubtask, onAddSubtask, onUpdate, onDuplicate, onArchive, onDelete,
 }: {
-  task: Task | null; onClose: () => void;
+  task: Task | null;
+  taskProjects: TaskProject[];
+  onClose: () => void;
   onMove: (id: number, status: TaskStatus) => void;
   onToggleSubtask: (taskId: number, idx: number) => void;
   onAddSubtask: (taskId: number, text: string) => void;
@@ -1102,6 +1279,57 @@ const TaskDetailSheet = ({
                   </SelectContent>
                 </Select>
               </div>
+              <div className="flex justify-between text-sm gap-3 items-center">
+                <span className="text-muted-foreground flex items-center gap-1"><Briefcase className="h-3.5 w-3.5" />Projeto</span>
+                <Select
+                  defaultValue={task.taskProjectId || "tp-noproject"}
+                  onValueChange={(v) => {
+                    const p = taskProjects.find(x => x.id === v);
+                    onUpdate(task.id, { taskProjectId: v, scope: p?.type === "personal" ? "personal" : (task.scope ?? "work") });
+                  }}>
+                  <SelectTrigger className="h-8 w-[180px] bg-muted/40 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {taskProjects.filter(p => !p.archived).map(p => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex justify-between text-sm gap-3 items-center">
+                <span className="text-muted-foreground flex items-center gap-1"><User className="h-3.5 w-3.5" />Tipo</span>
+                <Select defaultValue={task.scope ?? "work"} onValueChange={(v) => onUpdate(task.id, { scope: v as TaskScope })}>
+                  <SelectTrigger className="h-8 w-[140px] bg-muted/40 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="work">Trabalho</SelectItem>
+                    <SelectItem value="personal">Pessoal</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex justify-between text-sm gap-3 items-center">
+                <span className="text-muted-foreground flex items-center gap-1"><Bell className="h-3.5 w-3.5" />Lembrete</span>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="datetime-local"
+                    defaultValue={task.reminderAt ? new Date(task.reminderAt).toISOString().slice(0, 16) : ""}
+                    onBlur={(e) => {
+                      const v = e.target.value;
+                      onUpdate(task.id, {
+                        reminderAt: v ? new Date(v).toISOString() : undefined,
+                        reminderEnabled: !!v,
+                        reminderSentAt: undefined,
+                      });
+                    }}
+                    className="h-8 w-[200px] bg-muted/40 text-sm"
+                  />
+                  <Button
+                    type="button" variant="ghost" size="icon" className="h-8 w-8"
+                    onClick={() => onUpdate(task.id, { reminderEnabled: !task.reminderEnabled, reminderSentAt: undefined })}
+                    title={task.reminderEnabled ? "Desativar lembrete" : "Ativar lembrete"}
+                  >
+                    {task.reminderEnabled ? <BellRing className="h-4 w-4 text-primary" /> : <BellOff className="h-4 w-4 text-muted-foreground" />}
+                  </Button>
+                </div>
+              </div>
             </div>
           </Section>
 
@@ -1168,4 +1396,154 @@ const TaskDetailSheet = ({
   );
 };
 
+/* ------------------------------------------------------------------ */
+/*  Drawer de Projetos de tarefas                                     */
+/* ------------------------------------------------------------------ */
+
+const ProjectsSheet = ({
+  open, onOpenChange, projects, tasks, onAdd, onRename, onArchive, onDelete, onFilter,
+}: {
+  open: boolean; onOpenChange: (v: boolean) => void;
+  projects: TaskProject[];
+  tasks: Task[];
+  onAdd: (name: string, type: TaskProjectType) => void;
+  onRename: (id: string, name: string) => void;
+  onArchive: (id: string, archived: boolean) => void;
+  onDelete: (id: string) => void;
+  onFilter: (id: string) => void;
+}) => {
+  const [name, setName] = useState("");
+  const [type, setType] = useState<TaskProjectType>("work");
+  const [editing, setEditing] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+
+  const countFor = (id: string) =>
+    tasks.filter(t => (t.taskProjectId ?? "tp-noproject") === id && !t.archived).length;
+
+  const active = projects.filter(p => !p.archived);
+  const archived = projects.filter(p => p.archived);
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="bg-card border-border w-full sm:max-w-[420px] overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle className="text-foreground flex items-center gap-2">
+            <FolderKanban className="h-4 w-4 text-primary" /> Projetos de tarefas
+          </SheetTitle>
+          <SheetDescription>
+            Organize tarefas por cliente, entrega ou área da vida.
+          </SheetDescription>
+        </SheetHeader>
+
+        <div className="orbit-card p-3 mt-4 space-y-2">
+          <Label className="text-xs text-muted-foreground">Novo projeto</Label>
+          <Input
+            value={name} onChange={(e) => setName(e.target.value)}
+            placeholder="Ex: Casa, Cliente Acme, Lançamento..."
+            className="bg-muted/40 h-9 text-sm"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && name.trim()) {
+                onAdd(name.trim(), type); setName("");
+                toast({ title: "Projeto criado" });
+              }
+            }}
+          />
+          <div className="flex gap-2">
+            <Select value={type} onValueChange={(v) => setType(v as TaskProjectType)}>
+              <SelectTrigger className="bg-muted/40 h-9 text-sm flex-1"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="work">Trabalho</SelectItem>
+                <SelectItem value="personal">Pessoal</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              size="sm" className="orbit-gradient text-white border-0"
+              onClick={() => {
+                if (!name.trim()) return;
+                onAdd(name.trim(), type); setName("");
+                toast({ title: "Projeto criado" });
+              }}
+            >
+              <FolderPlus className="h-3.5 w-3.5 mr-1" /> Criar
+            </Button>
+          </div>
+        </div>
+
+        <div className="mt-6 space-y-2">
+          <h4 className="text-xs uppercase tracking-wider text-muted-foreground px-1">Ativos</h4>
+          {active.length === 0 && (
+            <p className="text-xs text-muted-foreground px-1">Crie projetos para organizar tarefas por cliente, entrega ou área da vida.</p>
+          )}
+          {active.map(p => {
+            const count = countFor(p.id);
+            const isEditing = editing === p.id;
+            return (
+              <div key={p.id} className="orbit-card p-2.5 flex items-center gap-2 group">
+                <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: p.color }} />
+                {isEditing ? (
+                  <Input
+                    value={editName} onChange={(e) => setEditName(e.target.value)}
+                    autoFocus
+                    onBlur={() => { if (editName.trim()) onRename(p.id, editName); setEditing(null); }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") { if (editName.trim()) onRename(p.id, editName); setEditing(null); }
+                      if (e.key === "Escape") setEditing(null);
+                    }}
+                    className="h-7 text-sm bg-muted/40 flex-1"
+                  />
+                ) : (
+                  <button onClick={() => onFilter(p.id)} className="flex-1 text-left text-sm font-medium text-foreground truncate hover:text-primary">
+                    {p.name}
+                  </button>
+                )}
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">{count}</span>
+                {p.type === "personal" && (
+                  <Badge variant="outline" className="text-[9px] h-4 py-0 bg-pink-500/10 text-pink-400 border-pink-500/25">Pessoal</Badge>
+                )}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100">
+                      <MoreHorizontal className="h-3.5 w-3.5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => { setEditing(p.id); setEditName(p.name); }} disabled={p.isSeed}>
+                      <Pencil className="h-3.5 w-3.5 mr-2" /> Renomear
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => onArchive(p.id, true)} disabled={p.isSeed}>
+                      <Archive className="h-3.5 w-3.5 mr-2" /> Arquivar
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem className="text-destructive" onClick={() => onDelete(p.id)} disabled={p.isSeed}>
+                      <Trash2 className="h-3.5 w-3.5 mr-2" /> Excluir
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            );
+          })}
+        </div>
+
+        {archived.length > 0 && (
+          <div className="mt-6 space-y-2">
+            <h4 className="text-xs uppercase tracking-wider text-muted-foreground px-1">Arquivados</h4>
+            {archived.map(p => (
+              <div key={p.id} className="orbit-card p-2.5 flex items-center gap-2 opacity-70">
+                <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: p.color }} />
+                <span className="flex-1 text-sm text-muted-foreground truncate">{p.name}</span>
+                <Button size="sm" variant="ghost" onClick={() => onArchive(p.id, false)}>Restaurar</Button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <p className="text-[11px] text-muted-foreground mt-6 px-1">
+          Google Calendar e lembretes sincronizados serão ativados em uma etapa futura.
+        </p>
+      </SheetContent>
+    </Sheet>
+  );
+};
+
 export default Tarefas;
+

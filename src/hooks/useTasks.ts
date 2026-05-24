@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 export type TaskPriority = "alta" | "média" | "baixa";
 export type TaskStatus = "a_fazer" | "em_andamento" | "revisao" | "concluido";
 export type TaskRecurrence = "none" | "daily" | "weekly" | "monthly" | "weekdays";
+export type TaskScope = "work" | "personal";
 
 export interface SubTask { text: string; done: boolean }
 export interface TaskComment { author: string; text: string; date: string }
@@ -14,6 +15,9 @@ export interface Task {
   client: string;
   project: string;
   projectId?: string;
+  /** ID do projeto de tarefa (useTaskProjects) — separado de projectId de useProjects */
+  taskProjectId?: string;
+  scope?: TaskScope;
   priority: TaskPriority;
   /** Display string em pt-BR — mantido por compatibilidade */
   deadline: string;
@@ -28,7 +32,12 @@ export interface Task {
   recurrence?: TaskRecurrence;
   archived?: boolean;
   isDemo?: boolean;
+  /** Lembrete local — ISO datetime */
+  reminderAt?: string;
+  reminderEnabled?: boolean;
+  reminderSentAt?: string;
 }
+
 
 const STORAGE_KEY = "orbyt.tasks.v1";
 
@@ -86,6 +95,9 @@ function migrate(list: Task[]): Task[] {
     dueDate: t.dueDate ?? parsePtBrDate(t.deadline),
     archived: t.archived ?? false,
     recurrence: t.recurrence ?? "none",
+    scope: t.scope ?? (t.client ? "work" : (t.scope || "work")),
+    taskProjectId: t.taskProjectId ?? (t.project && t.project.trim() !== "" ? undefined : "tp-noproject"),
+    reminderEnabled: t.reminderEnabled ?? false,
   }));
 }
 
