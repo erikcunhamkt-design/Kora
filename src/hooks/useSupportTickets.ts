@@ -75,6 +75,15 @@ export function useSupportTickets() {
         save(next);
         return next;
       });
+      emitNotification({
+        title: "Chamado registrado",
+        description: ticket.subject,
+        category: "support",
+        type: "success",
+        priority: ticket.priority === "high" ? "high" : "medium",
+        sourceId: ticket.id,
+        sourceType: "support_ticket",
+      });
       return ticket;
     },
     [],
