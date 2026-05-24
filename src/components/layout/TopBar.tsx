@@ -1,4 +1,5 @@
-import { Search, Bell, LogOut, User, ChevronDown, Crown, Zap, MessageCircleQuestion, Sparkles, CalendarCheck } from "lucide-react";
+import { Search, Bell, LogOut, User, ChevronDown, Crown, Zap, MessageCircleQuestion, Sparkles, CalendarCheck, Building2, Settings, CreditCard, Shield, LifeBuoy, Users } from "lucide-react";
+import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -170,35 +171,112 @@ export function TopBar() {
             </span>
             <ChevronDown className="h-3 w-3 text-muted-foreground hidden md:block" />
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel className="font-normal">
-              <div className="flex flex-col space-y-1">
-                <p className="text-[0.875rem] font-medium">{profile?.display_name || "Usuário"}</p>
-                <p className="text-[0.8125rem] text-muted-foreground">{profile?.email}</p>
-                <p className="text-[0.8125rem] text-muted-foreground capitalize">Plano {plan}</p>
+          <DropdownMenuContent align="end" className="w-72 p-0 overflow-hidden">
+            {/* Header */}
+            <div className="px-4 py-4 bg-gradient-to-br from-primary/8 via-card to-card border-b border-border/40">
+              <div className="flex items-center gap-3">
+                <Avatar className="h-11 w-11 border border-primary/30">
+                  <AvatarFallback className="orbit-gradient text-white text-sm font-bold">
+                    {initials}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-foreground truncate">
+                    {profile?.display_name || "Usuário"}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground truncate">{profile?.email}</p>
+                </div>
               </div>
-            </DropdownMenuLabel>
+              <div className="mt-3 flex items-center justify-between">
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wide",
+                    isPro
+                      ? "orbit-gradient text-white"
+                      : "border border-primary/20 bg-primary/8 text-primary",
+                  )}
+                >
+                  <Crown className="h-2.5 w-2.5" />
+                  {isPro ? "Pro" : "Free"}
+                </span>
+                {!isPro && (
+                  <button
+                    onClick={() => navigate("/upgrade")}
+                    className="text-[11px] font-medium text-primary hover:text-primary/80 transition-colors"
+                  >
+                    Upgrade →
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Account */}
+            <div className="py-1">
+              <DropdownMenuItem onClick={() => navigate("/configuracoes?tab=perfil")} className="gap-2.5 text-[0.8125rem]">
+                <User className="h-4 w-4 text-muted-foreground" />
+                Perfil
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate("/configuracoes?tab=empresa")} className="gap-2.5 text-[0.8125rem]">
+                <Building2 className="h-4 w-4 text-muted-foreground" />
+                Empresa
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate("/configuracoes")} className="gap-2.5 text-[0.8125rem]">
+                <Settings className="h-4 w-4 text-muted-foreground" />
+                Configurações
+              </DropdownMenuItem>
+            </div>
+
             <DropdownMenuSeparator />
-            {!isPro && (
-              <>
-                <DropdownMenuItem onClick={() => navigate("/upgrade")} className="text-primary focus:text-primary">
-                  <Crown className="mr-2 h-4 w-4" />
-                  Upgrade para Pro
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-              </>
-            )}
-            <DropdownMenuItem onClick={() => navigate("/configuracoes")}>
-              <User className="mr-2 h-4 w-4" />
-              Perfil
-            </DropdownMenuItem>
+
+            {/* Billing & security */}
+            <div className="py-1">
+              <DropdownMenuItem onClick={() => navigate("/configuracoes?tab=plano")} className="gap-2.5 text-[0.8125rem]">
+                <CreditCard className="h-4 w-4 text-muted-foreground" />
+                Assinatura
+                <span className="ml-auto text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">
+                  {isPro ? "Pro" : "Free"}
+                </span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate("/configuracoes?tab=seguranca")} className="gap-2.5 text-[0.8125rem]">
+                <Shield className="h-4 w-4 text-muted-foreground" />
+                Segurança
+              </DropdownMenuItem>
+            </div>
+
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={signOut} className="text-destructive focus:text-destructive">
-              <LogOut className="mr-2 h-4 w-4" />
-              Sair
-            </DropdownMenuItem>
+
+            {/* Support & community */}
+            <div className="py-1">
+              <DropdownMenuItem onClick={() => setSupportOpen(true)} className="gap-2.5 text-[0.8125rem]">
+                <LifeBuoy className="h-4 w-4 text-muted-foreground" />
+                Ajuda e suporte
+                {hasOpenTickets && (
+                  <span className="ml-auto h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_6px_hsl(var(--primary)/0.6)]" />
+                )}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => toast.info("Comunidade KORA será liberada em uma etapa futura.")}
+                className="gap-2.5 text-[0.8125rem]"
+              >
+                <Users className="h-4 w-4 text-muted-foreground" />
+                Comunidade KORA
+                <span className="ml-auto text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">
+                  Em breve
+                </span>
+              </DropdownMenuItem>
+            </div>
+
+            <DropdownMenuSeparator />
+
+            <div className="py-1">
+              <DropdownMenuItem onClick={signOut} className="gap-2.5 text-[0.8125rem] text-destructive focus:text-destructive">
+                <LogOut className="h-4 w-4" />
+                Sair
+              </DropdownMenuItem>
+            </div>
           </DropdownMenuContent>
         </DropdownMenu>
+
       </div>
       <CommandCenter open={cmdOpen} onOpenChange={setCmdOpen} />
       <SupportDrawer open={supportOpen} onOpenChange={setSupportOpen} />
