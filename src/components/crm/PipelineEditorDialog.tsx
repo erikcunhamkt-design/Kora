@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { GripVertical, Plus, Trash2, ArrowUp, ArrowDown, AlertCircle } from "lucide-react";
 import type { Pipeline, PipelineStage, StageType } from "@/hooks/usePipelines";
 import { newStageId } from "@/hooks/usePipelines";
