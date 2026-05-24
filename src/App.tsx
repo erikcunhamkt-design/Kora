@@ -31,6 +31,7 @@ import Landing from "./pages/Landing";
 import Onboarding from "./pages/Onboarding";
 import NotFound from "./pages/NotFound";
 import AuthCallback from "./pages/AuthCallback";
+import PublicClientSignup from "./pages/PublicClientSignup";
 
 const queryClient = new QueryClient();
 
