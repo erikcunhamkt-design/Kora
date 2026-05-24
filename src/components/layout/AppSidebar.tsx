@@ -49,7 +49,7 @@ export function AppSidebar() {
               <span className="text-foreground">HUB</span>
             </span>
             <span className="text-[0.625rem] text-muted-foreground/60 tracking-wide uppercase leading-tight truncate">
-              Clarity for creative work
+              CLARITY FOR WORK
             </span>
           </div>
         )}
