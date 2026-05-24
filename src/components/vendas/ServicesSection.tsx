@@ -543,7 +543,7 @@ function CategoriesModal({
     <Modal title="Categorias" onClose={onClose}>
       <form onSubmit={submit} className="flex gap-2">
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nova categoria" className="kora-input flex-1" maxLength={40} />
-        <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="h-10 w-12 rounded-md border border-border/60 bg-transparent" />
+        <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="kora-color" />
         <PrimaryBtn type="submit"><Plus className="h-4 w-4" /></PrimaryBtn>
       </form>
       <div className="mt-4 space-y-2">
