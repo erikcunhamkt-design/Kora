@@ -359,7 +359,7 @@ const ClientWorkspace = ({
 
       {/* Conteúdo */}
       {view === "calendar" ? (
-        <CalendarView items={filtered} onSelect={setSelected} onCreateOnDay={(iso) => { setNewOpen(true); setNewInitialDate(iso); }} />
+        <CalendarView items={filtered} onSelect={setSelected} onCreateOnDay={(iso) => { setNewOpen(true); setNewInitialDateState(iso); }} />
       ) : (
         <ProductionView
           items={filtered}
@@ -373,10 +373,10 @@ const ClientWorkspace = ({
       {/* Drawer detalhe / novo */}
       <NewContentDialog
         open={newOpen}
-        onOpenChange={(o) => { setNewOpen(o); if (!o) setNewInitialDate(undefined); }}
+        onOpenChange={(o) => { setNewOpen(o); if (!o) setNewInitialDateState(undefined); }}
         defaultClient={isAll || isEmpty ? undefined : clientName}
         defaultDate={newInitialDate}
-        onCreate={(data) => { onAdd(data); setNewOpen(false); setNewInitialDate(undefined); toast({ title: "Conteúdo criado" }); }}
+        onCreate={(data) => { onAdd(data); setNewOpen(false); setNewInitialDateState(undefined); toast({ title: "Conteúdo criado" }); }}
       />
       <ContentDetailSheet
         item={selected}
