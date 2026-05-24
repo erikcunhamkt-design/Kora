@@ -24,7 +24,7 @@ export function NewClientTypeDialog({ open, onOpenChange, onCreated, initialName
 
   const handleSave = () => {
     const result = addType(name);
-    if (!result.ok) {
+    if (result.ok === false) {
       toast.error(result.error);
       return;
     }
@@ -32,9 +32,6 @@ export function NewClientTypeDialog({ open, onOpenChange, onCreated, initialName
     onCreated?.(result.type.name);
     onOpenChange(false);
   };
-
-  const NEW_TYPE_SENTINEL = "__new__";
-  void NEW_TYPE_SENTINEL;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
