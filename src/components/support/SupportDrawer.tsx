@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { toast } from "sonner";
-import { Check, Mail, MessageCircle, Trash2 } from "lucide-react";
+import { Check, Mail, MessageCircle, MessagesSquare, Trash2 } from "lucide-react";
 
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -23,6 +23,7 @@ import {
   type SupportTicketPriority,
   type SupportTicketType,
 } from "@/hooks/useSupportTickets";
+import { cn } from "@/lib/utils";
 
 interface SupportDrawerProps {
   open: boolean;
@@ -50,10 +51,18 @@ const STATUS_LABEL = {
   resolved: "Resolvido",
 } as const;
 
+const QUICK_CATEGORIES: { value: SupportTicketType; label: string }[] = [
+  { value: "question", label: "Dúvida" },
+  { value: "bug", label: "Bug" },
+  { value: "feature", label: "Sugestão" },
+];
+
+type TabValue = "new" | "mine" | "chat" | "channels";
+
 export function SupportDrawer({ open, onOpenChange }: SupportDrawerProps) {
   const { tickets, createTicket, resolveTicket, removeTicket } = useSupportTickets();
   const location = useLocation();
-  const [tab, setTab] = useState<"new" | "mine" | "channels">("new");
+  const [tab, setTab] = useState<TabValue>("new");
 
   const [type, setType] = useState<SupportTicketType>("question");
   const [priority, setPriority] = useState<SupportTicketPriority>("medium");
@@ -101,28 +110,61 @@ export function SupportDrawer({ open, onOpenChange }: SupportDrawerProps) {
         className="w-full sm:max-w-[460px] p-0 flex flex-col bg-card border-l border-border/60"
       >
         {/* Header */}
-        <div className="px-6 pt-6 pb-4 border-b border-border/40">
-          <h2 className="text-[1.0625rem] font-semibold text-foreground tracking-tight">Suporte</h2>
-          <p className="text-[0.8125rem] text-muted-foreground mt-0.5">Fale com a equipe KORA</p>
+        <div className="px-6 pt-6 pb-5 border-b border-border/40 bg-gradient-to-b from-primary/[0.04] to-transparent">
+          <div className="flex items-center gap-2">
+            <h2 className="text-[1.0625rem] font-semibold text-foreground tracking-tight">Suporte</h2>
+            <Badge variant="outline" className="h-5 px-1.5 text-[10px] border-success/40 text-success font-medium">
+              Tickets ativos
+            </Badge>
+            <Badge variant="outline" className="h-5 px-1.5 text-[10px] border-border/60 text-muted-foreground font-medium">
+              Chat em breve
+            </Badge>
+          </div>
+          <p className="text-[0.8125rem] text-muted-foreground mt-1">Fale com a equipe KORA</p>
+          <p className="text-[0.6875rem] text-muted-foreground/80 mt-2 leading-relaxed">
+            Resposta por chamado enquanto o chat ao vivo não está ativo.
+          </p>
         </div>
 
-        <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)} className="flex-1 flex flex-col min-h-0">
+        <Tabs value={tab} onValueChange={(v) => setTab(v as TabValue)} className="flex-1 flex flex-col min-h-0">
           <div className="px-6 pt-4">
-            <TabsList className="w-full grid grid-cols-3 h-9">
-              <TabsTrigger value="new" className="text-[0.8125rem]">Novo</TabsTrigger>
-              <TabsTrigger value="mine" className="text-[0.8125rem]">
-                Meus chamados
+            <TabsList className="w-full grid grid-cols-4 h-9">
+              <TabsTrigger value="new" className="text-[0.75rem]">Novo</TabsTrigger>
+              <TabsTrigger value="mine" className="text-[0.75rem]">
+                Meus
                 {userTickets.length > 0 && (
-                  <span className="ml-1.5 text-[10px] text-muted-foreground">{userTickets.length}</span>
+                  <span className="ml-1 text-[10px] text-muted-foreground">{userTickets.length}</span>
                 )}
               </TabsTrigger>
-              <TabsTrigger value="channels" className="text-[0.8125rem]">Canais</TabsTrigger>
+              <TabsTrigger value="chat" className="text-[0.75rem]">Chat</TabsTrigger>
+              <TabsTrigger value="channels" className="text-[0.75rem]">Canais</TabsTrigger>
             </TabsList>
           </div>
 
           <div className="flex-1 overflow-y-auto px-6 py-5 min-h-0">
             {/* Novo chamado */}
-            <TabsContent value="new" className="mt-0 space-y-4">
+            <TabsContent value="new" className="mt-0 space-y-5">
+              <div className="space-y-2.5">
+                <div className="text-[0.8125rem] font-medium text-foreground">Como podemos ajudar?</div>
+                <div className="flex gap-1.5 flex-wrap">
+                  {QUICK_CATEGORIES.map((c) => (
+                    <button
+                      key={c.value}
+                      type="button"
+                      onClick={() => setType(c.value)}
+                      className={cn(
+                        "px-3 py-1.5 rounded-full text-[0.75rem] font-medium border transition-all",
+                        type === c.value
+                          ? "bg-primary/15 border-primary/40 text-primary"
+                          : "bg-muted/40 border-border/50 text-muted-foreground hover:border-border hover:text-foreground",
+                      )}
+                    >
+                      {c.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
@@ -154,7 +196,7 @@ export function SupportDrawer({ open, onOpenChange }: SupportDrawerProps) {
                   <Input
                     value={subject}
                     onChange={(e) => setSubject(e.target.value)}
-                    placeholder="Resumo curto do problema"
+                    placeholder="Ex: Erro ao criar orçamento"
                     className="h-9"
                   />
                 </div>
@@ -164,7 +206,7 @@ export function SupportDrawer({ open, onOpenChange }: SupportDrawerProps) {
                   <Textarea
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
-                    placeholder="Descreva com detalhes..."
+                    placeholder="Conte o que aconteceu e o que você esperava..."
                     rows={5}
                   />
                 </div>
@@ -181,6 +223,9 @@ export function SupportDrawer({ open, onOpenChange }: SupportDrawerProps) {
             <TabsContent value="mine" className="mt-0">
               {userTickets.length === 0 ? (
                 <div className="text-center py-16">
+                  <div className="mx-auto h-10 w-10 rounded-full bg-muted/40 border border-border/50 flex items-center justify-center mb-3">
+                    <MessagesSquare className="h-4 w-4 text-muted-foreground" />
+                  </div>
                   <div className="text-[0.9375rem] font-medium text-foreground">Nenhum chamado aberto</div>
                   <div className="text-[0.8125rem] text-muted-foreground mt-1">
                     Seus chamados aparecerão aqui.
@@ -257,6 +302,28 @@ export function SupportDrawer({ open, onOpenChange }: SupportDrawerProps) {
                   ))}
                 </div>
               )}
+            </TabsContent>
+
+            {/* Chat ao vivo */}
+            <TabsContent value="chat" className="mt-0">
+              <div className="rounded-xl border border-border/50 bg-background/40 px-5 py-8 text-center">
+                <div className="mx-auto h-10 w-10 rounded-full bg-muted/40 border border-border/50 flex items-center justify-center mb-3">
+                  <MessagesSquare className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div className="flex items-center justify-center gap-2 mb-1">
+                  <span className="text-[0.9375rem] font-medium text-foreground">Chat ao vivo</span>
+                  <Badge variant="outline" className="h-5 px-1.5 text-[10px] border-border/60 text-muted-foreground">
+                    Indisponível agora
+                  </Badge>
+                </div>
+                <p className="text-[0.8125rem] text-muted-foreground leading-relaxed max-w-[320px] mx-auto mt-2">
+                  O atendimento em tempo real será ativado quando a equipe de suporte estiver configurada.
+                </p>
+                <Button disabled size="sm" className="mt-5">Iniciar chat</Button>
+              </div>
+              <p className="text-[0.75rem] text-muted-foreground mt-4 leading-relaxed">
+                Enquanto isso, registre um chamado em <span className="text-foreground font-medium">Novo</span> — a equipe responderá com prioridade.
+              </p>
             </TabsContent>
 
             {/* Canais */}

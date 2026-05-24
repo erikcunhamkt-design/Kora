@@ -99,3 +99,21 @@ export function useSupportTickets() {
 
 export const SUPPORT_WHATSAPP_URL: string | null = null;
 export const SUPPORT_EMAIL: string | null = null;
+
+// Future chat structure (not active yet)
+export type SupportConversationStatus = "waiting" | "assigned" | "closed";
+
+export interface SupportConversation {
+  id: string;
+  status: SupportConversationStatus;
+  assignedAgentName?: string;
+  createdAt: string;
+}
+
+export interface SupportMessage {
+  id: string;
+  conversationId: string;
+  sender: "user" | "agent" | "system";
+  text: string;
+  createdAt: string;
+}
