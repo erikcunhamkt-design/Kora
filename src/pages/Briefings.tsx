@@ -53,6 +53,23 @@ export default function Briefings() {
   const [editingTpl, setEditingTpl] = useState<BriefingTemplate | null>(null);
   const [viewBriefing, setViewBriefing] = useState<Briefing | null>(null);
 
+  useEffect(() => {
+    if (params.get("new") === "1") {
+      setDefaultTplId(undefined);
+      setCreateOpen(true);
+      const next = new URLSearchParams(params);
+      next.delete("new");
+      setParams(next, { replace: true });
+    } else if (params.get("new") === "tpl") {
+      setEditingTpl(null);
+      setTplOpen(true);
+      const next = new URLSearchParams(params);
+      next.delete("new");
+      setParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return briefings;
