@@ -264,15 +264,17 @@ function NotificationRow({
       className={cn(
         "group relative rounded-lg border px-3 py-2.5 transition-all cursor-pointer",
         !n.read
-          ? "bg-primary/[0.06] border-primary/20 hover:border-primary/40"
-          : "bg-background/30 border-border/40 hover:border-border/70",
+          ? "bg-card border-l-2 border-l-primary/40 border-y-border/60 border-r-border/60 hover:bg-muted/20"
+          : "bg-card border-border/60 hover:border-border hover:bg-muted/10",
+        n.priority === "critical" && !n.read && "border-l-destructive/50",
       )}
       onClick={onClick}
     >
       <div className="flex items-start gap-3">
         {/* Icon */}
         <div className={cn(
-          "shrink-0 h-8 w-8 rounded-md border border-border/50 bg-muted/40 flex items-center justify-center",
+          "shrink-0 h-8 w-8 rounded-md border border-border/40 flex items-center justify-center",
+          meta.bg,
           meta.tone,
         )}>
           <Icon className="h-4 w-4" />
