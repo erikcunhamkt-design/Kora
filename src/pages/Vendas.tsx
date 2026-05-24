@@ -1,4 +1,5 @@
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
   Plus, Search, Trophy, Users, Briefcase, LayoutGrid, Target, Calendar,
@@ -7,6 +8,7 @@ import {
 } from "lucide-react";
 import { ServicesSection } from "@/components/vendas/ServicesSection";
 import { QuotesSection } from "@/components/vendas/QuotesSection";
+
 
 export type ProspectStage =
   | "Prospectar" | "Abordar" | "Não Respondeu" | "Oferta Feita" | "Pensando" | "Não Quis";
@@ -32,21 +34,52 @@ const demandPipeline = ["Rascunho", "Aprovação Copy", "Copy Aprovado", "Aprova
 const tabs: { id: SalesTab; label: string; icon: typeof LayoutGrid }[] = [
   { id: "home", label: "Home", icon: LayoutGrid },
   { id: "prospects", label: "Prospects", icon: Users },
-  { id: "servicos", label: "Serviços", icon: Briefcase },
+  { id: "servicos", label: "Catálogo", icon: Briefcase },
   { id: "orcamentos", label: "Orçamentos", icon: FileText },
   { id: "clientes", label: "Clientes", icon: Users },
   { id: "ranking", label: "Ranking", icon: Trophy },
   { id: "demandas", label: "Demandas", icon: Calendar },
 ];
 
+const tabAliases: Record<string, SalesTab> = {
+  catalogo: "servicos",
+  servicos: "servicos",
+  produtos: "servicos",
+  planos: "servicos",
+  checkout: "servicos",
+  orcamentos: "orcamentos",
+  prospects: "prospects",
+  clientes: "clientes",
+  ranking: "ranking",
+  demandas: "demandas",
+  home: "home",
+};
+
 export default function Vendas() {
-  const [activeTab, setActiveTab] = useState<SalesTab>("home");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = (tabAliases[searchParams.get("tab") ?? ""] ?? "home") as SalesTab;
+  const [activeTab, setActiveTab] = useState<SalesTab>(initialTab);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [newProspectOpen, setNewProspectOpen] = useState(false);
   const [newServiceOpen, setNewServiceOpen] = useState(false);
   const [newClientOpen, setNewClientOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
   const [prospects, setProspects] = useState<Prospect[]>([]);
+
+  useEffect(() => {
+    const t = tabAliases[searchParams.get("tab") ?? ""];
+    if (t && t !== activeTab) setActiveTab(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  const changeTab = (id: SalesTab) => {
+    setActiveTab(id);
+    const next = new URLSearchParams(searchParams);
+    if (id === "home") next.delete("tab");
+    else next.set("tab", id);
+    setSearchParams(next, { replace: true });
+  };
+
 
   const addProspect = (prospect: QuickAddProspectPayload) => {
     const newProspect: Prospect = {
