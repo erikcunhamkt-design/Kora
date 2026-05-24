@@ -53,7 +53,18 @@ export function useAutomations() {
     setRules((prev) => prev.filter((r) => r.id !== id));
   }, []);
 
-  const simulateExecution = useCallback(() => setExecutions((n) => n + 1), []);
+  const simulateExecution = useCallback(() => {
+    setExecutions((n) => n + 1);
+    emitNotification({
+      title: "Automação executada",
+      description: "Uma automação simulada foi disparada com sucesso.",
+      category: "system",
+      type: "info",
+      priority: "low",
+      actionLabel: "Ver automações",
+      actionRoute: "/automacoes",
+    });
+  }, []);
 
   return { rules, executions, addRule, toggleRule, deleteRule, simulateExecution };
 }
