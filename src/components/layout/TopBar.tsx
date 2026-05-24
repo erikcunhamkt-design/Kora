@@ -32,6 +32,7 @@ export function TopBar() {
   const [supportOpen, setSupportOpen] = useState(false);
   const [inboxOpen, setInboxOpen] = useState(false);
   const [creditsOpen, setCreditsOpen] = useState(false);
+  const [dayOpen, setDayOpen] = useState(false);
   const { tickets } = useSupportTickets();
   const { unreadCount, hasHighPriorityUnread } = useNotificationsCenter();
   const { balance } = useAiCredits();
