@@ -190,6 +190,9 @@ const seed: AiAgent[] = [
     isDemo: true,
     badges: ["simulated", "uses-credits"],
     examples: ["Detectar revisões extras", "Mensagem de alinhamento", "Sugerir cobrança adicional"],
+    mission: "Proteger margem e prazo contra escopo creep",
+    dataSources: ["revisões", "checklist", "timeline"],
+    capabilities: ["Detecção de creep", "Mensagem de alinhamento", "Cobrança sugerida"],
   },
   {
     id: "agent-operations",
@@ -205,6 +208,9 @@ const seed: AiAgent[] = [
     isDemo: true,
     badges: ["simulated", "uses-credits"],
     examples: ["Briefing → tarefas", "Checklist de entrega", "Detectar atrasos"],
+    mission: "Garantir entrega no prazo com qualidade",
+    dataSources: ["projetos", "tarefas", "checklists"],
+    capabilities: ["Decomposição", "Checklist", "Alerta de atraso"],
   },
   {
     id: "agent-automation-architect",
@@ -220,6 +226,9 @@ const seed: AiAgent[] = [
     isDemo: true,
     badges: ["simulated", "uses-credits"],
     examples: ['"Quando orçamento aprovado, criar projeto e cobrança"', "Sugestão de gatilhos", "Sugestão de ações"],
+    mission: "Traduzir regras de negócio em automações operacionais",
+    dataSources: ["regras descritas", "fluxos existentes"],
+    capabilities: ["Gatilho", "Ação", "Sequência"],
   },
   {
     id: "agent-meeting",
@@ -235,6 +244,9 @@ const seed: AiAgent[] = [
     isDemo: true,
     badges: ["simulated", "uses-credits"],
     examples: ["Briefing pré-reunião", "Ata e follow-up", "Tarefas geradas"],
+    mission: "Preparar e documentar reuniões com contexto",
+    dataSources: ["histórico do cliente", "pendências", "calendário"],
+    capabilities: ["Pré-briefing", "Ata", "Tarefas pós-call"],
   },
 
   // ---------- Conteúdo ----------
