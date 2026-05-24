@@ -443,14 +443,8 @@ const CRM = () => {
 
       {/* View */}
       {view === "kanban" ? (
-        <div className="w-full max-w-full overflow-hidden">
-          <div className="flex gap-4 overflow-x-auto pb-4 pr-6 snap-x">{stages.length > 0 && null}</div>
-          <div className="flex gap-4 overflow-x-auto pb-4 pr-6 -mt-[calc(1rem+1px)]"></div>
-        </div>
-      ) : null}
-      {view === "kanban" ? (
         <div className="w-full max-w-full overflow-x-auto overflow-y-visible pb-4">
-          <div className="flex gap-4 pr-6 min-w-min">{/* kanban-track */}</div>
+          <div className="flex gap-4 pr-6 min-w-min">
           {stages.map((stage) => {
             const stageLeads = filtered.filter((l) => l.stageId === stage.id);
             const stageTotal = stageLeads.reduce((s, l) => s + l.estimatedValue, 0);
