@@ -33,6 +33,9 @@ export function NewClientTypeDialog({ open, onOpenChange, onCreated, initialName
     onOpenChange(false);
   };
 
+  const NEW_TYPE_SENTINEL = "__new__";
+  void NEW_TYPE_SENTINEL;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[420px] bg-card border-border">
