@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/sheet";
 import {
   Plus, FileText, Link2, Send, MoreHorizontal, Copy, Trash2, Pencil,
-  CheckCircle2, Clock, FileQuestion, Search, Archive, ExternalLink,
+  CheckCircle2, Clock, FileQuestion, Search, Archive, ExternalLink, Info,
 } from "lucide-react";
 import { useBriefings, type Briefing, type BriefingStatus } from "@/hooks/useBriefings";
 import { useBriefingTemplates, type BriefingTemplate } from "@/hooks/useBriefingTemplates";
@@ -53,6 +53,23 @@ export default function Briefings() {
   const [editingTpl, setEditingTpl] = useState<BriefingTemplate | null>(null);
   const [viewBriefing, setViewBriefing] = useState<Briefing | null>(null);
 
+  useEffect(() => {
+    if (params.get("new") === "1") {
+      setDefaultTplId(undefined);
+      setCreateOpen(true);
+      const next = new URLSearchParams(params);
+      next.delete("new");
+      setParams(next, { replace: true });
+    } else if (params.get("new") === "tpl") {
+      setEditingTpl(null);
+      setTplOpen(true);
+      const next = new URLSearchParams(params);
+      next.delete("new");
+      setParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return briefings;
@@ -79,7 +96,7 @@ export default function Briefings() {
   const handleSend = (b: Briefing) => {
     markSent(b.id);
     copyLink(b.publicToken);
-    toast({ title: "Briefing enviado", description: `Link copiado. Compartilhe com ${b.clientName}.` });
+    toast({ title: "Marcado como enviado", description: `Link copiado para a área de transferência. Envie manualmente para ${b.clientName}.` });
   };
 
   return (
@@ -98,6 +115,13 @@ export default function Briefings() {
           </>
         }
       />
+
+      <div className="flex items-start gap-2 rounded-lg border border-border/60 bg-secondary/30 px-3 py-2 text-xs text-muted-foreground">
+        <Info className="h-3.5 w-3.5 mt-0.5 text-primary/80 shrink-0" />
+        <p>
+          Versão inicial local: links e respostas ficam salvos no seu navegador. Envio por e-mail, uploads de arquivo e sincronização com Supabase serão liberados em breve.
+        </p>
+      </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
