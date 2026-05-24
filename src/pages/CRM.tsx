@@ -51,18 +51,27 @@ const origins = ["Indicação", "Instagram", "LinkedIn", "Site", "WhatsApp", "Ou
 const formatCurrency = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0 });
 
-const SummaryCard = ({ icon: Icon, label, value, sub }: { icon: any; label: string; value: string; sub?: string }) => (
-  <div className="orbit-card p-4 flex items-center gap-4">
-    <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-      <Icon className="h-5 w-5 text-primary" />
+const SummaryCard = ({ icon: Icon, label, value, sub, accent }: { icon: any; label: string; value: string; sub?: string; accent?: "primary" | "success" | "danger" | "muted" }) => {
+  const tone =
+    accent === "success" ? "text-emerald-400 bg-emerald-500/10"
+    : accent === "danger" ? "text-destructive bg-destructive/10"
+    : accent === "muted" ? "text-muted-foreground bg-muted/60"
+    : "text-primary bg-primary/10";
+  return (
+    <div className="orbit-card px-3.5 py-2.5 flex items-center gap-3 min-h-0">
+      <div className={`h-8 w-8 rounded-md flex items-center justify-center shrink-0 ${tone}`}>
+        <Icon className="h-4 w-4" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-[11px] uppercase tracking-wide text-muted-foreground/80 truncate leading-tight">{label}</p>
+        <div className="flex items-baseline gap-1.5">
+          <p className="text-base font-bold text-foreground leading-tight truncate">{value}</p>
+          {sub && <p className="text-[10px] text-muted-foreground truncate">{sub}</p>}
+        </div>
+      </div>
     </div>
-    <div className="min-w-0">
-      <p className="text-xs text-muted-foreground truncate">{label}</p>
-      <p className="text-xl font-bold text-foreground">{value}</p>
-      {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
-    </div>
-  </div>
-);
+  );
+};
 
 const CRM = () => {
   const {
