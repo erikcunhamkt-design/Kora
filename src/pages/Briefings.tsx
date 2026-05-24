@@ -116,6 +116,13 @@ export default function Briefings() {
         }
       />
 
+      <div className="flex items-start gap-2 rounded-lg border border-border/60 bg-secondary/30 px-3 py-2 text-xs text-muted-foreground">
+        <Info className="h-3.5 w-3.5 mt-0.5 text-primary/80 shrink-0" />
+        <p>
+          Versão inicial local: links e respostas ficam salvos no seu navegador. Envio por e-mail, uploads de arquivo e sincronização com Supabase serão liberados em breve.
+        </p>
+      </div>
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
           { label: "Total", value: stats.total, icon: FileText, accent: "text-foreground" },
