@@ -442,22 +442,23 @@ const CRM = () => {
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={() => handleDrop(stage)}
               >
-                <div className="orbit-card p-3 mb-3 border-t-2" style={{ borderTopColor: stage.color }}>
-                  <div className="flex items-center justify-between">
+                <div className="mb-2.5 px-1">
+                  <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
-                      <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: stage.color }} />
-                      <h3 className="text-sm font-semibold text-foreground truncate">{stage.name}</h3>
-                      {stage.type === "won" && <Badge variant="outline" className="text-[9px] border-emerald-500/40 text-emerald-400">ganho</Badge>}
-                      {stage.type === "lost" && <Badge variant="outline" className="text-[9px] border-destructive/40 text-destructive">perdido</Badge>}
+                      <span className="h-2.5 w-2.5 rounded-sm shrink-0" style={{ backgroundColor: stage.color }} />
+                      <h3 className="text-[13px] font-semibold text-foreground truncate uppercase tracking-wide">{stage.name}</h3>
+                      {stage.type === "won" && <Badge variant="outline" className="text-[9px] border-emerald-500/40 text-emerald-400 px-1.5 py-0">ganho</Badge>}
+                      {stage.type === "lost" && <Badge variant="outline" className="text-[9px] border-destructive/40 text-destructive px-1.5 py-0">perdido</Badge>}
                     </div>
-                    <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{stageLeads.length}</span>
+                    <span className="text-[11px] font-medium text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded-md min-w-[22px] text-center">{stageLeads.length}</span>
                   </div>
                   {stageTotal > 0 && (
-                    <p className="text-xs text-muted-foreground mt-1.5">{formatCurrency(stageTotal)}</p>
+                    <p className="text-[11px] text-muted-foreground mt-1 pl-4">{formatCurrency(stageTotal)}</p>
                   )}
+                  <div className="mt-2 h-px w-full" style={{ background: `linear-gradient(to right, ${stage.color}55, transparent)` }} />
                 </div>
 
-                <div className="space-y-2.5 min-h-[120px]">
+                <div className="space-y-2 min-h-[120px]">
                   {stageLeads.map((lead) => (
                     <LeadCard
                       key={lead.id}
@@ -486,12 +487,9 @@ const CRM = () => {
                   ))}
 
                   {stageLeads.length === 0 && (
-                    <div className="orbit-card border-dashed p-6 flex flex-col items-center justify-center text-center gap-1.5">
-                      <div className="h-8 w-8 rounded-full bg-muted/50 flex items-center justify-center">
-                        <Sparkles className="h-4 w-4 text-muted-foreground/60" />
-                      </div>
-                      <p className="text-xs text-muted-foreground">Nenhum lead aqui</p>
-                      <p className="text-[10px] text-muted-foreground/60">Arraste cards para esta etapa</p>
+                    <div className="border border-dashed border-border/60 rounded-lg p-5 flex flex-col items-center justify-center text-center gap-1">
+                      <p className="text-[11px] text-muted-foreground/70">Vazio</p>
+                      <p className="text-[10px] text-muted-foreground/50">Arraste cards aqui</p>
                     </div>
                   )}
                 </div>
