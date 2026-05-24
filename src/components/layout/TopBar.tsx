@@ -1,4 +1,4 @@
-import { Search, Bell, LogOut, User, ChevronDown, Crown, Zap } from "lucide-react";
+import { Search, Bell, LogOut, User, ChevronDown, Crown, Zap, Headphones } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -6,6 +6,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePlan } from "@/contexts/PlanContext";
 import { CommandCenter } from "@/components/command/CommandCenter";
+import { SupportCenter } from "@/components/support/SupportCenter";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,6 +21,7 @@ export function TopBar() {
   const { profile, signOut } = useAuth();
   const { isPro, plan } = usePlan();
   const [cmdOpen, setCmdOpen] = useState(false);
+  const [supportOpen, setSupportOpen] = useState(false);
 
   const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 
@@ -69,6 +71,14 @@ export function TopBar() {
           </span>
         )}
 
+        <button
+          onClick={() => setSupportOpen(true)}
+          aria-label="Suporte"
+          className="p-2.5 rounded-lg hover:bg-muted/40 transition-all duration-150 press-effect"
+        >
+          <Headphones className="h-4 w-4 text-muted-foreground" />
+        </button>
+
         <button className="relative p-2.5 rounded-lg hover:bg-muted/40 transition-all duration-150 press-effect">
           <Bell className="h-4 w-4 text-muted-foreground" />
           <span className="absolute top-2 right-2 h-1.5 w-1.5 rounded-full orbit-gradient shadow-[0_0_6px_hsl(263_84%_58%/0.5)]" />
@@ -117,6 +127,7 @@ export function TopBar() {
         </DropdownMenu>
       </div>
       <CommandCenter open={cmdOpen} onOpenChange={setCmdOpen} />
+      <SupportCenter open={supportOpen} onOpenChange={setSupportOpen} />
     </header>
   );
 }
