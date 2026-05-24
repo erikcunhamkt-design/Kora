@@ -659,12 +659,14 @@ const ListView = ({
               <TaskRow
                 key={t.id}
                 task={t}
+                taskProjects={taskProjects}
                 onSelect={onSelect}
                 onToggleComplete={onToggleComplete}
                 onArchive={onArchive}
                 onUnarchive={onUnarchive}
                 onDuplicate={onDuplicate}
                 onDelete={onDelete}
+                onMoveToProject={onMoveToProject}
               />
             ))}
           </div>
