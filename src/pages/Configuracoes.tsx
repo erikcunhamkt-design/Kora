@@ -52,6 +52,7 @@ import { useAppSettings, type NotificationSettings } from "@/hooks/useAppSetting
 import { useOnboarding } from "@/contexts/OnboardingContext";
 import { SupportDrawer } from "@/components/support/SupportDrawer";
 import { ClientPortalSection } from "@/components/settings/ClientPortalSection";
+import { PlanSection } from "@/components/settings/PlanSection";
 
 
 const NAV_ITEMS: SettingsNavItem[] = [
