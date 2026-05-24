@@ -1108,6 +1108,26 @@ const NewTaskDialog = ({ open, onOpenChange, onCreate, taskProjects }: {
               </SelectContent>
             </Select>
           </div>
+          <div className={cn("space-y-2", reminderPreset === "custom" ? "" : "sm:col-span-2")}>
+            <Label className="text-sm text-muted-foreground flex items-center gap-1.5"><Bell className="h-3.5 w-3.5" /> Lembrete</Label>
+            <Select value={reminderPreset} onValueChange={(v) => setReminderPreset(v as ReminderPreset)}>
+              <SelectTrigger className="bg-muted/40"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {(Object.keys(REMINDER_PRESET_LABELS) as ReminderPreset[]).map(k =>
+                  <SelectItem key={k} value={k}>{REMINDER_PRESET_LABELS[k]}</SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+          {reminderPreset === "custom" && (
+            <div className="space-y-2">
+              <Label className="text-sm text-muted-foreground">Data e hora do lembrete</Label>
+              <Input type="datetime-local" name="reminderCustom" className="bg-muted/40" />
+            </div>
+          )}
+          <p className="sm:col-span-2 text-[11px] text-muted-foreground -mt-1">
+            Lembretes locais funcionam enquanto o app estiver aberto. Integração com Google Calendar será adicionada futuramente.
+          </p>
           <div className="sm:col-span-2 space-y-2">
             <Label className="text-sm text-muted-foreground">Etiquetas (vírgulas)</Label>
             <Input name="tags" placeholder="Ex: branding, logo" className="bg-muted/40" />
