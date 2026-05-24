@@ -109,7 +109,7 @@ const Configuracoes = () => {
   const initialTab = TAB_ALIASES[searchParams.get("tab") ?? ""] ?? searchParams.get("tab") ?? "profile";
   const [active, setActive] = useState(initialTab);
   const [supportOpen, setSupportOpen] = useState(false);
-  const { profile, company, notifications, publicLinks, updateProfile, updateCompany, updatePublicLinks, toggleNotification } = useAppSettings();
+  const { profile, company, notifications, publicLinks, clientPortal, updateProfile, updateCompany, updatePublicLinks, updateClientPortal, resetClientPortal, toggleNotification } = useAppSettings();
   const { resetOnboarding } = useOnboarding();
 
   useEffect(() => {
