@@ -47,8 +47,8 @@ export default function Vendas() {
   };
 
   return (
-    <div className="min-h-full -m-6 bg-background text-foreground">
-      <header className="sticky top-0 z-30 border-b border-border/60 bg-background/90 backdrop-blur">
+    <div className="min-h-full -m-6 bg-background text-foreground overflow-x-hidden">
+      <header className="sticky top-0 z-30 border-b border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <div className="flex flex-col gap-3 px-6 py-4">
           <div className="min-w-0">
             <div className="text-[0.625rem] uppercase tracking-[0.12em] text-muted-foreground/60">
