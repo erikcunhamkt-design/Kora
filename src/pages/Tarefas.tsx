@@ -489,6 +489,7 @@ const Tarefas = () => {
       {view === "kanban" ? (
         <KanbanView
           tasks={visibleTasks}
+          taskProjects={taskProjects}
           draggedId={draggedId}
           setDraggedId={setDraggedId}
           onSelect={setSelectedTask}
@@ -498,18 +499,30 @@ const Tarefas = () => {
         <ListView
           view={view}
           tasks={visibleTasks}
+          taskProjects={taskProjects}
           onSelect={setSelectedTask}
           onToggleComplete={handleToggleComplete}
           onArchive={(id) => archiveTask(id, true)}
           onUnarchive={(id) => archiveTask(id, false)}
           onDuplicate={duplicateTask}
           onDelete={(t) => setConfirmDelete(t)}
+          onMoveToProject={(taskId, projectId) => {
+            const p = taskProjects.find(x => x.id === projectId);
+            updateTask(taskId, { taskProjectId: projectId, scope: p?.type === "personal" ? "personal" : "work" });
+            toast({ title: "Tarefa movida", description: p?.name });
+          }}
         />
       )}
 
-      <NewTaskDialog open={newTaskOpen} onOpenChange={setNewTaskOpen} onCreate={addTask} />
+      <NewTaskDialog
+        open={newTaskOpen}
+        onOpenChange={setNewTaskOpen}
+        onCreate={addTask}
+        taskProjects={taskProjects}
+      />
       <TaskDetailSheet
         task={selectedTask}
+        taskProjects={taskProjects}
         onClose={() => setSelectedTask(null)}
         onMove={moveTask}
         onToggleSubtask={toggleSubtask}
@@ -519,6 +532,30 @@ const Tarefas = () => {
         onArchive={(id, v) => { archiveTask(id, v); toast({ title: v ? "Tarefa arquivada" : "Tarefa restaurada" }); setSelectedTask(null); }}
         onDelete={(t) => setConfirmDelete(t)}
       />
+
+      <ProjectsSheet
+        open={projectsOpen}
+        onOpenChange={setProjectsOpen}
+        projects={taskProjects}
+        tasks={tasks}
+        onAdd={(name, type) => { addTaskProject({ name, type }); }}
+        onRename={renameTaskProject}
+        onArchive={archiveTaskProject}
+        onDelete={(id) => {
+          const used = tasks.some(t => (t.taskProjectId ?? "tp-noproject") === id);
+          if (used) {
+            const ok = window.confirm("Este projeto contém tarefas. Excluir mesmo assim? As tarefas serão movidas para Sem projeto.");
+            if (!ok) return;
+            tasks.forEach(t => {
+              if ((t.taskProjectId ?? "tp-noproject") === id) updateTask(t.id, { taskProjectId: "tp-noproject" });
+            });
+          }
+          deleteTaskProject(id);
+          toast({ title: "Projeto excluído" });
+        }}
+        onFilter={(id) => { setFilterTaskProject(id); setProjectsOpen(false); }}
+      />
+
 
       <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
         <AlertDialogContent>
