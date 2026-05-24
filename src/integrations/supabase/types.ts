@@ -14,6 +14,60 @@ export type Database = {
   }
   public: {
     Tables: {
+      client_signup_requests: {
+        Row: {
+          company: string | null
+          consent: boolean
+          converted_client_id: string | null
+          created_at: string
+          document: string | null
+          email: string | null
+          id: string
+          message: string | null
+          name: string
+          owner_id: string
+          phone: string | null
+          project_interest: string | null
+          source: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          company?: string | null
+          consent?: boolean
+          converted_client_id?: string | null
+          created_at?: string
+          document?: string | null
+          email?: string | null
+          id?: string
+          message?: string | null
+          name: string
+          owner_id: string
+          phone?: string | null
+          project_interest?: string | null
+          source?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          company?: string | null
+          consent?: boolean
+          converted_client_id?: string | null
+          created_at?: string
+          document?: string | null
+          email?: string | null
+          id?: string
+          message?: string | null
+          name?: string
+          owner_id?: string
+          phone?: string | null
+          project_interest?: string | null
+          source?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
