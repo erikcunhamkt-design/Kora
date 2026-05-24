@@ -609,15 +609,6 @@ const ListView = ({
   onDelete: (t: Task) => void;
   onMoveToProject: (taskId: number, projectId: string) => void;
 }) => {
-  view: ViewKey;
-  tasks: Task[];
-  onSelect: (t: Task) => void;
-  onToggleComplete: (t: Task) => void;
-  onArchive: (id: number) => void;
-  onUnarchive: (id: number) => void;
-  onDuplicate: (id: number) => void;
-  onDelete: (t: Task) => void;
-}) => {
   const groups = useMemo(() => {
     const g: { key: string; label: string; items: Task[] }[] = [];
     const push = (key: string, label: string, items: Task[]) => {
