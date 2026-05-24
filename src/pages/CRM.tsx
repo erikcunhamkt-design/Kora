@@ -996,6 +996,11 @@ const NewLeadDialog = ({
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
           <Button className="orbit-gradient text-white border-0" onClick={handleSave}>Adicionar lead</Button>
         </DialogFooter>
+        <NewClientTypeDialog
+          open={typeDialogOpen}
+          onOpenChange={setTypeDialogOpen}
+          onCreated={(name) => set("serviceType", name)}
+        />
       </DialogContent>
     </Dialog>
   );
