@@ -252,6 +252,51 @@ const Configuracoes = () => {
             </SettingsSection>
           )}
 
+          {active === "links" && (
+            <SettingsSection title="Links públicos" description="Slugs que apontam para suas páginas externas.">
+              <SettingsCard>
+                <div className="space-y-4">
+                  <PublicLinkRow
+                    label="Página pública"
+                    hint="Perfil completo do seu estúdio"
+                    basePath="/p/"
+                    slug={linksDraft.profileSlug}
+                    onChange={(v) => setLinksDraft({ ...linksDraft, profileSlug: v })}
+                  />
+                  <PublicLinkRow
+                    label="Link da bio"
+                    hint="Página estilo linktree"
+                    basePath="/bio/"
+                    slug={linksDraft.bioSlug}
+                    onChange={(v) => setLinksDraft({ ...linksDraft, bioSlug: v })}
+                  />
+                  <PublicLinkRow
+                    label="Agendamento"
+                    hint="Página de agendamento de horários"
+                    basePath="/agendar/"
+                    slug={linksDraft.bookingSlug}
+                    onChange={(v) => setLinksDraft({ ...linksDraft, bookingSlug: v })}
+                  />
+                </div>
+                <div className="flex justify-end mt-6">
+                  <Button
+                    onClick={() => {
+                      updatePublicLinks(linksDraft);
+                      toast.success("Links públicos atualizados");
+                    }}
+                  >
+                    Salvar links
+                  </Button>
+                </div>
+              </SettingsCard>
+              <p className="text-xs text-muted-foreground px-1">
+                Domínio oficial será configurado em uma etapa futura. Por enquanto usamos o endereço atual.
+              </p>
+            </SettingsSection>
+          )}
+
+
+
           {active === "appearance" && (
             <SettingsSection title="Aparência" description="Personalize o visual do KORA HUB.">
               <SettingsCard title="Tema" description="Modo escuro está ativo. Outros temas em breve.">
