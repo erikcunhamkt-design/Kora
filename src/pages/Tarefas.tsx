@@ -693,20 +693,24 @@ const sortByDueOrPriority = (a: Task, b: Task) => {
 /* ------------------------------------------------------------------ */
 
 const TaskRow = ({
-  task, onSelect, onToggleComplete, onArchive, onUnarchive, onDuplicate, onDelete,
+  task, taskProjects, onSelect, onToggleComplete, onArchive, onUnarchive, onDuplicate, onDelete, onMoveToProject,
 }: {
   task: Task;
+  taskProjects: TaskProject[];
   onSelect: (t: Task) => void;
   onToggleComplete: (t: Task) => void;
   onArchive: (id: number) => void;
   onUnarchive: (id: number) => void;
   onDuplicate: (id: number) => void;
   onDelete: (t: Task) => void;
+  onMoveToProject: (taskId: number, projectId: string) => void;
 }) => {
   const done = task.status === "concluido";
   const overdue = isOverdue(task);
   const subsDone = task.subtasks.filter(s => s.done).length;
   const prio = priorityMeta[task.priority];
+  const isPersonal = (task.scope ?? "work") === "personal";
+  const tProj = taskProjects.find(p => p.id === (task.taskProjectId ?? "tp-noproject"));
 
   return (
     <div
