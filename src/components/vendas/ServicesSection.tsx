@@ -47,6 +47,7 @@ export function ServicesSection() {
 
   return (
     <div className="space-y-6">
+      <style>{koraInputStyle}</style>
       <header className="flex flex-col gap-1">
         <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-primary">
           <Sparkles className="h-3.5 w-3.5" /> Catálogo Comercial
