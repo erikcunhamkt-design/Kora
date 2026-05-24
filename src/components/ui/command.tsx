@@ -49,9 +49,6 @@ const CommandInput = React.forwardRef<
       )}
       {...props}
     />
-    <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium bg-muted rounded border border-border/40 text-muted-foreground ml-2 shrink-0">
-      Esc
-    </kbd>
   </div>
 ));
 
