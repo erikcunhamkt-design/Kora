@@ -771,6 +771,23 @@ const TaskRow = ({
           <Badge variant="outline" className={cn("text-[10px] h-4.5 py-0", statusBadgeStyle[task.status])}>
             {statusLabels[task.status]}
           </Badge>
+          {isPersonal && (
+            <Badge variant="outline" className="text-[10px] h-4.5 py-0 bg-pink-500/10 text-pink-400 border-pink-500/25">
+              <User className="h-2.5 w-2.5 mr-1" /> Pessoal
+            </Badge>
+          )}
+          {tProj && tProj.id !== "tp-noproject" && (
+            <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+              <span className="h-2 w-2 rounded-full" style={{ background: tProj.color }} />
+              {tProj.name}
+            </span>
+          )}
+          {task.reminderEnabled && task.reminderAt && (
+            <span className="inline-flex items-center gap-1 text-[10px] text-primary">
+              <BellRing className="h-3 w-3" />
+              {new Date(task.reminderAt).toLocaleString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+            </span>
+          )}
           {task.tags.slice(0, 3).map(tg => (
             <span key={tg} className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">#{tg}</span>
           ))}
