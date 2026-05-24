@@ -194,13 +194,13 @@ export function DayCenter({ open, onOpenChange }: Props) {
                 {totalPending > 0 && (
                   <Badge
                     variant="outline"
-                    className="h-5 px-1.5 text-[10px] font-semibold bg-primary/10 text-primary border-primary/30"
+                    className="h-5 px-2 text-[10px] font-semibold bg-primary/10 text-primary border-primary/30"
                   >
-                    {totalPending}
+                    {totalPending} {totalPending === 1 ? "item" : "itens"}
                   </Badge>
                 )}
               </SheetTitle>
-              <SheetDescription className="text-[0.75rem] text-muted-foreground/80">
+              <SheetDescription className="text-[0.78rem] text-muted-foreground">
                 O que precisa da sua atenção agora
               </SheetDescription>
             </div>
@@ -244,23 +244,23 @@ export function DayCenter({ open, onOpenChange }: Props) {
                           <Icon className="h-4 w-4" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <p className="text-[0.8125rem] font-medium text-foreground truncate">
+                          <div className="flex items-start gap-2">
+                            <p className="text-[0.8125rem] font-medium text-foreground line-clamp-2 leading-snug flex-1">
                               {item.title}
                             </p>
                             <Badge
                               variant="outline"
-                              className="h-4 px-1 text-[9px] font-medium border-border/60 text-muted-foreground/80"
+                              className="h-4 px-1 text-[9px] font-medium border-border/60 text-muted-foreground shrink-0 mt-0.5"
                             >
                               {item.category}
                             </Badge>
                           </div>
-                          <p className="text-[0.7rem] text-muted-foreground/80 truncate mt-0.5">
+                          <p className="text-[0.7rem] text-muted-foreground truncate mt-1">
                             {item.description}
                           </p>
                         </div>
-                        <div className="flex items-center gap-1 text-[0.7rem] text-primary/80 group-hover:text-primary shrink-0">
-                          <span className="hidden sm:inline">{item.action}</span>
+                        <div className="flex items-center gap-1 text-[0.7rem] font-medium text-primary/90 group-hover:text-primary shrink-0 self-center">
+                          <span className="hidden sm:inline whitespace-nowrap">{item.action}</span>
                           <ChevronRight className="h-3.5 w-3.5" />
                         </div>
                       </button>
@@ -289,12 +289,12 @@ export function DayCenter({ open, onOpenChange }: Props) {
                         className="w-full text-left flex items-center gap-3 px-3 py-2 rounded-lg border border-border/50 bg-card hover:bg-muted/20 transition-colors"
                       >
                         <div className="flex flex-col items-center justify-center w-12 shrink-0">
-                          <span className="text-[0.7rem] text-muted-foreground/70">Hoje</span>
-                          <span className="text-[0.8125rem] font-semibold text-foreground tabular-nums">{a.time}</span>
+                          <span className="text-[0.65rem] text-muted-foreground uppercase tracking-wide">Hoje</span>
+                          <span className="text-[0.875rem] font-semibold text-foreground tabular-nums">{a.time}</span>
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-[0.8125rem] font-medium truncate">{a.name}</p>
-                          <p className="text-[0.7rem] text-muted-foreground/80 truncate">
+                          <p className="text-[0.8125rem] font-medium text-foreground truncate">{a.name}</p>
+                          <p className="text-[0.7rem] text-muted-foreground truncate">
                             {mt?.name ?? "Reunião"} · {mt?.durationMinutes ?? 30} min
                           </p>
                         </div>
@@ -321,24 +321,27 @@ export function DayCenter({ open, onOpenChange }: Props) {
                 />
               ) : (
                 <div className="space-y-1.5">
-                  {data.highTasks.map((t) => (
+                  {data.highTasks.slice(0, 4).map((t) => (
                     <button
                       key={t.id}
                       onClick={() => go("/tarefas")}
-                      className="w-full text-left flex items-center gap-3 px-3 py-2 rounded-lg border border-border/50 bg-card hover:bg-muted/20 transition-colors"
+                      className="w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-lg border border-border/50 bg-card hover:bg-muted/20 transition-colors"
                     >
                       <Clock className="h-3.5 w-3.5 text-primary/80 shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-[0.8125rem] font-medium truncate">{t.title}</p>
-                        <p className="text-[0.7rem] text-muted-foreground/80 truncate">
+                        <p className="text-[0.8125rem] font-medium text-foreground truncate">{t.title}</p>
+                        <p className="text-[0.7rem] text-muted-foreground truncate">
                           {t.client} · {t.deadline}
                         </p>
                       </div>
-                      <Badge variant="outline" className="h-4 px-1 text-[9px] border-primary/30 text-primary/90">
+                      <Badge variant="outline" className="h-5 px-1.5 text-[10px] font-semibold border-primary/40 text-primary bg-primary/[0.06]">
                         {t.priority}
                       </Badge>
                     </button>
                   ))}
+                  {data.highTasks.length > 0 && (
+                    <SeeAllLink label="Ver todas as tarefas" onClick={() => go("/tarefas")} />
+                  )}
                 </div>
               )}
             </Section>
@@ -353,24 +356,25 @@ export function DayCenter({ open, onOpenChange }: Props) {
                 />
               ) : (
                 <div className="space-y-1.5">
-                  {data.followUps.map((l) => (
+                  {data.followUps.slice(0, 3).map((l) => (
                     <button
                       key={l.id}
                       onClick={() => go("/crm")}
-                      className="w-full text-left flex items-center gap-3 px-3 py-2 rounded-lg border border-border/50 bg-card hover:bg-muted/20 transition-colors"
+                      className="w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-lg border border-border/50 bg-card hover:bg-muted/20 transition-colors"
                     >
                       <div className="h-7 w-7 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-[0.65rem] font-semibold text-primary shrink-0">
                         {l.name.split(" ").map((n) => n[0]).slice(0, 2).join("")}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-[0.8125rem] font-medium truncate">{l.name}</p>
-                        <p className="text-[0.7rem] text-muted-foreground/80 truncate">
+                        <p className="text-[0.8125rem] font-medium text-foreground truncate">{l.name}</p>
+                        <p className="text-[0.7rem] text-muted-foreground truncate">
                           {l.nextAction ?? `${l.company} · ${l.stage}`}
                         </p>
                       </div>
                       <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                     </button>
                   ))}
+                  <SeeAllLink label="Ver todos no CRM" onClick={() => go("/crm")} />
                 </div>
               )}
             </Section>
@@ -385,33 +389,41 @@ export function DayCenter({ open, onOpenChange }: Props) {
                 />
               ) : (
                 <div className="space-y-1.5">
-                  {data.overdueFinance.map((t) => (
+                  {data.overdueFinance.slice(0, 3).map((t) => (
                     <button
                       key={t.id}
                       onClick={() => go("/financeiro")}
-                      className="w-full text-left flex items-center gap-3 px-3 py-2 rounded-lg border border-border/50 bg-card hover:bg-muted/20 transition-colors"
+                      className="w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-lg border border-border/50 bg-card hover:bg-muted/20 transition-colors"
                     >
                       <div
                         className={cn(
                           "h-7 w-7 rounded-md flex items-center justify-center shrink-0 border",
                           t.type === "income"
-                            ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-500/90"
-                            : "border-destructive/30 bg-destructive/10 text-destructive/90",
+                            ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-500"
+                            : "border-destructive/30 bg-destructive/10 text-destructive",
                         )}
                       >
                         <DollarSign className="h-3.5 w-3.5" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-[0.8125rem] font-medium truncate">{t.title}</p>
-                        <p className="text-[0.7rem] text-muted-foreground/80 truncate">
+                        <p className="text-[0.8125rem] font-medium text-foreground truncate">{t.title}</p>
+                        <p className="text-[0.7rem] text-muted-foreground truncate">
                           {t.clientName ?? t.category} · vence {t.dueDate}
                         </p>
                       </div>
-                      <span className="text-[0.8125rem] font-semibold tabular-nums">
+                      <span
+                        className={cn(
+                          "text-[0.875rem] font-semibold tabular-nums shrink-0",
+                          t.type === "income" ? "text-emerald-500" : "text-destructive",
+                        )}
+                      >
                         R$ {t.amount.toLocaleString("pt-BR")}
                       </span>
                     </button>
                   ))}
+                  {data.overdueFinance.length > 2 && (
+                    <SeeAllLink label="Abrir financeiro" onClick={() => go("/financeiro")} />
+                  )}
                 </div>
               )}
             </Section>
@@ -440,12 +452,12 @@ function MiniStat({
     emerald: "text-emerald-500/90 bg-emerald-500/10 border-emerald-500/20",
   } as const;
   return (
-    <div className="rounded-lg border border-border/50 bg-card/60 px-2 py-2 flex flex-col items-start gap-1">
+    <div className="rounded-lg border border-border/50 bg-card/60 px-2.5 py-2.5 flex flex-col items-start gap-1.5 min-w-0">
       <div className={cn("h-6 w-6 rounded-md border flex items-center justify-center", accentMap[accent])}>
         <Icon className="h-3 w-3" />
       </div>
-      <span className="text-[1.1rem] font-semibold tabular-nums leading-none">{value}</span>
-      <span className="text-[0.65rem] text-muted-foreground/80 uppercase tracking-wide">{label}</span>
+      <span className="text-[1.15rem] font-semibold tabular-nums leading-none text-foreground">{value}</span>
+      <span className="text-[0.625rem] font-semibold text-muted-foreground uppercase tracking-wider truncate w-full">{label}</span>
     </div>
   );
 }
@@ -461,12 +473,23 @@ function Section({
 }) {
   return (
     <section className="space-y-2">
-      <div className="flex items-baseline justify-between">
+      <div className="flex items-baseline justify-between gap-2">
         <h3 className="text-[0.8125rem] font-semibold text-foreground">{title}</h3>
-        {hint && <span className="text-[0.65rem] text-muted-foreground/70">{hint}</span>}
+        {hint && <span className="text-[0.7rem] text-muted-foreground truncate">{hint}</span>}
       </div>
       {children}
     </section>
+  );
+}
+
+function SeeAllLink({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="w-full text-center text-[0.7rem] font-medium text-primary/80 hover:text-primary py-1.5 transition-colors"
+    >
+      {label} →
+    </button>
   );
 }
 
@@ -482,12 +505,12 @@ function EmptyState({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="rounded-lg border border-dashed border-border/50 bg-muted/10 px-4 py-5 text-center flex flex-col items-center gap-2">
+    <div className="rounded-lg border border-dashed border-border/60 bg-muted/10 px-4 py-5 text-center flex flex-col items-center gap-2">
       <div className="h-8 w-8 rounded-full bg-muted/40 flex items-center justify-center">
-        <Icon className="h-4 w-4 text-muted-foreground/70" />
+        <Icon className="h-4 w-4 text-muted-foreground" />
       </div>
-      <p className="text-[0.8125rem] font-medium text-foreground/90">{title}</p>
-      <p className="text-[0.7rem] text-muted-foreground/70 max-w-[280px]">{description}</p>
+      <p className="text-[0.8125rem] font-medium text-foreground">{title}</p>
+      <p className="text-[0.7rem] text-muted-foreground max-w-[280px] leading-relaxed">{description}</p>
       {action && <div className="mt-1">{action}</div>}
     </div>
   );
