@@ -41,19 +41,19 @@ interface NotificationInboxProps {
 
 type Filter = "all" | "unread" | "important" | "archived";
 
-const CATEGORY_META: Record<NotificationCategory, { label: string; Icon: React.ComponentType<{ className?: string }>; tone: string }> = {
-  commercial: { label: "Comercial", Icon: ShoppingBag, tone: "text-primary" },
-  finance: { label: "Financeiro", Icon: Wallet, tone: "text-emerald-400" },
-  project: { label: "Projetos", Icon: ListChecks, tone: "text-sky-400" },
-  system: { label: "Sistema", Icon: SettingsIcon, tone: "text-muted-foreground" },
-  support: { label: "Suporte", Icon: LifeBuoy, tone: "text-amber-400" },
+const CATEGORY_META: Record<NotificationCategory, { label: string; Icon: React.ComponentType<{ className?: string }>; tone: string; bg: string }> = {
+  commercial: { label: "Comercial", Icon: ShoppingBag, tone: "text-primary/80", bg: "bg-primary/5" },
+  finance: { label: "Financeiro", Icon: Wallet, tone: "text-emerald-500/80", bg: "bg-emerald-500/5" },
+  project: { label: "Projetos", Icon: ListChecks, tone: "text-sky-400/80", bg: "bg-sky-400/5" },
+  system: { label: "Sistema", Icon: SettingsIcon, tone: "text-muted-foreground/70", bg: "bg-muted/30" },
+  support: { label: "Suporte", Icon: LifeBuoy, tone: "text-amber-400/80", bg: "bg-amber-400/5" },
 };
 
-const PRIORITY_STYLE: Record<NotificationPriority, string> = {
-  low: "border-border/50 text-muted-foreground",
-  medium: "border-border/60 text-muted-foreground",
-  high: "border-primary/40 text-primary",
-  critical: "border-primary/60 text-primary bg-primary/10",
+const PRIORITY_BADGE: Record<NotificationPriority, string> = {
+  low: "border-border/40 text-muted-foreground/60",
+  medium: "border-border/50 text-muted-foreground/80",
+  high: "border-primary/25 text-primary/80 bg-primary/[0.04]",
+  critical: "border-destructive/30 text-destructive/90 bg-destructive/[0.06]",
 };
 
 const PRIORITY_LABEL: Record<NotificationPriority, string> = {
@@ -64,10 +64,10 @@ const PRIORITY_LABEL: Record<NotificationPriority, string> = {
 };
 
 const TYPE_DOT: Record<NotificationType, string> = {
-  info: "bg-sky-400",
-  success: "bg-emerald-400",
-  warning: "bg-amber-400",
-  danger: "bg-primary",
+  info: "bg-sky-400/80",
+  success: "bg-emerald-400/80",
+  warning: "bg-amber-400/80",
+  danger: "bg-primary/80",
 };
 
 function relativeTime(iso: string): string {
