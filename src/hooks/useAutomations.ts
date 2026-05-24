@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { emitNotification } from "@/lib/notify";
 
 export type AutomationTrigger = "new_lead" | "new_client" | "quote_approved" | "task_overdue" | "whatsapp_keyword" | "manual";
 export type AutomationAction = "create_task" | "send_message" | "move_pipeline" | "notify" | "add_tag";
