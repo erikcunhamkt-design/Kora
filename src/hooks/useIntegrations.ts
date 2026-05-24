@@ -41,7 +41,21 @@ export function useIntegrations() {
   const toggleConnection = useCallback((id: string) => {
     setItems((prev) => prev.map((i) => {
       if (i.id !== id || i.status === "coming_soon") return i;
-      return { ...i, status: i.status === "connected" ? "disconnected" : "connected" };
+      const nextStatus: IntegrationStatus = i.status === "connected" ? "disconnected" : "connected";
+      emitNotification({
+        title: nextStatus === "connected" ? `${i.name} conectado` : `${i.name} desconectado`,
+        description: nextStatus === "connected"
+          ? "Integração ativada. Você pode usar esse recurso agora."
+          : "Integração desativada.",
+        category: "system",
+        type: nextStatus === "connected" ? "success" : "warning",
+        priority: "low",
+        actionLabel: "Ver integrações",
+        actionRoute: "/automacoes",
+        sourceId: i.id,
+        sourceType: "integration",
+      });
+      return { ...i, status: nextStatus };
     }));
   }, []);
 
