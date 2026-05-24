@@ -108,6 +108,18 @@ const Clientes = () => {
         actions={
           <>
             <UsageBadge resource="clients" label="clientes" />
+            <Button
+              variant="outline"
+              onClick={() => setSignupLinkOpen(true)}
+              className="gap-2 relative"
+            >
+              <Share2 className="h-4 w-4" /> Link de cadastro
+              {pendingCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 h-5 min-w-5 px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold flex items-center justify-center">
+                  {pendingCount}
+                </span>
+              )}
+            </Button>
             <Button onClick={handleNewClient} className="orbit-gradient text-white border-0 gap-2 shrink-0">
               <Plus className="h-4 w-4" /> Novo cliente
             </Button>
