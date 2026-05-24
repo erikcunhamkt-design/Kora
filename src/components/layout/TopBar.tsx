@@ -95,6 +95,16 @@ export function TopBar() {
         )}
 
         <button
+          onClick={() => setDayOpen(true)}
+          aria-label="Central do Dia"
+          title="Central do Dia"
+          className="relative flex items-center gap-1.5 px-2.5 md:px-3 py-2 rounded-lg border border-border/40 bg-muted/20 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-all duration-150 press-effect"
+        >
+          <CalendarCheck className="h-3.5 w-3.5" />
+          <span className="hidden md:inline text-[0.75rem] font-semibold">Hoje</span>
+        </button>
+
+        <button
           onClick={() => setCreditsOpen(true)}
           aria-label={`Créditos de IA: ${balance}`}
           title="Créditos de IA"
