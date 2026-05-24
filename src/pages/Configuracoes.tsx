@@ -30,6 +30,9 @@ import {
   History,
   ShieldCheck,
   FileText,
+  Link2,
+  Copy,
+  ExternalLink,
 } from "lucide-react";
 
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -50,6 +53,7 @@ import { SupportDrawer } from "@/components/support/SupportDrawer";
 const NAV_ITEMS: SettingsNavItem[] = [
   { id: "profile", label: "Perfil", icon: User },
   { id: "company", label: "Empresa", icon: Building2 },
+  { id: "links", label: "Links públicos", icon: Link2 },
   { id: "appearance", label: "Aparência", icon: Palette },
   { id: "notifications", label: "Notificações", icon: Bell },
   { id: "security", label: "Segurança", icon: Shield },
@@ -81,6 +85,7 @@ const ActiveBadge = () => (
 const TAB_ALIASES: Record<string, string> = {
   perfil: "profile",
   empresa: "company",
+  links: "links",
   aparencia: "appearance",
   notificacoes: "notifications",
   seguranca: "security",
@@ -95,7 +100,7 @@ const Configuracoes = () => {
   const initialTab = TAB_ALIASES[searchParams.get("tab") ?? ""] ?? searchParams.get("tab") ?? "profile";
   const [active, setActive] = useState(initialTab);
   const [supportOpen, setSupportOpen] = useState(false);
-  const { profile, company, notifications, updateProfile, updateCompany, toggleNotification } = useAppSettings();
+  const { profile, company, notifications, publicLinks, updateProfile, updateCompany, updatePublicLinks, toggleNotification } = useAppSettings();
   const { resetOnboarding } = useOnboarding();
 
   useEffect(() => {
@@ -113,6 +118,7 @@ const Configuracoes = () => {
   // local form drafts so saving feels intentional
   const [profileDraft, setProfileDraft] = useState(profile);
   const [companyDraft, setCompanyDraft] = useState(company);
+  const [linksDraft, setLinksDraft] = useState(publicLinks);
 
   const profileInitials = useMemo(() => initials(profileDraft.name), [profileDraft.name]);
   const companyInitials = useMemo(() => initials(companyDraft.name), [companyDraft.name]);
