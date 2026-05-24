@@ -1,4 +1,4 @@
-import { Search, Bell, LogOut, User, ChevronDown, Crown, Zap } from "lucide-react";
+import { Search, Bell, LogOut, User, ChevronDown, Crown, Zap, Headphones } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -6,6 +6,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePlan } from "@/contexts/PlanContext";
 import { CommandCenter } from "@/components/command/CommandCenter";
+import { SupportCenter } from "@/components/support/SupportCenter";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,6 +21,7 @@ export function TopBar() {
   const { profile, signOut } = useAuth();
   const { isPro, plan } = usePlan();
   const [cmdOpen, setCmdOpen] = useState(false);
+  const [supportOpen, setSupportOpen] = useState(false);
 
   const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 
