@@ -11,6 +11,7 @@ import { useSupportTickets } from "@/hooks/useSupportTickets";
 import { NotificationInbox } from "@/components/notifications/NotificationInbox";
 import { useNotificationsCenter } from "@/hooks/useNotificationsCenter";
 import { AiCreditsDrawer } from "@/components/credits/AiCreditsDrawer";
+import { DayCenter } from "@/components/day/DayCenter";
 import { useAiCredits } from "@/hooks/useAiCredits";
 import { cn } from "@/lib/utils";
 
