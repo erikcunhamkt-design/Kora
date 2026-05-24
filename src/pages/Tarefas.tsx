@@ -1040,20 +1040,38 @@ const NewTaskDialog = ({ open, onOpenChange, onCreate, taskProjects }: {
             <Label className="text-sm text-muted-foreground">Descrição</Label>
             <Textarea name="description" placeholder="Detalhes, contexto, links..." className="bg-muted/40 min-h-[80px]" />
           </div>
-          <div className="space-y-2">
-            <Label className="text-sm text-muted-foreground">Cliente</Label>
-            <Select name="client">
-              <SelectTrigger className="bg-muted/40"><SelectValue placeholder="Selecione" /></SelectTrigger>
-              <SelectContent>{clientsList.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-            </Select>
+          <div className="sm:col-span-2 space-y-2">
+            <Label className="text-sm text-muted-foreground">Tipo</Label>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setScope("work")}
+                className={cn("flex-1 h-10 rounded-lg border text-sm font-medium inline-flex items-center justify-center gap-2 transition-colors",
+                  scope === "work" ? "border-primary/50 bg-primary/10 text-primary" : "border-border bg-muted/40 text-muted-foreground hover:text-foreground")}>
+                <Briefcase className="h-4 w-4" /> Trabalho
+              </button>
+              <button type="button" onClick={() => setScope("personal")}
+                className={cn("flex-1 h-10 rounded-lg border text-sm font-medium inline-flex items-center justify-center gap-2 transition-colors",
+                  scope === "personal" ? "border-pink-500/50 bg-pink-500/10 text-pink-400" : "border-border bg-muted/40 text-muted-foreground hover:text-foreground")}>
+                <User className="h-4 w-4" /> Pessoal
+              </button>
+            </div>
           </div>
-          <div className="space-y-2">
+          {scope === "work" && (
+            <div className="space-y-2">
+              <Label className="text-sm text-muted-foreground">Cliente</Label>
+              <Select name="client">
+                <SelectTrigger className="bg-muted/40"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>{clientsList.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+          )}
+          <div className={cn("space-y-2", scope === "personal" && "sm:col-span-2")}>
             <Label className="text-sm text-muted-foreground">Projeto</Label>
-            <Select name="projectId" defaultValue="none">
+            <Select name="taskProjectId" defaultValue="tp-noproject" key={scope}>
               <SelectTrigger className="bg-muted/40"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">Sem projeto</SelectItem>
-                {projects.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                {visibleProjects.map(p => (
+                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
