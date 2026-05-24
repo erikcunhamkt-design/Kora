@@ -55,9 +55,18 @@ export function AISection() {
 
   const sendChat = () => {
     if (!chatInput.trim() || !chatAgent) return;
+    if (credits.balance <= 0) {
+      toast.error("Você precisa de créditos para usar assistentes de IA.");
+      openCreditsWallet();
+      return;
+    }
+    const ok = credits.consumeCredit(1, `Uso simulado — ${chatAgent.name}`);
+    if (!ok) {
+      openCreditsWallet();
+      return;
+    }
     setChatHistory((h) => [...h, { role: "user", text: chatInput }, { role: "assistant", text: "Resposta simulada do assistente. A integração real será ativada em uma etapa futura." }]);
     incrementUsage(chatAgent.id);
-    if (credits.balance > 0) credits.consumeCredit(1, `Uso simulado — ${chatAgent.name}`);
     setChatInput("");
   };
 
