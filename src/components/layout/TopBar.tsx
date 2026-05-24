@@ -30,9 +30,18 @@ export function TopBar() {
   const [cmdOpen, setCmdOpen] = useState(false);
   const [supportOpen, setSupportOpen] = useState(false);
   const [inboxOpen, setInboxOpen] = useState(false);
+  const [creditsOpen, setCreditsOpen] = useState(false);
   const { tickets } = useSupportTickets();
   const { unreadCount, hasHighPriorityUnread } = useNotificationsCenter();
+  const { balance } = useAiCredits();
   const hasOpenTickets = tickets.some((t) => !t.isDemo && t.status !== "resolved");
+  const lowCredits = balance <= 5;
+
+  useEffect(() => {
+    const handler = () => setCreditsOpen(true);
+    window.addEventListener("orbyt:open-credits", handler);
+    return () => window.removeEventListener("orbyt:open-credits", handler);
+  }, []);
 
 
   const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
