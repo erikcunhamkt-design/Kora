@@ -51,6 +51,8 @@ import { Separator } from "@/components/ui/separator";
 import { useAppSettings, type NotificationSettings } from "@/hooks/useAppSettings";
 import { useOnboarding } from "@/contexts/OnboardingContext";
 import { SupportDrawer } from "@/components/support/SupportDrawer";
+import { ClientPortalSection } from "@/components/settings/ClientPortalSection";
+
 
 const NAV_ITEMS: SettingsNavItem[] = [
   { id: "profile", label: "Perfil", icon: User },
