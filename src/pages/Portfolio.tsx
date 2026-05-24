@@ -169,11 +169,22 @@ const Portfolio = () => {
     { label: "Mais visto", value: topViews, icon: Star, color: "text-secondary" },
   ];
 
+  const breadcrumb = tab === "conteudo"
+    ? "Operação / Conteúdo"
+    : "Operação / Projetos";
+  const headerTitle = tab === "conteudo" ? "Conteúdo" : "Projetos & Portfólio";
+  const headerSubtitle = tab === "conteudo"
+    ? "Produção de conteúdo: posts, carrosséis e calendário"
+    : "Gestão de entregas e portfólio público";
+
   return (
     <div className="space-y-6">
+      <div className="text-[0.625rem] uppercase tracking-[0.12em] text-muted-foreground/60 -mb-3">
+        {breadcrumb}
+      </div>
       <PageHeader
-        title="Portfólio"
-        subtitle="Organize e apresente seus melhores projetos"
+        title={headerTitle}
+        subtitle={headerSubtitle}
         actions={
           <>
             <UsageBadge resource="projects" label="projetos" />
@@ -212,7 +223,8 @@ const Portfolio = () => {
         }
       />
 
-      <Tabs defaultValue="projetos" className="w-full">
+      <Tabs value={tab} onValueChange={onTabChange} className="w-full">
+
         <TabsList className="w-full sm:w-auto flex-wrap h-auto">
           <TabsTrigger value="projetos">Projetos</TabsTrigger>
           <TabsTrigger value="publicados">Publicados</TabsTrigger>
