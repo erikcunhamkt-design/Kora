@@ -39,6 +39,41 @@ export interface PublicLinksSettings {
   bookingSlug: string;
 }
 
+export type ClientPortalStyle = "essencial" | "premium" | "editorial" | "minimal";
+
+export interface ClientPortalPermissions {
+  viewProjects: boolean;
+  viewTasks: boolean;
+  createTasks: boolean;
+  commentTasks: boolean;
+  viewQuotes: boolean;
+  approveQuotes: boolean;
+  viewFiles: boolean;
+  requestService: boolean;
+  viewReports: boolean;
+}
+
+export interface ClientPortalTabs {
+  requests: boolean;
+  reports: boolean;
+  projectProgress: boolean;
+  approvalHistory: boolean;
+}
+
+export interface ClientPortalSettings {
+  brandName: string;
+  primaryColor: string;
+  buttonTextColor: string;
+  backgroundColor: string;
+  style: ClientPortalStyle;
+  loginTitle: string;
+  loginMessage: string;
+  loginBgColor: string;
+  permissions: ClientPortalPermissions;
+  tabs: ClientPortalTabs;
+}
+
+
 const PROFILE_KEY = "kora.settings.profile.v1";
 const COMPANY_KEY = "kora.settings.company.v1";
 const NOTIF_KEY = "kora.settings.notifications.v1";
