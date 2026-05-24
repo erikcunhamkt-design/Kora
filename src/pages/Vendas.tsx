@@ -107,21 +107,38 @@ export default function Vendas() {
   return (
     <div className="min-h-full -m-6 bg-background text-foreground">
       <header className="sticky top-0 z-30 border-b border-border/60 bg-background/90 backdrop-blur">
-        <div className="flex h-14 items-center justify-between gap-4 px-6">
-          <div className="flex items-center gap-2 font-bold shrink-0">
-            <Target className="h-4 w-4 text-amber-400" />
-            Vendas
+        <div className="flex flex-col gap-3 px-6 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-[0.625rem] uppercase tracking-[0.12em] text-muted-foreground/60">
+                Comercial / Vendas & Catálogo
+              </div>
+              <div className="flex items-center gap-2 mt-0.5">
+                <Target className="h-4 w-4 text-primary" />
+                <h1 className="text-base font-bold text-foreground">Vendas & Catálogo Comercial</h1>
+              </div>
+              <p className="text-xs text-muted-foreground hidden sm:block">
+                Prospects, serviços, produtos, planos, checkout e orçamentos.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setNewProspectOpen(true)}
+              className="rounded-full border border-primary/60 bg-primary/10 px-5 py-2 text-sm font-bold text-primary hover:bg-primary/20 transition shrink-0"
+            >
+              + Novo Prospect
+            </button>
           </div>
-          <nav className="flex items-center gap-1 overflow-x-auto">
+          <nav className="flex items-center gap-1 overflow-x-auto -mx-1 px-1">
             {tabs.map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
                 type="button"
-                onClick={() => setActiveTab(id)}
+                onClick={() => changeTab(id)}
                 className={[
-                  "flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold transition whitespace-nowrap",
+                  "flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition whitespace-nowrap",
                   activeTab === id
-                    ? "border border-primary/60 bg-primary/10 text-amber-400"
+                    ? "border border-primary/60 bg-primary/10 text-primary"
                     : "border border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/40",
                 ].join(" ")}
               >
@@ -130,17 +147,11 @@ export default function Vendas() {
               </button>
             ))}
           </nav>
-          <button
-            type="button"
-            onClick={() => setNewProspectOpen(true)}
-            className="rounded-full border border-primary/60 bg-primary/10 px-5 py-2 text-sm font-bold text-amber-400 hover:bg-primary/20 transition shrink-0"
-          >
-            + Novo Prospect
-          </button>
         </div>
       </header>
 
       <main className="mx-auto max-w-7xl px-6 py-8">{renderActiveTab()}</main>
+
 
 
       {quickAddOpen && <QuickAddModal onClose={() => setQuickAddOpen(false)} onAddProspect={addProspect} />}
