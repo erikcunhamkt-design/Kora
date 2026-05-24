@@ -1074,7 +1074,7 @@ function CheckoutTab() {
           <h3 className="font-semibold text-foreground">Personalizar checkout</h3>
           <Field label="Cor principal">
             <div className="flex items-center gap-2">
-              <input type="color" value={settings.primaryColor} onChange={(e) => update({ primaryColor: e.target.value })} className="h-10 w-14 rounded-md border border-border/60 bg-transparent" />
+              <input type="color" value={settings.primaryColor} onChange={(e) => update({ primaryColor: e.target.value })} className="kora-color" />
               <input value={settings.primaryColor} onChange={(e) => update({ primaryColor: e.target.value })} className="kora-input flex-1" />
             </div>
           </Field>
