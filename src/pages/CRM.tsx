@@ -410,24 +410,32 @@ const CRM = () => {
             />
           </div>
           <Select value={filterStage} onValueChange={setFilterStage}>
-            <SelectTrigger className="w-[150px] h-8 bg-muted/40 border-border text-[13px]"><SelectValue placeholder="Etapa" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas as etapas</SelectItem>
+            <SelectTrigger className="w-[140px] h-8 bg-muted/40 border-border text-[13px]"><SelectValue placeholder="Etapas" /></SelectTrigger>
+            <SelectContent className="max-h-[280px]">
+              <SelectItem value="all">Etapas</SelectItem>
               {stages.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={filterOrigin} onValueChange={setFilterOrigin}>
-            <SelectTrigger className="w-[130px] h-8 bg-muted/40 border-border text-[13px]"><SelectValue placeholder="Origem" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas as origens</SelectItem>
+            <SelectTrigger className="w-[140px] h-8 bg-muted/40 border-border text-[13px]"><SelectValue placeholder="Origens" /></SelectTrigger>
+            <SelectContent className="max-h-[280px]">
+              <SelectItem value="all">Origens</SelectItem>
               {origins.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Select value={filterType} onValueChange={setFilterType}>
-            <SelectTrigger className="w-[140px] h-8 bg-muted/40 border-border text-[13px]"><SelectValue placeholder="Serviço" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os tipos</SelectItem>
-              {serviceTypes.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+          <Select
+            value={filterType}
+            onValueChange={(v) => {
+              if (v === NEW_TYPE_VALUE) { setNewTypeOpen(true); return; }
+              setFilterType(v);
+            }}
+          >
+            <SelectTrigger className="w-[150px] h-8 bg-muted/40 border-border text-[13px]"><SelectValue placeholder="Tipos" /></SelectTrigger>
+            <SelectContent className="max-h-[280px]">
+              <SelectItem value="all">Tipos</SelectItem>
+              {activeTypes.map((t) => <SelectItem key={t.id} value={t.name}>{t.name}</SelectItem>)}
+              <div className="my-1 h-px bg-border" />
+              <SelectItem value={NEW_TYPE_VALUE} className="text-primary">+ Novo tipo</SelectItem>
             </SelectContent>
           </Select>
         </div>
