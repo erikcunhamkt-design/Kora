@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { emitNotification } from "@/lib/notify";
 
 export type AutomationTrigger = "new_lead" | "new_client" | "quote_approved" | "task_overdue" | "whatsapp_keyword" | "manual";
 export type AutomationAction = "create_task" | "send_message" | "move_pipeline" | "notify" | "add_tag";
@@ -52,7 +53,18 @@ export function useAutomations() {
     setRules((prev) => prev.filter((r) => r.id !== id));
   }, []);
 
-  const simulateExecution = useCallback(() => setExecutions((n) => n + 1), []);
+  const simulateExecution = useCallback(() => {
+    setExecutions((n) => n + 1);
+    emitNotification({
+      title: "Automação executada",
+      description: "Uma automação simulada foi disparada com sucesso.",
+      category: "system",
+      type: "info",
+      priority: "low",
+      actionLabel: "Ver automações",
+      actionRoute: "/automacoes",
+    });
+  }, []);
 
   return { rules, executions, addRule, toggleRule, deleteRule, simulateExecution };
 }

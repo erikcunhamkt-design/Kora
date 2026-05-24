@@ -8,6 +8,9 @@ import { usePlan } from "@/contexts/PlanContext";
 import { CommandCenter } from "@/components/command/CommandCenter";
 import { SupportDrawer } from "@/components/support/SupportDrawer";
 import { useSupportTickets } from "@/hooks/useSupportTickets";
+import { NotificationInbox } from "@/components/notifications/NotificationInbox";
+import { useNotificationsCenter } from "@/hooks/useNotificationsCenter";
+import { cn } from "@/lib/utils";
 
 import {
   DropdownMenu,
@@ -24,7 +27,9 @@ export function TopBar() {
   const { isPro, plan } = usePlan();
   const [cmdOpen, setCmdOpen] = useState(false);
   const [supportOpen, setSupportOpen] = useState(false);
+  const [inboxOpen, setInboxOpen] = useState(false);
   const { tickets } = useSupportTickets();
+  const { unreadCount, hasHighPriorityUnread } = useNotificationsCenter();
   const hasOpenTickets = tickets.some((t) => !t.isDemo && t.status !== "resolved");
 
 
@@ -91,9 +96,24 @@ export function TopBar() {
 
 
 
-        <button className="relative p-2.5 rounded-lg hover:bg-muted/40 transition-all duration-150 press-effect">
-          <Bell className="h-4 w-4 text-muted-foreground" />
-          <span className="absolute top-2 right-2 h-1.5 w-1.5 rounded-full orbit-gradient shadow-[0_0_6px_hsl(263_84%_58%/0.5)]" />
+        <button
+          onClick={() => setInboxOpen(true)}
+          aria-label={`Notificações${unreadCount > 0 ? `, ${unreadCount} não lidas` : ""}`}
+          className="relative p-2.5 rounded-lg hover:bg-muted/40 transition-all duration-150 press-effect"
+        >
+          <Bell className={cn("h-4 w-4", unreadCount > 0 ? "text-foreground" : "text-muted-foreground")} />
+          {unreadCount > 0 && (
+            <span
+              className={cn(
+                "absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-1 rounded-full flex items-center justify-center text-[9px] font-bold text-white border border-card",
+                hasHighPriorityUnread
+                  ? "bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.7)]"
+                  : "bg-primary/70",
+              )}
+            >
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </span>
+          )}
         </button>
 
         <DropdownMenu>
@@ -140,6 +160,7 @@ export function TopBar() {
       </div>
       <CommandCenter open={cmdOpen} onOpenChange={setCmdOpen} />
       <SupportDrawer open={supportOpen} onOpenChange={setSupportOpen} />
+      <NotificationInbox open={inboxOpen} onOpenChange={setInboxOpen} />
     </header>
   );
 }

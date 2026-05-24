@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { emitNotification } from "@/lib/notify";
 
 export type TxType = "income" | "expense";
 export type TxStatus = "pending" | "paid" | "overdue" | "canceled";
@@ -93,13 +94,27 @@ export function useFinance() {
   }, []);
 
   const updateTransactionStatus = useCallback((id: string, status: TxStatus) => {
-    setTransactions((prev) =>
-      prev.map((t) =>
+    setTransactions((prev) => {
+      const tx = prev.find((t) => t.id === id);
+      if (tx && tx.status !== "paid" && status === "paid") {
+        emitNotification({
+          title: tx.type === "income" ? "Pagamento recebido" : "Despesa quitada",
+          description: `${tx.title} · R$ ${tx.amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+          category: "finance",
+          type: "success",
+          priority: tx.amount >= 1000 ? "high" : "medium",
+          actionLabel: "Abrir financeiro",
+          actionRoute: "/financeiro",
+          sourceId: tx.id,
+          sourceType: "transaction",
+        });
+      }
+      return prev.map((t) =>
         t.id === id
           ? { ...t, status, paidDate: status === "paid" ? iso(new Date()) : t.paidDate }
           : t
-      )
-    );
+      );
+    });
   }, []);
 
   const deleteTransaction = useCallback((id: string) => {

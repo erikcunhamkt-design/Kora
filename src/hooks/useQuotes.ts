@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { emitNotification } from "@/lib/notify";
 
 export type QuoteStatus = "rascunho" | "enviado" | "aprovado" | "recusado";
 
@@ -136,7 +137,23 @@ export function useQuotes() {
   );
 
   const updateStatus = useCallback((id: string, status: QuoteStatus) => {
-    setQuotes((prev) => prev.map((q) => (q.id === id ? { ...q, status } : q)));
+    setQuotes((prev) => {
+      const quote = prev.find((q) => q.id === id);
+      if (quote && quote.status !== "aprovado" && status === "aprovado") {
+        emitNotification({
+          title: "Proposta aprovada",
+          description: quote.title,
+          category: "commercial",
+          type: "success",
+          priority: "high",
+          actionLabel: "Ver vendas",
+          actionRoute: "/vendas",
+          sourceId: quote.id,
+          sourceType: "quote",
+        });
+      }
+      return prev.map((q) => (q.id === id ? { ...q, status } : q));
+    });
   }, []);
 
   const duplicateQuote = useCallback((id: string) => {

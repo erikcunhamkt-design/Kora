@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
+import { emitNotification } from "@/lib/notify";
+
 
 export type SupportTicketType =
   | "question"
@@ -73,6 +75,15 @@ export function useSupportTickets() {
         save(next);
         return next;
       });
+      emitNotification({
+        title: "Chamado registrado",
+        description: ticket.subject,
+        category: "support",
+        type: "success",
+        priority: ticket.priority === "high" ? "high" : "medium",
+        sourceId: ticket.id,
+        sourceType: "support_ticket",
+      });
       return ticket;
     },
     [],
@@ -80,8 +91,20 @@ export function useSupportTickets() {
 
   const resolveTicket = useCallback((id: string) => {
     setTickets((prev) => {
+      const ticket = prev.find((t) => t.id === id);
       const next = prev.map((t) => (t.id === id ? { ...t, status: "resolved" as const } : t));
       save(next);
+      if (ticket && ticket.status !== "resolved") {
+        emitNotification({
+          title: "Chamado resolvido",
+          description: ticket.subject,
+          category: "support",
+          type: "success",
+          priority: "low",
+          sourceId: ticket.id,
+          sourceType: "support_ticket",
+        });
+      }
       return next;
     });
   }, []);
