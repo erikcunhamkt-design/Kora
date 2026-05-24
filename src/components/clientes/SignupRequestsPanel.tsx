@@ -68,12 +68,13 @@ const RequestRow = ({
 }) => {
   const handleApprove = async () => {
     const ok = await onAction(req.id, "approved");
-    if (ok) toast.success("Solicitação aprovada. Conversão para cliente real depende da migração da base local para Supabase.");
+    if (ok) toast.success("Solicitação aprovada. A criação automática do cliente será ativada após a migração de Clientes para Supabase.");
     else toast.error("Falha ao aprovar.");
   };
   const handleLead = async () => {
     const ok = await onAction(req.id, "lead");
-    if (ok) toast.success("Marcado como lead.");
+    if (ok) toast.success("Solicitação marcada como lead. A criação automática no CRM será ativada após a migração para Supabase.");
+    else toast.error("Falha ao marcar como lead.");
   };
   const handleArchive = async () => {
     const ok = await onAction(req.id, "archived");
