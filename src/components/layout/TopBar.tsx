@@ -191,6 +191,7 @@ export function TopBar() {
       <CommandCenter open={cmdOpen} onOpenChange={setCmdOpen} />
       <SupportDrawer open={supportOpen} onOpenChange={setSupportOpen} />
       <NotificationInbox open={inboxOpen} onOpenChange={setInboxOpen} />
+      <AiCreditsDrawer open={creditsOpen} onOpenChange={setCreditsOpen} />
     </header>
   );
 }
