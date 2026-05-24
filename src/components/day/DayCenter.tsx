@@ -244,23 +244,23 @@ export function DayCenter({ open, onOpenChange }: Props) {
                           <Icon className="h-4 w-4" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <p className="text-[0.8125rem] font-medium text-foreground truncate">
+                          <div className="flex items-start gap-2">
+                            <p className="text-[0.8125rem] font-medium text-foreground line-clamp-2 leading-snug flex-1">
                               {item.title}
                             </p>
                             <Badge
                               variant="outline"
-                              className="h-4 px-1 text-[9px] font-medium border-border/60 text-muted-foreground/80"
+                              className="h-4 px-1 text-[9px] font-medium border-border/60 text-muted-foreground shrink-0 mt-0.5"
                             >
                               {item.category}
                             </Badge>
                           </div>
-                          <p className="text-[0.7rem] text-muted-foreground/80 truncate mt-0.5">
+                          <p className="text-[0.7rem] text-muted-foreground truncate mt-1">
                             {item.description}
                           </p>
                         </div>
-                        <div className="flex items-center gap-1 text-[0.7rem] text-primary/80 group-hover:text-primary shrink-0">
-                          <span className="hidden sm:inline">{item.action}</span>
+                        <div className="flex items-center gap-1 text-[0.7rem] font-medium text-primary/90 group-hover:text-primary shrink-0 self-center">
+                          <span className="hidden sm:inline whitespace-nowrap">{item.action}</span>
                           <ChevronRight className="h-3.5 w-3.5" />
                         </div>
                       </button>
