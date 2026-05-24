@@ -126,7 +126,7 @@ const Configuracoes = () => {
 
       <div className="grid md:grid-cols-[220px_1fr] gap-6 md:gap-8">
         <aside className="md:border-r md:border-border/40 md:pr-4">
-          <SettingsNav items={NAV_ITEMS} active={active} onSelect={setActive} />
+          <SettingsNav items={NAV_ITEMS} active={active} onSelect={handleSelect} />
         </aside>
 
         <div className="min-w-0">
