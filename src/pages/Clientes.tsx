@@ -363,10 +363,18 @@ const NewClientDialog = ({
           <FormField label="Valor potencial (R$)" placeholder="5000" type="number" value={form.potentialValue} onChange={v => set("potentialValue", v)} />
           <div className="space-y-2">
             <Label className="text-sm text-muted-foreground">Serviço de interesse</Label>
-            <Select value={form.serviceType} onValueChange={v => set("serviceType", v)}>
+            <Select
+              value={form.serviceType}
+              onValueChange={(v) => {
+                if (v === NEW_TYPE_VALUE) { setTypeDialogOpen(true); return; }
+                set("serviceType", v);
+              }}
+            >
               <SelectTrigger className="bg-muted/50 border-border"><SelectValue placeholder="Selecione" /></SelectTrigger>
-              <SelectContent>
-                {serviceTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+              <SelectContent className="max-h-[280px]">
+                {activeTypes.map(t => <SelectItem key={t.id} value={t.name}>{t.name}</SelectItem>)}
+                <div className="my-1 h-px bg-border" />
+                <SelectItem value={NEW_TYPE_VALUE} className="text-primary">+ Novo tipo</SelectItem>
               </SelectContent>
             </Select>
           </div>
