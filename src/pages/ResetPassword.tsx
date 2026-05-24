@@ -87,7 +87,9 @@ export default function ResetPassword() {
               <div className="space-y-2">
                 <Label htmlFor="password">Nova senha</Label>
                 <Input id="password" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                <PasswordChecklist password={password} className="pt-2" />
               </div>
+
               <div className="space-y-2">
                 <Label htmlFor="confirm">Confirmar nova senha</Label>
                 <Input id="confirm" type="password" placeholder="••••••••" value={confirm} onChange={(e) => setConfirm(e.target.value)} required />

@@ -7,6 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, ArrowLeft, Mail } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { translateAuthError } from "@/lib/password";
+
 
 export default function ForgotPassword() {
   const { resetPassword } = useAuth();
@@ -21,11 +23,12 @@ export default function ForgotPassword() {
     const { error } = await resetPassword(email);
     setLoading(false);
     if (error) {
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
+      toast({ title: "Erro", description: translateAuthError(error.message), variant: "destructive" });
     } else {
       setSent(true);
     }
   };
+
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
