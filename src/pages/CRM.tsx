@@ -265,16 +265,19 @@ const CRM = () => {
         actions={
           <>
             <UsageBadge resource="leads" label="leads" />
-            <Button onClick={handleNewLead} className="orbit-gradient text-white border-0 gap-2 shrink-0">
+            <Button size="sm" onClick={handleNewLead} className="orbit-gradient text-white border-0 gap-1.5 shrink-0">
               <Plus className="h-4 w-4" /> Novo lead
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="gap-2 shrink-0">
-                  Mais ações <ChevronDown className="h-4 w-4" />
+                <Button size="sm" variant="outline" className="gap-1.5 shrink-0 text-muted-foreground hover:text-foreground">
+                  <span className="hidden sm:inline">Mais ações</span>
+                  <MoreHorizontal className="h-4 w-4 sm:hidden" />
+                  <ChevronDown className="h-3.5 w-3.5 hidden sm:inline" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="bg-card border-border">
+              <DropdownMenuContent align="end" className="bg-card border-border w-56">
+                <DropdownMenuLabel className="text-[10px] uppercase tracking-wide text-muted-foreground/70">Ações</DropdownMenuLabel>
                 <DropdownMenuItem onClick={handleNewLead}>
                   <Plus className="h-4 w-4 mr-2" /> Nova negociação
                 </DropdownMenuItem>
@@ -282,29 +285,30 @@ const CRM = () => {
                   <Settings2 className="h-4 w-4 mr-2" /> Novo pipeline
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-[10px] uppercase tracking-wide text-muted-foreground/70">Em breve</DropdownMenuLabel>
                 <DropdownMenuItem onClick={() => setComingSoon({
                   title: "Importar planilha",
                   description: "Importação em lote de leads a partir de arquivos CSV ou XLSX.",
                   bullets: ["Mapeamento de colunas", "Detecção de duplicados", "Importação para pipeline específico"],
-                })}>
-                  <FileSpreadsheet className="h-4 w-4 mr-2" /> Importar planilha
-                  <Badge variant="outline" className="ml-auto text-[9px] border-primary/40 text-primary">Em breve</Badge>
+                })} className="text-muted-foreground focus:text-foreground">
+                  <FileSpreadsheet className="h-4 w-4 mr-2 opacity-70" /> Importar planilha
+                  <Badge variant="outline" className="ml-auto text-[9px] border-border text-muted-foreground">soon</Badge>
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setComingSoon({
                   title: "Captura por formulário",
                   description: "Crie formulários públicos que geram leads automaticamente no seu pipeline.",
                   bullets: ["Link público compartilhável", "Campos personalizáveis", "Atribuição automática de pipeline e etapa"],
-                })}>
-                  <Sparkles className="h-4 w-4 mr-2" /> Captura por formulário
-                  <Badge variant="outline" className="ml-auto text-[9px] border-primary/40 text-primary">Em breve</Badge>
+                })} className="text-muted-foreground focus:text-foreground">
+                  <Sparkles className="h-4 w-4 mr-2 opacity-70" /> Captura por formulário
+                  <Badge variant="outline" className="ml-auto text-[9px] border-border text-muted-foreground">soon</Badge>
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setComingSoon({
                   title: "Auto-lead WhatsApp",
                   description: "Receba mensagens no WhatsApp e crie leads automaticamente no CRM.",
                   bullets: ["Conexão com WhatsApp Business", "Captura de nome e telefone", "Tag automática 'whatsapp'"],
-                })}>
-                  <MessageCircle className="h-4 w-4 mr-2" /> Auto-lead WhatsApp
-                  <Badge variant="outline" className="ml-auto text-[9px] border-primary/40 text-primary">Em breve</Badge>
+                })} className="text-muted-foreground focus:text-foreground">
+                  <MessageCircle className="h-4 w-4 mr-2 opacity-70" /> Auto-lead WhatsApp
+                  <Badge variant="outline" className="ml-auto text-[9px] border-border text-muted-foreground">soon</Badge>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -312,14 +316,14 @@ const CRM = () => {
         }
       />
 
-      {/* Summary */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        <SummaryCard icon={TrendingUp} label="Total em pipeline" value={formatCurrency(totalPipeline)} />
-        <SummaryCard icon={DollarSign} label="Valor ganho" value={formatCurrency(wonValue)} sub={`${wonCount} fechado${wonCount !== 1 ? "s" : ""}`} />
-        <SummaryCard icon={Sparkles} label="Leads novos" value={String(newCount)} />
-        <SummaryCard icon={CheckCircle2} label="Ganhos" value={String(wonCount)} />
-        <SummaryCard icon={BarChart3} label="Taxa de conversão" value={`${conversion}%`} />
-        <SummaryCard icon={XCircle} label="Valor perdido" value={formatCurrency(lostValue)} />
+      {/* Summary — compact strip */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+        <SummaryCard icon={TrendingUp} label="Em pipeline" value={formatCurrency(totalPipeline)} accent="primary" />
+        <SummaryCard icon={DollarSign} label="Valor ganho" value={formatCurrency(wonValue)} sub={`${wonCount} fechado${wonCount !== 1 ? "s" : ""}`} accent="success" />
+        <SummaryCard icon={Sparkles} label="Leads novos" value={String(newCount)} accent="muted" />
+        <SummaryCard icon={CheckCircle2} label="Ganhos" value={String(wonCount)} accent="success" />
+        <SummaryCard icon={BarChart3} label="Conversão" value={`${conversion}%`} accent="primary" />
+        <SummaryCard icon={XCircle} label="Valor perdido" value={formatCurrency(lostValue)} accent="danger" />
       </div>
 
       {/* Pipeline selector + view toggle */}
