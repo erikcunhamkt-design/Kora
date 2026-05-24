@@ -86,8 +86,10 @@ const CRM = () => {
   } = usePipelines();
   const { getRulesForPipeline } = usePipelineAutomations();
   const { addClient } = useClients();
+  const { activeTypes } = useClientTypes();
   const { wouldExceed, showPaywall, setUsage } = usePlan();
 
+  const [newTypeOpen, setNewTypeOpen] = useState(false);
   const [view, setView] = useState<"kanban" | "list">("kanban");
   const [search, setSearch] = useState("");
   const [filterStage, setFilterStage] = useState("all");
