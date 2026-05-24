@@ -452,12 +452,12 @@ function MiniStat({
     emerald: "text-emerald-500/90 bg-emerald-500/10 border-emerald-500/20",
   } as const;
   return (
-    <div className="rounded-lg border border-border/50 bg-card/60 px-2 py-2 flex flex-col items-start gap-1">
+    <div className="rounded-lg border border-border/50 bg-card/60 px-2.5 py-2.5 flex flex-col items-start gap-1.5 min-w-0">
       <div className={cn("h-6 w-6 rounded-md border flex items-center justify-center", accentMap[accent])}>
         <Icon className="h-3 w-3" />
       </div>
-      <span className="text-[1.1rem] font-semibold tabular-nums leading-none">{value}</span>
-      <span className="text-[0.65rem] text-muted-foreground/80 uppercase tracking-wide">{label}</span>
+      <span className="text-[1.15rem] font-semibold tabular-nums leading-none text-foreground">{value}</span>
+      <span className="text-[0.625rem] font-semibold text-muted-foreground uppercase tracking-wider truncate w-full">{label}</span>
     </div>
   );
 }
@@ -473,12 +473,23 @@ function Section({
 }) {
   return (
     <section className="space-y-2">
-      <div className="flex items-baseline justify-between">
+      <div className="flex items-baseline justify-between gap-2">
         <h3 className="text-[0.8125rem] font-semibold text-foreground">{title}</h3>
-        {hint && <span className="text-[0.65rem] text-muted-foreground/70">{hint}</span>}
+        {hint && <span className="text-[0.7rem] text-muted-foreground truncate">{hint}</span>}
       </div>
       {children}
     </section>
+  );
+}
+
+function SeeAllLink({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="w-full text-center text-[0.7rem] font-medium text-primary/80 hover:text-primary py-1.5 transition-colors"
+    >
+      {label} →
+    </button>
   );
 }
 
@@ -494,12 +505,12 @@ function EmptyState({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="rounded-lg border border-dashed border-border/50 bg-muted/10 px-4 py-5 text-center flex flex-col items-center gap-2">
+    <div className="rounded-lg border border-dashed border-border/60 bg-muted/10 px-4 py-5 text-center flex flex-col items-center gap-2">
       <div className="h-8 w-8 rounded-full bg-muted/40 flex items-center justify-center">
-        <Icon className="h-4 w-4 text-muted-foreground/70" />
+        <Icon className="h-4 w-4 text-muted-foreground" />
       </div>
-      <p className="text-[0.8125rem] font-medium text-foreground/90">{title}</p>
-      <p className="text-[0.7rem] text-muted-foreground/70 max-w-[280px]">{description}</p>
+      <p className="text-[0.8125rem] font-medium text-foreground">{title}</p>
+      <p className="text-[0.7rem] text-muted-foreground max-w-[280px] leading-relaxed">{description}</p>
       {action && <div className="mt-1">{action}</div>}
     </div>
   );
