@@ -1154,8 +1154,33 @@ const koraInputStyle = `
     font-size: 0.875rem;
     color: hsl(var(--foreground));
     outline: none;
-    transition: border-color .15s;
+    transition: border-color .15s, box-shadow .15s;
+    appearance: none;
+    -webkit-appearance: none;
   }
-  .kora-input:focus { border-color: hsl(var(--primary)); }
+  .kora-input:focus, .kora-input:focus-visible {
+    border-color: hsl(var(--primary));
+    box-shadow: 0 0 0 2px hsl(var(--primary) / 0.25);
+  }
   .kora-input::placeholder { color: hsl(var(--muted-foreground)); }
+  select.kora-input {
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2'><polyline points='6 9 12 15 18 9'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    padding-right: 30px;
+  }
+  select.kora-input option { background: hsl(var(--card)); color: hsl(var(--foreground)); }
+  .kora-color {
+    width: 44px;
+    height: 40px;
+    padding: 2px;
+    border-radius: 10px;
+    border: 1px solid hsl(var(--border));
+    background: hsl(var(--background));
+    cursor: pointer;
+  }
+  .kora-color::-webkit-color-swatch-wrapper { padding: 0; }
+  .kora-color::-webkit-color-swatch { border: none; border-radius: 6px; }
+  .kora-color::-moz-color-swatch { border: none; border-radius: 6px; }
 `;
+
