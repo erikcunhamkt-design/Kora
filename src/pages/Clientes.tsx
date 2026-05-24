@@ -315,7 +315,9 @@ const NewClientDialog = ({
   onOpenChange: (v: boolean) => void;
   onSave: (data: Omit<Client, "id" | "projects" | "tasks" | "lastProject" | "lastInteraction">) => void;
 }) => {
+  const { activeTypes } = useClientTypes();
   const [form, setForm] = useState(emptyForm);
+  const [typeDialogOpen, setTypeDialogOpen] = useState(false);
   const set = (k: keyof typeof emptyForm, v: string) => setForm(prev => ({ ...prev, [k]: v }));
 
   useEffect(() => { if (open) setForm(emptyForm); }, [open]);
