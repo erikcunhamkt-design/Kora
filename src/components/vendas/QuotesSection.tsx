@@ -90,7 +90,7 @@ export function QuotesSection() {
                 <th className="px-4 py-3" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-800">
+            <tbody className="divide-y divide-border/60">
               {quotes.map((q) => (
                 <tr key={q.id} className="hover:bg-muted/40/50 transition">
                   <td className="px-4 py-3 font-bold text-foreground">{q.title}</td>
@@ -241,7 +241,7 @@ function NewQuoteWizard({
         {[1, 2, 3, 4].map((s) => (
           <div
             key={s}
-            className={`h-1.5 flex-1 rounded-full ${s <= step ? "bg-primary" : "bg-zinc-800"}`}
+            className={`h-1.5 flex-1 rounded-full ${s <= step ? "bg-primary" : "bg-muted"}`}
           />
         ))}
       </div>
