@@ -114,7 +114,7 @@ const RequestRow = ({
             <Archive className="h-3.5 w-3.5" /> Arquivar
           </Button>
           <Button size="sm" onClick={handleApprove} className="gap-1.5">
-            <Check className="h-3.5 w-3.5" /> Aprovar
+            <Check className="h-3.5 w-3.5" /> Marcar como aprovado
           </Button>
         </div>
       )}
