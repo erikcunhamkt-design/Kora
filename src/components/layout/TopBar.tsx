@@ -8,6 +8,9 @@ import { usePlan } from "@/contexts/PlanContext";
 import { CommandCenter } from "@/components/command/CommandCenter";
 import { SupportDrawer } from "@/components/support/SupportDrawer";
 import { useSupportTickets } from "@/hooks/useSupportTickets";
+import { NotificationInbox } from "@/components/notifications/NotificationInbox";
+import { useNotificationsCenter } from "@/hooks/useNotificationsCenter";
+import { cn } from "@/lib/utils";
 
 import {
   DropdownMenu,
