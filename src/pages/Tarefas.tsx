@@ -909,6 +909,8 @@ const KanbanView = ({ tasks, taskProjects, draggedId, setDraggedId, onSelect, on
               {colTasks.map(task => {
                 const prio = priorityMeta[task.priority];
                 const overdue = isOverdue(task);
+                const isPersonal = (task.scope ?? "work") === "personal";
+                const tProj = taskProjects.find(p => p.id === (task.taskProjectId ?? "tp-noproject"));
                 return (
                   <div
                     key={task.id}
@@ -921,13 +923,22 @@ const KanbanView = ({ tasks, taskProjects, draggedId, setDraggedId, onSelect, on
                       draggedId === task.id && "opacity-50 scale-95",
                     )}
                   >
-                    {task.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mb-2">
-                        {task.tags.slice(0, 3).map(tag => (
-                          <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">#{tag}</span>
-                        ))}
-                      </div>
-                    )}
+                    <div className="flex flex-wrap items-center gap-1.5 mb-2">
+                      {isPersonal && (
+                        <Badge variant="outline" className="text-[10px] h-5 py-0 bg-pink-500/10 text-pink-400 border-pink-500/25">
+                          <User className="h-2.5 w-2.5 mr-1" /> Pessoal
+                        </Badge>
+                      )}
+                      {tProj && tProj.id !== "tp-noproject" && (
+                        <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground px-1.5 py-0.5 rounded bg-muted/60">
+                          <span className="h-1.5 w-1.5 rounded-full" style={{ background: tProj.color }} />
+                          {tProj.name}
+                        </span>
+                      )}
+                      {task.tags.slice(0, 2).map(tag => (
+                        <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">#{tag}</span>
+                      ))}
+                    </div>
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <p className="text-sm font-semibold text-foreground leading-tight">{task.title}</p>
                       <GripVertical className="h-4 w-4 text-muted-foreground/40 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 cursor-grab" />
@@ -954,6 +965,7 @@ const KanbanView = ({ tasks, taskProjects, draggedId, setDraggedId, onSelect, on
                       </Badge>
                       <span className={cn("text-[10px] flex items-center gap-1",
                         overdue ? "text-destructive" : "text-muted-foreground")}>
+                        {task.reminderEnabled && task.reminderAt && <BellRing className="h-3 w-3 text-primary" />}
                         <Clock className="h-3 w-3" />
                         {task.dueDate ? formatPtBr(task.dueDate) : (task.deadline || "—")}
                       </span>
