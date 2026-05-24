@@ -877,12 +877,14 @@ const EmptyState = ({ view }: { view: ViewKey }) => {
 /*  Kanban                                                            */
 /* ------------------------------------------------------------------ */
 
-const KanbanView = ({ tasks, draggedId, setDraggedId, onSelect, onDrop }: {
+const KanbanView = ({ tasks, taskProjects, draggedId, setDraggedId, onSelect, onDrop }: {
   tasks: Task[];
+  taskProjects: TaskProject[];
   draggedId: number | null;
   setDraggedId: (n: number | null) => void;
   onSelect: (t: Task) => void;
   onDrop: (status: TaskStatus) => void;
+}) => (
 }) => (
   <div className="w-full max-w-full overflow-x-auto overflow-y-visible pb-4">
     <div className="flex gap-4 pr-6 min-w-min">
