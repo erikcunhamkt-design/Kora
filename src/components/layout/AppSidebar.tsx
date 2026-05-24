@@ -2,6 +2,7 @@ import {
   LayoutDashboard, Users, TrendingUp, ShoppingBag, FileText,
   DollarSign, CheckSquare, FolderKanban, Image as ImageIcon,
   Target, Settings, Crown, Zap, Globe, CalendarCheck, LifeBuoy,
+  ClipboardList,
   type LucideIcon,
 } from "lucide-react";
 import koraLogo from "@/assets/kora-logo.png";
@@ -43,6 +44,7 @@ const navGroups: NavGroup[] = [
     label: "Operação",
     items: [
       { title: "Tarefas", url: "/tarefas", icon: CheckSquare },
+      { title: "Briefings", url: "/briefings", icon: ClipboardList },
       { title: "Projetos", url: "/portfolio?tab=projetos", icon: FolderKanban },
       { title: "Conteúdo", url: "/portfolio?tab=conteudo", icon: ImageIcon },
     ],

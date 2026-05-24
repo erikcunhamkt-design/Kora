@@ -3,7 +3,7 @@ import {
   Trophy, Briefcase, Bot, Globe, Settings, UserPlus, UserCheck, Plus,
   FileText, Wrench, Link2, FormInput, Calendar, MessageCircle, Zap, Plug,
   ShoppingBag, Package, Layers, CreditCard, Image as ImageIcon, FolderKanban,
-  Receipt, Sparkles, CalendarCheck, LifeBuoy,
+  Receipt, Sparkles, CalendarCheck, LifeBuoy, ClipboardList,
   type LucideIcon,
 } from "lucide-react";
 
@@ -30,6 +30,7 @@ export const commandItems: CommandItem[] = [
   { id: "nav-vendas", title: "Vendas & Catálogo", description: "Prospects, ranking, demandas", icon: ShoppingCart, group: "Principal", route: "/vendas", aliases: ["vendas", "comercial"] },
   { id: "nav-financeiro", title: "Financeiro", description: "Receitas, despesas e relatórios", icon: DollarSign, group: "Principal", route: "/financeiro", aliases: ["dinheiro", "receita", "despesa", "caixa", "transacao"] },
   { id: "nav-tarefas", title: "Tarefas", description: "To-dos estilo Todoist", icon: CheckSquare, group: "Principal", route: "/tarefas", aliases: ["task", "todo", "afazer"] },
+  { id: "nav-briefings", title: "Briefings", description: "Formulários para clientes", icon: ClipboardList, group: "Principal", route: "/briefings", aliases: ["briefing", "formulario", "descoberta", "discovery"] },
   { id: "nav-projetos", title: "Projetos", description: "Gestão de entregas", icon: FolderKanban, group: "Principal", route: "/portfolio?tab=projetos", aliases: ["projeto", "entrega"] },
   { id: "nav-conteudo", title: "Conteúdo", description: "Produção de conteúdo", icon: ImageIcon, group: "Principal", route: "/portfolio?tab=conteudo", aliases: ["conteudo", "content", "post", "carrossel"] },
   { id: "nav-metas", title: "Metas", description: "Objetivos do estúdio", icon: Trophy, group: "Principal", route: "/metas", aliases: ["goal", "objetivo"] },
@@ -53,6 +54,8 @@ export const commandItems: CommandItem[] = [
   { id: "act-produto", title: "Novo produto", description: "Cadastrar produto", icon: Package, group: "Ações rápidas", route: "/vendas?tab=servicos&new=product", aliases: ["produto", "product"] },
   { id: "act-plano", title: "Novo plano", description: "Pacote ou recorrência", icon: Layers, group: "Ações rápidas", route: "/vendas?tab=servicos&new=plan", aliases: ["plano", "pacote", "recorrencia"] },
   { id: "act-checkout", title: "Abrir Checkout", description: "Personalizar link de checkout", icon: CreditCard, group: "Ações rápidas", route: "/vendas?tab=servicos&view=checkout", aliases: ["checkout", "pagamento", "link"] },
+  { id: "act-briefing", title: "Novo briefing", description: "Criar briefing para cliente", icon: ClipboardList, group: "Ações rápidas", route: "/briefings?new=1", aliases: ["briefing", "formulario", "discovery"] },
+  { id: "act-briefing-tpl", title: "Novo template de briefing", description: "Criar template reutilizável", icon: FileText, group: "Ações rápidas", route: "/briefings?tab=templates&new=tpl", aliases: ["template", "briefing"] },
 
 
   // Presença
