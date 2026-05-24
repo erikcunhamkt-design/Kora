@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { DEFAULT_PIPELINE_ID } from "./usePipelines";
 
 export type Priority = "alta" | "média" | "baixa";
 export type StageKey = "lead" | "contato" | "proposta" | "negociacao" | "fechado" | "perdido";
@@ -11,10 +12,16 @@ export interface Lead {
   phone: string;
   serviceType: string;
   origin?: string;
+  source?: string;
   estimatedValue: number;
   priority: Priority;
   lastInteraction: string;
   stage: StageKey;
+  pipelineId?: string;
+  stageId?: string;
+  tags?: string[];
+  archived?: boolean;
+  converted?: boolean;
   nextAction?: string;
   description: string;
   history: { date: string; text: string }[];
@@ -71,9 +78,7 @@ const rawInitialLeads: Omit<Lead, "isDemo">[] = [
     nextAction: "Marcar call de diagnóstico",
     description: "Identidade visual para startup de tecnologia.",
     notes: "Contato feito via LinkedIn.",
-    history: [
-      { date: "05 Abr", text: "Primeiro contato via LinkedIn" },
-    ],
+    history: [{ date: "05 Abr", text: "Primeiro contato via LinkedIn" }],
   },
   {
     id: 5, name: "Juliana Rocha", company: "Brand Co", email: "juliana@brandco.com",
@@ -85,8 +90,6 @@ const rawInitialLeads: Omit<Lead, "isDemo">[] = [
     history: [
       { date: "14 Abr", text: "Contrato assinado ✓" },
       { date: "10 Abr", text: "Última rodada de negociação" },
-      { date: "05 Abr", text: "Proposta ajustada conforme feedback" },
-      { date: "28 Mar", text: "Primeira proposta enviada" },
     ],
   },
   {
@@ -95,11 +98,8 @@ const rawInitialLeads: Omit<Lead, "isDemo">[] = [
     priority: "baixa", lastInteraction: "11 Abr 2025", stage: "contato",
     nextAction: "Enviar pacote simplificado",
     description: "Landing page para produto MVP.",
-    notes: "Budget limitado. Avaliar pacote simplificado.",
-    history: [
-      { date: "11 Abr", text: "Call de 30min para entender necessidades" },
-      { date: "07 Abr", text: "Respondeu formulário de contato no site" },
-    ],
+    notes: "Budget limitado.",
+    history: [{ date: "11 Abr", text: "Call de 30min para entender necessidades" }],
   },
   {
     id: 7, name: "Fernanda Lima", company: "FitTrack", email: "fernanda@fittrack.app",
@@ -108,23 +108,15 @@ const rawInitialLeads: Omit<Lead, "isDemo">[] = [
     nextAction: "Revisar timeline esta semana",
     description: "UI Kit e design system para o aplicativo FitTrack.",
     notes: "Contrato mensal de design de interfaces.",
-    history: [
-      { date: "13 Abr", text: "Negociação de escopo e timeline" },
-      { date: "09 Abr", text: "Proposta apresentada em call" },
-      { date: "04 Abr", text: "Briefing recebido" },
-    ],
+    history: [{ date: "13 Abr", text: "Negociação de escopo e timeline" }],
   },
   {
     id: 8, name: "André Souza", company: "Café & Arte", email: "andre@cafearte.com.br",
     phone: "(85) 92109-8765", serviceType: "Branding", origin: "Instagram", estimatedValue: 5200,
     priority: "média", lastInteraction: "09 Abr 2025", stage: "fechado",
     description: "Identidade visual completa para cafeteria artesanal.",
-    notes: "Projeto entregue. Avaliar pacote mensal de social media.",
-    history: [
-      { date: "09 Abr", text: "Projeto entregue com sucesso ✓" },
-      { date: "01 Abr", text: "Revisão final aprovada" },
-      { date: "20 Mar", text: "Primeira versão apresentada" },
-    ],
+    notes: "Projeto entregue.",
+    history: [{ date: "09 Abr", text: "Projeto entregue com sucesso ✓" }],
   },
   {
     id: 9, name: "Patrícia Oliveira", company: "EcoVerde", email: "patricia@ecoverde.com.br",
@@ -132,11 +124,7 @@ const rawInitialLeads: Omit<Lead, "isDemo">[] = [
     priority: "baixa", lastInteraction: "02 Abr 2025", stage: "perdido",
     description: "Gestão de redes sociais para marca sustentável.",
     notes: "Perdido por budget. Recontatar em 3 meses.",
-    history: [
-      { date: "02 Abr", text: "Cliente informou que não vai prosseguir" },
-      { date: "28 Mar", text: "Proposta enviada" },
-      { date: "22 Mar", text: "Primeiro contato" },
-    ],
+    history: [{ date: "02 Abr", text: "Cliente informou que não vai prosseguir" }],
   },
   {
     id: 10, name: "Marcos Almeida", company: "PixelLab", email: "marcos@pixellab.design",
@@ -144,10 +132,8 @@ const rawInitialLeads: Omit<Lead, "isDemo">[] = [
     priority: "alta", lastInteraction: "14 Abr 2025", stage: "lead",
     nextAction: "Marcar call esta semana",
     description: "Portal de cursos online com área de membros.",
-    notes: "Grande potencial. Marcar call esta semana.",
-    history: [
-      { date: "14 Abr", text: "Recebeu indicação, enviou mensagem no WhatsApp" },
-    ],
+    notes: "Grande potencial.",
+    history: [{ date: "14 Abr", text: "Recebeu indicação via WhatsApp" }],
   },
   {
     id: 11, name: "Isabela Santos", company: "Moda Viva", email: "isabela@modaviva.com",
@@ -155,23 +141,40 @@ const rawInitialLeads: Omit<Lead, "isDemo">[] = [
     priority: "média", lastInteraction: "11 Abr 2025", stage: "contato",
     nextAction: "Aguardar aprovação da sócia",
     description: "Rebranding de marca de moda feminina.",
-    notes: "Muito interessada, mas precisa aprovar com sócia.",
-    history: [
-      { date: "11 Abr", text: "Apresentação do portfólio por videochamada" },
-      { date: "08 Abr", text: "Primeiro contato via Instagram" },
-    ],
+    notes: "Muito interessada.",
+    history: [{ date: "11 Abr", text: "Apresentação do portfólio" }],
   },
 ];
 
-export const initialLeads: Lead[] = rawInitialLeads.map((l) => ({ ...l, isDemo: true }));
+export const initialLeads: Lead[] = rawInitialLeads.map((l) => ({
+  ...l,
+  isDemo: true,
+  pipelineId: DEFAULT_PIPELINE_ID,
+  stageId: l.stage,
+  tags: [],
+  archived: false,
+  source: l.origin,
+}));
 
 const SEED_IDS = new Set(rawInitialLeads.map((l) => l.id));
 
 function migrate(list: Lead[]): Lead[] {
-  return list.map((l) =>
-    l.isDemo === undefined && SEED_IDS.has(l.id) ? { ...l, isDemo: true } : l
-  );
+  return list.map((l) => {
+    const next = { ...l };
+    if (next.isDemo === undefined && SEED_IDS.has(next.id)) next.isDemo = true;
+    if (!next.pipelineId) next.pipelineId = DEFAULT_PIPELINE_ID;
+    if (!next.stageId) next.stageId = next.stage;
+    if (!Array.isArray(next.tags)) next.tags = [];
+    if (next.archived === undefined) next.archived = false;
+    if (!next.source) next.source = next.origin;
+    return next;
+  });
 }
+
+const todayShort = () =>
+  new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+const todayFull = () =>
+  new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
 
 export function useLeads() {
   const [leads, setLeads] = useState<Lead[]>(() => {
@@ -189,14 +192,25 @@ export function useLeads() {
   }, [leads]);
 
   const addLead = useCallback(
-    (data: Omit<Lead, "id" | "history" | "lastInteraction" | "notes" | "description" | "isDemo"> & Partial<Pick<Lead, "notes" | "description" | "lastInteraction">>) => {
+    (
+      data: Omit<
+        Lead,
+        "id" | "history" | "lastInteraction" | "notes" | "description" | "isDemo"
+      > &
+        Partial<Pick<Lead, "notes" | "description" | "lastInteraction">>
+    ) => {
       setLeads((prev) => [
         {
           id: Date.now(),
-          history: [{ date: new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }), text: "Lead criado" }],
-          lastInteraction: data.lastInteraction ?? new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }),
+          history: [{ date: todayShort(), text: "Lead criado" }],
+          lastInteraction: data.lastInteraction ?? todayFull(),
           notes: data.notes ?? "",
           description: data.description ?? "",
+          tags: data.tags ?? [],
+          archived: false,
+          pipelineId: data.pipelineId ?? DEFAULT_PIPELINE_ID,
+          stageId: data.stageId ?? data.stage,
+          source: data.source ?? data.origin,
           ...data,
           isDemo: false,
         } as Lead,
@@ -206,9 +220,124 @@ export function useLeads() {
     []
   );
 
-  const moveLead = useCallback((id: number, newStage: StageKey) => {
-    setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, stage: newStage } : l)));
+  const updateLead = useCallback((id: number, patch: Partial<Lead>) => {
+    setLeads((prev) =>
+      prev.map((l) =>
+        l.id === id ? { ...l, ...patch, lastInteraction: todayFull() } : l
+      )
+    );
   }, []);
 
-  return { leads, addLead, moveLead, setLeads };
+  const moveLead = useCallback((id: number, newStage: StageKey) => {
+    setLeads((prev) =>
+      prev.map((l) =>
+        l.id === id
+          ? { ...l, stage: newStage, stageId: newStage, lastInteraction: todayFull() }
+          : l
+      )
+    );
+  }, []);
+
+  /** Move within same pipeline to a new stageId. Also syncs `stage` to known StageKey if matching. */
+  const moveLeadToStage = useCallback(
+    (id: number, stageId: string, type?: "open" | "won" | "lost") => {
+      setLeads((prev) =>
+        prev.map((l) => {
+          if (l.id !== id) return l;
+          const known: StageKey[] = ["lead", "contato", "proposta", "negociacao", "fechado", "perdido"];
+          const nextStage: StageKey = (known as string[]).includes(stageId)
+            ? (stageId as StageKey)
+            : type === "won"
+              ? "fechado"
+              : type === "lost"
+                ? "perdido"
+                : l.stage;
+          return {
+            ...l,
+            stageId,
+            stage: nextStage,
+            lastInteraction: todayFull(),
+            history: [{ date: todayShort(), text: `Movido para nova etapa` }, ...l.history],
+          };
+        })
+      );
+    },
+    []
+  );
+
+  const moveLeadToPipeline = useCallback(
+    (id: number, pipelineId: string, stageId: string) => {
+      setLeads((prev) =>
+        prev.map((l) =>
+          l.id === id
+            ? {
+                ...l,
+                pipelineId,
+                stageId,
+                lastInteraction: todayFull(),
+                history: [
+                  { date: todayShort(), text: "Movido para outro pipeline" },
+                  ...l.history,
+                ],
+              }
+            : l
+        )
+      );
+    },
+    []
+  );
+
+  const archiveLead = useCallback((id: number, archived = true) => {
+    setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, archived } : l)));
+  }, []);
+
+  const deleteLead = useCallback((id: number) => {
+    setLeads((prev) => prev.filter((l) => l.id !== id));
+  }, []);
+
+  const addTag = useCallback((id: number, tag: string) => {
+    const clean = tag.trim();
+    if (!clean) return;
+    setLeads((prev) =>
+      prev.map((l) =>
+        l.id === id
+          ? { ...l, tags: Array.from(new Set([...(l.tags ?? []), clean])) }
+          : l
+      )
+    );
+  }, []);
+
+  const removeTag = useCallback((id: number, tag: string) => {
+    setLeads((prev) =>
+      prev.map((l) =>
+        l.id === id ? { ...l, tags: (l.tags ?? []).filter((t) => t !== tag) } : l
+      )
+    );
+  }, []);
+
+  const setLeadTags = useCallback((id: number, tags: string[]) => {
+    setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, tags } : l)));
+  }, []);
+
+  const markConverted = useCallback((id: number) => {
+    setLeads((prev) =>
+      prev.map((l) => (l.id === id ? { ...l, converted: true } : l))
+    );
+  }, []);
+
+  return {
+    leads,
+    addLead,
+    moveLead,
+    moveLeadToStage,
+    moveLeadToPipeline,
+    updateLead,
+    archiveLead,
+    deleteLead,
+    addTag,
+    removeTag,
+    setLeadTags,
+    markConverted,
+    setLeads,
+  };
 }
