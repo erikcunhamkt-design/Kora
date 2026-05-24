@@ -61,8 +61,10 @@ const Clientes = () => {
   const [sortAsc, setSortAsc] = useState(true);
   const [viewMode, setViewMode] = useState<"table" | "grid">("table");
   const [newClientOpen, setNewClientOpen] = useState(false);
+  const [signupLinkOpen, setSignupLinkOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const { wouldExceed, showPaywall, setUsage } = usePlan();
+  const { pendingCount } = useSignupRequests();
 
   const realClientsCount = clients.filter((c) => !c.isDemo).length;
   useEffect(() => { setUsage("clients", realClientsCount); }, [realClientsCount, setUsage]);
