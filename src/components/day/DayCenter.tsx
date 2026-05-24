@@ -389,33 +389,41 @@ export function DayCenter({ open, onOpenChange }: Props) {
                 />
               ) : (
                 <div className="space-y-1.5">
-                  {data.overdueFinance.map((t) => (
+                  {data.overdueFinance.slice(0, 3).map((t) => (
                     <button
                       key={t.id}
                       onClick={() => go("/financeiro")}
-                      className="w-full text-left flex items-center gap-3 px-3 py-2 rounded-lg border border-border/50 bg-card hover:bg-muted/20 transition-colors"
+                      className="w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-lg border border-border/50 bg-card hover:bg-muted/20 transition-colors"
                     >
                       <div
                         className={cn(
                           "h-7 w-7 rounded-md flex items-center justify-center shrink-0 border",
                           t.type === "income"
-                            ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-500/90"
-                            : "border-destructive/30 bg-destructive/10 text-destructive/90",
+                            ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-500"
+                            : "border-destructive/30 bg-destructive/10 text-destructive",
                         )}
                       >
                         <DollarSign className="h-3.5 w-3.5" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-[0.8125rem] font-medium truncate">{t.title}</p>
-                        <p className="text-[0.7rem] text-muted-foreground/80 truncate">
+                        <p className="text-[0.8125rem] font-medium text-foreground truncate">{t.title}</p>
+                        <p className="text-[0.7rem] text-muted-foreground truncate">
                           {t.clientName ?? t.category} · vence {t.dueDate}
                         </p>
                       </div>
-                      <span className="text-[0.8125rem] font-semibold tabular-nums">
+                      <span
+                        className={cn(
+                          "text-[0.875rem] font-semibold tabular-nums shrink-0",
+                          t.type === "income" ? "text-emerald-500" : "text-destructive",
+                        )}
+                      >
                         R$ {t.amount.toLocaleString("pt-BR")}
                       </span>
                     </button>
                   ))}
+                  {data.overdueFinance.length > 2 && (
+                    <SeeAllLink label="Abrir financeiro" onClick={() => go("/financeiro")} />
+                  )}
                 </div>
               )}
             </Section>
