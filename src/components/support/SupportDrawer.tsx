@@ -112,11 +112,11 @@ export function SupportDrawer({ open, onOpenChange }: SupportDrawerProps) {
         {/* Header */}
         <div className="px-6 pt-6 pb-5 border-b border-border/40 bg-gradient-to-b from-primary/[0.04] to-transparent">
           <div className="flex items-center gap-2">
-            <h2 className="text-[1.0625rem] font-semibold text-foreground tracking-tight">Suporte</h2>
-            <Badge variant="outline" className="h-5 px-1.5 text-[10px] border-success/40 text-success font-medium">
+            <h2 className="text-[1.0625rem] font-semibold text-foreground tracking-tight">Central de Suporte</h2>
+            <Badge variant="outline" className="h-5 px-1.5 text-[10px] border-success/20 text-success/70 bg-success/5 font-medium">
               Tickets ativos
             </Badge>
-            <Badge variant="outline" className="h-5 px-1.5 text-[10px] border-border/60 text-muted-foreground font-medium">
+            <Badge variant="outline" className="h-5 px-1.5 text-[10px] border-border/30 text-muted-foreground/50 bg-muted/20 font-medium">
               Chat em breve
             </Badge>
           </div>
@@ -217,6 +217,13 @@ export function SupportDrawer({ open, onOpenChange }: SupportDrawerProps) {
 
                 <Button type="submit" className="w-full">Registrar chamado</Button>
               </form>
+
+              <div className="rounded-lg border border-border/30 bg-muted/20 px-4 py-3">
+                <div className="text-[0.75rem] font-medium text-muted-foreground/70">Tempo médio de resposta</div>
+                <p className="text-[0.6875rem] text-muted-foreground/50 mt-1 leading-relaxed">
+                  Enquanto o suporte oficial está em configuração, seus chamados ficam registrados dentro da plataforma.
+                </p>
+              </div>
             </TabsContent>
 
             {/* Meus chamados */}
