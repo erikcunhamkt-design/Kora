@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { useAiAgents, AgentCategory, AiAgent } from "@/hooks/useAiAgents";
-import { useAiCredits } from "@/hooks/useAiCredits";
+import { useAiCredits, openCreditsWallet } from "@/hooks/useAiCredits";
 
 const categoryLabels: Record<AgentCategory, string> = {
   copywriter: "Copywriter", designer: "Designer", analyst: "Analista", strategist: "Estrategista", support: "Atendimento", custom: "Personalizado",
@@ -55,15 +55,24 @@ export function AISection() {
 
   const sendChat = () => {
     if (!chatInput.trim() || !chatAgent) return;
+    if (credits.balance <= 0) {
+      toast.error("Você precisa de créditos para usar assistentes de IA.");
+      openCreditsWallet();
+      return;
+    }
+    const ok = credits.consumeCredit(1, `Uso simulado — ${chatAgent.name}`);
+    if (!ok) {
+      openCreditsWallet();
+      return;
+    }
     setChatHistory((h) => [...h, { role: "user", text: chatInput }, { role: "assistant", text: "Resposta simulada do assistente. A integração real será ativada em uma etapa futura." }]);
     incrementUsage(chatAgent.id);
-    if (credits.balance > 0) credits.consumeCredit(1, `Uso simulado — ${chatAgent.name}`);
     setChatInput("");
   };
 
   const buy = (pack: typeof packs[number]) => {
-    toast.success("Compra simulada. Pagamento real será implementado futuramente.");
-    credits.addTransaction({ type: "purchase", amount: pack.credits, description: `Pacote ${pack.name} (simulado)` });
+    credits.simulatePurchase({ name: pack.name, credits: pack.credits });
+    toast.success("Compra simulada. O checkout real será ativado futuramente.");
     setBuyOpen(false);
   };
 

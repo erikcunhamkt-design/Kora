@@ -1,6 +1,6 @@
-import { Search, Bell, LogOut, User, ChevronDown, Crown, Zap, MessageCircleQuestion } from "lucide-react";
+import { Search, Bell, LogOut, User, ChevronDown, Crown, Zap, MessageCircleQuestion, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useAuth } from "@/contexts/AuthContext";
@@ -10,6 +10,8 @@ import { SupportDrawer } from "@/components/support/SupportDrawer";
 import { useSupportTickets } from "@/hooks/useSupportTickets";
 import { NotificationInbox } from "@/components/notifications/NotificationInbox";
 import { useNotificationsCenter } from "@/hooks/useNotificationsCenter";
+import { AiCreditsDrawer } from "@/components/credits/AiCreditsDrawer";
+import { useAiCredits } from "@/hooks/useAiCredits";
 import { cn } from "@/lib/utils";
 
 import {
@@ -28,9 +30,18 @@ export function TopBar() {
   const [cmdOpen, setCmdOpen] = useState(false);
   const [supportOpen, setSupportOpen] = useState(false);
   const [inboxOpen, setInboxOpen] = useState(false);
+  const [creditsOpen, setCreditsOpen] = useState(false);
   const { tickets } = useSupportTickets();
   const { unreadCount, hasHighPriorityUnread } = useNotificationsCenter();
+  const { balance } = useAiCredits();
   const hasOpenTickets = tickets.some((t) => !t.isDemo && t.status !== "resolved");
+  const lowCredits = balance <= 5;
+
+  useEffect(() => {
+    const handler = () => setCreditsOpen(true);
+    window.addEventListener("orbyt:open-credits", handler);
+    return () => window.removeEventListener("orbyt:open-credits", handler);
+  }, []);
 
 
   const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
@@ -80,6 +91,25 @@ export function TopBar() {
             <Crown className="h-3 w-3" /> Pro
           </span>
         )}
+
+        <button
+          onClick={() => setCreditsOpen(true)}
+          aria-label={`Créditos de IA: ${balance}`}
+          title="Créditos de IA"
+          className={cn(
+            "relative flex items-center gap-1.5 px-2.5 md:px-3 py-2 rounded-lg border transition-all duration-150 press-effect",
+            lowCredits
+              ? "border-primary/30 bg-primary/[0.06] text-primary hover:bg-primary/[0.1]"
+              : "border-border/40 bg-muted/20 text-muted-foreground hover:text-foreground hover:bg-muted/40",
+          )}
+        >
+          <Sparkles className={cn("h-3.5 w-3.5", lowCredits && "text-primary")} />
+          <span className="text-[0.75rem] font-semibold tabular-nums">{balance}</span>
+          <span className="hidden lg:inline text-[0.75rem] text-muted-foreground/80">créditos</span>
+          {lowCredits && (
+            <span className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_6px_hsl(var(--primary)/0.7)]" />
+          )}
+        </button>
 
         <button
           onClick={() => setSupportOpen(true)}
@@ -161,6 +191,7 @@ export function TopBar() {
       <CommandCenter open={cmdOpen} onOpenChange={setCmdOpen} />
       <SupportDrawer open={supportOpen} onOpenChange={setSupportOpen} />
       <NotificationInbox open={inboxOpen} onOpenChange={setInboxOpen} />
+      <AiCreditsDrawer open={creditsOpen} onOpenChange={setCreditsOpen} />
     </header>
   );
 }
