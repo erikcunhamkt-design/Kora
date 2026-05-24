@@ -184,6 +184,10 @@ const Tarefas = () => {
     tasks, addTask, updateTask, moveTask, toggleSubtask, addSubtask,
     duplicateTask, archiveTask, deleteTask,
   } = useTasks();
+  const {
+    projects: taskProjects, addProject: addTaskProject, renameProject: renameTaskProject,
+    archiveProject: archiveTaskProject, deleteProject: deleteTaskProject,
+  } = useTaskProjects();
   const { wouldExceed, showPaywall, setUsage } = usePlan();
 
   const [view, setView] = useState<ViewKey>("hoje");
@@ -192,12 +196,21 @@ const Tarefas = () => {
   const [filterPriority, setFilterPriority] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterTag, setFilterTag] = useState("all");
+  const [filterScope, setFilterScope] = useState<"all" | TaskScope>("all");
+  const [filterTaskProject, setFilterTaskProject] = useState<string>("all");
   const [quick, setQuick] = useState("");
   const [quickDate, setQuickDate] = useState<string>("");
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [newTaskOpen, setNewTaskOpen] = useState(false);
   const [draggedId, setDraggedId] = useState<number | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Task | null>(null);
+  const [projectsOpen, setProjectsOpen] = useState(false);
+
+  // Reminders locais (Notification API + fallback toast)
+  const { permission, requestPermission, supported: notifSupported } = useTaskReminders(
+    tasks,
+    (id, sentAt) => updateTask(id, { reminderSentAt: sentAt }),
+  );
 
   const realTaskCount = tasks.filter(t => !t.isDemo).length;
   useEffect(() => { setUsage("tasks", realTaskCount); }, [realTaskCount, setUsage]);
