@@ -1,9 +1,11 @@
 import { Search, Bell, LogOut, User, ChevronDown, Crown, Zap } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useState } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePlan } from "@/contexts/PlanContext";
+import { CommandCenter } from "@/components/command/CommandCenter";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,6 +19,9 @@ export function TopBar() {
   const navigate = useNavigate();
   const { profile, signOut } = useAuth();
   const { isPro, plan } = usePlan();
+  const [cmdOpen, setCmdOpen] = useState(false);
+
+  const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 
   const initials = profile?.display_name
     ? profile.display_name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()
@@ -29,13 +34,23 @@ export function TopBar() {
       </div>
 
       <div className="flex items-center gap-3">
-        <div className="relative hidden md:block">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <input
-            placeholder="Buscar..."
-            className="pl-10 w-60 h-9 text-[0.8125rem] bg-muted/30 border border-border/40 rounded-lg text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/40 transition-all duration-200"
-          />
-        </div>
+        <button
+          onClick={() => setCmdOpen(true)}
+          className="relative hidden md:flex items-center gap-2 w-64 h-9 px-3 bg-muted/30 border border-border/40 rounded-lg text-[0.8125rem] text-muted-foreground/70 hover:border-primary/40 hover:text-foreground transition-all duration-200 group"
+        >
+          <Search className="h-3.5 w-3.5" />
+          <span className="flex-1 text-left">Buscar...</span>
+          <kbd className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium bg-background/60 rounded border border-border/40 text-muted-foreground">
+            {isMac ? "⌘" : "Ctrl"} K
+          </kbd>
+        </button>
+        <button
+          onClick={() => setCmdOpen(true)}
+          aria-label="Buscar"
+          className="md:hidden p-2.5 rounded-lg hover:bg-muted/40 transition-all duration-150 press-effect"
+        >
+          <Search className="h-4 w-4 text-muted-foreground" />
+        </button>
 
         {/* Plan badge */}
         {!isPro && (
@@ -101,6 +116,7 @@ export function TopBar() {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+      <CommandCenter open={cmdOpen} onOpenChange={setCmdOpen} />
     </header>
   );
 }
