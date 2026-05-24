@@ -27,7 +27,9 @@ export function TopBar() {
   const { isPro, plan } = usePlan();
   const [cmdOpen, setCmdOpen] = useState(false);
   const [supportOpen, setSupportOpen] = useState(false);
+  const [inboxOpen, setInboxOpen] = useState(false);
   const { tickets } = useSupportTickets();
+  const { unreadCount, hasHighPriorityUnread } = useNotificationsCenter();
   const hasOpenTickets = tickets.some((t) => !t.isDemo && t.status !== "resolved");
 
 
