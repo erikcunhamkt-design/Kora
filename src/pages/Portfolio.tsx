@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { PageHeader } from "@/components/layout/PageHeader";
+
 import { usePlan } from "@/contexts/PlanContext";
 import { UsageBadge } from "@/components/plan/UsageBadge";
 import { Button } from "@/components/ui/button";
@@ -90,6 +92,25 @@ const initialProjects: Project[] = [
 ];
 
 const Portfolio = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const validTabs = ["projetos", "publicados", "rascunhos", "conteudo"];
+  const initialTab = validTabs.includes(searchParams.get("tab") ?? "") ? (searchParams.get("tab") as string) : "projetos";
+  const [tab, setTab] = useState<string>(initialTab);
+
+  useEffect(() => {
+    const t = searchParams.get("tab");
+    if (t && validTabs.includes(t) && t !== tab) setTab(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  const onTabChange = (v: string) => {
+    setTab(v);
+    const next = new URLSearchParams(searchParams);
+    if (v === "projetos") next.delete("tab");
+    else next.set("tab", v);
+    setSearchParams(next, { replace: true });
+  };
+
   const [projects, setProjects] = useState(initialProjects);
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState("all");
@@ -99,6 +120,7 @@ const Portfolio = () => {
   const { wouldExceed, showPaywall, setUsage } = usePlan();
 
   useEffect(() => { setUsage("projects", projects.length); }, [projects.length, setUsage]);
+
 
   const handleOpenNewDialog = () => {
     if (wouldExceed("maxProjects", projects.length)) {
@@ -147,11 +169,22 @@ const Portfolio = () => {
     { label: "Mais visto", value: topViews, icon: Star, color: "text-secondary" },
   ];
 
+  const breadcrumb = tab === "conteudo"
+    ? "Operação / Conteúdo"
+    : "Operação / Projetos";
+  const headerTitle = tab === "conteudo" ? "Conteúdo" : "Projetos & Portfólio";
+  const headerSubtitle = tab === "conteudo"
+    ? "Produção de conteúdo: posts, carrosséis e calendário"
+    : "Gestão de entregas e portfólio público";
+
   return (
     <div className="space-y-6">
+      <div className="text-[0.625rem] uppercase tracking-[0.12em] text-muted-foreground/60 -mb-3">
+        {breadcrumb}
+      </div>
       <PageHeader
-        title="Portfólio"
-        subtitle="Organize e apresente seus melhores projetos"
+        title={headerTitle}
+        subtitle={headerSubtitle}
         actions={
           <>
             <UsageBadge resource="projects" label="projetos" />
@@ -190,7 +223,8 @@ const Portfolio = () => {
         }
       />
 
-      <Tabs defaultValue="projetos" className="w-full">
+      <Tabs value={tab} onValueChange={onTabChange} className="w-full">
+
         <TabsList className="w-full sm:w-auto flex-wrap h-auto">
           <TabsTrigger value="projetos">Projetos</TabsTrigger>
           <TabsTrigger value="publicados">Publicados</TabsTrigger>

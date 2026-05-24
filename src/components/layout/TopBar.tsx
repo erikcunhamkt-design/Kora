@@ -41,10 +41,19 @@ export function TopBar() {
   const lowCredits = balance <= 5;
 
   useEffect(() => {
-    const handler = () => setCreditsOpen(true);
-    window.addEventListener("orbyt:open-credits", handler);
-    return () => window.removeEventListener("orbyt:open-credits", handler);
+    const onCredits = () => setCreditsOpen(true);
+    const onDay = () => setDayOpen(true);
+    const onSupport = () => setSupportOpen(true);
+    window.addEventListener("orbyt:open-credits", onCredits);
+    window.addEventListener("kora:open-day", onDay);
+    window.addEventListener("kora:open-support", onSupport);
+    return () => {
+      window.removeEventListener("orbyt:open-credits", onCredits);
+      window.removeEventListener("kora:open-day", onDay);
+      window.removeEventListener("kora:open-support", onSupport);
+    };
   }, []);
+
 
 
   const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
