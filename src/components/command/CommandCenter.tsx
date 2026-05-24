@@ -98,7 +98,7 @@ export function CommandCenter({ open, onOpenChange }: Props) {
         className="h-14 text-base"
         autoFocus
       />
-      <CommandList className="max-h-[420px] p-2">
+      <CommandList className="p-2">
         <CommandEmpty>
           <div className="py-6 text-center space-y-2">
             <p className="text-sm font-medium text-foreground">Nenhum resultado encontrado</p>
