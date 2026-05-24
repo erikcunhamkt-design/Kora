@@ -405,6 +405,11 @@ const NewClientDialog = ({
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
           <Button className="orbit-gradient text-white border-0" onClick={handleSave}>Salvar cliente</Button>
         </DialogFooter>
+        <NewClientTypeDialog
+          open={typeDialogOpen}
+          onOpenChange={setTypeDialogOpen}
+          onCreated={(name) => set("serviceType", name)}
+        />
       </DialogContent>
     </Dialog>
   );
