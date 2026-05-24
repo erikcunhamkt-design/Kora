@@ -885,7 +885,6 @@ const KanbanView = ({ tasks, taskProjects, draggedId, setDraggedId, onSelect, on
   onSelect: (t: Task) => void;
   onDrop: (status: TaskStatus) => void;
 }) => (
-}) => (
   <div className="w-full max-w-full overflow-x-auto overflow-y-visible pb-4">
     <div className="flex gap-4 pr-6 min-w-min">
       {columns.map(col => {
