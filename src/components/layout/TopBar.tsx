@@ -19,6 +19,9 @@ export function TopBar() {
   const navigate = useNavigate();
   const { profile, signOut } = useAuth();
   const { isPro, plan } = usePlan();
+  const [cmdOpen, setCmdOpen] = useState(false);
+
+  const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 
   const initials = profile?.display_name
     ? profile.display_name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()
