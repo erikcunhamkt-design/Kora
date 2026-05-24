@@ -165,7 +165,7 @@ export function AISection() {
         <MetricCard label="Agentes ativos" value={activeCount} icon={<Bot className="h-4 w-4" />} />
         <MetricCard label="Usos simulados" value={totalUsage} icon={<Sparkles className="h-4 w-4" />} />
         <MetricCard label="Créditos disponíveis" value={credits.balance} icon={<Coins className="h-4 w-4" />} />
-        <MetricCard label="Personalizados" value={customCount} icon={<Plus className="h-4 w-4" />} />
+        <MetricCard label="Agentes KORA" value={koraAgentCount} icon={<Star className="h-4 w-4" />} />
       </div>
 
       {/* Hero copilot */}
