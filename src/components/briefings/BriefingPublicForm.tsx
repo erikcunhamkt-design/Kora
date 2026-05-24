@@ -139,6 +139,9 @@ export default function BriefingPublicForm() {
               ))}
 
               <Button type="submit" className="w-full">Enviar respostas</Button>
+              <p className="text-[0.7rem] text-center text-muted-foreground">
+                Suas respostas ficam salvas neste dispositivo até serem sincronizadas pelo estúdio.
+              </p>
             </form>
           </CardContent>
         </Card>
