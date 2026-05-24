@@ -31,6 +31,7 @@ import Landing from "./pages/Landing";
 import Onboarding from "./pages/Onboarding";
 import NotFound from "./pages/NotFound";
 import AuthCallback from "./pages/AuthCallback";
+import PublicClientSignup from "./pages/PublicClientSignup";
 
 const queryClient = new QueryClient();
 
@@ -48,6 +49,7 @@ const App = () => (
                 {/* Public routes */}
                 <Route path="/landing" element={<Landing />} />
                 <Route path="/publico/:slug" element={<PublicProfilePage />} />
+                <Route path="/cadastro/:slug" element={<PublicClientSignup />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/signup" element={<Signup />} />
                 <Route path="/forgot-password" element={<ForgotPassword />} />

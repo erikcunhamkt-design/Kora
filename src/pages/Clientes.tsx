@@ -18,11 +18,14 @@ import {
   Users, UserCheck, UserPlus, FolderKanban, Search, SlidersHorizontal,
   Plus, ArrowUpDown, LayoutGrid, LayoutList, Phone, Mail, Globe,
   MessageCircle, ExternalLink, Calendar, Clock, MoreHorizontal, AtSign,
-  Briefcase, FileText, CheckSquare, StickyNote, DollarSign, AlertCircle
+  Briefcase, FileText, CheckSquare, StickyNote, DollarSign, AlertCircle, Share2
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
+import { SignupLinkDrawer } from "@/components/clientes/SignupLinkDrawer";
+import { SignupRequestsPanel } from "@/components/clientes/SignupRequestsPanel";
+import { useSignupRequests } from "@/hooks/useSignupRequests";
 
 // ---------- Static configs ----------
 
@@ -58,8 +61,10 @@ const Clientes = () => {
   const [sortAsc, setSortAsc] = useState(true);
   const [viewMode, setViewMode] = useState<"table" | "grid">("table");
   const [newClientOpen, setNewClientOpen] = useState(false);
+  const [signupLinkOpen, setSignupLinkOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const { wouldExceed, showPaywall, setUsage } = usePlan();
+  const { pendingCount } = useSignupRequests();
 
   const realClientsCount = clients.filter((c) => !c.isDemo).length;
   useEffect(() => { setUsage("clients", realClientsCount); }, [realClientsCount, setUsage]);
@@ -103,6 +108,18 @@ const Clientes = () => {
         actions={
           <>
             <UsageBadge resource="clients" label="clientes" />
+            <Button
+              variant="outline"
+              onClick={() => setSignupLinkOpen(true)}
+              className="gap-2 relative"
+            >
+              <Share2 className="h-4 w-4" /> Link de cadastro
+              {pendingCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 h-5 min-w-5 px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold flex items-center justify-center">
+                  {pendingCount}
+                </span>
+              )}
+            </Button>
             <Button onClick={handleNewClient} className="orbit-gradient text-white border-0 gap-2 shrink-0">
               <Plus className="h-4 w-4" /> Novo cliente
             </Button>
@@ -252,8 +269,14 @@ const Clientes = () => {
         </div>
       )}
 
+      {/* Public signup requests panel */}
+      <SignupRequestsPanel />
+
       {/* New Client Modal */}
       <NewClientDialog open={newClientOpen} onOpenChange={setNewClientOpen} onSave={addClient} />
+
+      {/* Signup link drawer */}
+      <SignupLinkDrawer open={signupLinkOpen} onOpenChange={setSignupLinkOpen} pendingCount={pendingCount} />
 
       {/* Client Detail Sheet */}
       <ClientDetailSheet client={selectedClient} onClose={() => setSelectedClient(null)} />
