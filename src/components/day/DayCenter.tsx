@@ -213,7 +213,7 @@ export function DayCenter({ open, onOpenChange }: Props) {
             <div className="grid grid-cols-4 gap-2">
               <MiniStat icon={ListChecks} label="Tarefas" value={data.counts.tasks} accent="primary" />
               <MiniStat icon={AlertTriangle} label="Atrasadas" value={data.counts.overdue} accent="destructive" />
-              <MiniStat icon={Users} label="Follow-ups" value={data.counts.followUps} accent="amber" />
+              <MiniStat icon={Users} label="Retornos" value={data.counts.followUps} accent="amber" />
               <MiniStat icon={CalendarDays} label="Agenda" value={data.counts.agenda} accent="emerald" />
             </div>
 
@@ -486,7 +486,7 @@ function SeeAllLink({ label, onClick }: { label: string; onClick: () => void }) 
   return (
     <button
       onClick={onClick}
-      className="w-full text-center text-[0.7rem] font-medium text-primary/80 hover:text-primary py-1.5 transition-colors"
+      className="w-full text-center text-[0.7rem] font-medium text-primary/80 hover:text-primary py-1 transition-colors"
     >
       {label} →
     </button>
