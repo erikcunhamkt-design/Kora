@@ -458,9 +458,27 @@ const Tarefas = () => {
             {allTags.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
           </SelectContent>
         </Select>
-        {(search || filterClient !== "all" || filterPriority !== "all" || filterStatus !== "all" || filterTag !== "all") && (
+        <Select value={filterScope} onValueChange={(v) => setFilterScope(v as any)}>
+          <SelectTrigger className="w-[130px] bg-muted/40 h-10"><SelectValue placeholder="Tipo" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos os tipos</SelectItem>
+            <SelectItem value="work">Trabalho</SelectItem>
+            <SelectItem value="personal">Pessoais</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={filterTaskProject} onValueChange={setFilterTaskProject}>
+          <SelectTrigger className="w-[160px] bg-muted/40 h-10"><SelectValue placeholder="Projeto" /></SelectTrigger>
+          <SelectContent className="max-h-[280px]">
+            <SelectItem value="all">Todos os projetos</SelectItem>
+            {taskProjects.filter(p => !p.archived).map(p => (
+              <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {(search || filterClient !== "all" || filterPriority !== "all" || filterStatus !== "all" || filterTag !== "all" || filterScope !== "all" || filterTaskProject !== "all") && (
           <Button variant="ghost" size="sm" onClick={() => {
             setSearch(""); setFilterClient("all"); setFilterPriority("all"); setFilterStatus("all"); setFilterTag("all");
+            setFilterScope("all"); setFilterTaskProject("all");
           }}>
             Limpar
           </Button>
