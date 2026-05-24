@@ -26,6 +26,8 @@ import {
 import { SignupLinkDrawer } from "@/components/clientes/SignupLinkDrawer";
 import { SignupRequestsPanel } from "@/components/clientes/SignupRequestsPanel";
 import { useSignupRequests } from "@/hooks/useSignupRequests";
+import { useClientTypes } from "@/hooks/useClientTypes";
+import { NewClientTypeDialog } from "@/components/clientes/NewClientTypeDialog";
 
 // ---------- Static configs ----------
 
@@ -36,7 +38,7 @@ const statusStyles: Record<string, string> = {
   "Potencial": "bg-primary/10 text-primary border-primary/20",
 };
 
-const serviceTypes = ["Branding", "Social Media", "Web Design", "Design Gráfico"];
+const NEW_TYPE_VALUE = "__new_type__";
 const statuses = ["Ativo", "Em negociação", "Inativo", "Potencial"];
 
 // ---------- Summary Card ----------
