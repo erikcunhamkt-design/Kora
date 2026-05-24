@@ -96,7 +96,7 @@ export default function Briefings() {
   const handleSend = (b: Briefing) => {
     markSent(b.id);
     copyLink(b.publicToken);
-    toast({ title: "Briefing enviado", description: `Link copiado. Compartilhe com ${b.clientName}.` });
+    toast({ title: "Marcado como enviado", description: `Link copiado para a área de transferência. Envie manualmente para ${b.clientName}.` });
   };
 
   return (
