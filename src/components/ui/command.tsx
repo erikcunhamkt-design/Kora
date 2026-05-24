@@ -27,7 +27,7 @@ const CommandDialog = ({ children, ...props }: CommandDialogProps) => {
   return (
     <Dialog {...props}>
       <DialogContent className="overflow-hidden p-0 shadow-premium-lg w-[calc(100vw-24px)] max-w-[640px] sm:w-full sm:max-w-[640px] max-h-[70vh]">
-        <Command className="h-full [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-group]]:px-2 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 [&_[cmdk-input]]:h-12 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-3 [&_[cmdk-item]_svg]:h-5 [&_[cmdk-item]_svg]:w-5">
+        <Command className="h-full [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-group]]:px-2 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 [&_[cmdk-input]]:h-12 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-3.5 [&_[cmdk-item]_svg]:h-5 [&_[cmdk-item]_svg]:w-5">
           {children}
         </Command>
       </DialogContent>
@@ -49,6 +49,9 @@ const CommandInput = React.forwardRef<
       )}
       {...props}
     />
+    <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium bg-muted rounded border border-border/40 text-muted-foreground ml-2 shrink-0">
+      Esc
+    </kbd>
   </div>
 ));
 
@@ -60,7 +63,7 @@ const CommandList = React.forwardRef<
 >(({ className, ...props }, ref) => (
     <CommandPrimitive.List
       ref={ref}
-      className={cn("max-h-[calc(70vh-3.5rem)] overflow-y-auto overflow-x-hidden", className)}
+      className={cn("max-h-[calc(70vh-3.25rem)] overflow-y-auto overflow-x-hidden", className)}
       {...props}
     />
 ));
