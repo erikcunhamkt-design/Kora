@@ -217,6 +217,13 @@ export function SupportDrawer({ open, onOpenChange }: SupportDrawerProps) {
 
                 <Button type="submit" className="w-full">Registrar chamado</Button>
               </form>
+
+              <div className="rounded-lg border border-border/30 bg-muted/20 px-4 py-3">
+                <div className="text-[0.75rem] font-medium text-muted-foreground/70">Tempo médio de resposta</div>
+                <p className="text-[0.6875rem] text-muted-foreground/50 mt-1 leading-relaxed">
+                  Enquanto o suporte oficial está em configuração, seus chamados ficam registrados dentro da plataforma.
+                </p>
+              </div>
             </TabsContent>
 
             {/* Meus chamados */}
