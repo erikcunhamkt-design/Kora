@@ -26,46 +26,16 @@ export interface SupportTicket {
 
 const STORAGE_KEY = "orbyt.support.tickets.v1";
 
-const seedDemoTickets = (): SupportTicket[] => [
-  {
-    id: crypto.randomUUID(),
-    type: "feature",
-    subject: "Filtros avançados no CRM",
-    message: "Seria ótimo poder filtrar leads por origem e valor estimado.",
-    priority: "medium",
-    status: "in_review",
-    route: "/crm",
-    userAgent: "demo",
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(),
-    isDemo: true,
-  },
-  {
-    id: crypto.randomUUID(),
-    type: "bug",
-    subject: "Dashboard demorando para carregar",
-    message: "Em telas menores o gráfico de performance demora ~3s.",
-    priority: "low",
-    status: "resolved",
-    route: "/",
-    userAgent: "demo",
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 7).toISOString(),
-    isDemo: true,
-  },
-];
-
 const load = (): SupportTicket[] => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      const seeded = seedDemoTickets();
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(seeded));
-      return seeded;
-    }
+    if (!raw) return [];
     return JSON.parse(raw) as SupportTicket[];
   } catch {
     return [];
   }
 };
+
 
 const save = (tickets: SupportTicket[]) => {
   try {
