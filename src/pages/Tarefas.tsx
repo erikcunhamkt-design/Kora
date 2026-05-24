@@ -978,28 +978,37 @@ const KanbanView = ({ tasks, taskProjects, draggedId, setDraggedId, onSelect, on
 /*  Dialog: nova tarefa                                               */
 /* ------------------------------------------------------------------ */
 
-const NewTaskDialog = ({ open, onOpenChange, onCreate }: {
+const NewTaskDialog = ({ open, onOpenChange, onCreate, taskProjects }: {
   open: boolean; onOpenChange: (v: boolean) => void;
   onCreate: (data: Omit<Task, "id" | "isDemo" | "createdAt">) => void;
+  taskProjects: TaskProject[];
 }) => {
-  const { projects } = useProjects();
+  const [scope, setScope] = useState<TaskScope>("work");
+  const [reminderPreset, setReminderPreset] = useState<ReminderPreset>("none");
+  const visibleProjects = taskProjects.filter(p => !p.archived && (scope === "personal" ? p.type === "personal" : p.type === "work"));
+
+  // Reset scope-dependent fields when dialog opens
+  useEffect(() => { if (open) { setScope("work"); setReminderPreset("none"); } }, [open]);
+
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     const title = (fd.get("title") as string).trim();
     if (!title) { toast({ title: "Informe o título da tarefa", variant: "destructive" }); return; }
-    const projectId = (fd.get("projectId") as string) || undefined;
-    const projectName = projectId && projectId !== "none"
-      ? (projects.find(p => p.id === projectId)?.name || "")
-      : "";
+    const taskProjectId = (fd.get("taskProjectId") as string) || "tp-noproject";
+    const projectName = taskProjects.find(p => p.id === taskProjectId)?.name || "";
     const dueIso = (fd.get("deadline") as string) || "";
     const checklistRaw = (fd.get("checklist") as string) || "";
+    const customReminder = (fd.get("reminderCustom") as string) || "";
+    const reminderAt = computeReminderAt(dueIso, reminderPreset, customReminder ? new Date(customReminder).toISOString() : undefined);
+
     onCreate({
       title,
       description: (fd.get("description") as string) || "",
-      client: (fd.get("client") as string) || "",
-      project: projectName,
-      projectId: projectId === "none" ? undefined : projectId,
+      client: scope === "personal" ? "" : ((fd.get("client") as string) || ""),
+      project: scope === "personal" ? projectName : projectName,
+      taskProjectId,
+      scope,
       priority: ((fd.get("priority") as TaskPriority) || "média"),
       deadline: dueIso ? formatPtBr(dueIso) : "—",
       dueDate: dueIso || undefined,
@@ -1009,6 +1018,8 @@ const NewTaskDialog = ({ open, onOpenChange, onCreate }: {
       comments: [],
       recurrence: ((fd.get("recurrence") as TaskRecurrence) || "none"),
       archived: false,
+      reminderAt,
+      reminderEnabled: !!reminderAt,
     });
     onOpenChange(false);
     toast({ title: "Tarefa criada" });
