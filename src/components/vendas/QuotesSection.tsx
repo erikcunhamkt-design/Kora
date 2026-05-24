@@ -15,10 +15,10 @@ const STATUS_LABEL: Record<QuoteStatus, string> = {
 };
 
 const STATUS_STYLE: Record<QuoteStatus, string> = {
-  rascunho: "bg-zinc-800 text-zinc-300",
-  enviado: "bg-blue-500/15 text-blue-300",
-  aprovado: "bg-emerald-500/15 text-emerald-300",
-  recusado: "bg-red-500/15 text-red-300",
+  rascunho: "bg-amber-500/15 text-amber-400",
+  enviado: "bg-primary/15 text-primary",
+  aprovado: "bg-emerald-500/15 text-emerald-400",
+  recusado: "bg-destructive/15 text-destructive",
 };
 
 function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
