@@ -64,8 +64,10 @@ const NAV_ITEMS: SettingsNavItem[] = [
   { id: "plan", label: "Plano", icon: Crown },
   { id: "integrations", label: "Integrações", icon: Plug },
   { id: "support", label: "Suporte", icon: LifeBuoy },
+  { id: "portal", label: "Portal do Cliente", icon: Users },
   { id: "data", label: "Dados", icon: Database },
 ];
+
 
 function initials(value: string) {
   return value
