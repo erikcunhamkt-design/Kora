@@ -321,24 +321,27 @@ export function DayCenter({ open, onOpenChange }: Props) {
                 />
               ) : (
                 <div className="space-y-1.5">
-                  {data.highTasks.map((t) => (
+                  {data.highTasks.slice(0, 4).map((t) => (
                     <button
                       key={t.id}
                       onClick={() => go("/tarefas")}
-                      className="w-full text-left flex items-center gap-3 px-3 py-2 rounded-lg border border-border/50 bg-card hover:bg-muted/20 transition-colors"
+                      className="w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-lg border border-border/50 bg-card hover:bg-muted/20 transition-colors"
                     >
                       <Clock className="h-3.5 w-3.5 text-primary/80 shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-[0.8125rem] font-medium truncate">{t.title}</p>
-                        <p className="text-[0.7rem] text-muted-foreground/80 truncate">
+                        <p className="text-[0.8125rem] font-medium text-foreground truncate">{t.title}</p>
+                        <p className="text-[0.7rem] text-muted-foreground truncate">
                           {t.client} · {t.deadline}
                         </p>
                       </div>
-                      <Badge variant="outline" className="h-4 px-1 text-[9px] border-primary/30 text-primary/90">
+                      <Badge variant="outline" className="h-5 px-1.5 text-[10px] font-semibold border-primary/40 text-primary bg-primary/[0.06]">
                         {t.priority}
                       </Badge>
                     </button>
                   ))}
+                  {data.highTasks.length > 0 && (
+                    <SeeAllLink label="Ver todas as tarefas" onClick={() => go("/tarefas")} />
+                  )}
                 </div>
               )}
             </Section>
