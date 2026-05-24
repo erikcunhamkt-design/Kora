@@ -18,11 +18,14 @@ import {
   Users, UserCheck, UserPlus, FolderKanban, Search, SlidersHorizontal,
   Plus, ArrowUpDown, LayoutGrid, LayoutList, Phone, Mail, Globe,
   MessageCircle, ExternalLink, Calendar, Clock, MoreHorizontal, AtSign,
-  Briefcase, FileText, CheckSquare, StickyNote, DollarSign, AlertCircle
+  Briefcase, FileText, CheckSquare, StickyNote, DollarSign, AlertCircle, Share2
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
+import { SignupLinkDrawer } from "@/components/clientes/SignupLinkDrawer";
+import { SignupRequestsPanel } from "@/components/clientes/SignupRequestsPanel";
+import { useSignupRequests } from "@/hooks/useSignupRequests";
 
 // ---------- Static configs ----------
 
