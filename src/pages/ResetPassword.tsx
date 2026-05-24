@@ -7,6 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, KeyRound } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { PasswordChecklist } from "@/components/auth/PasswordChecklist";
+import { validatePassword, translateAuthError } from "@/lib/password";
+
 
 export default function ResetPassword() {
   const { toast } = useToast();
