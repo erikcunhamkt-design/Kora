@@ -57,6 +57,7 @@ const SummaryCard = ({ icon: Icon, label, value, accent }: { icon: any; label: s
 // ---------- Main Component ----------
 const Clientes = () => {
   const { clients, addClient } = useClients();
+  const { activeTypes } = useClientTypes();
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterType, setFilterType] = useState("all");
@@ -65,6 +66,7 @@ const Clientes = () => {
   const [newClientOpen, setNewClientOpen] = useState(false);
   const [signupLinkOpen, setSignupLinkOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [newTypeOpen, setNewTypeOpen] = useState(false);
   const { wouldExceed, showPaywall, setUsage } = usePlan();
   const { pendingCount } = useSignupRequests();
 
