@@ -170,18 +170,19 @@ export const PipelineEditorDialog = ({
             </div>
           )}
 
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             {stages.map((stage, idx) => (
               <div
                 key={stage.id}
-                className="orbit-card p-3 flex items-center gap-2 flex-wrap"
+                className="group rounded-lg border border-border bg-muted/20 hover:bg-muted/30 transition-colors p-2 flex items-center gap-2"
               >
-                <GripVertical className="h-4 w-4 text-muted-foreground/60 shrink-0" />
-                <div className="flex flex-col gap-0.5">
+                <GripVertical className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
+
+                <div className="flex flex-col">
                   <button
                     onClick={() => move(stage.id, -1)}
                     disabled={idx === 0}
-                    className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+                    className="text-muted-foreground/70 hover:text-foreground disabled:opacity-30 p-0.5"
                     aria-label="Mover para cima"
                   >
                     <ArrowUp className="h-3 w-3" />
@@ -189,17 +190,42 @@ export const PipelineEditorDialog = ({
                   <button
                     onClick={() => move(stage.id, 1)}
                     disabled={idx === stages.length - 1}
-                    className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+                    className="text-muted-foreground/70 hover:text-foreground disabled:opacity-30 p-0.5"
                     aria-label="Mover para baixo"
                   >
                     <ArrowDown className="h-3 w-3" />
                   </button>
                 </div>
 
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button
+                      className="h-7 w-7 rounded-md border border-border shrink-0 hover:scale-105 transition-transform"
+                      style={{ backgroundColor: stage.color }}
+                      aria-label="Escolher cor"
+                    />
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-2 bg-card border-border" align="start">
+                    <div className="grid grid-cols-5 gap-1.5">
+                      {STAGE_COLORS.map((c) => (
+                        <button
+                          key={c}
+                          onClick={() => updateStage(stage.id, { color: c })}
+                          className={`h-6 w-6 rounded-md border-2 transition-transform ${
+                            stage.color === c ? "border-foreground scale-110" : "border-transparent hover:scale-110"
+                          }`}
+                          style={{ backgroundColor: c }}
+                          aria-label={`Cor ${c}`}
+                        />
+                      ))}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+
                 <Input
                   value={stage.name}
                   onChange={(e) => updateStage(stage.id, { name: e.target.value })}
-                  className="bg-muted/50 border-border flex-1 min-w-[120px]"
+                  className="bg-card border-border h-8 flex-1 min-w-[120px] text-[13px]"
                   placeholder="Nome da etapa"
                 />
 
@@ -207,7 +233,7 @@ export const PipelineEditorDialog = ({
                   value={stage.type || "open"}
                   onValueChange={(v) => updateStage(stage.id, { type: v as StageType })}
                 >
-                  <SelectTrigger className="w-[120px] bg-muted/50 border-border">
+                  <SelectTrigger className="w-[100px] h-8 bg-card border-border text-[13px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -217,24 +243,10 @@ export const PipelineEditorDialog = ({
                   </SelectContent>
                 </Select>
 
-                <div className="flex gap-1">
-                  {STAGE_COLORS.map((c) => (
-                    <button
-                      key={c}
-                      onClick={() => updateStage(stage.id, { color: c })}
-                      className={`h-5 w-5 rounded-full border-2 transition-transform ${
-                        stage.color === c ? "border-foreground scale-110" : "border-transparent"
-                      }`}
-                      style={{ backgroundColor: c }}
-                      aria-label={`Cor ${c}`}
-                    />
-                  ))}
-                </div>
-
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="text-muted-foreground hover:text-destructive h-8 w-8"
+                  className="text-muted-foreground/60 hover:text-destructive h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
                   onClick={() => removeStage(stage.id)}
                   aria-label="Remover etapa"
                 >
@@ -243,6 +255,25 @@ export const PipelineEditorDialog = ({
               </div>
             ))}
           </div>
+
+          {stages.length > 0 && (
+            <div className="rounded-lg border border-border/60 bg-muted/10 p-2.5">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground/70 mb-1.5">Preview do funil</p>
+              <div className="flex items-center gap-1 overflow-x-auto">
+                {stages.map((s, i) => (
+                  <div key={s.id} className="flex items-center gap-1 shrink-0">
+                    <div
+                      className="px-2 py-1 rounded text-[11px] font-medium text-foreground"
+                      style={{ background: `${s.color}22`, border: `1px solid ${s.color}55` }}
+                    >
+                      {s.name || "—"}
+                    </div>
+                    {i < stages.length - 1 && <span className="text-muted-foreground/40">›</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <DialogFooter className="flex-row justify-between sm:justify-between">
