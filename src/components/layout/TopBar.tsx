@@ -93,6 +93,25 @@ export function TopBar() {
         )}
 
         <button
+          onClick={() => setCreditsOpen(true)}
+          aria-label={`Créditos de IA: ${balance}`}
+          title="Créditos de IA"
+          className={cn(
+            "relative flex items-center gap-1.5 px-2.5 md:px-3 py-2 rounded-lg border transition-all duration-150 press-effect",
+            lowCredits
+              ? "border-primary/30 bg-primary/[0.06] text-primary hover:bg-primary/[0.1]"
+              : "border-border/40 bg-muted/20 text-muted-foreground hover:text-foreground hover:bg-muted/40",
+          )}
+        >
+          <Sparkles className={cn("h-3.5 w-3.5", lowCredits && "text-primary")} />
+          <span className="text-[0.75rem] font-semibold tabular-nums">{balance}</span>
+          <span className="hidden lg:inline text-[0.75rem] text-muted-foreground/80">créditos</span>
+          {lowCredits && (
+            <span className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_6px_hsl(var(--primary)/0.7)]" />
+          )}
+        </button>
+
+        <button
           onClick={() => setSupportOpen(true)}
           aria-label="Suporte"
           title="Suporte"
