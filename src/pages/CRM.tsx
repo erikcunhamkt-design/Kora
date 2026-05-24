@@ -38,6 +38,8 @@ import { ScheduleMeetingDialog } from "@/components/crm/ScheduleMeetingDialog";
 import { EditTagsDialog } from "@/components/crm/EditTagsDialog";
 import { MoveToPipelineDialog } from "@/components/crm/MoveToPipelineDialog";
 import { useClients } from "@/hooks/useClients";
+import { useClientTypes } from "@/hooks/useClientTypes";
+import { NewClientTypeDialog } from "@/components/clientes/NewClientTypeDialog";
 
 const priorityStyles: Record<Priority, string> = {
   alta: "bg-destructive/10 text-destructive border-destructive/20",
@@ -45,7 +47,7 @@ const priorityStyles: Record<Priority, string> = {
   baixa: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
 };
 
-const serviceTypes = ["Branding", "Social Media", "Web Design", "Design Gráfico"];
+const NEW_TYPE_VALUE = "__new_type__";
 const origins = ["Indicação", "Instagram", "LinkedIn", "Site", "WhatsApp", "Outro"];
 
 const formatCurrency = (v: number) =>
