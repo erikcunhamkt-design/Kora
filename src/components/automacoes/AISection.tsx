@@ -150,11 +150,15 @@ export function AISection() {
           <Button variant="outline" size="sm" onClick={() => setApiOpen(true)}>
             <KeyRound className="h-4 w-4" /> Usar minha própria API
           </Button>
-          <Button size="sm" onClick={() => setNewOpen(true)}>
-            <Plus className="h-4 w-4" /> Novo agente
+          <Button variant="outline" size="sm" onClick={() => setSuggestOpen(true)}>
+            <Lightbulb className="h-4 w-4" /> Sugerir agente
           </Button>
         </div>
       </div>
+
+      <p className="text-xs text-muted-foreground -mt-4">
+        Os agentes KORA são curados para fluxos de estúdio. Agentes personalizados serão avaliados em uma etapa futura.
+      </p>
 
       {/* Metrics */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
