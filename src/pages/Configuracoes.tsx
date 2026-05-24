@@ -203,6 +203,12 @@ const Configuracoes = () => {
                   <Field label="Segmento">
                     <Input value={companyDraft.segment} onChange={(e) => setCompanyDraft({ ...companyDraft, segment: e.target.value })} />
                   </Field>
+                  <Field label="CPF / CNPJ">
+                    <Input value={companyDraft.taxId} onChange={(e) => setCompanyDraft({ ...companyDraft, taxId: e.target.value })} placeholder="000.000.000-00" />
+                  </Field>
+                  <Field label="Moeda padrão">
+                    <Input value={companyDraft.currency} onChange={(e) => setCompanyDraft({ ...companyDraft, currency: e.target.value })} placeholder="BRL" />
+                  </Field>
                   <Field label="Site">
                     <Input value={companyDraft.website} onChange={(e) => setCompanyDraft({ ...companyDraft, website: e.target.value })} />
                   </Field>
@@ -212,10 +218,26 @@ const Configuracoes = () => {
                   <Field label="Instagram">
                     <Input value={companyDraft.instagram} onChange={(e) => setCompanyDraft({ ...companyDraft, instagram: e.target.value })} />
                   </Field>
-                  <Field label="Cidade / País">
+                  <Field label="País">
+                    <Input value={companyDraft.country} onChange={(e) => setCompanyDraft({ ...companyDraft, country: e.target.value })} />
+                  </Field>
+                  <Field label="Cidade">
                     <Input value={companyDraft.city} onChange={(e) => setCompanyDraft({ ...companyDraft, city: e.target.value })} />
                   </Field>
+                  <Field label="Estado">
+                    <Input value={companyDraft.state} onChange={(e) => setCompanyDraft({ ...companyDraft, state: e.target.value })} />
+                  </Field>
+                  <Field label="Endereço">
+                    <Input value={companyDraft.address} onChange={(e) => setCompanyDraft({ ...companyDraft, address: e.target.value })} />
+                  </Field>
+                  <Field label="Número">
+                    <Input value={companyDraft.number} onChange={(e) => setCompanyDraft({ ...companyDraft, number: e.target.value })} />
+                  </Field>
+                  <Field label="CEP / Código postal">
+                    <Input value={companyDraft.postalCode} onChange={(e) => setCompanyDraft({ ...companyDraft, postalCode: e.target.value })} />
+                  </Field>
                 </div>
+
                 <div className="flex justify-end mt-6">
                   <Button
                     onClick={() => {
