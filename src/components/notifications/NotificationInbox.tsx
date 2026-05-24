@@ -330,16 +330,14 @@ function NotificationRow({
           )}
 
           <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-            <Badge variant="outline" className="h-4 px-1.5 text-[9px] border-border/40 text-muted-foreground/80 font-medium">
+            <Badge variant="outline" className="h-4 px-1.5 text-[9px] border-border/40 text-muted-foreground/70 font-medium">
               {meta.label}
             </Badge>
-            {isImportant && (
-              <Badge variant="outline" className={cn("h-4 px-1.5 text-[9px] font-medium", PRIORITY_STYLE[n.priority])}>
-                {PRIORITY_LABEL[n.priority]}
-              </Badge>
-            )}
+            <Badge variant="outline" className={cn("h-4 px-1.5 text-[9px] font-medium", PRIORITY_BADGE[n.priority])}>
+              {PRIORITY_LABEL[n.priority]}
+            </Badge>
             {n.actionLabel && n.actionRoute && (
-              <span className="ml-auto inline-flex items-center gap-0.5 text-[0.6875rem] font-medium text-primary/80 group-hover:text-primary">
+              <span className="ml-auto inline-flex items-center gap-0.5 text-[0.6875rem] font-medium text-primary group-hover:text-primary">
                 {n.actionLabel}
                 <ChevronRight className="h-3 w-3" />
               </span>
