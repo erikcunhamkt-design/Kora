@@ -326,98 +326,107 @@ const CRM = () => {
         <SummaryCard icon={XCircle} label="Valor perdido" value={formatCurrency(lostValue)} accent="danger" />
       </div>
 
-      {/* Pipeline selector + view toggle */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="gap-2 bg-card">
-                <div className="h-2 w-2 rounded-full bg-primary" />
-                <span className="font-semibold">{activePipeline?.name || "—"}</span>
-                <ChevronDown className="h-4 w-4 text-muted-foreground" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="bg-card border-border w-56">
-              <DropdownMenuLabel className="text-xs">Pipelines</DropdownMenuLabel>
-              {pipelines.map((p) => (
-                <DropdownMenuItem key={p.id} onClick={() => setActivePipelineId(p.id)}>
-                  <div className="h-2 w-2 rounded-full bg-primary mr-2" />
-                  <span className="flex-1">{p.name}</span>
-                  {p.isDefault && <Badge variant="outline" className="text-[9px]">padrão</Badge>}
+      {/* Premium toolbar: pipeline + view + filters */}
+      <div className="orbit-card p-2.5 sm:p-3 space-y-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline" className="gap-2 bg-muted/40 border-border rounded-full pl-2.5 pr-2.5 h-8">
+                  <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                  <span className="font-semibold text-foreground text-[13px]">{activePipeline?.name || "—"}</span>
+                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="bg-card border-border w-56">
+                <DropdownMenuLabel className="text-[10px] uppercase tracking-wide text-muted-foreground/70">Pipelines</DropdownMenuLabel>
+                {pipelines.map((p) => (
+                  <DropdownMenuItem key={p.id} onClick={() => setActivePipelineId(p.id)}>
+                    <div className="h-2 w-2 rounded-full bg-primary mr-2" />
+                    <span className="flex-1">{p.name}</span>
+                    {p.isDefault && <Badge variant="outline" className="text-[9px]">padrão</Badge>}
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => { setEditingPipeline(null); setPipelineEditorOpen(true); }}>
+                  <Plus className="h-4 w-4 mr-2" /> Novo pipeline
                 </DropdownMenuItem>
-              ))}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => { setEditingPipeline(null); setPipelineEditorOpen(true); }}>
-                <Plus className="h-4 w-4 mr-2" /> Novo pipeline
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
-          {activePipeline && (
-            <>
-              <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-foreground gap-1.5"
-                onClick={() => { setEditingPipeline(activePipeline); setPipelineEditorOpen(true); }}>
-                <Settings2 className="h-3.5 w-3.5" /> Editar
-              </Button>
-              <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-foreground gap-1.5"
-                onClick={() => setAutomationsOpen(true)}>
-                <Zap className="h-3.5 w-3.5" /> Automações
-              </Button>
-            </>
-          )}
+            {activePipeline && (
+              <>
+                <Separator orientation="vertical" className="h-5 mx-0.5 bg-border hidden sm:block" />
+                <Button size="sm" variant="ghost" className="h-8 px-2 text-muted-foreground hover:text-foreground gap-1.5"
+                  onClick={() => { setEditingPipeline(activePipeline); setPipelineEditorOpen(true); }}>
+                  <Settings2 className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Editar</span>
+                </Button>
+                <Button size="sm" variant="ghost" className="h-8 px-2 text-muted-foreground hover:text-foreground gap-1.5"
+                  onClick={() => setAutomationsOpen(true)}>
+                  <Zap className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Automações</span>
+                </Button>
+              </>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <Button
+              size="sm"
+              variant="ghost"
+              className={`h-8 px-2 gap-1.5 ${showArchived ? "text-foreground bg-muted" : "text-muted-foreground hover:text-foreground"}`}
+              onClick={() => setShowArchived((v) => !v)}
+            >
+              <Archive className="h-3.5 w-3.5" />
+              <span className="hidden md:inline">{showArchived ? "Ocultar arquivados" : "Arquivados"}</span>
+            </Button>
+            <Tabs value={view} onValueChange={(v) => setView(v as any)}>
+              <TabsList className="bg-muted/50 border border-border h-8 p-0.5">
+                <TabsTrigger value="kanban" className="gap-1.5 h-7 px-2.5 data-[state=active]:bg-card data-[state=active]:shadow-sm">
+                  <LayoutGrid className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Kanban</span>
+                </TabsTrigger>
+                <TabsTrigger value="list" className="gap-1.5 h-7 px-2.5 data-[state=active]:bg-card data-[state=active]:shadow-sm">
+                  <List className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Lista</span>
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant={showArchived ? "default" : "ghost"}
-            className={showArchived ? "" : "text-muted-foreground hover:text-foreground"}
-            onClick={() => setShowArchived((v) => !v)}
-          >
-            <Archive className="h-3.5 w-3.5 mr-1.5" />
-            {showArchived ? "Ocultar arquivados" : "Mostrar arquivados"}
-          </Button>
-          <Tabs value={view} onValueChange={(v) => setView(v as any)}>
-            <TabsList className="bg-card border border-border">
-              <TabsTrigger value="kanban" className="gap-1.5"><LayoutGrid className="h-3.5 w-3.5" /> Kanban</TabsTrigger>
-              <TabsTrigger value="list" className="gap-1.5"><List className="h-3.5 w-3.5" /> Lista</TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
-      </div>
+        <Separator className="bg-border/60" />
 
-      {/* Filters */}
-      <div className="orbit-card p-3 flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por nome, empresa, e-mail ou telefone..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 bg-muted/50 border-border"
-          />
+        {/* Filters */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              placeholder="Buscar nome, empresa, e-mail ou telefone…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-8 h-8 bg-muted/40 border-border text-[13px]"
+            />
+          </div>
+          <Select value={filterStage} onValueChange={setFilterStage}>
+            <SelectTrigger className="w-[150px] h-8 bg-muted/40 border-border text-[13px]"><SelectValue placeholder="Etapa" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as etapas</SelectItem>
+              {stages.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={filterOrigin} onValueChange={setFilterOrigin}>
+            <SelectTrigger className="w-[130px] h-8 bg-muted/40 border-border text-[13px]"><SelectValue placeholder="Origem" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as origens</SelectItem>
+              {origins.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={filterType} onValueChange={setFilterType}>
+            <SelectTrigger className="w-[140px] h-8 bg-muted/40 border-border text-[13px]"><SelectValue placeholder="Serviço" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os tipos</SelectItem>
+              {serviceTypes.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+            </SelectContent>
+          </Select>
         </div>
-        <Select value={filterStage} onValueChange={setFilterStage}>
-          <SelectTrigger className="w-[180px] bg-muted/50 border-border"><SelectValue placeholder="Etapa" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas as etapas</SelectItem>
-            {stages.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={filterOrigin} onValueChange={setFilterOrigin}>
-          <SelectTrigger className="w-[150px] bg-muted/50 border-border"><SelectValue placeholder="Origem" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas as origens</SelectItem>
-            {origins.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={filterType} onValueChange={setFilterType}>
-          <SelectTrigger className="w-[160px] bg-muted/50 border-border"><SelectValue placeholder="Serviço" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos os tipos</SelectItem>
-            {serviceTypes.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-          </SelectContent>
-        </Select>
       </div>
 
       {/* View */}
