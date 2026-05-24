@@ -71,8 +71,8 @@ export function AISection() {
   };
 
   const buy = (pack: typeof packs[number]) => {
-    toast.success("Compra simulada. Pagamento real será implementado futuramente.");
-    credits.addTransaction({ type: "purchase", amount: pack.credits, description: `Pacote ${pack.name} (simulado)` });
+    credits.simulatePurchase({ name: pack.name, credits: pack.credits });
+    toast.success("Compra simulada. O checkout real será ativado futuramente.");
     setBuyOpen(false);
   };
 
