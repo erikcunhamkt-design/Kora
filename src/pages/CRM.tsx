@@ -509,6 +509,7 @@ const CRM = () => {
               </div>
             );
           })}
+          </div>
         </div>
       ) : (
         <div className="orbit-card overflow-hidden">
