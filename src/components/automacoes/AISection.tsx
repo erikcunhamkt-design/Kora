@@ -3,7 +3,7 @@ import {
   Bot, Plus, Sparkles, Power, Send, MessageSquare, Coins, ShoppingCart,
   Compass, LineChart, Wallet, SearchCheck, Radar, Handshake, Tag,
   Shield, ListChecks, Workflow, CalendarClock, PenLine, Palette, LifeBuoy,
-  KeyRound, Lock, Info, Star,
+  KeyRound, Lock, Info, Star, Lightbulb,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -13,7 +13,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { useAiAgents, AgentCategory, AiAgent, AgentBadge } from "@/hooks/useAiAgents";
@@ -62,21 +61,17 @@ const packs = [
 ];
 
 export function AISection() {
-  const { agents, addAgent, toggleAgentStatus, incrementUsage } = useAiAgents();
+  const { agents, toggleAgentStatus, incrementUsage } = useAiAgents();
   const credits = useAiCredits();
 
   const [tab, setTab] = useState<"all" | AgentCategory>("all");
-  const [newOpen, setNewOpen] = useState(false);
   const [buyOpen, setBuyOpen] = useState(false);
   const [apiOpen, setApiOpen] = useState(false);
+  const [suggestOpen, setSuggestOpen] = useState(false);
+  const [suggestText, setSuggestText] = useState("");
   const [chatAgent, setChatAgent] = useState<AiAgent | null>(null);
   const [chatHistory, setChatHistory] = useState<{ role: "user" | "assistant"; text: string }[]>([]);
   const [chatInput, setChatInput] = useState("");
-
-  const [form, setForm] = useState({
-    name: "", role: "", category: "strategy" as AgentCategory,
-    description: "", systemPrompt: "", active: true,
-  });
 
   const heroAgent = agents.find((a) => a.hero);
   const visibleAgents = useMemo(() => agents.filter((a) => !a.hero), [agents]);
@@ -90,20 +85,13 @@ export function AISection() {
 
   const activeCount = agents.filter((a) => a.status === "active").length;
   const totalUsage = agents.reduce((s, a) => s + a.usageCount, 0);
-  const customCount = agents.filter((a) => !a.isDemo).length;
+  const koraAgentCount = agents.filter((a) => a.isDemo).length;
 
-  const handleCreate = () => {
-    if (!form.name.trim()) return toast.error("Nome é obrigatório");
-    if (!form.role.trim()) return toast.error("Função é obrigatória");
-    addAgent({
-      name: form.name, role: form.role, description: form.description,
-      category: form.category, systemPrompt: form.systemPrompt,
-      status: form.active ? "active" : "inactive",
-      badges: ["simulated", "uses-credits"],
-    });
-    toast.success("Agente criado");
-    setForm({ name: "", role: "", category: "strategy", description: "", systemPrompt: "", active: true });
-    setNewOpen(false);
+  const handleSuggest = () => {
+    if (!suggestText.trim()) return toast.error("Descreva o agente que você gostaria de ver");
+    toast.success("Sugestão enviada. Obrigado!");
+    setSuggestText("");
+    setSuggestOpen(false);
   };
 
   const openChat = (agent: AiAgent) => {
@@ -162,18 +150,22 @@ export function AISection() {
           <Button variant="outline" size="sm" onClick={() => setApiOpen(true)}>
             <KeyRound className="h-4 w-4" /> Usar minha própria API
           </Button>
-          <Button size="sm" onClick={() => setNewOpen(true)}>
-            <Plus className="h-4 w-4" /> Novo agente
+          <Button variant="outline" size="sm" onClick={() => setSuggestOpen(true)}>
+            <Lightbulb className="h-4 w-4" /> Sugerir agente
           </Button>
         </div>
       </div>
+
+      <p className="text-xs text-muted-foreground -mt-4">
+        Os agentes KORA são curados para fluxos de estúdio. Agentes personalizados serão avaliados em uma etapa futura.
+      </p>
 
       {/* Metrics */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <MetricCard label="Agentes ativos" value={activeCount} icon={<Bot className="h-4 w-4" />} />
         <MetricCard label="Usos simulados" value={totalUsage} icon={<Sparkles className="h-4 w-4" />} />
         <MetricCard label="Créditos disponíveis" value={credits.balance} icon={<Coins className="h-4 w-4" />} />
-        <MetricCard label="Personalizados" value={customCount} icon={<Plus className="h-4 w-4" />} />
+        <MetricCard label="Agentes KORA" value={koraAgentCount} icon={<Star className="h-4 w-4" />} />
       </div>
 
       {/* Hero copilot */}
@@ -227,29 +219,26 @@ export function AISection() {
         </div>
       </Card>
 
-      {/* New agent */}
-      <Dialog open={newOpen} onOpenChange={setNewOpen}>
+      {/* Suggest agent */}
+      <Dialog open={suggestOpen} onOpenChange={setSuggestOpen}>
         <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>Novo agente</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Lightbulb className="h-4 w-4 text-primary" /> Sugerir agente</DialogTitle>
+            <DialogDescription className="text-xs">
+              Conte qual agente você gostaria de ver no KORA.
+            </DialogDescription>
+          </DialogHeader>
           <div className="space-y-3">
-            <div><Label>Nome *</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
-            <div><Label>Função *</Label><Input value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} placeholder="Ex: Copywriter de campanhas" /></div>
-            <div>
-              <Label>Categoria</Label>
-              <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v as AgentCategory })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {categoryOrder.map((c) => <SelectItem key={c} value={c}>{categoryLabels[c]}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div><Label>Descrição</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} /></div>
-            <div><Label>Prompt base</Label><Textarea value={form.systemPrompt} onChange={(e) => setForm({ ...form, systemPrompt: e.target.value })} rows={3} /></div>
-            <div className="flex items-center justify-between"><Label>Ativo</Label><Switch checked={form.active} onCheckedChange={(v) => setForm({ ...form, active: v })} /></div>
+            <Textarea
+              value={suggestText}
+              onChange={(e) => setSuggestText(e.target.value)}
+              placeholder="Ex: gostaria de um agente que analise concorrência e sugere posicionamento diferenciado..."
+              rows={4}
+            />
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setNewOpen(false)}>Cancelar</Button>
-            <Button onClick={handleCreate}>Criar</Button>
+            <Button variant="ghost" onClick={() => setSuggestOpen(false)}>Cancelar</Button>
+            <Button onClick={handleSuggest}>Enviar sugestão</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

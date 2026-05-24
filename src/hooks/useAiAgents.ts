@@ -4,6 +4,9 @@ export type AgentCategory = "strategy" | "commercial" | "operations" | "content"
 export type AgentStatus = "active" | "inactive";
 export type AgentBadge = "simulated" | "coming-soon" | "uses-credits" | "own-api";
 
+// NOTE: systemPrompt and final agent prompts must live on the backend when real AI execution is activated.
+// Frontend stores only structural metadata for planning/local simulation.
+
 export interface AiAgent {
   id: string;
   name: string;
@@ -26,6 +29,12 @@ export interface AiAgent {
   hero?: boolean;
   /** If true: only shows informational UI, can't run yet */
   comingSoon?: boolean;
+  /** Structural fields for local planning — not system prompts */
+  mission?: string;
+  dataSources?: string[];
+  capabilities?: string[];
+  outputExamples?: string[];
+  suggestedActions?: string[];
 }
 
 const STORAGE_KEY = "orbyt.ai.agents.v2";
@@ -42,13 +51,18 @@ const seed: AiAgent[] = [
     description: "Prioriza o que precisa acontecer agora no seu estúdio com base em CRM, tarefas, financeiro e metas.",
     category: "strategy",
     status: "active",
-    usageCount: 0,
+    usageCount: 1,
     systemPrompt: "Você é o copiloto estratégico do estúdio...",
     createdAt: now(),
     isDemo: true,
     hero: true,
     badges: ["simulated", "uses-credits"],
     examples: ["Prioridades do dia", "Riscos da semana", "Oportunidades de receita", "Gargalos operacionais"],
+    mission: "Sintetizar sinais do estúdio em prioridades acionáveis",
+    dataSources: ["CRM/pipeline", "tarefas", "financeiro", "metas"],
+    capabilities: ["Priorização", "Risco", "Sugestão de ação"],
+    outputExamples: ["Top 3 prioridades", "Alerta de risco", "Próxima ação sugerida"],
+    suggestedActions: ["Reordenar tarefas", "Notificar responsável", "Gerar resumo"],
   },
   {
     id: "agent-analyst",
@@ -64,6 +78,9 @@ const seed: AiAgent[] = [
     isDemo: true,
     badges: ["simulated", "uses-credits"],
     examples: ["Diagnóstico do funil", "Análise de produtividade", "Metas em risco"],
+    mission: "Diagnosticar saúde do negócio com dados locais",
+    dataSources: ["funil", "tarefas", "financeiro", "metas"],
+    capabilities: ["Diagnóstico", "Benchmark", "Tendência"],
   },
   {
     id: "agent-financial",
@@ -79,6 +96,9 @@ const seed: AiAgent[] = [
     isDemo: true,
     badges: ["simulated", "uses-credits"],
     examples: ["Projeção de caixa", "Margem por projeto", "Cobranças pendentes"],
+    mission: "Proteger saúde financeira do estúdio",
+    dataSources: ["projetos", "preços", "pagamentos"],
+    capabilities: ["Projeção", "Precificação", "Alerta de inadimplência"],
   },
   {
     id: "agent-bottleneck",
@@ -94,6 +114,9 @@ const seed: AiAgent[] = [
     isDemo: true,
     badges: ["simulated", "uses-credits"],
     examples: ["Tarefas paradas", "Etapas lentas do funil", "Projetos sem avanço"],
+    mission: "Identificar e quantificar desperdício operacional",
+    dataSources: ["tarefas", "pipeline", "timeline"],
+    capabilities: ["Detecção", "Custo do gargalo", "Sugestão de correção"],
   },
 
   // ---------- Comercial ----------
@@ -111,6 +134,9 @@ const seed: AiAgent[] = [
     isDemo: true,
     badges: ["simulated", "uses-credits"],
     examples: ["Propostas paradas há 7+ dias", "Leads quentes esquecidos", "Sugestões de upsell"],
+    mission: "Maximizar receita com leads e contas existentes",
+    dataSources: ["pipeline", "propostas", "histórico de follow-up"],
+    capabilities: ["Detecção", "Sugestão de ação", "Upsell"],
   },
   {
     id: "agent-sales",
@@ -126,6 +152,9 @@ const seed: AiAgent[] = [
     isDemo: true,
     badges: ["simulated", "uses-credits"],
     examples: ["Qualificar lead", "Próximo follow-up", "Argumento de venda"],
+    mission: "Aumentar taxa de conversão do pipeline",
+    dataSources: ["leads", "interações", "propostas"],
+    capabilities: ["Qualificação", "Follow-up", "Argumentação"],
   },
   {
     id: "agent-pricing",
@@ -141,6 +170,9 @@ const seed: AiAgent[] = [
     isDemo: true,
     badges: ["simulated", "uses-credits"],
     examples: ["Preço sugerido", "Comparar com histórico", "Faixa por complexidade"],
+    mission: "Precificar com confiança e margem saudável",
+    dataSources: ["projetos anteriores", "escopo", "posicionamento"],
+    capabilities: ["Benchmark de preço", "Margem", "Escopo"],
   },
 
   // ---------- Operação ----------
@@ -158,6 +190,9 @@ const seed: AiAgent[] = [
     isDemo: true,
     badges: ["simulated", "uses-credits"],
     examples: ["Detectar revisões extras", "Mensagem de alinhamento", "Sugerir cobrança adicional"],
+    mission: "Proteger margem e prazo contra escopo creep",
+    dataSources: ["revisões", "checklist", "timeline"],
+    capabilities: ["Detecção de creep", "Mensagem de alinhamento", "Cobrança sugerida"],
   },
   {
     id: "agent-operations",
@@ -173,6 +208,9 @@ const seed: AiAgent[] = [
     isDemo: true,
     badges: ["simulated", "uses-credits"],
     examples: ["Briefing → tarefas", "Checklist de entrega", "Detectar atrasos"],
+    mission: "Garantir entrega no prazo com qualidade",
+    dataSources: ["projetos", "tarefas", "checklists"],
+    capabilities: ["Decomposição", "Checklist", "Alerta de atraso"],
   },
   {
     id: "agent-automation-architect",
@@ -188,6 +226,9 @@ const seed: AiAgent[] = [
     isDemo: true,
     badges: ["simulated", "uses-credits"],
     examples: ['"Quando orçamento aprovado, criar projeto e cobrança"', "Sugestão de gatilhos", "Sugestão de ações"],
+    mission: "Traduzir regras de negócio em automações operacionais",
+    dataSources: ["regras descritas", "fluxos existentes"],
+    capabilities: ["Gatilho", "Ação", "Sequência"],
   },
   {
     id: "agent-meeting",
@@ -203,6 +244,9 @@ const seed: AiAgent[] = [
     isDemo: true,
     badges: ["simulated", "uses-credits"],
     examples: ["Briefing pré-reunião", "Ata e follow-up", "Tarefas geradas"],
+    mission: "Preparar e documentar reuniões com contexto",
+    dataSources: ["histórico do cliente", "pendências", "calendário"],
+    capabilities: ["Pré-briefing", "Ata", "Tarefas pós-call"],
   },
 
   // ---------- Conteúdo ----------
@@ -220,6 +264,10 @@ const seed: AiAgent[] = [
     isDemo: true,
     badges: ["simulated", "uses-credits"],
     examples: ["Legenda para post", "Texto de anúncio", "Proposta comercial"],
+    mission: "Produzir textos comerciais e criativos sob demanda",
+    dataSources: ["briefing", "tom de voz", "público-alvo"],
+    capabilities: ["Legenda", "Anúncio", "E-mail", "Proposta"],
+    outputExamples: ["Legenda para Instagram", "Variação A/B de headline"],
   },
   {
     id: "agent-creative-director",
@@ -235,6 +283,10 @@ const seed: AiAgent[] = [
     isDemo: true,
     badges: ["simulated", "uses-credits"],
     examples: ["Prompt para Midjourney/Sora", "Moodboard textual", "Checklist de marca", "Revisão de consistência"],
+    mission: "Direcionar qualidade criativa sem gerar imagens nativamente",
+    dataSources: ["briefing", "guia de marca", "referências"],
+    capabilities: ["Direção criativa", "Prompt para ferramentas externas", "Checklist de marca"],
+    outputExamples: ["Prompt otimizado para Midjourney", "Moodboard textual"],
   },
 
   // ---------- Cliente ----------
@@ -253,6 +305,9 @@ const seed: AiAgent[] = [
     comingSoon: true,
     badges: ["coming-soon"],
     examples: ["Coleta de briefing", "FAQ do cliente", "Triagem de solicitações"],
+    mission: "Acolher e triar demandas do cliente no portal",
+    dataSources: ["portal do cliente", "FAQ", "solicitações"],
+    capabilities: ["Coleta", "FAQ", "Triagem"],
   },
 ];
 
