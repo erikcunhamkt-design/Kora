@@ -22,14 +22,14 @@ const STATUS_STYLE: Record<QuoteStatus, string> = {
 };
 
 function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <div className={`rounded-2xl border border-zinc-800 bg-[#080808] ${className}`}>{children}</div>;
+  return <div className={`rounded-2xl border border-border/60 bg-card ${className}`}>{children}</div>;
 }
 
 function Metric({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
   return (
     <Card className="p-4">
-      <div className="text-xs uppercase tracking-wide text-blue-200">{label}</div>
-      <div className={`mt-1 text-2xl font-black ${accent ? "text-amber-400" : "text-white"}`}>{value}</div>
+      <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className={`mt-1 text-2xl font-black ${accent ? "text-primary" : "text-foreground"}`}>{value}</div>
     </Card>
   );
 }
@@ -52,12 +52,12 @@ export function QuotesSection() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-black">Orçamentos</h1>
-          <p className="text-blue-200">Crie propostas profissionais para fechar mais negócios.</p>
+          <p className="text-muted-foreground">Crie propostas profissionais para fechar mais negócios.</p>
         </div>
         <button
           type="button"
           onClick={() => setModalOpen(true)}
-          className="rounded-xl border border-white px-4 py-2 text-sm font-bold text-amber-400 hover:bg-white hover:text-black transition flex items-center gap-2"
+          className="rounded-xl border border-border px-4 py-2 text-sm font-bold text-primary hover:bg-primary hover:text-primary-foreground transition flex items-center gap-2"
         >
           <Plus className="h-4 w-4" /> Novo orçamento
         </button>
@@ -72,15 +72,15 @@ export function QuotesSection() {
 
       {quotes.length === 0 ? (
         <Card className="p-10 text-center">
-          <FileText className="mx-auto h-10 w-10 text-amber-400" />
+          <FileText className="mx-auto h-10 w-10 text-primary" />
           <h2 className="mt-4 text-xl font-black">Nenhum orçamento criado</h2>
-          <p className="mt-1 text-sm text-blue-200">Crie seu primeiro orçamento para enviar ao cliente.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Crie seu primeiro orçamento para enviar ao cliente.</p>
         </Card>
       ) : (
         <Card className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="text-xs uppercase text-blue-200">
-              <tr className="border-b border-zinc-800">
+            <thead className="text-xs uppercase text-muted-foreground">
+              <tr className="border-b border-border/60">
                 <th className="px-4 py-3 text-left">Título</th>
                 <th className="px-4 py-3 text-left">Cliente</th>
                 <th className="px-4 py-3 text-right">Valor</th>
@@ -92,22 +92,22 @@ export function QuotesSection() {
             </thead>
             <tbody className="divide-y divide-zinc-800">
               {quotes.map((q) => (
-                <tr key={q.id} className="hover:bg-zinc-900/50 transition">
-                  <td className="px-4 py-3 font-bold text-white">{q.title}</td>
-                  <td className="px-4 py-3 text-blue-200">{q.clientName}</td>
-                  <td className="px-4 py-3 text-right font-black text-amber-400">{BRL(q.total)}</td>
+                <tr key={q.id} className="hover:bg-muted/40/50 transition">
+                  <td className="px-4 py-3 font-bold text-foreground">{q.title}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{q.clientName}</td>
+                  <td className="px-4 py-3 text-right font-black text-primary">{BRL(q.total)}</td>
                   <td className="px-4 py-3">
                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${STATUS_STYLE[q.status]}`}>
                       {STATUS_LABEL[q.status]}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-zinc-400">{q.createdAt}</td>
-                  <td className="px-4 py-3 text-zinc-400">{q.validityDays}d</td>
+                  <td className="px-4 py-3 text-muted-foreground">{q.createdAt}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{q.validityDays}d</td>
                   <td className="px-4 py-3 text-right">
                     <button
                       type="button"
                       onClick={() => setPreviewId(q.id)}
-                      className="rounded-lg border border-zinc-800 px-3 py-1.5 text-xs font-bold text-white hover:border-amber-400 hover:text-amber-400 transition"
+                      className="rounded-lg border border-border/60 px-3 py-1.5 text-xs font-bold text-foreground hover:border-primary hover:text-primary transition"
                     >
                       Ver
                     </button>
@@ -241,7 +241,7 @@ function NewQuoteWizard({
         {[1, 2, 3, 4].map((s) => (
           <div
             key={s}
-            className={`h-1.5 flex-1 rounded-full ${s <= step ? "bg-amber-400" : "bg-zinc-800"}`}
+            className={`h-1.5 flex-1 rounded-full ${s <= step ? "bg-primary" : "bg-zinc-800"}`}
           />
         ))}
       </div>
@@ -310,20 +310,20 @@ function NewQuoteWizard({
             <button
               type="button"
               onClick={addManualItem}
-              className="rounded-xl border border-zinc-800 px-4 py-2 text-sm font-bold text-white hover:border-amber-400 hover:text-amber-400 transition"
+              className="rounded-xl border border-border/60 px-4 py-2 text-sm font-bold text-foreground hover:border-primary hover:text-primary transition"
             >
               + Item manual
             </button>
           </div>
 
           {items.length === 0 ? (
-            <Card className="p-6 text-center text-sm text-zinc-500">
+            <Card className="p-6 text-center text-sm text-muted-foreground">
               Nenhum item adicionado ainda.
             </Card>
           ) : (
             <div className="space-y-2">
               {items.map((it) => (
-                <div key={it.id} className="rounded-xl border border-zinc-800 bg-black p-3 grid gap-2 md:grid-cols-[1fr_80px_120px_auto] items-center">
+                <div key={it.id} className="rounded-xl border border-border/60 bg-card p-3 grid gap-2 md:grid-cols-[1fr_80px_120px_auto] items-center">
                   <input
                     value={it.name}
                     onChange={(e) => updateItem(it.id, { name: e.target.value })}
@@ -346,7 +346,7 @@ function NewQuoteWizard({
                     onChange={(e) => updateItem(it.id, { unitPrice: Number(e.target.value) || 0 })}
                     className="modal-input"
                   />
-                  <button type="button" onClick={() => removeItem(it.id)} className="text-zinc-500 hover:text-red-400 p-2" aria-label="Remover">
+                  <button type="button" onClick={() => removeItem(it.id)} className="text-muted-foreground hover:text-red-400 p-2" aria-label="Remover">
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
@@ -354,7 +354,7 @@ function NewQuoteWizard({
             </div>
           )}
 
-          <div className="grid gap-4 md:grid-cols-3 pt-3 border-t border-zinc-800">
+          <div className="grid gap-4 md:grid-cols-3 pt-3 border-t border-border/60">
             <FieldLabel label="Subtotal">
               <div className="modal-input flex items-center">{BRL(subtotal)}</div>
             </FieldLabel>
@@ -362,7 +362,7 @@ function NewQuoteWizard({
               <input type="number" min={0} value={discount} onChange={(e) => setDiscount(e.target.value)} className="modal-input" />
             </FieldLabel>
             <FieldLabel label="Total">
-              <div className="modal-input flex items-center font-black text-amber-400">{BRL(total)}</div>
+              <div className="modal-input flex items-center font-black text-primary">{BRL(total)}</div>
             </FieldLabel>
           </div>
 
@@ -389,21 +389,21 @@ function NewQuoteWizard({
         <div className="space-y-4">
           <Card className="p-5 space-y-3">
             <div>
-              <div className="text-xs uppercase text-blue-200">Cliente</div>
+              <div className="text-xs uppercase text-muted-foreground">Cliente</div>
               <div className="font-bold">{clientName}</div>
-              {clientEmail && <div className="text-xs text-zinc-400">{clientEmail}</div>}
-              {clientWhatsapp && <div className="text-xs text-zinc-400">{clientWhatsapp}</div>}
+              {clientEmail && <div className="text-xs text-muted-foreground">{clientEmail}</div>}
+              {clientWhatsapp && <div className="text-xs text-muted-foreground">{clientWhatsapp}</div>}
             </div>
             <div>
-              <div className="text-xs uppercase text-blue-200">Orçamento</div>
+              <div className="text-xs uppercase text-muted-foreground">Orçamento</div>
               <div className="font-bold">{title}</div>
-              {description && <div className="text-xs text-zinc-400 mt-1">{description}</div>}
+              {description && <div className="text-xs text-muted-foreground mt-1">{description}</div>}
             </div>
             <div>
-              <div className="text-xs uppercase text-blue-200 mb-2">Itens</div>
+              <div className="text-xs uppercase text-muted-foreground mb-2">Itens</div>
               <ul className="space-y-1 text-sm">
                 {items.map((it) => (
-                  <li key={it.id} className="flex justify-between border-b border-zinc-800 py-1">
+                  <li key={it.id} className="flex justify-between border-b border-border/60 py-1">
                     <span>{it.name} × {it.quantity}</span>
                     <span className="font-bold">{BRL(it.quantity * it.unitPrice)}</span>
                   </li>
@@ -411,18 +411,18 @@ function NewQuoteWizard({
               </ul>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-blue-200">Subtotal</span>
+              <span className="text-muted-foreground">Subtotal</span>
               <span>{BRL(subtotal)}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-blue-200">Desconto</span>
+              <span className="text-muted-foreground">Desconto</span>
               <span>- {BRL(Number(discount || 0))}</span>
             </div>
-            <div className="flex justify-between text-lg pt-2 border-t border-zinc-800">
+            <div className="flex justify-between text-lg pt-2 border-t border-border/60">
               <span className="font-bold">Total</span>
-              <span className="font-black text-amber-400">{BRL(total)}</span>
+              <span className="font-black text-primary">{BRL(total)}</span>
             </div>
-            <div className="grid gap-1 text-xs text-zinc-400 pt-2 border-t border-zinc-800">
+            <div className="grid gap-1 text-xs text-muted-foreground pt-2 border-t border-border/60">
               <div>Pagamento: {paymentCondition}</div>
               <div>Prazo: {deliveryDeadline}</div>
               <div>Validade: {validityDays} dias</div>
@@ -432,14 +432,14 @@ function NewQuoteWizard({
             <button
               type="button"
               onClick={() => setStep(3)}
-              className="flex-1 rounded-xl border border-zinc-800 px-4 py-2.5 text-sm font-bold text-white hover:border-amber-400 hover:text-amber-400 transition"
+              className="flex-1 rounded-xl border border-border/60 px-4 py-2.5 text-sm font-bold text-foreground hover:border-primary hover:text-primary transition"
             >
               Voltar
             </button>
             <button
               type="button"
               onClick={save}
-              className="flex-1 rounded-xl border border-white px-4 py-2.5 text-sm font-black text-amber-400 hover:bg-white hover:text-black transition flex items-center justify-center gap-2"
+              className="flex-1 rounded-xl border border-border px-4 py-2.5 text-sm font-black text-primary hover:bg-primary hover:text-primary-foreground transition flex items-center justify-center gap-2"
             >
               <Check className="h-4 w-4" /> Salvar orçamento
             </button>
@@ -469,33 +469,33 @@ function QuotePreview({
 }) {
   return (
     <Shell title="Preview do orçamento" onClose={onClose} wide>
-      <div className="rounded-2xl border border-zinc-800 bg-white text-zinc-900 p-8 space-y-5">
+      <div className="rounded-2xl border border-border/60 bg-white text-zinc-900 p-8 space-y-5">
         <div className="flex items-start justify-between border-b border-zinc-200 pb-4">
           <div>
-            <div className="text-xs uppercase tracking-wider text-zinc-500">Orçamento</div>
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">Orçamento</div>
             <div className="text-2xl font-black">KORA HUB</div>
           </div>
-          <div className="text-right text-xs text-zinc-500">
+          <div className="text-right text-xs text-muted-foreground">
             <div>Emitido em {quote.createdAt}</div>
             <div>Validade {quote.validityDays} dias</div>
           </div>
         </div>
 
         <div>
-          <div className="text-xs uppercase text-zinc-500">Cliente</div>
+          <div className="text-xs uppercase text-muted-foreground">Cliente</div>
           <div className="font-bold">{quote.clientName}</div>
           {quote.clientEmail && <div className="text-sm text-zinc-600">{quote.clientEmail}</div>}
           {quote.clientWhatsapp && <div className="text-sm text-zinc-600">{quote.clientWhatsapp}</div>}
         </div>
 
         <div>
-          <div className="text-xs uppercase text-zinc-500">Projeto</div>
+          <div className="text-xs uppercase text-muted-foreground">Projeto</div>
           <div className="font-bold">{quote.title}</div>
           {quote.description && <p className="text-sm text-zinc-600 mt-1">{quote.description}</p>}
         </div>
 
         <table className="w-full text-sm">
-          <thead className="text-xs uppercase text-zinc-500 border-b border-zinc-200">
+          <thead className="text-xs uppercase text-muted-foreground border-b border-zinc-200">
             <tr>
               <th className="py-2 text-left">Item</th>
               <th className="py-2 text-center w-16">Qtd</th>
@@ -545,8 +545,8 @@ function ActionButton({ icon, label, onClick, primary }: { icon: ReactNode; labe
       onClick={onClick}
       className={`flex items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-xs font-bold transition ${
         primary
-          ? "border-white text-amber-400 hover:bg-white hover:text-black"
-          : "border-zinc-800 text-white hover:border-amber-400 hover:text-amber-400"
+          ? "border-border text-primary hover:bg-primary hover:text-primary-foreground"
+          : "border-border/60 text-foreground hover:border-primary hover:text-primary"
       }`}
     >
       {icon} {label}
@@ -558,14 +558,14 @@ function ActionButton({ icon, label, onClick, primary }: { icon: ReactNode; labe
 
 function Shell({ title, onClose, children, wide }: { title: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-card/80 backdrop-blur-sm p-4" onClick={onClose}>
       <div
-        className={`relative max-h-[90vh] w-full overflow-auto rounded-[28px] border border-zinc-800 bg-[#101012] p-6 md:p-8 text-white shadow-2xl ${wide ? "max-w-2xl" : "max-w-xl"}`}
+        className={`relative max-h-[90vh] w-full overflow-auto rounded-[28px] border border-border/60 bg-[#101012] p-6 md:p-8 text-foreground shadow-2xl ${wide ? "max-w-2xl" : "max-w-xl"}`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-5 flex items-center justify-between">
           <h2 className="text-lg font-black">{title}</h2>
-          <button type="button" onClick={onClose} className="rounded-lg p-1 text-zinc-500 hover:text-white" aria-label="Fechar">
+          <button type="button" onClick={onClose} className="rounded-lg p-1 text-muted-foreground hover:text-foreground" aria-label="Fechar">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -578,7 +578,7 @@ function Shell({ title, onClose, children, wide }: { title: string; onClose: () 
 function FieldLabel({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="space-y-1.5">
-      <label className="text-xs font-bold uppercase text-amber-400">{label}</label>
+      <label className="text-xs font-bold uppercase text-primary">{label}</label>
       {children}
     </div>
   );
@@ -588,15 +588,15 @@ function WizardActions({ onClose, step, onBack, canBack = true }: { onClose: () 
   return (
     <div className="flex gap-3 pt-3">
       {canBack ? (
-        <button type="button" onClick={onBack ?? onClose} className="flex-1 rounded-xl border border-zinc-800 px-4 py-2.5 text-sm font-bold text-white hover:border-amber-400 hover:text-amber-400 transition">
+        <button type="button" onClick={onBack ?? onClose} className="flex-1 rounded-xl border border-border/60 px-4 py-2.5 text-sm font-bold text-foreground hover:border-primary hover:text-primary transition">
           Voltar
         </button>
       ) : (
-        <button type="button" onClick={onClose} className="flex-1 rounded-xl border border-zinc-800 px-4 py-2.5 text-sm font-bold text-white hover:border-amber-400 hover:text-amber-400 transition">
+        <button type="button" onClick={onClose} className="flex-1 rounded-xl border border-border/60 px-4 py-2.5 text-sm font-bold text-foreground hover:border-primary hover:text-primary transition">
           Cancelar
         </button>
       )}
-      <button type="submit" className="flex-1 rounded-xl border border-white px-4 py-2.5 text-sm font-black text-amber-400 hover:bg-white hover:text-black transition">
+      <button type="submit" className="flex-1 rounded-xl border border-border px-4 py-2.5 text-sm font-black text-primary hover:bg-primary hover:text-primary-foreground transition">
         Continuar
       </button>
     </div>
