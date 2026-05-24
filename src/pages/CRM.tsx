@@ -864,12 +864,14 @@ const NewLeadDialog = ({
   stages: PipelineStage[];
   pipelineId: string;
 }) => {
+  const { activeTypes } = useClientTypes();
   const emptyForm = {
     name: "", company: "", email: "", phone: "", serviceType: "",
     origin: "", estimatedValue: "", priority: "média" as Priority,
     stageId: stages[0]?.id || "", nextAction: "", description: "",
   };
   const [form, setForm] = useState(emptyForm);
+  const [typeDialogOpen, setTypeDialogOpen] = useState(false);
   const set = (k: keyof typeof emptyForm, v: string) => setForm((p) => ({ ...p, [k]: v }));
 
   useEffect(() => {
