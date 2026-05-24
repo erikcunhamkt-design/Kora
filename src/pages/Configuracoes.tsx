@@ -497,7 +497,17 @@ const Configuracoes = () => {
             </SettingsSection>
           )}
 
+          {active === "portal" && (
+            <ClientPortalSection
+              company={company}
+              clientPortal={clientPortal}
+              updateClientPortal={updateClientPortal}
+              resetClientPortal={resetClientPortal}
+            />
+          )}
+
           {active === "data" && (
+
             <SettingsSection title="Dados" description="Exportação, importação e armazenamento.">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <DataCard icon={Download} title="Exportar dados" hint="Baixe seus dados em CSV/JSON" state="soon" />
