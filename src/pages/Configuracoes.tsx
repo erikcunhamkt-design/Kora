@@ -33,7 +33,9 @@ import {
   Link2,
   Copy,
   ExternalLink,
+  Users,
 } from "lucide-react";
+
 
 import { PageHeader } from "@/components/layout/PageHeader";
 import { SettingsNav, type SettingsNavItem } from "@/components/settings/SettingsNav";
