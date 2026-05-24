@@ -56,30 +56,39 @@ export function AppSidebar() {
       </div>
 
       {/* Navigation */}
-      <SidebarContent className="px-3 py-5">
-        <SidebarGroup>
+      <SidebarContent className={collapsed ? "px-2 py-5" : "px-3 py-5"}>
+        <SidebarGroup className={collapsed ? "p-0" : undefined}>
           <SidebarGroupContent>
-            <SidebarMenu className="space-y-1">
+            <SidebarMenu className="space-y-1 items-stretch">
               {navItems.map((item) => {
                 const active = isActive(item.url);
                 return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild>
+                  <SidebarMenuItem key={item.title} className={collapsed ? "flex justify-center" : undefined}>
+                    <SidebarMenuButton
+                      asChild
+                      tooltip={item.title}
+                      className="group-data-[collapsible=icon]:!w-10 group-data-[collapsible=icon]:!h-10 group-data-[collapsible=icon]:!p-0"
+                    >
                       <NavLink
                         to={item.url}
                         end={item.url === "/"}
-                        className={`relative flex items-center gap-3.5 px-3.5 py-3 rounded-lg text-[0.9375rem] font-medium transition-all duration-200 ${
+                        title={collapsed ? item.title : undefined}
+                        className={`relative flex items-center rounded-lg font-medium transition-all duration-200 ${
+                          collapsed
+                            ? "h-10 w-10 mx-auto justify-center p-0"
+                            : "gap-3.5 px-3.5 py-3 text-[0.9375rem]"
+                        } ${
                           active
-                            ? "bg-primary/8 text-primary"
+                            ? "bg-primary/10 text-primary"
                             : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
                         }`}
                         activeClassName=""
                         style={active ? {
-                          boxShadow: 'inset 0 0 0 1px hsl(348 94% 52% / 0.12), 0 0 16px hsl(348 94% 52% / 0.04)'
+                          boxShadow: 'inset 0 0 0 1px hsl(348 94% 52% / 0.25)'
                         } : undefined}
                       >
-                        {active && (
-                          <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full orbit-gradient shadow-[0_0_8px_hsl(263_84%_58%/0.3)]" />
+                        {active && !collapsed && (
+                          <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full orbit-gradient" />
                         )}
                         <item.icon className={`h-[18px] w-[18px] flex-shrink-0 transition-colors duration-200 ${active ? "text-primary" : ""}`} />
                         {!collapsed && <span>{item.title}</span>}
@@ -95,12 +104,12 @@ export function AppSidebar() {
 
       {/* Upgrade Footer */}
       {!isPro && (
-        <SidebarFooter className="p-3">
+        <SidebarFooter className={collapsed ? "p-2" : "p-3"}>
           <button
             onClick={() => navigate("/upgrade")}
             title="Upgrade Pro"
-            className={`w-full flex items-center rounded-lg border border-primary/15 bg-primary/5 hover:bg-primary/8 transition-all duration-200 text-sm press-effect group ${
-              collapsed ? "justify-center p-2" : "gap-2.5 px-4 py-3"
+            className={`flex items-center rounded-lg border border-primary/15 bg-primary/5 hover:bg-primary/8 transition-all duration-200 text-sm press-effect group ${
+              collapsed ? "h-10 w-10 mx-auto justify-center p-0" : "w-full gap-2.5 px-4 py-3"
             }`}
           >
             <Crown className="h-4 w-4 text-primary shrink-0 group-hover:scale-110 transition-transform duration-200" />
