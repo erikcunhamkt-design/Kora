@@ -51,18 +51,27 @@ const origins = ["Indicação", "Instagram", "LinkedIn", "Site", "WhatsApp", "Ou
 const formatCurrency = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0 });
 
-const SummaryCard = ({ icon: Icon, label, value, sub }: { icon: any; label: string; value: string; sub?: string }) => (
-  <div className="orbit-card p-4 flex items-center gap-4">
-    <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-      <Icon className="h-5 w-5 text-primary" />
+const SummaryCard = ({ icon: Icon, label, value, sub, accent }: { icon: any; label: string; value: string; sub?: string; accent?: "primary" | "success" | "danger" | "muted" }) => {
+  const tone =
+    accent === "success" ? "text-emerald-400 bg-emerald-500/10"
+    : accent === "danger" ? "text-destructive bg-destructive/10"
+    : accent === "muted" ? "text-muted-foreground bg-muted/60"
+    : "text-primary bg-primary/10";
+  return (
+    <div className="orbit-card px-3.5 py-2.5 flex items-center gap-3 min-h-0">
+      <div className={`h-8 w-8 rounded-md flex items-center justify-center shrink-0 ${tone}`}>
+        <Icon className="h-4 w-4" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-[11px] uppercase tracking-wide text-muted-foreground/80 truncate leading-tight">{label}</p>
+        <div className="flex items-baseline gap-1.5">
+          <p className="text-base font-bold text-foreground leading-tight truncate">{value}</p>
+          {sub && <p className="text-[10px] text-muted-foreground truncate">{sub}</p>}
+        </div>
+      </div>
     </div>
-    <div className="min-w-0">
-      <p className="text-xs text-muted-foreground truncate">{label}</p>
-      <p className="text-xl font-bold text-foreground">{value}</p>
-      {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
-    </div>
-  </div>
-);
+  );
+};
 
 const CRM = () => {
   const {
@@ -256,16 +265,19 @@ const CRM = () => {
         actions={
           <>
             <UsageBadge resource="leads" label="leads" />
-            <Button onClick={handleNewLead} className="orbit-gradient text-white border-0 gap-2 shrink-0">
+            <Button size="sm" onClick={handleNewLead} className="orbit-gradient text-white border-0 gap-1.5 shrink-0">
               <Plus className="h-4 w-4" /> Novo lead
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="gap-2 shrink-0">
-                  Mais ações <ChevronDown className="h-4 w-4" />
+                <Button size="sm" variant="outline" className="gap-1.5 shrink-0 text-muted-foreground hover:text-foreground">
+                  <span className="hidden sm:inline">Mais ações</span>
+                  <MoreHorizontal className="h-4 w-4 sm:hidden" />
+                  <ChevronDown className="h-3.5 w-3.5 hidden sm:inline" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="bg-card border-border">
+              <DropdownMenuContent align="end" className="bg-card border-border w-56">
+                <DropdownMenuLabel className="text-[10px] uppercase tracking-wide text-muted-foreground/70">Ações</DropdownMenuLabel>
                 <DropdownMenuItem onClick={handleNewLead}>
                   <Plus className="h-4 w-4 mr-2" /> Nova negociação
                 </DropdownMenuItem>
@@ -273,29 +285,30 @@ const CRM = () => {
                   <Settings2 className="h-4 w-4 mr-2" /> Novo pipeline
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-[10px] uppercase tracking-wide text-muted-foreground/70">Em breve</DropdownMenuLabel>
                 <DropdownMenuItem onClick={() => setComingSoon({
                   title: "Importar planilha",
                   description: "Importação em lote de leads a partir de arquivos CSV ou XLSX.",
                   bullets: ["Mapeamento de colunas", "Detecção de duplicados", "Importação para pipeline específico"],
-                })}>
-                  <FileSpreadsheet className="h-4 w-4 mr-2" /> Importar planilha
-                  <Badge variant="outline" className="ml-auto text-[9px] border-primary/40 text-primary">Em breve</Badge>
+                })} className="text-muted-foreground focus:text-foreground">
+                  <FileSpreadsheet className="h-4 w-4 mr-2 opacity-70" /> Importar planilha
+                  <Badge variant="outline" className="ml-auto text-[9px] border-border text-muted-foreground">soon</Badge>
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setComingSoon({
                   title: "Captura por formulário",
                   description: "Crie formulários públicos que geram leads automaticamente no seu pipeline.",
                   bullets: ["Link público compartilhável", "Campos personalizáveis", "Atribuição automática de pipeline e etapa"],
-                })}>
-                  <Sparkles className="h-4 w-4 mr-2" /> Captura por formulário
-                  <Badge variant="outline" className="ml-auto text-[9px] border-primary/40 text-primary">Em breve</Badge>
+                })} className="text-muted-foreground focus:text-foreground">
+                  <Sparkles className="h-4 w-4 mr-2 opacity-70" /> Captura por formulário
+                  <Badge variant="outline" className="ml-auto text-[9px] border-border text-muted-foreground">soon</Badge>
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setComingSoon({
                   title: "Auto-lead WhatsApp",
                   description: "Receba mensagens no WhatsApp e crie leads automaticamente no CRM.",
                   bullets: ["Conexão com WhatsApp Business", "Captura de nome e telefone", "Tag automática 'whatsapp'"],
-                })}>
-                  <MessageCircle className="h-4 w-4 mr-2" /> Auto-lead WhatsApp
-                  <Badge variant="outline" className="ml-auto text-[9px] border-primary/40 text-primary">Em breve</Badge>
+                })} className="text-muted-foreground focus:text-foreground">
+                  <MessageCircle className="h-4 w-4 mr-2 opacity-70" /> Auto-lead WhatsApp
+                  <Badge variant="outline" className="ml-auto text-[9px] border-border text-muted-foreground">soon</Badge>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -303,108 +316,117 @@ const CRM = () => {
         }
       />
 
-      {/* Summary */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        <SummaryCard icon={TrendingUp} label="Total em pipeline" value={formatCurrency(totalPipeline)} />
-        <SummaryCard icon={DollarSign} label="Valor ganho" value={formatCurrency(wonValue)} sub={`${wonCount} fechado${wonCount !== 1 ? "s" : ""}`} />
-        <SummaryCard icon={Sparkles} label="Leads novos" value={String(newCount)} />
-        <SummaryCard icon={CheckCircle2} label="Ganhos" value={String(wonCount)} />
-        <SummaryCard icon={BarChart3} label="Taxa de conversão" value={`${conversion}%`} />
-        <SummaryCard icon={XCircle} label="Valor perdido" value={formatCurrency(lostValue)} />
+      {/* Summary — compact strip */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+        <SummaryCard icon={TrendingUp} label="Em pipeline" value={formatCurrency(totalPipeline)} accent="primary" />
+        <SummaryCard icon={DollarSign} label="Valor ganho" value={formatCurrency(wonValue)} sub={`${wonCount} fechado${wonCount !== 1 ? "s" : ""}`} accent="success" />
+        <SummaryCard icon={Sparkles} label="Leads novos" value={String(newCount)} accent="muted" />
+        <SummaryCard icon={CheckCircle2} label="Ganhos" value={String(wonCount)} accent="success" />
+        <SummaryCard icon={BarChart3} label="Conversão" value={`${conversion}%`} accent="primary" />
+        <SummaryCard icon={XCircle} label="Valor perdido" value={formatCurrency(lostValue)} accent="danger" />
       </div>
 
-      {/* Pipeline selector + view toggle */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="gap-2 bg-card">
-                <div className="h-2 w-2 rounded-full bg-primary" />
-                <span className="font-semibold">{activePipeline?.name || "—"}</span>
-                <ChevronDown className="h-4 w-4 text-muted-foreground" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="bg-card border-border w-56">
-              <DropdownMenuLabel className="text-xs">Pipelines</DropdownMenuLabel>
-              {pipelines.map((p) => (
-                <DropdownMenuItem key={p.id} onClick={() => setActivePipelineId(p.id)}>
-                  <div className="h-2 w-2 rounded-full bg-primary mr-2" />
-                  <span className="flex-1">{p.name}</span>
-                  {p.isDefault && <Badge variant="outline" className="text-[9px]">padrão</Badge>}
+      {/* Premium toolbar: pipeline + view + filters */}
+      <div className="orbit-card p-2.5 sm:p-3 space-y-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline" className="gap-2 bg-muted/40 border-border rounded-full pl-2.5 pr-2.5 h-8">
+                  <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                  <span className="font-semibold text-foreground text-[13px]">{activePipeline?.name || "—"}</span>
+                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="bg-card border-border w-56">
+                <DropdownMenuLabel className="text-[10px] uppercase tracking-wide text-muted-foreground/70">Pipelines</DropdownMenuLabel>
+                {pipelines.map((p) => (
+                  <DropdownMenuItem key={p.id} onClick={() => setActivePipelineId(p.id)}>
+                    <div className="h-2 w-2 rounded-full bg-primary mr-2" />
+                    <span className="flex-1">{p.name}</span>
+                    {p.isDefault && <Badge variant="outline" className="text-[9px]">padrão</Badge>}
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => { setEditingPipeline(null); setPipelineEditorOpen(true); }}>
+                  <Plus className="h-4 w-4 mr-2" /> Novo pipeline
                 </DropdownMenuItem>
-              ))}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => { setEditingPipeline(null); setPipelineEditorOpen(true); }}>
-                <Plus className="h-4 w-4 mr-2" /> Novo pipeline
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
-          {activePipeline && (
-            <>
-              <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-foreground gap-1.5"
-                onClick={() => { setEditingPipeline(activePipeline); setPipelineEditorOpen(true); }}>
-                <Settings2 className="h-3.5 w-3.5" /> Editar
-              </Button>
-              <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-foreground gap-1.5"
-                onClick={() => setAutomationsOpen(true)}>
-                <Zap className="h-3.5 w-3.5" /> Automações
-              </Button>
-            </>
-          )}
+            {activePipeline && (
+              <>
+                <Separator orientation="vertical" className="h-5 mx-0.5 bg-border hidden sm:block" />
+                <Button size="sm" variant="ghost" className="h-8 px-2 text-muted-foreground hover:text-foreground gap-1.5"
+                  onClick={() => { setEditingPipeline(activePipeline); setPipelineEditorOpen(true); }}>
+                  <Settings2 className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Editar</span>
+                </Button>
+                <Button size="sm" variant="ghost" className="h-8 px-2 text-muted-foreground hover:text-foreground gap-1.5"
+                  onClick={() => setAutomationsOpen(true)}>
+                  <Zap className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Automações</span>
+                </Button>
+              </>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <Button
+              size="sm"
+              variant="ghost"
+              className={`h-8 px-2 gap-1.5 ${showArchived ? "text-foreground bg-muted" : "text-muted-foreground hover:text-foreground"}`}
+              onClick={() => setShowArchived((v) => !v)}
+            >
+              <Archive className="h-3.5 w-3.5" />
+              <span className="hidden md:inline">{showArchived ? "Ocultar arquivados" : "Arquivados"}</span>
+            </Button>
+            <Tabs value={view} onValueChange={(v) => setView(v as any)}>
+              <TabsList className="bg-muted/50 border border-border h-8 p-0.5">
+                <TabsTrigger value="kanban" className="gap-1.5 h-7 px-2.5 data-[state=active]:bg-card data-[state=active]:shadow-sm">
+                  <LayoutGrid className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Kanban</span>
+                </TabsTrigger>
+                <TabsTrigger value="list" className="gap-1.5 h-7 px-2.5 data-[state=active]:bg-card data-[state=active]:shadow-sm">
+                  <List className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Lista</span>
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant={showArchived ? "default" : "ghost"}
-            className={showArchived ? "" : "text-muted-foreground hover:text-foreground"}
-            onClick={() => setShowArchived((v) => !v)}
-          >
-            <Archive className="h-3.5 w-3.5 mr-1.5" />
-            {showArchived ? "Ocultar arquivados" : "Mostrar arquivados"}
-          </Button>
-          <Tabs value={view} onValueChange={(v) => setView(v as any)}>
-            <TabsList className="bg-card border border-border">
-              <TabsTrigger value="kanban" className="gap-1.5"><LayoutGrid className="h-3.5 w-3.5" /> Kanban</TabsTrigger>
-              <TabsTrigger value="list" className="gap-1.5"><List className="h-3.5 w-3.5" /> Lista</TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
-      </div>
+        <Separator className="bg-border/60" />
 
-      {/* Filters */}
-      <div className="orbit-card p-3 flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por nome, empresa, e-mail ou telefone..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 bg-muted/50 border-border"
-          />
+        {/* Filters */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              placeholder="Buscar nome, empresa, e-mail ou telefone…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-8 h-8 bg-muted/40 border-border text-[13px]"
+            />
+          </div>
+          <Select value={filterStage} onValueChange={setFilterStage}>
+            <SelectTrigger className="w-[150px] h-8 bg-muted/40 border-border text-[13px]"><SelectValue placeholder="Etapa" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as etapas</SelectItem>
+              {stages.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={filterOrigin} onValueChange={setFilterOrigin}>
+            <SelectTrigger className="w-[130px] h-8 bg-muted/40 border-border text-[13px]"><SelectValue placeholder="Origem" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as origens</SelectItem>
+              {origins.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={filterType} onValueChange={setFilterType}>
+            <SelectTrigger className="w-[140px] h-8 bg-muted/40 border-border text-[13px]"><SelectValue placeholder="Serviço" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os tipos</SelectItem>
+              {serviceTypes.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+            </SelectContent>
+          </Select>
         </div>
-        <Select value={filterStage} onValueChange={setFilterStage}>
-          <SelectTrigger className="w-[180px] bg-muted/50 border-border"><SelectValue placeholder="Etapa" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas as etapas</SelectItem>
-            {stages.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={filterOrigin} onValueChange={setFilterOrigin}>
-          <SelectTrigger className="w-[150px] bg-muted/50 border-border"><SelectValue placeholder="Origem" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas as origens</SelectItem>
-            {origins.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={filterType} onValueChange={setFilterType}>
-          <SelectTrigger className="w-[160px] bg-muted/50 border-border"><SelectValue placeholder="Serviço" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos os tipos</SelectItem>
-            {serviceTypes.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-          </SelectContent>
-        </Select>
       </div>
 
       {/* View */}
@@ -420,22 +442,23 @@ const CRM = () => {
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={() => handleDrop(stage)}
               >
-                <div className="orbit-card p-3 mb-3 border-t-2" style={{ borderTopColor: stage.color }}>
-                  <div className="flex items-center justify-between">
+                <div className="mb-2.5 px-1">
+                  <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
-                      <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: stage.color }} />
-                      <h3 className="text-sm font-semibold text-foreground truncate">{stage.name}</h3>
-                      {stage.type === "won" && <Badge variant="outline" className="text-[9px] border-emerald-500/40 text-emerald-400">ganho</Badge>}
-                      {stage.type === "lost" && <Badge variant="outline" className="text-[9px] border-destructive/40 text-destructive">perdido</Badge>}
+                      <span className="h-2.5 w-2.5 rounded-sm shrink-0" style={{ backgroundColor: stage.color }} />
+                      <h3 className="text-[13px] font-semibold text-foreground truncate uppercase tracking-wide">{stage.name}</h3>
+                      {stage.type === "won" && <Badge variant="outline" className="text-[9px] border-emerald-500/40 text-emerald-400 px-1.5 py-0">ganho</Badge>}
+                      {stage.type === "lost" && <Badge variant="outline" className="text-[9px] border-destructive/40 text-destructive px-1.5 py-0">perdido</Badge>}
                     </div>
-                    <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{stageLeads.length}</span>
+                    <span className="text-[11px] font-medium text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded-md min-w-[22px] text-center">{stageLeads.length}</span>
                   </div>
                   {stageTotal > 0 && (
-                    <p className="text-xs text-muted-foreground mt-1.5">{formatCurrency(stageTotal)}</p>
+                    <p className="text-[11px] text-muted-foreground mt-1 pl-4">{formatCurrency(stageTotal)}</p>
                   )}
+                  <div className="mt-2 h-px w-full" style={{ background: `linear-gradient(to right, ${stage.color}55, transparent)` }} />
                 </div>
 
-                <div className="space-y-2.5 min-h-[120px]">
+                <div className="space-y-2 min-h-[120px]">
                   {stageLeads.map((lead) => (
                     <LeadCard
                       key={lead.id}
@@ -464,12 +487,9 @@ const CRM = () => {
                   ))}
 
                   {stageLeads.length === 0 && (
-                    <div className="orbit-card border-dashed p-6 flex flex-col items-center justify-center text-center gap-1.5">
-                      <div className="h-8 w-8 rounded-full bg-muted/50 flex items-center justify-center">
-                        <Sparkles className="h-4 w-4 text-muted-foreground/60" />
-                      </div>
-                      <p className="text-xs text-muted-foreground">Nenhum lead aqui</p>
-                      <p className="text-[10px] text-muted-foreground/60">Arraste cards para esta etapa</p>
+                    <div className="border border-dashed border-border/60 rounded-lg p-5 flex flex-col items-center justify-center text-center gap-1">
+                      <p className="text-[11px] text-muted-foreground/70">Vazio</p>
+                      <p className="text-[10px] text-muted-foreground/50">Arraste cards aqui</p>
                     </div>
                   )}
                 </div>
@@ -666,21 +686,21 @@ const LeadCard = ({
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onClick={onClick}
-      className={`orbit-card p-3.5 cursor-pointer hover:border-primary/40 transition-all duration-200 group ${
-        dragged ? "opacity-50 scale-95" : ""
+      className={`orbit-card p-3 cursor-pointer hover:border-primary/50 hover:shadow-md transition-all duration-200 group ${
+        dragged ? "opacity-50 scale-[0.97]" : ""
       } ${lead.archived ? "opacity-60" : ""}`}
     >
-      <div className="flex items-start justify-between mb-2 gap-2">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="h-8 w-8 rounded-full orbit-gradient flex items-center justify-center text-xs font-bold text-white shrink-0">
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="h-7 w-7 rounded-full bg-muted border border-border flex items-center justify-center text-[10px] font-semibold text-foreground shrink-0">
             {lead.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-foreground truncate">{lead.name}</p>
-            <p className="text-xs text-muted-foreground truncate">{lead.company}</p>
+            <p className="text-[13px] font-semibold text-foreground truncate leading-tight">{lead.name}</p>
+            {lead.company && <p className="text-[11px] text-muted-foreground truncate leading-tight">{lead.company}</p>}
           </div>
         </div>
-        <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
           <LeadActionsMenu
             lead={lead}
             stages={stages}
@@ -697,18 +717,24 @@ const LeadCard = ({
         </div>
       </div>
 
-      {(lead.serviceType || lead.priority) && (
-        <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <span className="text-sm font-bold text-foreground tabular-nums">{formatCurrency(lead.estimatedValue)}</span>
+        {lead.priority && (
+          <Badge variant="outline" className={`text-[9px] h-4 px-1.5 ${priorityStyles[lead.priority]}`}>
+            <Flame className="h-2.5 w-2.5 mr-0.5" /> {lead.priority}
+          </Badge>
+        )}
+      </div>
+
+      {(lead.serviceType || lead.origin) && (
+        <div className="flex items-center gap-1 mb-2 flex-wrap">
           {lead.serviceType && (
-            <Badge variant="outline" className="text-[10px] bg-muted/40 border-border text-muted-foreground">
+            <Badge variant="outline" className="text-[9px] h-4 px-1.5 bg-muted/40 border-border/60 text-muted-foreground font-normal">
               {lead.serviceType}
             </Badge>
           )}
-          <Badge variant="outline" className={`text-[10px] ${priorityStyles[lead.priority]}`}>
-            <Flame className="h-2.5 w-2.5 mr-0.5" /> {lead.priority}
-          </Badge>
           {lead.origin && (
-            <Badge variant="outline" className="text-[10px] bg-muted/40 border-border text-muted-foreground">
+            <Badge variant="outline" className="text-[9px] h-4 px-1.5 bg-muted/40 border-border/60 text-muted-foreground font-normal">
               {lead.origin}
             </Badge>
           )}
@@ -718,9 +744,9 @@ const LeadCard = ({
       {lead.tags && lead.tags.length > 0 && (
         <div className="flex flex-wrap gap-1 mb-2">
           {lead.tags.slice(0, 3).map((t) => (
-            <Badge key={t} variant="outline" className="text-[9px] bg-primary/10 border-primary/30 text-foreground">
+            <span key={t} className="text-[9px] text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded">
               #{t}
-            </Badge>
+            </span>
           ))}
           {lead.tags.length > 3 && (
             <span className="text-[9px] text-muted-foreground">+{lead.tags.length - 3}</span>
@@ -729,15 +755,14 @@ const LeadCard = ({
       )}
 
       {lead.nextAction && (
-        <div className="text-[11px] text-muted-foreground border-l-2 border-primary/40 pl-2 mb-2 line-clamp-2">
-          → {lead.nextAction}
+        <div className="text-[11px] text-muted-foreground/90 border-l-2 border-primary/40 pl-2 mb-2 line-clamp-2 italic">
+          {lead.nextAction}
         </div>
       )}
 
-      <div className="flex items-center justify-between mt-1">
-        <span className="text-sm font-bold text-foreground">{formatCurrency(lead.estimatedValue)}</span>
-        <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-          <Clock className="h-3 w-3" /> {lead.lastInteraction}
+      <div className="flex items-center justify-end pt-1 border-t border-border/40">
+        <span className="text-[10px] text-muted-foreground/70 flex items-center gap-1">
+          <Clock className="h-2.5 w-2.5" /> {lead.lastInteraction}
         </span>
       </div>
     </div>
