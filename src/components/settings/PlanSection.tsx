@@ -117,6 +117,7 @@ export function PlanSection() {
             </Button>
           </div>
         </div>
+      </SettingsCard>
 
       {/* Assistente de Plano */}
       <PlanAdvisor
