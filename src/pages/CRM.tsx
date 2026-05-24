@@ -686,21 +686,21 @@ const LeadCard = ({
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onClick={onClick}
-      className={`orbit-card p-3.5 cursor-pointer hover:border-primary/40 transition-all duration-200 group ${
-        dragged ? "opacity-50 scale-95" : ""
+      className={`orbit-card p-3 cursor-pointer hover:border-primary/50 hover:shadow-md transition-all duration-200 group ${
+        dragged ? "opacity-50 scale-[0.97]" : ""
       } ${lead.archived ? "opacity-60" : ""}`}
     >
-      <div className="flex items-start justify-between mb-2 gap-2">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="h-8 w-8 rounded-full orbit-gradient flex items-center justify-center text-xs font-bold text-white shrink-0">
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="h-7 w-7 rounded-full bg-muted border border-border flex items-center justify-center text-[10px] font-semibold text-foreground shrink-0">
             {lead.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-foreground truncate">{lead.name}</p>
-            <p className="text-xs text-muted-foreground truncate">{lead.company}</p>
+            <p className="text-[13px] font-semibold text-foreground truncate leading-tight">{lead.name}</p>
+            {lead.company && <p className="text-[11px] text-muted-foreground truncate leading-tight">{lead.company}</p>}
           </div>
         </div>
-        <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
           <LeadActionsMenu
             lead={lead}
             stages={stages}
@@ -717,18 +717,24 @@ const LeadCard = ({
         </div>
       </div>
 
-      {(lead.serviceType || lead.priority) && (
-        <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <span className="text-sm font-bold text-foreground tabular-nums">{formatCurrency(lead.estimatedValue)}</span>
+        {lead.priority && (
+          <Badge variant="outline" className={`text-[9px] h-4 px-1.5 ${priorityStyles[lead.priority]}`}>
+            <Flame className="h-2.5 w-2.5 mr-0.5" /> {lead.priority}
+          </Badge>
+        )}
+      </div>
+
+      {(lead.serviceType || lead.origin) && (
+        <div className="flex items-center gap-1 mb-2 flex-wrap">
           {lead.serviceType && (
-            <Badge variant="outline" className="text-[10px] bg-muted/40 border-border text-muted-foreground">
+            <Badge variant="outline" className="text-[9px] h-4 px-1.5 bg-muted/40 border-border/60 text-muted-foreground font-normal">
               {lead.serviceType}
             </Badge>
           )}
-          <Badge variant="outline" className={`text-[10px] ${priorityStyles[lead.priority]}`}>
-            <Flame className="h-2.5 w-2.5 mr-0.5" /> {lead.priority}
-          </Badge>
           {lead.origin && (
-            <Badge variant="outline" className="text-[10px] bg-muted/40 border-border text-muted-foreground">
+            <Badge variant="outline" className="text-[9px] h-4 px-1.5 bg-muted/40 border-border/60 text-muted-foreground font-normal">
               {lead.origin}
             </Badge>
           )}
@@ -738,9 +744,9 @@ const LeadCard = ({
       {lead.tags && lead.tags.length > 0 && (
         <div className="flex flex-wrap gap-1 mb-2">
           {lead.tags.slice(0, 3).map((t) => (
-            <Badge key={t} variant="outline" className="text-[9px] bg-primary/10 border-primary/30 text-foreground">
+            <span key={t} className="text-[9px] text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded">
               #{t}
-            </Badge>
+            </span>
           ))}
           {lead.tags.length > 3 && (
             <span className="text-[9px] text-muted-foreground">+{lead.tags.length - 3}</span>
@@ -749,15 +755,14 @@ const LeadCard = ({
       )}
 
       {lead.nextAction && (
-        <div className="text-[11px] text-muted-foreground border-l-2 border-primary/40 pl-2 mb-2 line-clamp-2">
-          → {lead.nextAction}
+        <div className="text-[11px] text-muted-foreground/90 border-l-2 border-primary/40 pl-2 mb-2 line-clamp-2 italic">
+          {lead.nextAction}
         </div>
       )}
 
-      <div className="flex items-center justify-between mt-1">
-        <span className="text-sm font-bold text-foreground">{formatCurrency(lead.estimatedValue)}</span>
-        <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-          <Clock className="h-3 w-3" /> {lead.lastInteraction}
+      <div className="flex items-center justify-end pt-1 border-t border-border/40">
+        <span className="text-[10px] text-muted-foreground/70 flex items-center gap-1">
+          <Clock className="h-2.5 w-2.5" /> {lead.lastInteraction}
         </span>
       </div>
     </div>
