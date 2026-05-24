@@ -264,6 +264,10 @@ const seed: AiAgent[] = [
     isDemo: true,
     badges: ["simulated", "uses-credits"],
     examples: ["Legenda para post", "Texto de anúncio", "Proposta comercial"],
+    mission: "Produzir textos comerciais e criativos sob demanda",
+    dataSources: ["briefing", "tom de voz", "público-alvo"],
+    capabilities: ["Legenda", "Anúncio", "E-mail", "Proposta"],
+    outputExamples: ["Legenda para Instagram", "Variação A/B de headline"],
   },
   {
     id: "agent-creative-director",
@@ -279,6 +283,10 @@ const seed: AiAgent[] = [
     isDemo: true,
     badges: ["simulated", "uses-credits"],
     examples: ["Prompt para Midjourney/Sora", "Moodboard textual", "Checklist de marca", "Revisão de consistência"],
+    mission: "Direcionar qualidade criativa sem gerar imagens nativamente",
+    dataSources: ["briefing", "guia de marca", "referências"],
+    capabilities: ["Direção criativa", "Prompt para ferramentas externas", "Checklist de marca"],
+    outputExamples: ["Prompt otimizado para Midjourney", "Moodboard textual"],
   },
 
   // ---------- Cliente ----------
@@ -297,6 +305,9 @@ const seed: AiAgent[] = [
     comingSoon: true,
     badges: ["coming-soon"],
     examples: ["Coleta de briefing", "FAQ do cliente", "Triagem de solicitações"],
+    mission: "Acolher e triar demandas do cliente no portal",
+    dataSources: ["portal do cliente", "FAQ", "solicitações"],
+    capabilities: ["Coleta", "FAQ", "Triagem"],
   },
 ];
 
