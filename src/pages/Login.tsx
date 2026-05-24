@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, LogIn, Orbit } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { translateAuthError } from "@/lib/password";
+
 
 export default function Login() {
   const { signIn, user, loading: authLoading } = useAuth();
@@ -30,8 +32,9 @@ export default function Login() {
     const { error } = await signIn(email, password);
     setLoading(false);
     if (error) {
-      toast({ title: "Erro ao entrar", description: error.message, variant: "destructive" });
+      toast({ title: "Erro ao entrar", description: translateAuthError(error.message), variant: "destructive" });
     }
+
   };
 
   return (

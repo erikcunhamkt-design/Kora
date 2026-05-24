@@ -6,6 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, UserPlus, Orbit } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { PasswordChecklist } from "@/components/auth/PasswordChecklist";
+import { validatePassword, translateAuthError } from "@/lib/password";
+
 
 export default function Signup() {
   const { signUp, user, loading: authLoading } = useAuth();
@@ -32,19 +35,25 @@ export default function Signup() {
       toast({ title: "Erro", description: "As senhas não coincidem.", variant: "destructive" });
       return;
     }
-    if (password.length < 6) {
-      toast({ title: "Erro", description: "A senha deve ter pelo menos 6 caracteres.", variant: "destructive" });
+    const { valid, failing } = validatePassword(password);
+    if (!valid) {
+      toast({
+        title: "Senha não atende aos requisitos",
+        description: failing.join(" • "),
+        variant: "destructive",
+      });
       return;
     }
     setLoading(true);
     const { error } = await signUp(email, password, name);
     setLoading(false);
     if (error) {
-      toast({ title: "Erro ao cadastrar", description: error.message, variant: "destructive" });
+      toast({ title: "Erro ao cadastrar", description: translateAuthError(error.message), variant: "destructive" });
     } else {
       toast({ title: "Conta criada!", description: "Verifique seu email para confirmar o cadastro." });
     }
   };
+
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4 relative overflow-hidden">
@@ -80,7 +89,9 @@ export default function Signup() {
             <div className="space-y-2">
               <Label htmlFor="password">Senha</Label>
               <Input id="password" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required />
+              <PasswordChecklist password={password} className="pt-2" />
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="confirm">Confirmar senha</Label>
               <Input id="confirm" type="password" placeholder="••••••••" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required />
