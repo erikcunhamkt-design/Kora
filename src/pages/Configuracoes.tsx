@@ -33,7 +33,9 @@ import {
   Link2,
   Copy,
   ExternalLink,
+  Users,
 } from "lucide-react";
+
 
 import { PageHeader } from "@/components/layout/PageHeader";
 import { SettingsNav, type SettingsNavItem } from "@/components/settings/SettingsNav";
@@ -49,6 +51,8 @@ import { Separator } from "@/components/ui/separator";
 import { useAppSettings, type NotificationSettings } from "@/hooks/useAppSettings";
 import { useOnboarding } from "@/contexts/OnboardingContext";
 import { SupportDrawer } from "@/components/support/SupportDrawer";
+import { ClientPortalSection } from "@/components/settings/ClientPortalSection";
+
 
 const NAV_ITEMS: SettingsNavItem[] = [
   { id: "profile", label: "Perfil", icon: User },
@@ -60,8 +64,10 @@ const NAV_ITEMS: SettingsNavItem[] = [
   { id: "plan", label: "Plano", icon: Crown },
   { id: "integrations", label: "Integrações", icon: Plug },
   { id: "support", label: "Suporte", icon: LifeBuoy },
+  { id: "portal", label: "Portal do Cliente", icon: Users },
   { id: "data", label: "Dados", icon: Database },
 ];
+
 
 function initials(value: string) {
   return value
@@ -92,15 +98,18 @@ const TAB_ALIASES: Record<string, string> = {
   plano: "plan",
   integracoes: "integrations",
   suporte: "support",
+  portal: "portal",
+  "portal-cliente": "portal",
   dados: "data",
 };
+
 
 const Configuracoes = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTab = TAB_ALIASES[searchParams.get("tab") ?? ""] ?? searchParams.get("tab") ?? "profile";
   const [active, setActive] = useState(initialTab);
   const [supportOpen, setSupportOpen] = useState(false);
-  const { profile, company, notifications, publicLinks, updateProfile, updateCompany, updatePublicLinks, toggleNotification } = useAppSettings();
+  const { profile, company, notifications, publicLinks, clientPortal, updateProfile, updateCompany, updatePublicLinks, updateClientPortal, resetClientPortal, toggleNotification } = useAppSettings();
   const { resetOnboarding } = useOnboarding();
 
   useEffect(() => {
@@ -488,7 +497,17 @@ const Configuracoes = () => {
             </SettingsSection>
           )}
 
+          {active === "portal" && (
+            <ClientPortalSection
+              company={company}
+              clientPortal={clientPortal}
+              updateClientPortal={updateClientPortal}
+              resetClientPortal={resetClientPortal}
+            />
+          )}
+
           {active === "data" && (
+
             <SettingsSection title="Dados" description="Exportação, importação e armazenamento.">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <DataCard icon={Download} title="Exportar dados" hint="Baixe seus dados em CSV/JSON" state="soon" />
