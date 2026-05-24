@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/sheet";
 import {
   Plus, FileText, Link2, Send, MoreHorizontal, Copy, Trash2, Pencil,
-  CheckCircle2, Clock, FileQuestion, Search, Archive, ExternalLink,
+  CheckCircle2, Clock, FileQuestion, Search, Archive, ExternalLink, Info,
 } from "lucide-react";
 import { useBriefings, type Briefing, type BriefingStatus } from "@/hooks/useBriefings";
 import { useBriefingTemplates, type BriefingTemplate } from "@/hooks/useBriefingTemplates";
