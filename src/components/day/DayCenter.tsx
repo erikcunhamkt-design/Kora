@@ -194,13 +194,13 @@ export function DayCenter({ open, onOpenChange }: Props) {
                 {totalPending > 0 && (
                   <Badge
                     variant="outline"
-                    className="h-5 px-1.5 text-[10px] font-semibold bg-primary/10 text-primary border-primary/30"
+                    className="h-5 px-2 text-[10px] font-semibold bg-primary/10 text-primary border-primary/30"
                   >
-                    {totalPending}
+                    {totalPending} {totalPending === 1 ? "item" : "itens"}
                   </Badge>
                 )}
               </SheetTitle>
-              <SheetDescription className="text-[0.75rem] text-muted-foreground/80">
+              <SheetDescription className="text-[0.78rem] text-muted-foreground">
                 O que precisa da sua atenção agora
               </SheetDescription>
             </div>
