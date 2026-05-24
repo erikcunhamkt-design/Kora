@@ -1,4 +1,4 @@
-import { Search, Bell, LogOut, User, ChevronDown, Crown, Zap, MessageCircleQuestion, Sparkles } from "lucide-react";
+import { Search, Bell, LogOut, User, ChevronDown, Crown, Zap, MessageCircleQuestion, Sparkles, CalendarCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -11,6 +11,7 @@ import { useSupportTickets } from "@/hooks/useSupportTickets";
 import { NotificationInbox } from "@/components/notifications/NotificationInbox";
 import { useNotificationsCenter } from "@/hooks/useNotificationsCenter";
 import { AiCreditsDrawer } from "@/components/credits/AiCreditsDrawer";
+import { DayCenter } from "@/components/day/DayCenter";
 import { useAiCredits } from "@/hooks/useAiCredits";
 import { cn } from "@/lib/utils";
 
@@ -31,6 +32,7 @@ export function TopBar() {
   const [supportOpen, setSupportOpen] = useState(false);
   const [inboxOpen, setInboxOpen] = useState(false);
   const [creditsOpen, setCreditsOpen] = useState(false);
+  const [dayOpen, setDayOpen] = useState(false);
   const { tickets } = useSupportTickets();
   const { unreadCount, hasHighPriorityUnread } = useNotificationsCenter();
   const { balance } = useAiCredits();
@@ -91,6 +93,16 @@ export function TopBar() {
             <Crown className="h-3 w-3" /> Pro
           </span>
         )}
+
+        <button
+          onClick={() => setDayOpen(true)}
+          aria-label="Central do Dia"
+          title="Central do Dia"
+          className="relative flex items-center gap-1.5 px-2.5 md:px-3 py-2 rounded-lg border border-border/40 bg-muted/20 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-all duration-150 press-effect"
+        >
+          <CalendarCheck className="h-3.5 w-3.5" />
+          <span className="hidden md:inline text-[0.75rem] font-semibold">Hoje</span>
+        </button>
 
         <button
           onClick={() => setCreditsOpen(true)}
@@ -192,6 +204,7 @@ export function TopBar() {
       <SupportDrawer open={supportOpen} onOpenChange={setSupportOpen} />
       <NotificationInbox open={inboxOpen} onOpenChange={setInboxOpen} />
       <AiCreditsDrawer open={creditsOpen} onOpenChange={setCreditsOpen} />
+      <DayCenter open={dayOpen} onOpenChange={setDayOpen} />
     </header>
   );
 }
