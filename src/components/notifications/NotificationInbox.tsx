@@ -20,6 +20,12 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -154,16 +160,26 @@ export function NotificationInbox({ open, onOpenChange }: NotificationInboxProps
                 Acompanhe o que precisa da sua atenção
               </p>
             </div>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={markAllRead}
-              disabled={unreadCount === 0}
-              className="h-8 text-[0.75rem] gap-1.5"
-            >
-              <CheckCheck className="h-3.5 w-3.5" />
-              Marcar todas
-            </Button>
+            <TooltipProvider delayDuration={300}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={markAllRead}
+                    disabled={unreadCount === 0}
+                    aria-label="Marcar todas como lidas"
+                    className="h-8 text-[0.75rem] gap-1.5"
+                  >
+                    <CheckCheck className="h-3.5 w-3.5" />
+                    Marcar todas
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="text-[0.75rem]">
+                  Marcar todas como lidas
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
 
           {/* Filters */}
