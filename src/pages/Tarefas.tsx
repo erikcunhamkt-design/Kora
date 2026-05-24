@@ -1151,9 +1151,11 @@ const NewTaskDialog = ({ open, onOpenChange, onCreate, taskProjects }: {
 /* ------------------------------------------------------------------ */
 
 const TaskDetailSheet = ({
-  task, onClose, onMove, onToggleSubtask, onAddSubtask, onUpdate, onDuplicate, onArchive, onDelete,
+  task, taskProjects, onClose, onMove, onToggleSubtask, onAddSubtask, onUpdate, onDuplicate, onArchive, onDelete,
 }: {
-  task: Task | null; onClose: () => void;
+  task: Task | null;
+  taskProjects: TaskProject[];
+  onClose: () => void;
   onMove: (id: number, status: TaskStatus) => void;
   onToggleSubtask: (taskId: number, idx: number) => void;
   onAddSubtask: (taskId: number, text: string) => void;
