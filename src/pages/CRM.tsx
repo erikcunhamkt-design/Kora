@@ -848,16 +848,20 @@ const LeadCard = ({
 
       <div className="flex items-center justify-between gap-2 mb-2">
         <span className="text-sm font-bold text-foreground tabular-nums">{formatCurrency(lead.estimatedValue)}</span>
-        {lead.priority && (
-          <Badge variant="outline" className={`text-[9px] h-4 px-1.5 ${priorityStyles[lead.priority]}`}>
-            <Flame className="h-2.5 w-2.5 mr-0.5" /> {lead.priority}
-          </Badge>
-        )}
+        {(() => {
+          const t = getLeadTemperature(lead);
+          return (
+            <Badge variant="outline" className={`text-[9px] h-4 px-1.5 capitalize ${temperatureStyles[t]}`}>
+              {t === "quente" ? <Flame className="h-2.5 w-2.5 mr-0.5" /> : null}
+              {t}
+            </Badge>
+          );
+        })()}
       </div>
 
       {(lead.serviceType || lead.origin) && (
         <div className="flex items-center gap-1 mb-2 flex-wrap">
-          {lead.serviceType && (
+          {lead.serviceType && lead.serviceType !== "—" && (
             <Badge variant="outline" className="text-[9px] h-4 px-1.5 bg-muted/40 border-border/60 text-muted-foreground font-normal">
               {lead.serviceType}
             </Badge>
@@ -883,16 +887,34 @@ const LeadCard = ({
         </div>
       )}
 
-      {lead.nextAction && (
+      {lead.nextAction ? (
         <div className="text-[11px] text-muted-foreground/90 border-l-2 border-primary/40 pl-2 mb-2 line-clamp-2 italic">
           {lead.nextAction}
         </div>
+      ) : (
+        <button
+          onClick={(e) => { e.stopPropagation(); onSchedule(); }}
+          className="text-[11px] text-muted-foreground/80 hover:text-foreground border-l-2 border-border/60 pl-2 mb-2 italic block w-full text-left"
+        >
+          Definir follow-up
+        </button>
       )}
 
-      <div className="flex items-center justify-end pt-1 border-t border-border/40">
+      <div className="flex items-center justify-between pt-1 border-t border-border/40">
         <span className="text-[10px] text-muted-foreground/70 flex items-center gap-1">
           <Clock className="h-2.5 w-2.5" /> {lead.lastInteraction}
         </span>
+        {(() => {
+          const d = daysSince(lead.lastInteraction);
+          if (d !== null && d >= STALE_DAYS) {
+            return (
+              <span className="text-[10px] text-amber-400/80 flex items-center gap-1" title="Parada há muitos dias">
+                <Clock className="h-2.5 w-2.5" /> {d}d parada
+              </span>
+            );
+          }
+          return null;
+        })()}
       </div>
     </div>
   );
