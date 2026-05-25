@@ -8,6 +8,8 @@ export type TaskScope = "work" | "personal";
 export interface SubTask { text: string; done: boolean }
 export interface TaskComment { author: string; text: string; date: string }
 
+export type TaskSource = "manual" | "projeto" | "orçamento";
+
 export interface Task {
   id: number;
   title: string;
@@ -36,6 +38,11 @@ export interface Task {
   reminderAt?: string;
   reminderEnabled?: boolean;
   reminderSentAt?: string;
+  // --- v2 commercial linkage (optional) ---
+  clientId?: number;
+  quoteId?: string;
+  milestoneId?: string;
+  source?: TaskSource;
 }
 
 
