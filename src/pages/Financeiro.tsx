@@ -134,11 +134,36 @@ const Financeiro = () => {
   const metrics = useFinanceMetrics(fin.transactions);
   const chartData = useMonthlySeries(fin.transactions);
 
-  const [tab, setTab] = useState<TabKey>("overview");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = ((): TabKey => {
+    const t = searchParams.get("tab");
+    if (t === "receivables" || t === "payables" || t === "overview" || t === "reports" || t === "clients" || t === "suppliers" || t === "pix" || t === "recurring" || t === "cash") return t;
+    return "overview";
+  })();
+  const [tab, setTab] = useState<TabKey>(initialTab);
+  const [highlightEntryId, setHighlightEntryId] = useState<string | null>(searchParams.get("entryId"));
   const [openSale, setOpenSale] = useState(false);
   const [openExpense, setOpenExpense] = useState(false);
   const [openCats, setOpenCats] = useState(false);
   const [tutorialOpen, setTutorialOpen] = useState(false);
+
+  // Clean deep-link params once consumed
+  useEffect(() => {
+    if (searchParams.get("tab") || searchParams.get("entryId")) {
+      const next = new URLSearchParams(searchParams);
+      next.delete("tab"); next.delete("entryId");
+      setSearchParams(next, { replace: true });
+    }
+    // run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Auto clear highlight after a few seconds
+  useEffect(() => {
+    if (!highlightEntryId) return;
+    const t = setTimeout(() => setHighlightEntryId(null), 6000);
+    return () => clearTimeout(t);
+  }, [highlightEntryId]);
 
   return (
     <div className="space-y-6">
