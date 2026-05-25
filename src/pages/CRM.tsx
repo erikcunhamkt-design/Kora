@@ -993,33 +993,58 @@ const LeadActionsMenu = ({
   </DropdownMenu>
 );
 
-// ---------- New Lead Dialog ----------
+// ---------- New Opportunity Dialog ----------
+const tempToPriority = (t: LeadTemperature): Priority =>
+  t === "quente" ? "alta" : t === "frio" ? "baixa" : "média";
+
 const NewLeadDialog = ({
-  open, onOpenChange, onSave, stages, pipelineId,
+  open, onOpenChange, onSave, stages, pipelineId, initial,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onSave: (data: any) => void;
   stages: PipelineStage[];
   pipelineId: string;
+  initial?: Partial<Lead> | null;
 }) => {
   const { activeTypes } = useClientTypes();
   const emptyForm = {
     name: "", company: "", email: "", phone: "", serviceType: "",
-    origin: "", estimatedValue: "", priority: "média" as Priority,
-    stageId: stages[0]?.id || "", nextAction: "", description: "",
+    origin: "", estimatedValue: "",
+    temperature: "não definida" as LeadTemperature,
+    stageId: stages[0]?.id || "", nextAction: "", nextActionDate: "", description: "",
+    clientId: undefined as number | undefined,
   };
   const [form, setForm] = useState(emptyForm);
   const [typeDialogOpen, setTypeDialogOpen] = useState(false);
-  const set = (k: keyof typeof emptyForm, v: string) => setForm((p) => ({ ...p, [k]: v }));
+  const set = <K extends keyof typeof emptyForm>(k: K, v: any) => setForm((p) => ({ ...p, [k]: v }));
 
   useEffect(() => {
-    if (open) setForm({ ...emptyForm, stageId: stages[0]?.id || "" });
+    if (!open) return;
+    setForm({
+      ...emptyForm,
+      stageId: stages[0]?.id || "",
+      ...(initial
+        ? {
+            name: initial.name || "",
+            company: initial.company || "",
+            email: initial.email || "",
+            phone: initial.phone || "",
+            serviceType: initial.serviceType && initial.serviceType !== "—" ? initial.serviceType : "",
+            origin: initial.origin || "",
+            estimatedValue: initial.estimatedValue ? String(initial.estimatedValue) : "",
+            temperature: (initial.temperature as LeadTemperature) || "não definida",
+            nextAction: initial.nextAction || "",
+            nextActionDate: initial.nextActionDate || "",
+            clientId: initial.clientId,
+          }
+        : {}),
+    });
     // eslint-disable-next-line
-  }, [open]);
+  }, [open, initial]);
 
   const handleSave = () => {
-    if (!form.name.trim()) return toast.error("Informe o nome do lead");
+    if (!form.name.trim()) return toast.error("Informe o nome da oportunidade ou do contato");
     if (!form.email.trim() && !form.phone.trim())
       return toast.error("Informe email ou WhatsApp/telefone");
 
@@ -1037,13 +1062,16 @@ const NewLeadDialog = ({
       origin: form.origin || undefined,
       source: form.origin || undefined,
       estimatedValue: Number(form.estimatedValue) || 0,
-      priority: form.priority,
+      priority: tempToPriority(form.temperature),
+      temperature: form.temperature,
       stage: stageKey,
       stageId: form.stageId,
       pipelineId,
       tags: [],
       nextAction: form.nextAction.trim() || undefined,
+      nextActionDate: form.nextActionDate || undefined,
       description: form.description.trim(),
+      clientId: form.clientId,
     });
     onOpenChange(false);
   };
@@ -1052,12 +1080,19 @@ const NewLeadDialog = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px] bg-card border-border max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-foreground">Novo lead</DialogTitle>
-          <DialogDescription>Adicione um novo lead ao pipeline ativo.</DialogDescription>
+          <DialogTitle className="text-foreground">Nova oportunidade</DialogTitle>
+          <DialogDescription>
+            {form.clientId ? "Vinculada a um cliente existente." : "Adicione uma oportunidade ao pipeline ativo."}
+          </DialogDescription>
         </DialogHeader>
+        {form.clientId && (
+          <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-[12px] text-foreground flex items-center gap-2">
+            <User className="h-3.5 w-3.5 text-primary" /> Cliente vinculado: <span className="font-medium">{form.name}</span>
+          </div>
+        )}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
           <div className="space-y-2">
-            <Label className="text-sm text-muted-foreground">Nome completo*</Label>
+            <Label className="text-sm text-muted-foreground">Nome / contato*</Label>
             <Input value={form.name} onChange={(e) => set("name", e.target.value)} className="bg-muted/50 border-border" />
           </div>
           <div className="space-y-2">
@@ -1090,7 +1125,7 @@ const NewLeadDialog = ({
             </Select>
           </div>
           <div className="space-y-2">
-            <Label className="text-sm text-muted-foreground">Valor estimado (R$)</Label>
+            <Label className="text-sm text-muted-foreground">Valor potencial (R$)</Label>
             <Input type="number" value={form.estimatedValue} onChange={(e) => set("estimatedValue", e.target.value)} className="bg-muted/50 border-border" />
           </div>
           <div className="space-y-2">
@@ -1104,12 +1139,13 @@ const NewLeadDialog = ({
           </div>
           <div className="space-y-2">
             <Label className="text-sm text-muted-foreground">Temperatura</Label>
-            <Select value={form.priority} onValueChange={(v) => set("priority", v)}>
+            <Select value={form.temperature} onValueChange={(v) => set("temperature", v as LeadTemperature)}>
               <SelectTrigger className="bg-muted/50 border-border"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="alta">Alta</SelectItem>
-                <SelectItem value="média">Média</SelectItem>
-                <SelectItem value="baixa">Baixa</SelectItem>
+                <SelectItem value="quente">Quente</SelectItem>
+                <SelectItem value="morno">Morno</SelectItem>
+                <SelectItem value="frio">Frio</SelectItem>
+                <SelectItem value="não definida">Não definida</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -1126,6 +1162,10 @@ const NewLeadDialog = ({
             <Label className="text-sm text-muted-foreground">Próxima ação</Label>
             <Input value={form.nextAction} onChange={(e) => set("nextAction", e.target.value)} className="bg-muted/50 border-border" />
           </div>
+          <div className="space-y-2">
+            <Label className="text-sm text-muted-foreground">Data da próxima ação</Label>
+            <Input type="date" value={form.nextActionDate} onChange={(e) => set("nextActionDate", e.target.value)} className="bg-muted/50 border-border" />
+          </div>
           <div className="sm:col-span-2 space-y-2">
             <Label className="text-sm text-muted-foreground">Observações</Label>
             <Textarea value={form.description} onChange={(e) => set("description", e.target.value)} className="bg-muted/50 border-border min-h-[80px]" />
@@ -1133,7 +1173,7 @@ const NewLeadDialog = ({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button className="orbit-gradient text-white border-0" onClick={handleSave}>Adicionar lead</Button>
+          <Button className="orbit-gradient text-white border-0" onClick={handleSave}>Criar oportunidade</Button>
         </DialogFooter>
         <NewClientTypeDialog
           open={typeDialogOpen}
@@ -1144,6 +1184,7 @@ const NewLeadDialog = ({
     </Dialog>
   );
 };
+
 
 // ---------- Lead Detail Sheet ----------
 const LeadDetailSheet = ({
