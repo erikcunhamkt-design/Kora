@@ -11,9 +11,12 @@ interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   pendingCount: number;
+  onOpenRequests?: () => void;
 }
 
-export const SignupLinkDrawer = ({ open, onOpenChange, pendingCount }: Props) => {
+
+
+export const SignupLinkDrawer = ({ open, onOpenChange, pendingCount, onOpenRequests }: Props) => {
   const { user } = useAuth();
   const [copied, setCopied] = useState(false);
   const url = user ? `${window.location.origin}/cadastro/${user.id}` : "";
@@ -81,15 +84,47 @@ export const SignupLinkDrawer = ({ open, onOpenChange, pendingCount }: Props) =>
             </ul>
           </div>
 
-          <div className="flex items-center justify-between rounded-xl border border-border p-4">
-            <div>
-              <p className="text-sm font-medium">Pendentes</p>
-              <p className="text-xs text-muted-foreground">Solicitações aguardando análise</p>
+          <button
+            type="button"
+            onClick={() => {
+              onOpenChange(false);
+              onOpenRequests?.();
+            }}
+            disabled={!onOpenRequests}
+            className={`w-full text-left rounded-xl border p-4 transition-colors ${
+              pendingCount > 0
+                ? "border-primary/40 bg-primary/5 hover:bg-primary/10"
+                : "border-border hover:bg-muted/30"
+            } disabled:cursor-default`}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium">Solicitações recebidas</p>
+                <p className="text-xs text-muted-foreground">
+                  {pendingCount > 0
+                    ? `${pendingCount} ${pendingCount === 1 ? "cadastro aguardando" : "cadastros aguardando"} análise`
+                    : "Nenhuma solicitação pendente."}
+                </p>
+              </div>
+              <Badge
+                className={
+                  pendingCount > 0
+                    ? "bg-primary/15 text-primary border-primary/30 text-base px-3 py-1"
+                    : "bg-muted text-muted-foreground border-border text-base px-3 py-1"
+                }
+              >
+                {pendingCount}
+              </Badge>
             </div>
-            <Badge className="bg-primary/15 text-primary border-primary/30 text-base px-3 py-1">
-              {pendingCount}
-            </Badge>
-          </div>
+            {onOpenRequests && (
+              <div className="mt-3 flex items-center justify-end">
+                <span className="text-xs font-medium text-primary inline-flex items-center gap-1.5">
+                  Analisar solicitações →
+                </span>
+              </div>
+            )}
+          </button>
+
 
           <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
             <ShieldCheck className="h-3 w-3" />

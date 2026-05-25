@@ -36,7 +36,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SignupLinkDrawer } from "@/components/clientes/SignupLinkDrawer";
 import { SignupRequestsPanel } from "@/components/clientes/SignupRequestsPanel";
-import { useSignupRequests } from "@/hooks/useSignupRequests";
+import { useSignupRequests, type SignupRequest } from "@/hooks/useSignupRequests";
+import { useLeads } from "@/hooks/useLeads";
+
 import { useClientTypes } from "@/hooks/useClientTypes";
 import { NewClientTypeDialog } from "@/components/clientes/NewClientTypeDialog";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -136,8 +138,12 @@ const Clientes = () => {
   const [editClient, setEditClient] = useState<Client | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Client | null>(null);
   const [signupLinkOpen, setSignupLinkOpen] = useState(false);
+  const [requestsOpen, setRequestsOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [newTypeOpen, setNewTypeOpen] = useState(false);
+
+  const { addLead } = useLeads();
+
 
   const { wouldExceed, showPaywall, setUsage } = usePlan();
   const { pendingCount } = useSignupRequests();
@@ -214,7 +220,48 @@ const Clientes = () => {
     setDeleteTarget(null);
   };
 
+  // --- Signup request handlers ---
+  const approveAsClient = (req: SignupRequest) => {
+    if (wouldExceed("maxClients", realClientsCount)) {
+      showPaywall("clients");
+      return;
+    }
+    addClient({
+      name: req.name,
+      company: req.company || "",
+      email: req.email || "",
+      phone: req.phone || "",
+      whatsapp: req.phone || "",
+      instagram: "",
+      site: "",
+      serviceType: req.project_interest || "—",
+      origin: "Formulário",
+      status: "Potencial",
+      potentialValue: 0,
+      observations: req.message || "",
+    } as any);
+  };
+
+  const convertRequestToLead = (req: SignupRequest) => {
+    addLead({
+      name: req.name,
+      company: req.company || "",
+      email: req.email || "",
+      phone: req.phone || "",
+      serviceType: req.project_interest || "—",
+      origin: "Formulário",
+      source: "Link de cadastro",
+      estimatedValue: 0,
+      priority: "média",
+      stage: "lead",
+      tags: [],
+      nextAction: "Entrar em contato",
+      description: req.message || "",
+    } as any);
+  };
+
   const noClients = clients.length === 0;
+
 
   return (
     <div className="space-y-6">
@@ -531,8 +578,24 @@ const Clientes = () => {
         </div>
       )}
 
-      {/* Public signup requests panel */}
-      <SignupRequestsPanel />
+      {/* Public signup requests — opened from drawer or pending badge */}
+      <Sheet open={requestsOpen} onOpenChange={setRequestsOpen}>
+        <SheetContent className="bg-background border-border w-full sm:max-w-3xl overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Solicitações recebidas</SheetTitle>
+            <SheetDescription>
+              Aprove como cliente, converta em lead/oportunidade ou arquive os cadastros enviados pelo seu link público.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="mt-5">
+            <SignupRequestsPanel
+              onApproveAsClient={approveAsClient}
+              onConvertLead={convertRequestToLead}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
+
 
       {/* New / Edit Client Dialog */}
       <ClientFormDialog
@@ -551,7 +614,13 @@ const Clientes = () => {
 
       <NewClientTypeDialog open={newTypeOpen} onOpenChange={setNewTypeOpen} onCreated={(name) => setFilterType(name)} />
 
-      <SignupLinkDrawer open={signupLinkOpen} onOpenChange={setSignupLinkOpen} pendingCount={pendingCount} />
+      <SignupLinkDrawer
+        open={signupLinkOpen}
+        onOpenChange={setSignupLinkOpen}
+        pendingCount={pendingCount}
+        onOpenRequests={() => setRequestsOpen(true)}
+      />
+
 
       <ClientProfileDrawer
         client={selectedClient}
