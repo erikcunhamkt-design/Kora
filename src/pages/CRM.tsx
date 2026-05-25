@@ -507,6 +507,16 @@ const CRM = () => {
               {stages.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
             </SelectContent>
           </Select>
+          <Select value={filterTemperature} onValueChange={(v) => setFilterTemperature(v as any)}>
+            <SelectTrigger className="w-[150px] h-8 bg-muted/40 border-border text-[13px]"><SelectValue placeholder="Temperatura" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Temperaturas</SelectItem>
+              <SelectItem value="quente">Quente</SelectItem>
+              <SelectItem value="morno">Morno</SelectItem>
+              <SelectItem value="frio">Frio</SelectItem>
+              <SelectItem value="não definida">Não definida</SelectItem>
+            </SelectContent>
+          </Select>
           <Select value={filterOrigin} onValueChange={setFilterOrigin}>
             <SelectTrigger className="w-[140px] h-8 bg-muted/40 border-border text-[13px]"><SelectValue placeholder="Origens" /></SelectTrigger>
             <SelectContent className="max-h-[280px]">
