@@ -35,11 +35,31 @@ const fmtDate = (iso?: string) => (iso ? new Date(iso).toLocaleDateString("pt-BR
 
 export function ProjectsSection() {
   const { projects, addProject } = useProjects();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterService, setFilterService] = useState("all");
   const [filterPriority, setFilterPriority] = useState("all");
   const [open, setOpen] = useState(false);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+  const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  // Deep-link: ?projectId=X scrolls into view and highlights briefly.
+  useEffect(() => {
+    const pid = searchParams.get("projectId");
+    if (!pid) return;
+    if (!projects.some((p) => p.id === pid)) return;
+    setHighlightId(pid);
+    const el = cardRefs.current[pid];
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    const next = new URLSearchParams(searchParams);
+    next.delete("projectId");
+    setSearchParams(next, { replace: true });
+    const t = setTimeout(() => setHighlightId(null), 2500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, projects.length]);
 
   const filtered = useMemo(() => projects.filter((p) => {
     const q = search.toLowerCase();
