@@ -384,13 +384,31 @@ export function QuotesSection() {
             toast.success("Marcado como enviado");
           }}
           onApprove={() => {
+            const wasApproved = preview.status === "aprovado";
             updateStatus(preview.id, "aprovado");
             toast.success("Orçamento aprovado");
+            if (!wasApproved && !preview.financeEntryId) {
+              // Offer receivable generation as a natural next step.
+              setTimeout(() => setReceivableQuote({ ...preview, status: "aprovado" }), 250);
+            }
           }}
+          onGenerateReceivable={!preview.financeEntryId ? () => setReceivableQuote(preview) : undefined}
+          onOpenReceivable={preview.financeEntryId ? () => navigate(`/financeiro?tab=receivables&entryId=${preview.financeEntryId}`) : undefined}
           onOpenOpportunity={preview.opportunityId ? () => navigate("/crm") : undefined}
           onOpenClient={preview.clientId ? () => navigate(`/clientes?focus=${preview.clientId}`) : undefined}
         />
       )}
+
+      <QuoteToReceivableDialog
+        quote={receivableQuote}
+        open={!!receivableQuote}
+        onOpenChange={(v) => !v && setReceivableQuote(null)}
+        onGenerated={(entryId) => {
+          if (receivableQuote) {
+            updateQuote(receivableQuote.id, { financeEntryId: entryId });
+          }
+        }}
+      />
 
       <AlertDialog open={!!confirmDelete} onOpenChange={(v) => !v && setConfirmDelete(null)}>
         <AlertDialogContent>
@@ -414,6 +432,7 @@ export function QuotesSection() {
     </div>
   );
 }
+
 
 /* ---------------- Wizard ---------------- */
 
