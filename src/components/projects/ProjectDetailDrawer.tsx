@@ -74,6 +74,11 @@ export function ProjectDetailDrawer({ project, open, onOpenChange }: ProjectDeta
   const navigate = useNavigate();
   const { updateProject } = useProjects();
   const { tasks, addTask, moveTask } = useTasks();
+  const { clients } = useClients();
+  const linkedClient = useMemo(
+    () => (project?.clientId ? clients.find((c) => c.id === project.clientId) ?? null : null),
+    [clients, project],
+  );
 
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskDate, setNewTaskDate] = useState("");
