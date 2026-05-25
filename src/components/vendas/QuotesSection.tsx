@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
   FileText, Plus, X, Download, Send, Copy, Check, Trash2, Archive,
-  Link2, AlertTriangle, Eye, MoreHorizontal, XCircle, User as UserIcon,
+  Link2, AlertTriangle, Eye, MoreHorizontal, XCircle, User as UserIcon, Wallet,
 } from "lucide-react";
 import {
   useQuotes, type Quote, type QuoteItem, type QuoteStatus, type QuoteSource,
@@ -19,6 +19,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { QuoteToReceivableDialog } from "@/components/vendas/QuoteToReceivableDialog";
 
 const BRL = (n: number) =>
   n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2 });
@@ -77,6 +78,7 @@ export function QuotesSection() {
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Quote | null>(null);
   const [filterStatus, setFilterStatus] = useState<"all" | QuoteStatus>("all");
+  const [receivableQuote, setReceivableQuote] = useState<Quote | null>(null);
 
   /** Deep link: ?newQuote=1[&opportunityId=X][&clientId=Y] */
   useEffect(() => {
@@ -121,8 +123,8 @@ export function QuotesSection() {
   const openQuotes = quotes.filter((q) => effectiveStatus(q) === "rascunho" || effectiveStatus(q) === "enviado");
   const openValue = openQuotes.reduce((s, q) => s + q.total, 0);
   const approvedQuotes = quotes.filter((q) => q.status === "aprovado");
-  const decisive = quotes.filter((q) => q.status === "aprovado" || q.status === "recusado").length;
-  const approvalRate = decisive ? Math.round((approvedQuotes.length / decisive) * 100) : null;
+  const approvedPendingFinance = approvedQuotes.filter((q) => !q.financeEntryId);
+  const approvedPendingValue = approvedPendingFinance.reduce((s, q) => s + q.total, 0);
   const expiringSoon = quotes.filter((q) => {
     const d = getQuoteDaysToExpire(q);
     return q.status === "enviado" && d !== null && d >= 0 && d <= 5;
@@ -164,7 +166,16 @@ export function QuotesSection() {
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Metric label="Em aberto" value={String(openQuotes.length)} sub="Rascunho + enviado" />
         <Metric label="Valor em propostas" value={BRL(openValue)} tone="primary" />
-        <Metric label="Aprovados" value={String(approvedQuotes.length)} tone="success" />
+        <Metric
+          label="Aprovados"
+          value={String(approvedQuotes.length)}
+          tone="success"
+          sub={
+            approvedPendingFinance.length > 0
+              ? `${approvedPendingFinance.length} sem recebível · ${BRL(approvedPendingValue)} pendente`
+              : "Todos lançados no financeiro"
+          }
+        />
         <Metric
           label="Vencendo em breve"
           value={String(expiringSoon)}
@@ -306,6 +317,16 @@ export function QuotesSection() {
                               <Copy className="h-3.5 w-3.5 mr-2" /> Duplicar
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
+                            {q.status === "aprovado" && !q.financeEntryId && (
+                              <DropdownMenuItem onClick={() => setReceivableQuote(q)}>
+                                <Wallet className="h-3.5 w-3.5 mr-2" /> Gerar conta a receber
+                              </DropdownMenuItem>
+                            )}
+                            {q.financeEntryId && (
+                              <DropdownMenuItem onClick={() => navigate(`/financeiro?tab=receivables&entryId=${q.financeEntryId}`)}>
+                                <Wallet className="h-3.5 w-3.5 mr-2" /> Ver recebível
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuItem
                               onClick={() => toast("Gerar projeto a partir de orçamento — em breve.")}
                               className="text-muted-foreground"
@@ -363,13 +384,31 @@ export function QuotesSection() {
             toast.success("Marcado como enviado");
           }}
           onApprove={() => {
+            const wasApproved = preview.status === "aprovado";
             updateStatus(preview.id, "aprovado");
             toast.success("Orçamento aprovado");
+            if (!wasApproved && !preview.financeEntryId) {
+              // Offer receivable generation as a natural next step.
+              setTimeout(() => setReceivableQuote({ ...preview, status: "aprovado" }), 250);
+            }
           }}
+          onGenerateReceivable={!preview.financeEntryId ? () => setReceivableQuote(preview) : undefined}
+          onOpenReceivable={preview.financeEntryId ? () => navigate(`/financeiro?tab=receivables&entryId=${preview.financeEntryId}`) : undefined}
           onOpenOpportunity={preview.opportunityId ? () => navigate("/crm") : undefined}
           onOpenClient={preview.clientId ? () => navigate(`/clientes?focus=${preview.clientId}`) : undefined}
         />
       )}
+
+      <QuoteToReceivableDialog
+        quote={receivableQuote}
+        open={!!receivableQuote}
+        onOpenChange={(v) => !v && setReceivableQuote(null)}
+        onGenerated={(entryId) => {
+          if (receivableQuote) {
+            updateQuote(receivableQuote.id, { financeEntryId: entryId });
+          }
+        }}
+      />
 
       <AlertDialog open={!!confirmDelete} onOpenChange={(v) => !v && setConfirmDelete(null)}>
         <AlertDialogContent>
@@ -393,6 +432,7 @@ export function QuotesSection() {
     </div>
   );
 }
+
 
 /* ---------------- Wizard ---------------- */
 
@@ -744,6 +784,8 @@ function QuotePreview({
   onApprove,
   onOpenOpportunity,
   onOpenClient,
+  onGenerateReceivable,
+  onOpenReceivable,
 }: {
   quote: Quote;
   onClose: () => void;
@@ -752,6 +794,8 @@ function QuotePreview({
   onApprove: () => void;
   onOpenOpportunity?: () => void;
   onOpenClient?: () => void;
+  onGenerateReceivable?: () => void;
+  onOpenReceivable?: () => void;
 }) {
   const eff = effectiveStatus(quote);
   const days = getQuoteDaysToExpire(quote);
@@ -844,6 +888,42 @@ function QuotePreview({
         </div>
       </div>
 
+      {quote.status === "aprovado" && (
+        <div className="mt-4 rounded-xl border border-border/60 bg-card p-4 flex flex-wrap items-center gap-3">
+          <div className="h-9 w-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+            <Wallet className="h-4 w-4" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-[11px] uppercase tracking-wide text-muted-foreground/80">Financeiro</div>
+            <div className="text-sm font-semibold text-foreground">
+              {quote.financeEntryId ? "Conta a receber gerada" : "Sem conta a receber ainda"}
+            </div>
+            <div className="text-[11px] text-muted-foreground">
+              {quote.financeEntryId
+                ? "Acompanhe o recebimento e marque como pago no financeiro."
+                : "Transforme este orçamento aprovado em uma receita prevista."}
+            </div>
+          </div>
+          {quote.financeEntryId ? (
+            <button
+              type="button"
+              onClick={onOpenReceivable}
+              className="rounded-lg border border-border/60 px-3 py-1.5 text-xs font-bold text-foreground hover:border-primary hover:text-primary transition inline-flex items-center gap-1"
+            >
+              <Eye className="h-3 w-3" /> Ver recebível
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onGenerateReceivable}
+              className="rounded-lg border border-border bg-primary/10 text-primary px-3 py-1.5 text-xs font-bold hover:bg-primary hover:text-primary-foreground transition inline-flex items-center gap-1"
+            >
+              <Wallet className="h-3 w-3" /> Gerar conta a receber
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="mt-5 grid grid-cols-2 md:grid-cols-4 gap-2">
         <ActionButton icon={<Download className="h-4 w-4" />} label="Baixar PDF" onClick={() => toast("Geração de PDF chega em breve.")} />
         <ActionButton icon={<Send className="h-4 w-4" />} label="Marcar enviado" onClick={onSend} />
@@ -851,7 +931,7 @@ function QuotePreview({
         <ActionButton icon={<Check className="h-4 w-4" />} label="Aprovar" onClick={onApprove} primary />
       </div>
       <p className="mt-3 text-[11px] text-muted-foreground">
-        Envio por WhatsApp/e-mail, aprovação online e checkout real chegam em breve.
+        Envio por WhatsApp/e-mail, aprovação online, PIX automático e checkout real chegam em etapa futura.
       </p>
     </Shell>
   );
