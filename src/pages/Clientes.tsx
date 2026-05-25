@@ -578,8 +578,24 @@ const Clientes = () => {
         </div>
       )}
 
-      {/* Public signup requests panel */}
-      <SignupRequestsPanel />
+      {/* Public signup requests — opened from drawer or pending badge */}
+      <Sheet open={requestsOpen} onOpenChange={setRequestsOpen}>
+        <SheetContent className="bg-background border-border w-full sm:max-w-3xl overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Solicitações recebidas</SheetTitle>
+            <SheetDescription>
+              Aprove como cliente, converta em lead/oportunidade ou arquive os cadastros enviados pelo seu link público.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="mt-5">
+            <SignupRequestsPanel
+              onApproveAsClient={approveAsClient}
+              onConvertLead={convertRequestToLead}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
+
 
       {/* New / Edit Client Dialog */}
       <ClientFormDialog
