@@ -814,6 +814,8 @@ function QuotePreview({
   onOpenClient,
   onGenerateReceivable,
   onOpenReceivable,
+  onGenerateProject,
+  onOpenProject,
 }: {
   quote: Quote;
   onClose: () => void;
