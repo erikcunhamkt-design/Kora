@@ -412,6 +412,32 @@ export function ProjectDetailDrawer({ project, open, onOpenChange }: ProjectDeta
 
         <Separator className="bg-border/60" />
 
+        {/* Client Technical Sheet snapshot */}
+        {project.clientId && linkedClient ? (
+          <>
+            <ClientTechnicalSheetSnapshot client={linkedClient} defaultOpen={false} />
+            <Separator className="bg-border/60" />
+          </>
+        ) : project.clientId && !linkedClient ? (
+          <>
+            <section className="p-6">
+              <p className="text-xs text-muted-foreground/80">
+                Cliente vinculado não foi encontrado nos registros locais.
+              </p>
+            </section>
+            <Separator className="bg-border/60" />
+          </>
+        ) : (
+          <>
+            <section className="p-6">
+              <p className="text-xs text-muted-foreground/80">
+                Este projeto ainda não possui cliente vinculado.
+              </p>
+            </section>
+            <Separator className="bg-border/60" />
+          </>
+        )}
+
         {/* Connections */}
         <section className="p-6 space-y-3">
           <h3 className="text-sm font-semibold text-foreground">Conexões do projeto</h3>
