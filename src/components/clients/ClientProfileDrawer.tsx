@@ -107,7 +107,7 @@ const ConnectionCard = ({
 // ---------- Main ----------
 
 export const ClientProfileDrawer = ({
-  client, onClose, onEdit, onWhats, onArchive, onRestore, onCreateOpportunity,
+  client, onClose, onEdit, onWhats, onArchive, onRestore, onCreateOpportunity, onCreateQuote,
 }: {
   client: Client | null;
   onClose: () => void;
@@ -116,6 +116,7 @@ export const ClientProfileDrawer = ({
   onArchive?: (c: Client) => void;
   onRestore?: (c: Client) => void;
   onCreateOpportunity?: (c: Client) => void;
+  onCreateQuote?: (c: Client) => void;
 }) => {
   if (!client) return null;
 
@@ -387,9 +388,13 @@ export const ClientProfileDrawer = ({
                 icon={FileSpreadsheet}
                 label="Orçamentos"
                 hint="Envie propostas vinculadas a este cliente."
-                ctaLabel="Disponível na próxima etapa"
-                onClick={() => toast("Orçamentos por cliente em breve.")}
+                ctaLabel="Criar orçamento"
+                onClick={() => {
+                  if (onCreateQuote) onCreateQuote(client);
+                  else toast("Orçamentos por cliente em breve.");
+                }}
               />
+
               <ConnectionCard
                 icon={Briefcase}
                 label="Projetos"

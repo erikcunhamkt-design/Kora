@@ -633,6 +633,10 @@ const Clientes = () => {
           setSelectedClient(null);
           navigate(`/crm?newOpportunity=1&clientId=${c.id}`);
         }}
+        onCreateQuote={(c) => {
+          setSelectedClient(null);
+          navigate(`/vendas?tab=orcamentos&newQuote=1&clientId=${c.id}`);
+        }}
       />
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(v) => !v && setDeleteTarget(null)}>
