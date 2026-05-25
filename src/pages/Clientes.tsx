@@ -414,8 +414,8 @@ const Clientes = () => {
                         )}
                       </div>
                     ) : (
-                      <span className="text-xs text-amber-400/80 flex items-center gap-1">
-                        <Target className="h-3 w-3" /> Definir
+                      <span className="text-xs text-muted-foreground/80 inline-flex items-center gap-1">
+                        <Target className="h-3 w-3" /> Definir follow-up
                       </span>
                     )}
                   </TableCell>
