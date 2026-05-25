@@ -121,6 +121,7 @@ const TempPill = ({ t }: { t?: ClientTemperature }) => {
 // ---------- Main Component ----------
 const Clientes = () => {
   const { clients, addClient, updateClient, archiveClient, restoreClient, deleteClient } = useClients();
+  const navigate = useNavigate();
   const { activeTypes } = useClientTypes();
 
   const [search, setSearch] = useState("");
