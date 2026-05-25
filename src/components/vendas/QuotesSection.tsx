@@ -166,7 +166,16 @@ export function QuotesSection() {
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Metric label="Em aberto" value={String(openQuotes.length)} sub="Rascunho + enviado" />
         <Metric label="Valor em propostas" value={BRL(openValue)} tone="primary" />
-        <Metric label="Aprovados" value={String(approvedQuotes.length)} tone="success" />
+        <Metric
+          label="Aprovados"
+          value={String(approvedQuotes.length)}
+          tone="success"
+          sub={
+            approvedPendingFinance.length > 0
+              ? `${approvedPendingFinance.length} sem recebível · ${BRL(approvedPendingValue)} pendente`
+              : "Todos lançados no financeiro"
+          }
+        />
         <Metric
           label="Vencendo em breve"
           value={String(expiringSoon)}
