@@ -220,7 +220,48 @@ const Clientes = () => {
     setDeleteTarget(null);
   };
 
+  // --- Signup request handlers ---
+  const approveAsClient = (req: SignupRequest) => {
+    if (wouldExceed("maxClients", realClientsCount)) {
+      showPaywall("clients");
+      return;
+    }
+    addClient({
+      name: req.name,
+      company: req.company || "",
+      email: req.email || "",
+      phone: req.phone || "",
+      whatsapp: req.phone || "",
+      instagram: "",
+      site: "",
+      serviceType: req.project_interest || "—",
+      origin: "Formulário",
+      status: "Potencial",
+      potentialValue: 0,
+      observations: req.message || "",
+    } as any);
+  };
+
+  const convertRequestToLead = (req: SignupRequest) => {
+    addLead({
+      name: req.name,
+      company: req.company || "",
+      email: req.email || "",
+      phone: req.phone || "",
+      serviceType: req.project_interest || "—",
+      origin: "Formulário",
+      source: "Link de cadastro",
+      estimatedValue: 0,
+      priority: "média",
+      stage: "lead",
+      tags: [],
+      nextAction: "Entrar em contato",
+      description: req.message || "",
+    } as any);
+  };
+
   const noClients = clients.length === 0;
+
 
   return (
     <div className="space-y-6">
