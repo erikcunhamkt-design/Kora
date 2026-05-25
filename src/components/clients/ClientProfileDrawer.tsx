@@ -479,13 +479,6 @@ export const ClientProfileDrawer = ({
           </div>
         </div>
       </SheetContent>
-
-      <ClientTechnicalSheetDialog
-        open={techOpen}
-        onOpenChange={setTechOpen}
-        client={client}
-        onSave={(id, sheet) => onUpdateTechnicalSheet?.(id, sheet)}
-      />
     </Sheet>
   );
 };
