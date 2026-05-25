@@ -207,7 +207,7 @@ const Financeiro = () => {
           <OverviewTab fin={fin} metrics={metrics} onNewSale={() => setOpenSale(true)} onNewExpense={() => setOpenExpense(true)} />
         </TabsContent>
         <TabsContent value="receivables" className="space-y-4">
-          <TransactionsTab fin={fin} type="income" onCreate={() => setOpenSale(true)} />
+          <TransactionsTab fin={fin} type="income" onCreate={() => setOpenSale(true)} highlightId={highlightEntryId} />
         </TabsContent>
         <TabsContent value="payables" className="space-y-4">
           <TransactionsTab fin={fin} type="expense" onCreate={() => setOpenExpense(true)} />
@@ -372,7 +372,7 @@ const OverviewTab = ({ fin, metrics, onNewSale, onNewExpense }: any) => {
 // ============================================================
 // TRANSACTIONS TAB (Receber / Pagar)
 // ============================================================
-const TransactionsTab = ({ fin, type, onCreate }: { fin: ReturnType<typeof useFinance>; type: TxType; onCreate: () => void }) => {
+const TransactionsTab = ({ fin, type, onCreate, highlightId }: { fin: ReturnType<typeof useFinance>; type: TxType; onCreate: () => void; highlightId?: string | null }) => {
   const [status, setStatus] = useState<"all" | TxStatus>("all");
   const [period, setPeriod] = useState<"all" | "month" | "next30" | "overdue">("all");
   const [category, setCategory] = useState<string>("all");
@@ -493,10 +493,16 @@ const TransactionsTab = ({ fin, type, onCreate }: { fin: ReturnType<typeof useFi
             </TableHeader>
             <TableBody>
               {filtered.map((t) => (
-                <TableRow key={t.id} className="border-border hover:bg-muted/40">
+                <TableRow
+                  key={t.id}
+                  className={`border-border hover:bg-muted/40 transition-colors ${highlightId === t.id ? "bg-primary/10" : ""}`}
+                >
                   <TableCell className="font-medium text-foreground">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="truncate max-w-[260px]">{t.title}</span>
+                      {t.source === "quote" && (
+                        <Badge variant="outline" className="text-[10px] bg-primary/10 border-primary/30 text-primary">Orçamento</Badge>
+                      )}
                       {t.isDemo && <Badge variant="outline" className="text-[10px] bg-muted/40 border-border text-muted-foreground">demo</Badge>}
                       {t.recurrence !== "none" && <Repeat className="h-3 w-3 text-muted-foreground" />}
                     </div>
