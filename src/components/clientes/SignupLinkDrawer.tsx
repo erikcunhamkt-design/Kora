@@ -11,7 +11,10 @@ interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   pendingCount: number;
+  onOpenRequests?: () => void;
 }
+
+
 
 export const SignupLinkDrawer = ({ open, onOpenChange, pendingCount }: Props) => {
   const { user } = useAuth();
