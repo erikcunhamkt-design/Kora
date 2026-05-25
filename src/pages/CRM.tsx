@@ -90,6 +90,7 @@ const CRM = () => {
   const { addClient } = useClients();
   const { activeTypes } = useClientTypes();
   const { wouldExceed, showPaywall, setUsage } = usePlan();
+  const navigate = useNavigate();
 
   const [newTypeOpen, setNewTypeOpen] = useState(false);
   const [view, setView] = useState<"kanban" | "list">("kanban");
