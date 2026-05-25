@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { useLeads, type Lead, type Priority, type StageKey } from "@/hooks/useLeads";
+import { useLeads, type Lead, type Priority, type StageKey, type LeadTemperature, getLeadTemperature } from "@/hooks/useLeads";
 import { usePipelines, type Pipeline, type PipelineStage } from "@/hooks/usePipelines";
 import { usePipelineAutomations } from "@/hooks/usePipelineAutomations";
 import {
@@ -37,16 +37,47 @@ import { ComingSoonDialog } from "@/components/crm/ComingSoonDialog";
 import { ScheduleMeetingDialog } from "@/components/crm/ScheduleMeetingDialog";
 import { EditTagsDialog } from "@/components/crm/EditTagsDialog";
 import { MoveToPipelineDialog } from "@/components/crm/MoveToPipelineDialog";
-import { useClients } from "@/hooks/useClients";
+import { useClients, type Client } from "@/hooks/useClients";
 import { useClientTypes } from "@/hooks/useClientTypes";
 import { NewClientTypeDialog } from "@/components/clientes/NewClientTypeDialog";
 import { EmptyState } from "@/components/ui/empty-state";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 const priorityStyles: Record<Priority, string> = {
   alta: "bg-destructive/10 text-destructive border-destructive/20",
   média: "bg-amber-500/10 text-amber-400 border-amber-500/20",
   baixa: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+};
+
+const temperatureStyles: Record<LeadTemperature, string> = {
+  quente: "bg-primary/10 text-primary border-primary/25",
+  morno: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  frio: "bg-sky-500/10 text-sky-400 border-sky-500/20",
+  "não definida": "bg-muted text-muted-foreground/80 border-border/60",
+};
+
+// Quantos dias considera "parado" (sem interação)
+const STALE_DAYS = 14;
+
+const parseDateBR = (s?: string): Date | null => {
+  if (!s) return null;
+  // tenta ISO primeiro
+  const iso = new Date(s);
+  if (!isNaN(iso.getTime())) return iso;
+  // "12 Abr 2025"
+  const months: Record<string, number> = { jan:0,fev:1,mar:2,abr:3,mai:4,jun:5,jul:6,ago:7,set:8,out:9,nov:10,dez:11 };
+  const m = s.toLowerCase().match(/(\d{1,2})\s+([a-zç]{3,})\s+(\d{4})/);
+  if (m) {
+    const mo = months[m[2].slice(0, 3) as string];
+    if (mo !== undefined) return new Date(Number(m[3]), mo, Number(m[1]));
+  }
+  return null;
+};
+
+const daysSince = (s?: string): number | null => {
+  const d = parseDateBR(s);
+  if (!d) return null;
+  return Math.floor((Date.now() - d.getTime()) / 86_400_000);
 };
 
 const NEW_TYPE_VALUE = "__new_type__";
@@ -87,10 +118,11 @@ const CRM = () => {
     addPipeline, updatePipeline, deletePipeline,
   } = usePipelines();
   const { getRulesForPipeline } = usePipelineAutomations();
-  const { addClient } = useClients();
+  const { addClient, clients } = useClients();
   const { activeTypes } = useClientTypes();
   const { wouldExceed, showPaywall, setUsage } = usePlan();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [newTypeOpen, setNewTypeOpen] = useState(false);
   const [view, setView] = useState<"kanban" | "list">("kanban");
@@ -98,9 +130,11 @@ const CRM = () => {
   const [filterStage, setFilterStage] = useState("all");
   const [filterOrigin, setFilterOrigin] = useState("all");
   const [filterType, setFilterType] = useState("all");
+  const [filterTemperature, setFilterTemperature] = useState<"all" | LeadTemperature>("all");
   const [showArchived, setShowArchived] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [newLeadOpen, setNewLeadOpen] = useState(false);
+  const [newLeadInitial, setNewLeadInitial] = useState<Partial<Lead> | null>(null);
   const [draggedId, setDraggedId] = useState<number | null>(null);
 
   const [editingPipeline, setEditingPipeline] = useState<Pipeline | null>(null);
@@ -114,6 +148,37 @@ const CRM = () => {
   const [tagsLeadId, setTagsLeadId] = useState<number | null>(null);
   const [scheduleLeadId, setScheduleLeadId] = useState<number | null>(null);
   const [movePipelineLeadId, setMovePipelineLeadId] = useState<number | null>(null);
+
+  // ----- Deep link: ?newOpportunity=1&clientId=X -----
+  useEffect(() => {
+    if (searchParams.get("newOpportunity") !== "1") return;
+    const cid = Number(searchParams.get("clientId"));
+    const client = clients.find((c) => c.id === cid);
+    if (client) {
+      const tempMap: Record<string, LeadTemperature> = { Quente: "quente", Morno: "morno", Frio: "frio" };
+      setNewLeadInitial({
+        clientId: client.id,
+        name: client.name,
+        company: client.company,
+        email: client.email,
+        phone: client.whatsapp || client.phone,
+        estimatedValue: client.potentialValue || 0,
+        temperature: (client.temperature && tempMap[client.temperature]) || "não definida",
+        nextAction: client.nextAction,
+        nextActionDate: client.nextActionDate,
+        serviceType: client.serviceType,
+        origin: client.origin,
+      });
+    } else {
+      setNewLeadInitial(null);
+    }
+    setNewLeadOpen(true);
+    // limpa params para não reabrir em refresh
+    const next = new URLSearchParams(searchParams);
+    next.delete("newOpportunity");
+    next.delete("clientId");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, clients, setSearchParams]);
 
   // Sort stages of active pipeline
   const stages = useMemo(
@@ -146,6 +211,7 @@ const CRM = () => {
       showPaywall("leads");
       return;
     }
+    setNewLeadInitial(null);
     setNewLeadOpen(true);
   };
 
@@ -162,23 +228,32 @@ const CRM = () => {
       const matchStage = filterStage === "all" || l.stageId === filterStage;
       const matchOrigin = filterOrigin === "all" || (l.origin || l.source) === filterOrigin;
       const matchType = filterType === "all" || l.serviceType === filterType;
-      return matchSearch && matchStage && matchOrigin && matchType;
+      const matchTemp = filterTemperature === "all" || getLeadTemperature(l) === filterTemperature;
+      return matchSearch && matchStage && matchOrigin && matchType && matchTemp;
     });
-  }, [pipelineLeads, search, filterStage, filterOrigin, filterType]);
+  }, [pipelineLeads, search, filterStage, filterOrigin, filterType, filterTemperature]);
 
-  const totalPipeline = pipelineLeads
-    .filter((l) => {
-      const stage = stages.find((s) => s.id === l.stageId);
-      return stage?.type !== "won" && stage?.type !== "lost";
-    })
-    .reduce((s, l) => s + l.estimatedValue, 0);
-
+  // ---------- KPIs ----------
+  const openLeads = pipelineLeads.filter((l) => {
+    const stage = stages.find((s) => s.id === l.stageId);
+    return stage?.type !== "won" && stage?.type !== "lost";
+  });
+  const totalPipeline = openLeads.reduce((s, l) => s + l.estimatedValue, 0);
   const wonCount = pipelineLeads.filter((l) => stages.find((s) => s.id === l.stageId)?.type === "won").length;
   const wonValue = pipelineLeads.filter((l) => stages.find((s) => s.id === l.stageId)?.type === "won").reduce((s, l) => s + l.estimatedValue, 0);
-  const lostValue = pipelineLeads.filter((l) => stages.find((s) => s.id === l.stageId)?.type === "lost").reduce((s, l) => s + l.estimatedValue, 0);
-  const newCount = pipelineLeads.filter((l) => stages[0] && l.stageId === stages[0].id).length;
   const totalActive = pipelineLeads.filter((l) => stages.find((s) => s.id === l.stageId)?.type !== "lost").length;
   const conversion = totalActive > 0 ? Math.round((wonCount / totalActive) * 100) : 0;
+
+  // Follow-ups pendentes: aberto e (sem próxima ação ou data passou)
+  const today = new Date(); today.setHours(0,0,0,0);
+  const followupsPending = openLeads.filter((l) => {
+    if (!l.nextAction) return true;
+    if (l.nextActionDate) {
+      const d = new Date(l.nextActionDate);
+      if (!isNaN(d.getTime()) && d < today) return true;
+    }
+    return false;
+  }).length;
 
   const leadCountByStage = useMemo(() => {
     const map: Record<string, number> = {};
@@ -268,12 +343,20 @@ const CRM = () => {
     <div className="space-y-6">
       <PageHeader
         title="CRM"
-        subtitle="Gerencie leads, pipelines e oportunidades"
+        subtitle="Acompanhe oportunidades, negociações e próximas ações comerciais."
         actions={
           <>
-            <UsageBadge resource="leads" label="leads" />
+            <UsageBadge resource="leads" label="oportunidades" />
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5 shrink-0"
+              onClick={() => { setEditingPipeline(activePipeline); setPipelineEditorOpen(true); }}
+            >
+              <Settings2 className="h-4 w-4" /> <span className="hidden sm:inline">Gerenciar funis</span>
+            </Button>
             <Button size="sm" onClick={handleNewLead} className="orbit-gradient text-white border-0 gap-1.5 shrink-0">
-              <Plus className="h-4 w-4" /> Novo lead
+              <Plus className="h-4 w-4" /> Nova oportunidade
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -323,14 +406,19 @@ const CRM = () => {
         }
       />
 
-      {/* Summary — compact strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
-        <SummaryCard icon={TrendingUp} label="Em pipeline" value={formatCurrency(totalPipeline)} accent="primary" />
-        <SummaryCard icon={DollarSign} label="Valor ganho" value={formatCurrency(wonValue)} sub={`${wonCount} fechado${wonCount !== 1 ? "s" : ""}`} accent="success" />
-        <SummaryCard icon={Sparkles} label="Leads novos" value={String(newCount)} accent="muted" />
-        <SummaryCard icon={CheckCircle2} label="Ganhos" value={String(wonCount)} accent="success" />
-        <SummaryCard icon={BarChart3} label="Conversão" value={`${conversion}%`} accent="primary" />
-        <SummaryCard icon={XCircle} label="Valor perdido" value={formatCurrency(lostValue)} accent="danger" />
+      {/* KPIs — foco em oportunidades abertas, valor e follow-ups */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+        <SummaryCard icon={TrendingUp} label="Oportunidades abertas" value={String(openLeads.length)} accent="primary" />
+        <SummaryCard icon={DollarSign} label="Valor no funil" value={formatCurrency(totalPipeline)} accent="primary" />
+        <SummaryCard
+          icon={Clock}
+          label="Follow-ups pendentes"
+          value={String(followupsPending)}
+          sub={followupsPending > 0 ? "definir próximo passo" : "tudo em dia"}
+          accent={followupsPending > 0 ? "danger" : "muted"}
+        />
+        <SummaryCard icon={BarChart3} label="Conversão" value={`${conversion}%`} accent="muted" />
+        <SummaryCard icon={CheckCircle2} label="Ganhas no período" value={String(wonCount)} sub={wonValue > 0 ? formatCurrency(wonValue) : undefined} accent="success" />
       </div>
 
       {/* Premium toolbar: pipeline + view + filters */}
@@ -417,6 +505,16 @@ const CRM = () => {
             <SelectContent className="max-h-[280px]">
               <SelectItem value="all">Etapas</SelectItem>
               {stages.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={filterTemperature} onValueChange={(v) => setFilterTemperature(v as any)}>
+            <SelectTrigger className="w-[150px] h-8 bg-muted/40 border-border text-[13px]"><SelectValue placeholder="Temperatura" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Temperaturas</SelectItem>
+              <SelectItem value="quente">Quente</SelectItem>
+              <SelectItem value="morno">Morno</SelectItem>
+              <SelectItem value="frio">Frio</SelectItem>
+              <SelectItem value="não definida">Não definida</SelectItem>
             </SelectContent>
           </Select>
           <Select value={filterOrigin} onValueChange={setFilterOrigin}>
@@ -608,12 +706,13 @@ const CRM = () => {
       {/* Dialogs */}
       <NewLeadDialog
         open={newLeadOpen}
-        onOpenChange={setNewLeadOpen}
+        onOpenChange={(v) => { setNewLeadOpen(v); if (!v) setNewLeadInitial(null); }}
         stages={stages}
         pipelineId={activePipelineId}
+        initial={newLeadInitial}
         onSave={(data) => {
           addLead(data);
-          toast.success("Lead adicionado ao pipeline");
+          toast.success(data.clientId ? "Oportunidade vinculada ao cliente" : "Oportunidade adicionada ao pipeline");
         }}
       />
 
@@ -625,6 +724,7 @@ const CRM = () => {
         onEditTags={() => selectedLead && setTagsLeadId(selectedLead.id)}
         onSchedule={() => selectedLead && setScheduleLeadId(selectedLead.id)}
         onUpdate={(patch) => selectedLead && updateLead(selectedLead.id, patch)}
+        onOpenClient={(cid) => navigate(`/clientes?focus=${cid}`)}
       />
 
       <PipelineEditorDialog
@@ -750,16 +850,20 @@ const LeadCard = ({
 
       <div className="flex items-center justify-between gap-2 mb-2">
         <span className="text-sm font-bold text-foreground tabular-nums">{formatCurrency(lead.estimatedValue)}</span>
-        {lead.priority && (
-          <Badge variant="outline" className={`text-[9px] h-4 px-1.5 ${priorityStyles[lead.priority]}`}>
-            <Flame className="h-2.5 w-2.5 mr-0.5" /> {lead.priority}
-          </Badge>
-        )}
+        {(() => {
+          const t = getLeadTemperature(lead);
+          return (
+            <Badge variant="outline" className={`text-[9px] h-4 px-1.5 capitalize ${temperatureStyles[t]}`}>
+              {t === "quente" ? <Flame className="h-2.5 w-2.5 mr-0.5" /> : null}
+              {t}
+            </Badge>
+          );
+        })()}
       </div>
 
       {(lead.serviceType || lead.origin) && (
         <div className="flex items-center gap-1 mb-2 flex-wrap">
-          {lead.serviceType && (
+          {lead.serviceType && lead.serviceType !== "—" && (
             <Badge variant="outline" className="text-[9px] h-4 px-1.5 bg-muted/40 border-border/60 text-muted-foreground font-normal">
               {lead.serviceType}
             </Badge>
@@ -785,16 +889,34 @@ const LeadCard = ({
         </div>
       )}
 
-      {lead.nextAction && (
+      {lead.nextAction ? (
         <div className="text-[11px] text-muted-foreground/90 border-l-2 border-primary/40 pl-2 mb-2 line-clamp-2 italic">
           {lead.nextAction}
         </div>
+      ) : (
+        <button
+          onClick={(e) => { e.stopPropagation(); onSchedule(); }}
+          className="text-[11px] text-muted-foreground/80 hover:text-foreground border-l-2 border-border/60 pl-2 mb-2 italic block w-full text-left"
+        >
+          Definir follow-up
+        </button>
       )}
 
-      <div className="flex items-center justify-end pt-1 border-t border-border/40">
+      <div className="flex items-center justify-between pt-1 border-t border-border/40">
         <span className="text-[10px] text-muted-foreground/70 flex items-center gap-1">
           <Clock className="h-2.5 w-2.5" /> {lead.lastInteraction}
         </span>
+        {(() => {
+          const d = daysSince(lead.lastInteraction);
+          if (d !== null && d >= STALE_DAYS) {
+            return (
+              <span className="text-[10px] text-amber-400/80 flex items-center gap-1" title="Parada há muitos dias">
+                <Clock className="h-2.5 w-2.5" /> {d}d parada
+              </span>
+            );
+          }
+          return null;
+        })()}
       </div>
     </div>
   );
@@ -871,33 +993,58 @@ const LeadActionsMenu = ({
   </DropdownMenu>
 );
 
-// ---------- New Lead Dialog ----------
+// ---------- New Opportunity Dialog ----------
+const tempToPriority = (t: LeadTemperature): Priority =>
+  t === "quente" ? "alta" : t === "frio" ? "baixa" : "média";
+
 const NewLeadDialog = ({
-  open, onOpenChange, onSave, stages, pipelineId,
+  open, onOpenChange, onSave, stages, pipelineId, initial,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onSave: (data: any) => void;
   stages: PipelineStage[];
   pipelineId: string;
+  initial?: Partial<Lead> | null;
 }) => {
   const { activeTypes } = useClientTypes();
   const emptyForm = {
     name: "", company: "", email: "", phone: "", serviceType: "",
-    origin: "", estimatedValue: "", priority: "média" as Priority,
-    stageId: stages[0]?.id || "", nextAction: "", description: "",
+    origin: "", estimatedValue: "",
+    temperature: "não definida" as LeadTemperature,
+    stageId: stages[0]?.id || "", nextAction: "", nextActionDate: "", description: "",
+    clientId: undefined as number | undefined,
   };
   const [form, setForm] = useState(emptyForm);
   const [typeDialogOpen, setTypeDialogOpen] = useState(false);
-  const set = (k: keyof typeof emptyForm, v: string) => setForm((p) => ({ ...p, [k]: v }));
+  const set = <K extends keyof typeof emptyForm>(k: K, v: any) => setForm((p) => ({ ...p, [k]: v }));
 
   useEffect(() => {
-    if (open) setForm({ ...emptyForm, stageId: stages[0]?.id || "" });
+    if (!open) return;
+    setForm({
+      ...emptyForm,
+      stageId: stages[0]?.id || "",
+      ...(initial
+        ? {
+            name: initial.name || "",
+            company: initial.company || "",
+            email: initial.email || "",
+            phone: initial.phone || "",
+            serviceType: initial.serviceType && initial.serviceType !== "—" ? initial.serviceType : "",
+            origin: initial.origin || "",
+            estimatedValue: initial.estimatedValue ? String(initial.estimatedValue) : "",
+            temperature: (initial.temperature as LeadTemperature) || "não definida",
+            nextAction: initial.nextAction || "",
+            nextActionDate: initial.nextActionDate || "",
+            clientId: initial.clientId,
+          }
+        : {}),
+    });
     // eslint-disable-next-line
-  }, [open]);
+  }, [open, initial]);
 
   const handleSave = () => {
-    if (!form.name.trim()) return toast.error("Informe o nome do lead");
+    if (!form.name.trim()) return toast.error("Informe o nome da oportunidade ou do contato");
     if (!form.email.trim() && !form.phone.trim())
       return toast.error("Informe email ou WhatsApp/telefone");
 
@@ -915,13 +1062,16 @@ const NewLeadDialog = ({
       origin: form.origin || undefined,
       source: form.origin || undefined,
       estimatedValue: Number(form.estimatedValue) || 0,
-      priority: form.priority,
+      priority: tempToPriority(form.temperature),
+      temperature: form.temperature,
       stage: stageKey,
       stageId: form.stageId,
       pipelineId,
       tags: [],
       nextAction: form.nextAction.trim() || undefined,
+      nextActionDate: form.nextActionDate || undefined,
       description: form.description.trim(),
+      clientId: form.clientId,
     });
     onOpenChange(false);
   };
@@ -930,12 +1080,19 @@ const NewLeadDialog = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px] bg-card border-border max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-foreground">Novo lead</DialogTitle>
-          <DialogDescription>Adicione um novo lead ao pipeline ativo.</DialogDescription>
+          <DialogTitle className="text-foreground">Nova oportunidade</DialogTitle>
+          <DialogDescription>
+            {form.clientId ? "Vinculada a um cliente existente." : "Adicione uma oportunidade ao pipeline ativo."}
+          </DialogDescription>
         </DialogHeader>
+        {form.clientId && (
+          <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-[12px] text-foreground flex items-center gap-2">
+            <User className="h-3.5 w-3.5 text-primary" /> Cliente vinculado: <span className="font-medium">{form.name}</span>
+          </div>
+        )}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
           <div className="space-y-2">
-            <Label className="text-sm text-muted-foreground">Nome completo*</Label>
+            <Label className="text-sm text-muted-foreground">Nome / contato*</Label>
             <Input value={form.name} onChange={(e) => set("name", e.target.value)} className="bg-muted/50 border-border" />
           </div>
           <div className="space-y-2">
@@ -968,7 +1125,7 @@ const NewLeadDialog = ({
             </Select>
           </div>
           <div className="space-y-2">
-            <Label className="text-sm text-muted-foreground">Valor estimado (R$)</Label>
+            <Label className="text-sm text-muted-foreground">Valor potencial (R$)</Label>
             <Input type="number" value={form.estimatedValue} onChange={(e) => set("estimatedValue", e.target.value)} className="bg-muted/50 border-border" />
           </div>
           <div className="space-y-2">
@@ -982,12 +1139,13 @@ const NewLeadDialog = ({
           </div>
           <div className="space-y-2">
             <Label className="text-sm text-muted-foreground">Temperatura</Label>
-            <Select value={form.priority} onValueChange={(v) => set("priority", v)}>
+            <Select value={form.temperature} onValueChange={(v) => set("temperature", v as LeadTemperature)}>
               <SelectTrigger className="bg-muted/50 border-border"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="alta">Alta</SelectItem>
-                <SelectItem value="média">Média</SelectItem>
-                <SelectItem value="baixa">Baixa</SelectItem>
+                <SelectItem value="quente">Quente</SelectItem>
+                <SelectItem value="morno">Morno</SelectItem>
+                <SelectItem value="frio">Frio</SelectItem>
+                <SelectItem value="não definida">Não definida</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -1004,6 +1162,10 @@ const NewLeadDialog = ({
             <Label className="text-sm text-muted-foreground">Próxima ação</Label>
             <Input value={form.nextAction} onChange={(e) => set("nextAction", e.target.value)} className="bg-muted/50 border-border" />
           </div>
+          <div className="space-y-2">
+            <Label className="text-sm text-muted-foreground">Data da próxima ação</Label>
+            <Input type="date" value={form.nextActionDate} onChange={(e) => set("nextActionDate", e.target.value)} className="bg-muted/50 border-border" />
+          </div>
           <div className="sm:col-span-2 space-y-2">
             <Label className="text-sm text-muted-foreground">Observações</Label>
             <Textarea value={form.description} onChange={(e) => set("description", e.target.value)} className="bg-muted/50 border-border min-h-[80px]" />
@@ -1011,7 +1173,7 @@ const NewLeadDialog = ({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button className="orbit-gradient text-white border-0" onClick={handleSave}>Adicionar lead</Button>
+          <Button className="orbit-gradient text-white border-0" onClick={handleSave}>Criar oportunidade</Button>
         </DialogFooter>
         <NewClientTypeDialog
           open={typeDialogOpen}
@@ -1023,9 +1185,10 @@ const NewLeadDialog = ({
   );
 };
 
+
 // ---------- Lead Detail Sheet ----------
 const LeadDetailSheet = ({
-  lead, stages, onClose, onMoveToStage, onEditTags, onSchedule, onUpdate,
+  lead, stages, onClose, onMoveToStage, onEditTags, onSchedule, onUpdate, onOpenClient,
 }: {
   lead: Lead | null;
   stages: PipelineStage[];
@@ -1034,6 +1197,7 @@ const LeadDetailSheet = ({
   onEditTags: () => void;
   onSchedule: () => void;
   onUpdate: (patch: Partial<Lead>) => void;
+  onOpenClient?: (clientId: number) => void;
 }) => {
   const [noteText, setNoteText] = useState("");
   if (!lead) return null;
@@ -1045,6 +1209,7 @@ const LeadDetailSheet = ({
     : null;
   const wonStage = stages.find((s) => s.type === "won");
   const lostStage = stages.find((s) => s.type === "lost");
+  const temperature = getLeadTemperature(lead);
 
   return (
     <Sheet open={!!lead} onOpenChange={(v) => !v && onClose()}>
@@ -1057,10 +1222,20 @@ const LeadDetailSheet = ({
             {lead.name}
           </SheetTitle>
           <SheetDescription className="flex items-center gap-2 flex-wrap">
-            <Badge variant="outline" className={priorityStyles[lead.priority]}>{lead.priority}</Badge>
-            <span className="text-muted-foreground">· {lead.company}</span>
+            <Badge variant="outline" className={`capitalize ${temperatureStyles[temperature]}`}>{temperature}</Badge>
+            {lead.company && <span className="text-muted-foreground">· {lead.company}</span>}
+            {lead.clientId && onOpenClient && (
+              <Button
+                size="sm" variant="ghost"
+                className="h-6 px-2 text-[11px] gap-1 text-primary hover:text-primary hover:bg-primary/10"
+                onClick={() => onOpenClient(lead.clientId!)}
+              >
+                <User className="h-3 w-3" /> Ver cliente
+              </Button>
+            )}
           </SheetDescription>
         </SheetHeader>
+
 
         <div className="my-4">
           <div className="flex items-center gap-1">

@@ -43,6 +43,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { PageToolbar } from "@/components/layout/PageToolbar";
 import { ClientProfileDrawer } from "@/components/clients/ClientProfileDrawer";
 import { cn } from "@/lib/utils";
+import { useNavigate } from "react-router-dom";
 
 // ---------- Static configs ----------
 
@@ -120,6 +121,7 @@ const TempPill = ({ t }: { t?: ClientTemperature }) => {
 // ---------- Main Component ----------
 const Clientes = () => {
   const { clients, addClient, updateClient, archiveClient, restoreClient, deleteClient } = useClients();
+  const navigate = useNavigate();
   const { activeTypes } = useClientTypes();
 
   const [search, setSearch] = useState("");
@@ -558,6 +560,10 @@ const Clientes = () => {
         onWhats={handleOpenWhatsApp}
         onArchive={handleArchive}
         onRestore={handleRestore}
+        onCreateOpportunity={(c) => {
+          setSelectedClient(null);
+          navigate(`/crm?newOpportunity=1&clientId=${c.id}`);
+        }}
       />
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(v) => !v && setDeleteTarget(null)}>
