@@ -43,6 +43,9 @@ export interface Lead {
   convertedClientId?: number;
   createdAt?: string;
   updatedAt?: string;
+  /** v2 — orçamento vinculado (quote.id). */
+  quoteId?: string;
+  quoteTitle?: string;
 }
 
 /** Mapeia priority legado → temperatura. */

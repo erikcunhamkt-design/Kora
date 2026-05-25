@@ -1,7 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { emitNotification } from "@/lib/notify";
 
-export type QuoteStatus = "rascunho" | "enviado" | "aprovado" | "recusado";
+export type QuoteStatus =
+  | "rascunho"
+  | "enviado"
+  | "aprovado"
+  | "recusado"
+  | "vencido"
+  | "arquivado";
+
+export type QuoteSource = "manual" | "cliente" | "oportunidade";
 
 export interface QuoteItem {
   id: string;
@@ -29,6 +37,20 @@ export interface Quote {
   createdAt: string;
   /** Demo data — does not count toward Free plan limit */
   isDemo?: boolean;
+
+  // --- v2 commercial linkage (optional, backward-compatible) ---
+  clientId?: number;
+  company?: string;
+  opportunityId?: number;
+  opportunityTitle?: string;
+  source?: QuoteSource;
+  notes?: string;
+  updatedAt?: string;
+  sentAt?: string;
+  approvedAt?: string;
+  rejectedAt?: string;
+  archivedAt?: string;
+  expectedCloseDate?: string;
 }
 
 const STORAGE_KEY = "orbyt.quotes.v1";
@@ -57,6 +79,7 @@ const rawInitialQuotes: Omit<Quote, "isDemo">[] = [
     validityDays: 15,
     status: "enviado",
     createdAt: "2025-04-10",
+    source: "manual",
   }),
   makeQuote({
     id: "qt-demo-2",
@@ -72,6 +95,7 @@ const rawInitialQuotes: Omit<Quote, "isDemo">[] = [
     validityDays: 10,
     status: "aprovado",
     createdAt: "2025-04-06",
+    source: "manual",
   }),
   makeQuote({
     id: "qt-demo-3",
@@ -90,6 +114,7 @@ const rawInitialQuotes: Omit<Quote, "isDemo">[] = [
     validityDays: 15,
     status: "rascunho",
     createdAt: "2025-04-08",
+    source: "manual",
   }),
 ];
 
@@ -102,6 +127,28 @@ function migrate(list: Quote[]): Quote[] {
     q.isDemo === undefined && SEED_IDS.has(q.id) ? { ...q, isDemo: true } : q
   );
 }
+
+/** Helpers exported for UI ---------------------------------- */
+export const getQuoteExpiryDate = (q: Quote): Date | null => {
+  if (!q.createdAt || !q.validityDays) return null;
+  const d = new Date(q.createdAt);
+  if (isNaN(d.getTime())) return null;
+  d.setDate(d.getDate() + q.validityDays);
+  return d;
+};
+
+export const getQuoteDaysToExpire = (q: Quote): number | null => {
+  const exp = getQuoteExpiryDate(q);
+  if (!exp) return null;
+  const today = new Date(); today.setHours(0,0,0,0);
+  return Math.ceil((exp.getTime() - today.getTime()) / 86_400_000);
+};
+
+export const isQuoteExpired = (q: Quote): boolean => {
+  if (q.status === "aprovado" || q.status === "recusado" || q.status === "arquivado") return false;
+  const days = getQuoteDaysToExpire(q);
+  return days !== null && days < 0;
+};
 
 export function useQuotes() {
   const [quotes, setQuotes] = useState<Quote[]>(() => {
@@ -122,10 +169,12 @@ export function useQuotes() {
     (data: Omit<Quote, "id" | "createdAt" | "subtotal" | "total" | "isDemo">) => {
       const subtotal = data.items.reduce((s, i) => s + i.quantity * i.unitPrice, 0);
       const total = Math.max(subtotal - data.discount, 0);
+      const now = new Date().toISOString();
       const quote: Quote = {
         ...data,
         id: `qt-${Date.now()}`,
-        createdAt: new Date().toISOString().slice(0, 10),
+        createdAt: now.slice(0, 10),
+        updatedAt: now,
         subtotal,
         total,
         isDemo: false,
@@ -152,8 +201,25 @@ export function useQuotes() {
           sourceType: "quote",
         });
       }
-      return prev.map((q) => (q.id === id ? { ...q, status } : q));
+      const now = new Date().toISOString();
+      return prev.map((q) => {
+        if (q.id !== id) return q;
+        const patch: Partial<Quote> = { status, updatedAt: now };
+        if (status === "enviado" && !q.sentAt) patch.sentAt = now;
+        if (status === "aprovado") patch.approvedAt = now;
+        if (status === "recusado") patch.rejectedAt = now;
+        if (status === "arquivado") patch.archivedAt = now;
+        return { ...q, ...patch };
+      });
     });
+  }, []);
+
+  const updateQuote = useCallback((id: string, patch: Partial<Quote>) => {
+    setQuotes((prev) => prev.map((q) => (q.id === id ? { ...q, ...patch, updatedAt: new Date().toISOString() } : q)));
+  }, []);
+
+  const deleteQuote = useCallback((id: string) => {
+    setQuotes((prev) => prev.filter((q) => q.id !== id));
   }, []);
 
   const duplicateQuote = useCallback((id: string) => {
@@ -166,11 +232,16 @@ export function useQuotes() {
         title: `${original.title} (cópia)`,
         status: "rascunho",
         createdAt: new Date().toISOString().slice(0, 10),
+        updatedAt: new Date().toISOString(),
+        sentAt: undefined,
+        approvedAt: undefined,
+        rejectedAt: undefined,
+        archivedAt: undefined,
         isDemo: false,
       };
       return [copy, ...prev];
     });
   }, []);
 
-  return { quotes, addQuote, updateStatus, duplicateQuote, setQuotes };
+  return { quotes, addQuote, updateStatus, updateQuote, duplicateQuote, deleteQuote, setQuotes };
 }
