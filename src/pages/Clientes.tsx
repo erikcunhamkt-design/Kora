@@ -393,7 +393,13 @@ const Clientes = () => {
                   <TableCell>
                     <Badge variant="outline" className={statusBadge[c.status]}>{c.status}</Badge>
                   </TableCell>
-                  <TableCell><TempPill t={c.temperature} /></TableCell>
+                  <TableCell>
+                    {c.temperature ? (
+                      <TempPill t={c.temperature} />
+                    ) : (
+                      <Badge variant="outline" className="text-muted-foreground/60 border-border/60">Não definido</Badge>
+                    )}
+                  </TableCell>
                   <TableCell className="text-right text-sm font-medium tabular-nums">
                     {c.potentialValue ? fmtBRL(c.potentialValue) : <span className="text-muted-foreground/50">—</span>}
                   </TableCell>
