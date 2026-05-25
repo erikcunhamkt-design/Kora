@@ -225,7 +225,11 @@ export function ProjectsSection() {
             <div
               key={p.id}
               ref={(el) => { cardRefs.current[p.id] = el; }}
-              className={`orbit-card p-4 space-y-3 hover:orbit-glow transition-all ${isHL ? "ring-2 ring-primary/60 orbit-glow" : ""}`}
+              role="button"
+              tabIndex={0}
+              onClick={() => setDetailId(p.id)}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setDetailId(p.id); } }}
+              className={`orbit-card p-4 space-y-3 hover:orbit-glow transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/40 ${isHL ? "ring-2 ring-primary/60 orbit-glow" : ""}`}
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
