@@ -811,7 +811,17 @@ export function AccessesSection({
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold text-foreground">{a.platform}</p>
-                  {a.login && <p className="text-xs text-muted-foreground mt-1 truncate">{a.login}</p>}
+                  {a.login && (
+                    <div className="flex items-center gap-2 mt-1">
+                      <p className="text-xs text-muted-foreground truncate">{a.login}</p>
+                      <Button
+                        size="sm" variant="ghost" className="h-6 px-2"
+                        onClick={async () => { await navigator.clipboard.writeText(a.login!); toast.success("Login copiado"); }}
+                      >
+                        <Copy className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
                   {a.password && (
                     <div className="flex items-center gap-2 mt-2">
                       <code className="text-xs bg-secondary/60 px-2 py-1 rounded border border-border/60 text-foreground font-mono">
