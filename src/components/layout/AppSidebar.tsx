@@ -3,7 +3,7 @@ import {
   DollarSign, CheckSquare, FolderKanban, Image as ImageIcon,
   Settings, Crown, Zap, Globe, CalendarCheck, LifeBuoy,
   ClipboardList, BarChart3, Link as LinkIcon, Calendar, Sparkles,
-  Bot, Plug, CreditCard,
+  Bot, Plug, CreditCard, Activity, ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -53,6 +53,7 @@ const navGroups: NavGroup[] = [
     items: [
       { title: "Serviços", url: "/vendas?tab=servicos", icon: ShoppingBag },
       { title: "Orçamentos", url: "/vendas?tab=orcamentos", icon: FileText },
+      { title: "Checkout", icon: CreditCard, badge: "soon", disabled: true },
       { title: "Financeiro", url: "/financeiro", icon: DollarSign },
       { title: "Relatórios", icon: BarChart3, badge: "soon", disabled: true },
     ],
@@ -73,15 +74,17 @@ const navGroups: NavGroup[] = [
       { title: "Agentes de IA", url: "/automacoes?tab=ia", icon: Bot, badge: "beta" },
       { title: "Automações", url: "/automacoes?tab=automacoes", icon: Zap, badge: "beta" },
       { title: "Créditos de IA", event: "orbyt:open-credits", icon: Sparkles },
+      { title: "Diagnósticos", icon: Activity, badge: "soon", disabled: true },
     ],
   },
   {
     label: "Sistema",
     items: [
-      { title: "Integrações", url: "/automacoes?tab=integracoes", icon: Plug },
       { title: "Configurações", url: "/configuracoes", icon: Settings },
-      { title: "Suporte", event: "kora:open-support", icon: LifeBuoy },
+      { title: "Integrações", url: "/automacoes?tab=integracoes", icon: Plug },
       { title: "Assinatura", url: "/upgrade", icon: CreditCard },
+      { title: "Suporte", event: "kora:open-support", icon: LifeBuoy },
+      { title: "Segurança", url: "/configuracoes?tab=seguranca", icon: ShieldCheck },
     ],
   },
 ];
