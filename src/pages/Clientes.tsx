@@ -29,6 +29,7 @@ import { useSignupRequests } from "@/hooks/useSignupRequests";
 import { useClientTypes } from "@/hooks/useClientTypes";
 import { NewClientTypeDialog } from "@/components/clientes/NewClientTypeDialog";
 import { EmptyState } from "@/components/ui/empty-state";
+import { PageToolbar } from "@/components/layout/PageToolbar";
 
 // ---------- Static configs ----------
 
@@ -142,56 +143,77 @@ const Clientes = () => {
         <SummaryCard icon={AlertCircle} label="Sem follow-up" value={noFollowUp} accent="bg-amber-500/15" />
       </div>
 
-      {/* Actions bar */}
-      <div className="orbit-card p-3 flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por nome, email ou empresa..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="pl-9 bg-muted/50 border-border"
-          />
-        </div>
-        <Select value={filterStatus} onValueChange={setFilterStatus}>
-          <SelectTrigger className="w-[160px] bg-muted/50 border-border">
-            <SlidersHorizontal className="h-4 w-4 mr-2 text-muted-foreground" />
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos os status</SelectItem>
-            {statuses.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select
-          value={filterType}
-          onValueChange={(v) => {
-            if (v === NEW_TYPE_VALUE) { setNewTypeOpen(true); return; }
-            setFilterType(v);
-          }}
-        >
-          <SelectTrigger className="w-[170px] bg-muted/50 border-border">
-            <SelectValue placeholder="Tipos" />
-          </SelectTrigger>
-          <SelectContent className="max-h-[280px]">
-            <SelectItem value="all">Todos os tipos</SelectItem>
-            {activeTypes.map(t => <SelectItem key={t.id} value={t.name}>{t.name}</SelectItem>)}
-            <div className="my-1 h-px bg-border" />
-            <SelectItem value={NEW_TYPE_VALUE} className="text-primary">+ Novo tipo</SelectItem>
-          </SelectContent>
-        </Select>
-        <Button variant="outline" size="icon" onClick={() => setSortAsc(!sortAsc)} className="border-border">
-          <ArrowUpDown className="h-4 w-4" />
-        </Button>
-        <div className="flex border border-border rounded-lg overflow-hidden">
-          <Button variant={viewMode === "table" ? "secondary" : "ghost"} size="icon" className="rounded-none h-9 w-9" onClick={() => setViewMode("table")}>
-            <LayoutList className="h-4 w-4" />
+      {/* Toolbar */}
+      <PageToolbar
+        searchValue={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Buscar por nome, e-mail ou empresa..."
+        filters={
+          <>
+            <Select value={filterStatus} onValueChange={setFilterStatus}>
+              <SelectTrigger className="w-[160px] bg-muted/40 border-border/60">
+                <SlidersHorizontal className="h-4 w-4 mr-2 text-muted-foreground" />
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os status</SelectItem>
+                {statuses.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select
+              value={filterType}
+              onValueChange={(v) => {
+                if (v === NEW_TYPE_VALUE) { setNewTypeOpen(true); return; }
+                setFilterType(v);
+              }}
+            >
+              <SelectTrigger className="w-[170px] bg-muted/40 border-border/60">
+                <SelectValue placeholder="Tipos" />
+              </SelectTrigger>
+              <SelectContent className="max-h-[280px]">
+                <SelectItem value="all">Todos os tipos</SelectItem>
+                {activeTypes.map((t) => <SelectItem key={t.id} value={t.name}>{t.name}</SelectItem>)}
+                <div className="my-1 h-px bg-border" />
+                <SelectItem value={NEW_TYPE_VALUE} className="text-primary">+ Novo tipo</SelectItem>
+              </SelectContent>
+            </Select>
+          </>
+        }
+        actions={
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setSortAsc(!sortAsc)}
+            className="border-border/60 h-9 w-9"
+            title={sortAsc ? "Ordem A→Z" : "Ordem Z→A"}
+          >
+            <ArrowUpDown className="h-4 w-4" />
           </Button>
-          <Button variant={viewMode === "grid" ? "secondary" : "ghost"} size="icon" className="rounded-none h-9 w-9" onClick={() => setViewMode("grid")}>
-            <LayoutGrid className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
+        }
+        viewToggle={
+          <>
+            <Button
+              variant={viewMode === "table" ? "secondary" : "ghost"}
+              size="icon"
+              className="rounded-none h-9 w-9"
+              onClick={() => setViewMode("table")}
+              title="Tabela"
+            >
+              <LayoutList className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={viewMode === "grid" ? "secondary" : "ghost"}
+              size="icon"
+              className="rounded-none h-9 w-9"
+              onClick={() => setViewMode("grid")}
+              title="Cards"
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </Button>
+          </>
+        }
+      />
+
 
       {/* Client listing */}
       {clients.length === 0 ? (
