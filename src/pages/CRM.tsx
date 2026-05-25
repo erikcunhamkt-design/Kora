@@ -706,12 +706,13 @@ const CRM = () => {
       {/* Dialogs */}
       <NewLeadDialog
         open={newLeadOpen}
-        onOpenChange={setNewLeadOpen}
+        onOpenChange={(v) => { setNewLeadOpen(v); if (!v) setNewLeadInitial(null); }}
         stages={stages}
         pipelineId={activePipelineId}
+        initial={newLeadInitial}
         onSave={(data) => {
           addLead(data);
-          toast.success("Lead adicionado ao pipeline");
+          toast.success(data.clientId ? "Oportunidade vinculada ao cliente" : "Oportunidade adicionada ao pipeline");
         }}
       />
 
@@ -723,6 +724,7 @@ const CRM = () => {
         onEditTags={() => selectedLead && setTagsLeadId(selectedLead.id)}
         onSchedule={() => selectedLead && setScheduleLeadId(selectedLead.id)}
         onUpdate={(patch) => selectedLead && updateLead(selectedLead.id, patch)}
+        onOpenClient={(cid) => navigate(`/clientes?focus=${cid}`)}
       />
 
       <PipelineEditorDialog
