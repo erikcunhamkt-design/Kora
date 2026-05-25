@@ -39,6 +39,7 @@ import { useQuotes } from "@/hooks/useQuotes";
 import { useProjects } from "@/hooks/useProjects";
 import { useFinance } from "@/hooks/useFinance";
 import { ClientLibrarySection } from "./ClientLibrarySection";
+import { ClientActivitiesTab } from "./ClientActivitiesTab";
 
 const statusBadge: Record<ClientStatus, string> = {
   "Ativo": "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
