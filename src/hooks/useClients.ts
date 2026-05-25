@@ -133,6 +133,30 @@ export interface ClientTechnicalSheet {
   assets?: ClientAsset[];
 }
 
+export type ClientContactRole =
+  | "Decisor" | "Financeiro" | "Marketing" | "Atendimento"
+  | "Operacional" | "Aprovação" | "Dono" | "Outro";
+
+export const CLIENT_CONTACT_ROLES: ClientContactRole[] = [
+  "Decisor", "Financeiro", "Marketing", "Atendimento",
+  "Operacional", "Aprovação", "Dono", "Outro",
+];
+
+export interface ClientContact {
+  id: string;
+  name: string;
+  role?: ClientContactRole | string;
+  email?: string;
+  phone?: string;
+  whatsapp?: string;
+  isPrimary?: boolean;
+  isFinancial?: boolean;
+  isDecisionMaker?: boolean;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Client {
   id: number;
   name: string;
@@ -170,6 +194,7 @@ export interface Client {
   archived?: boolean;
   assets?: ClientAsset[];
   technicalSheet?: ClientTechnicalSheet;
+  contacts?: ClientContact[];
 }
 
 const STORAGE_KEY = "orbyt.clients.v1";
