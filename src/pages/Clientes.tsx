@@ -551,11 +551,13 @@ const Clientes = () => {
 
       <SignupLinkDrawer open={signupLinkOpen} onOpenChange={setSignupLinkOpen} pendingCount={pendingCount} />
 
-      <ClientDetailSheet
+      <ClientProfileDrawer
         client={selectedClient}
         onClose={() => setSelectedClient(null)}
         onEdit={(c) => { setSelectedClient(null); setEditClient(c); }}
         onWhats={handleOpenWhatsApp}
+        onArchive={handleArchive}
+        onRestore={handleRestore}
       />
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(v) => !v && setDeleteTarget(null)}>
