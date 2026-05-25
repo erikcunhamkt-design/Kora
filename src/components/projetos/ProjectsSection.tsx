@@ -18,7 +18,9 @@ const statusBadge: Record<ProjectStatus, string> = {
   in_progress: "bg-amber-500/15 text-amber-400 border-amber-500/30",
   review: "bg-secondary/15 text-secondary border-secondary/30",
   delivered: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
-  paused: "bg-destructive/15 text-destructive border-destructive/30",
+  paused: "bg-muted/40 text-muted-foreground border-border/40",
+  cancelled: "bg-destructive/15 text-destructive border-destructive/30",
+  archived: "bg-muted/40 text-muted-foreground/70 border-border/40",
 };
 
 const priorityBadge: Record<ProjectPriority, string> = {
