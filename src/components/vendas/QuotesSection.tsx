@@ -330,13 +330,24 @@ export function QuotesSection() {
                                 <Wallet className="h-3.5 w-3.5 mr-2" /> Ver recebível
                               </DropdownMenuItem>
                             )}
-                            <DropdownMenuItem
-                              onClick={() => toast("Gerar projeto a partir de orçamento — em breve.")}
-                              className="text-muted-foreground"
-                            >
-                              <FileText className="h-3.5 w-3.5 mr-2" /> Gerar projeto
-                              <span className="ml-auto text-[9px] uppercase tracking-wide">soon</span>
-                            </DropdownMenuItem>
+                            {q.status === "aprovado" && !q.projectId && (
+                              <DropdownMenuItem onClick={() => setProjectQuote(q)}>
+                                <FolderKanban className="h-3.5 w-3.5 mr-2" /> Gerar projeto
+                              </DropdownMenuItem>
+                            )}
+                            {q.projectId && (
+                              <DropdownMenuItem onClick={() => navigate(`/portfolio?tab=projetos&projectId=${q.projectId}`)}>
+                                <FolderKanban className="h-3.5 w-3.5 mr-2" /> Ver projeto
+                              </DropdownMenuItem>
+                            )}
+                            {q.status === "aprovado" && q.projectId && (
+                              <DropdownMenuItem
+                                onClick={() => toast("Este orçamento já possui um projeto vinculado.")}
+                                className="hidden"
+                              >
+                                <FolderKanban className="h-3.5 w-3.5 mr-2" /> Projeto vinculado
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuSeparator />
                             {q.status !== "arquivado" ? (
                               <DropdownMenuItem onClick={() => { updateStatus(q.id, "arquivado"); toast("Orçamento arquivado"); }}>
