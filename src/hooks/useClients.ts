@@ -47,6 +47,83 @@ export interface ClientAsset {
   updatedAt: string;
 }
 
+// ---------- Ficha Técnica ----------
+
+export interface ClientBranding {
+  logoUrl?: string;
+  colors?: string[];
+  slogan?: string;
+  voiceTone?: string;
+  brandNotes?: string;
+}
+
+export interface ClientPersona {
+  name?: string;
+  ageRange?: string;
+  pains?: string;
+  desires?: string;
+  behavior?: string;
+  objections?: string;
+}
+
+export interface ClientEditorialLine {
+  pillars?: string[];
+  postingFrequency?: string;
+  preferredFormats?: string[];
+  contentNotes?: string;
+}
+
+export interface ClientTypography {
+  primaryFont?: string;
+  secondaryFont?: string;
+  fontLinks?: string[];
+  typographyNotes?: string;
+}
+
+export interface ClientSocialLinks {
+  instagram?: string;
+  youtube?: string;
+  tiktok?: string;
+  linkedin?: string;
+  facebook?: string;
+  website?: string;
+  otherLinks?: { label: string; url: string }[];
+}
+
+export interface ClientAccess {
+  id: string;
+  platform: string;
+  login?: string;
+  password?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ClientCompetitor {
+  id: string;
+  name: string;
+  url?: string;
+  notes?: string;
+}
+
+export interface ClientBriefing {
+  generalBriefing?: string;
+  additionalNotes?: string;
+}
+
+export interface ClientTechnicalSheet {
+  branding?: ClientBranding;
+  persona?: ClientPersona;
+  editorialLine?: ClientEditorialLine;
+  typography?: ClientTypography;
+  socialLinks?: ClientSocialLinks;
+  accesses?: ClientAccess[];
+  competitors?: ClientCompetitor[];
+  briefing?: ClientBriefing;
+  assets?: ClientAsset[];
+}
+
 export interface Client {
   id: number;
   name: string;
