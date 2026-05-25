@@ -16,7 +16,7 @@ interface Props {
 
 
 
-export const SignupLinkDrawer = ({ open, onOpenChange, pendingCount }: Props) => {
+export const SignupLinkDrawer = ({ open, onOpenChange, pendingCount, onOpenRequests }: Props) => {
   const { user } = useAuth();
   const [copied, setCopied] = useState(false);
   const url = user ? `${window.location.origin}/cadastro/${user.id}` : "";
