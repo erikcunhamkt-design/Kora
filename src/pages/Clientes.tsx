@@ -249,10 +249,10 @@ const Clientes = () => {
         <KpiCard icon={DollarSign} label="Valor potencial" value={fmtBRL(potentialValue)} hint="Soma da base" />
         <KpiCard
           icon={AlertCircle}
-          label="Sem próxima ação"
+          label="Precisam de próximo passo"
           value={noNextActionCount}
           tone={noNextActionCount > 0 ? "warning" : "neutral"}
-          hint={noNextActionCount > 0 ? "Defina o próximo passo" : "Tudo em dia"}
+          hint={noNextActionCount > 0 ? "Defina follow-ups para manter o relacionamento ativo" : "Tudo em dia"}
         />
       </div>
 
