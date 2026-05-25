@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { useLeads, type Lead, type Priority, type StageKey } from "@/hooks/useLeads";
+import { useLeads, type Lead, type Priority, type StageKey, type LeadTemperature, getLeadTemperature } from "@/hooks/useLeads";
 import { usePipelines, type Pipeline, type PipelineStage } from "@/hooks/usePipelines";
 import { usePipelineAutomations } from "@/hooks/usePipelineAutomations";
 import {
