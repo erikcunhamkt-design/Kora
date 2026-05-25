@@ -118,10 +118,11 @@ const CRM = () => {
     addPipeline, updatePipeline, deletePipeline,
   } = usePipelines();
   const { getRulesForPipeline } = usePipelineAutomations();
-  const { addClient } = useClients();
+  const { addClient, clients } = useClients();
   const { activeTypes } = useClientTypes();
   const { wouldExceed, showPaywall, setUsage } = usePlan();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [newTypeOpen, setNewTypeOpen] = useState(false);
   const [view, setView] = useState<"kanban" | "list">("kanban");
@@ -129,9 +130,11 @@ const CRM = () => {
   const [filterStage, setFilterStage] = useState("all");
   const [filterOrigin, setFilterOrigin] = useState("all");
   const [filterType, setFilterType] = useState("all");
+  const [filterTemperature, setFilterTemperature] = useState<"all" | LeadTemperature>("all");
   const [showArchived, setShowArchived] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [newLeadOpen, setNewLeadOpen] = useState(false);
+  const [newLeadInitial, setNewLeadInitial] = useState<Partial<Lead> | null>(null);
   const [draggedId, setDraggedId] = useState<number | null>(null);
 
   const [editingPipeline, setEditingPipeline] = useState<Pipeline | null>(null);
@@ -145,6 +148,37 @@ const CRM = () => {
   const [tagsLeadId, setTagsLeadId] = useState<number | null>(null);
   const [scheduleLeadId, setScheduleLeadId] = useState<number | null>(null);
   const [movePipelineLeadId, setMovePipelineLeadId] = useState<number | null>(null);
+
+  // ----- Deep link: ?newOpportunity=1&clientId=X -----
+  useEffect(() => {
+    if (searchParams.get("newOpportunity") !== "1") return;
+    const cid = Number(searchParams.get("clientId"));
+    const client = clients.find((c) => c.id === cid);
+    if (client) {
+      const tempMap: Record<string, LeadTemperature> = { Quente: "quente", Morno: "morno", Frio: "frio" };
+      setNewLeadInitial({
+        clientId: client.id,
+        name: client.name,
+        company: client.company,
+        email: client.email,
+        phone: client.whatsapp || client.phone,
+        estimatedValue: client.potentialValue || 0,
+        temperature: (client.temperature && tempMap[client.temperature]) || "não definida",
+        nextAction: client.nextAction,
+        nextActionDate: client.nextActionDate,
+        serviceType: client.serviceType,
+        origin: client.origin,
+      });
+    } else {
+      setNewLeadInitial(null);
+    }
+    setNewLeadOpen(true);
+    // limpa params para não reabrir em refresh
+    const next = new URLSearchParams(searchParams);
+    next.delete("newOpportunity");
+    next.delete("clientId");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, clients, setSearchParams]);
 
   // Sort stages of active pipeline
   const stages = useMemo(
