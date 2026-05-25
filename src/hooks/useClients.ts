@@ -43,6 +43,11 @@ export interface ClientAsset {
   description?: string;
   tags?: string[];
   accessStatus: ClientAssetAccessStatus;
+  /** "link" = URL externa, "file" = arquivo local embutido em dataURL (limitado por cota). */
+  kind?: "link" | "file";
+  fileName?: string;
+  fileSize?: number;
+  mimeType?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -51,6 +56,10 @@ export interface ClientAsset {
 
 export interface ClientBranding {
   logoUrl?: string;
+  /** Metadados quando o logo foi carregado como arquivo local (dataURL). */
+  logoFileName?: string;
+  logoFileSize?: number;
+  logoMimeType?: string;
   colors?: string[];
   slogan?: string;
   voiceTone?: string;
