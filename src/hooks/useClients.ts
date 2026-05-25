@@ -3,6 +3,50 @@ import { useEffect, useState, useCallback } from "react";
 export type ClientStatus = "Ativo" | "Em negociação" | "Inativo" | "Potencial" | "Arquivado";
 export type ClientTemperature = "Frio" | "Morno" | "Quente";
 
+export type ClientAssetType =
+  | "drive" | "figma" | "canva" | "identidade_visual" | "tipografia"
+  | "fotos_ensaios" | "videos" | "briefing" | "contrato" | "referencias"
+  | "redes_sociais" | "outro";
+
+export type ClientAssetAccessStatus =
+  | "liberado" | "solicitar_acesso" | "publico" | "privado" | "expirado" | "revisar";
+
+export const CLIENT_ASSET_TYPE_LABELS: Record<ClientAssetType, string> = {
+  drive: "Google Drive",
+  figma: "Figma",
+  canva: "Canva",
+  identidade_visual: "Identidade visual",
+  tipografia: "Tipografias",
+  fotos_ensaios: "Fotos/Ensaios",
+  videos: "Vídeos",
+  briefing: "Briefing",
+  contrato: "Contrato",
+  referencias: "Referências",
+  redes_sociais: "Redes sociais",
+  outro: "Outro",
+};
+
+export const CLIENT_ASSET_ACCESS_LABELS: Record<ClientAssetAccessStatus, string> = {
+  liberado: "Acesso liberado",
+  solicitar_acesso: "Precisa solicitar acesso",
+  publico: "Link público",
+  privado: "Link privado",
+  expirado: "Expirado",
+  revisar: "Revisar permissão",
+};
+
+export interface ClientAsset {
+  id: string;
+  title: string;
+  type: ClientAssetType;
+  url: string;
+  description?: string;
+  tags?: string[];
+  accessStatus: ClientAssetAccessStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Client {
   id: number;
   name: string;
@@ -38,6 +82,7 @@ export interface Client {
   createdAt?: string;
   updatedAt?: string;
   archived?: boolean;
+  assets?: ClientAsset[];
 }
 
 const STORAGE_KEY = "orbyt.clients.v1";
