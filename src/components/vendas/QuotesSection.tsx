@@ -410,6 +410,8 @@ export function QuotesSection() {
           onOpenReceivable={preview.financeEntryId ? () => navigate(`/financeiro?tab=receivables&entryId=${preview.financeEntryId}`) : undefined}
           onOpenOpportunity={preview.opportunityId ? () => navigate("/crm") : undefined}
           onOpenClient={preview.clientId ? () => navigate(`/clientes?focus=${preview.clientId}`) : undefined}
+          onGenerateProject={preview.status === "aprovado" && !preview.projectId ? () => setProjectQuote(preview) : undefined}
+          onOpenProject={preview.projectId ? () => navigate(`/portfolio?tab=projetos&projectId=${preview.projectId}`) : undefined}
         />
       )}
 
@@ -423,6 +425,18 @@ export function QuotesSection() {
           }
         }}
       />
+
+      <QuoteToProjectDialog
+        quote={projectQuote}
+        open={!!projectQuote}
+        onOpenChange={(v) => !v && setProjectQuote(null)}
+        onGenerated={(project) => {
+          if (projectQuote) {
+            updateQuote(projectQuote.id, { projectId: project.id, projectTitle: project.name });
+          }
+        }}
+      />
+
 
       <AlertDialog open={!!confirmDelete} onOpenChange={(v) => !v && setConfirmDelete(null)}>
         <AlertDialogContent>
