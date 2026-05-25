@@ -288,6 +288,12 @@ export function ProjectsSection() {
           </div>
         )}
       </div>
+
+      <ProjectDetailDrawer
+        project={detailProject}
+        open={!!detailProject}
+        onOpenChange={(v) => { if (!v) setDetailId(null); }}
+      />
     </div>
   );
 }
