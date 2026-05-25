@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Progress } from "@/components/ui/progress";
 import { Plus, Search, FolderOpen, Loader2, Eye, CheckCircle2, DollarSign, AlertTriangle, Calendar, User, Link2, FileText } from "lucide-react";
 import { useProjects, PROJECT_STATUS_LABEL, PROJECT_PRIORITY_LABEL, type ProjectStatus, type ProjectPriority } from "@/hooks/useProjects";
+import { ProjectDetailDrawer } from "@/components/projects/ProjectDetailDrawer";
 import { toast } from "@/hooks/use-toast";
 
 const SERVICE_TYPES = ["Branding", "Web", "Social", "Tráfego", "Vídeo", "Conteúdo", "Outro"];
@@ -43,14 +44,16 @@ export function ProjectsSection() {
   const [filterPriority, setFilterPriority] = useState("all");
   const [open, setOpen] = useState(false);
   const [highlightId, setHighlightId] = useState<string | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
-  // Deep-link: ?projectId=X scrolls into view and highlights briefly.
+  // Deep-link: ?projectId=X — opens drawer, scrolls into view, then clears URL.
   useEffect(() => {
     const pid = searchParams.get("projectId");
     if (!pid) return;
     if (!projects.some((p) => p.id === pid)) return;
     setHighlightId(pid);
+    setDetailId(pid);
     const el = cardRefs.current[pid];
     if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
     const next = new URLSearchParams(searchParams);
@@ -60,6 +63,8 @@ export function ProjectsSection() {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, projects.length]);
+
+  const detailProject = detailId ? projects.find((p) => p.id === detailId) ?? null : null;
 
   const filtered = useMemo(() => projects.filter((p) => {
     const q = search.toLowerCase();
@@ -220,7 +225,11 @@ export function ProjectsSection() {
             <div
               key={p.id}
               ref={(el) => { cardRefs.current[p.id] = el; }}
-              className={`orbit-card p-4 space-y-3 hover:orbit-glow transition-all ${isHL ? "ring-2 ring-primary/60 orbit-glow" : ""}`}
+              role="button"
+              tabIndex={0}
+              onClick={() => setDetailId(p.id)}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setDetailId(p.id); } }}
+              className={`orbit-card p-4 space-y-3 hover:orbit-glow transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/40 ${isHL ? "ring-2 ring-primary/60 orbit-glow" : ""}`}
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
@@ -262,7 +271,7 @@ export function ProjectsSection() {
                 <div className="pt-2 border-t border-border/40">
                   <button
                     type="button"
-                    onClick={() => navigate(`/vendas?tab=orcamentos`)}
+                    onClick={(e) => { e.stopPropagation(); navigate(`/vendas?tab=orcamentos`); }}
                     className="text-[11px] inline-flex items-center gap-1 text-primary hover:underline"
                     title="Abrir orçamento vinculado"
                   >
@@ -279,6 +288,12 @@ export function ProjectsSection() {
           </div>
         )}
       </div>
+
+      <ProjectDetailDrawer
+        project={detailProject}
+        open={!!detailProject}
+        onOpenChange={(v) => { if (!v) setDetailId(null); }}
+      />
     </div>
   );
 }
