@@ -3,13 +3,11 @@ import { MetricCard } from "@/components/dashboard/MetricCard";
 import { CRMPipeline } from "@/components/dashboard/CRMPipeline";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { InsightsSection } from "@/components/dashboard/InsightsSection";
-import { TodayTasks } from "@/components/dashboard/TodayTasks";
 import { FinanceSummary } from "@/components/dashboard/FinanceSummary";
-import { NextActions } from "@/components/dashboard/NextActions";
 import { QuickShortcuts } from "@/components/dashboard/QuickShortcuts";
 import { ComingSoon } from "@/components/dashboard/ComingSoon";
 import { GreetingHero } from "@/components/dashboard/GreetingHero";
-import { CriticalAlert } from "@/components/dashboard/CriticalAlert";
+import { DayCenterSummary } from "@/components/dashboard/DayCenterSummary";
 import { PlanBanner } from "@/components/plan/PlanBanner";
 import { usePlan } from "@/contexts/PlanContext";
 import { Crown, AlertTriangle } from "lucide-react";
@@ -69,7 +67,8 @@ function UsageSummary() {
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const overdueTasks = 3;
+
+
 
   return (
     <div className="space-y-8">
@@ -92,15 +91,8 @@ const Dashboard = () => {
         ))}
       </div>
 
-      {/* 3 — Alerta crítico real (só aparece se houver) */}
-      {overdueTasks > 0 && (
-        <CriticalAlert
-          title={`${overdueTasks} tarefas atrasadas precisam de atenção`}
-          description="Revisar prazos hoje evita atrito com clientes e perda de receita."
-          cta="Abrir tarefas"
-          route="/tarefas"
-        />
-      )}
+      {/* 3 — Central do Dia (próxima melhor ação + próximos itens + resumo por categoria) */}
+      <DayCenterSummary />
 
       {/* 4 — Pipeline + financeiro (negócio) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -108,11 +100,6 @@ const Dashboard = () => {
         <FinanceSummary />
       </div>
 
-      {/* 5 — Tarefas do dia + próximas ações */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <NextActions />
-        <TodayTasks />
-      </div>
 
       {/* Atalhos rápidos */}
       <QuickShortcuts />
