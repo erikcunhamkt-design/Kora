@@ -28,6 +28,7 @@ import { SignupRequestsPanel } from "@/components/clientes/SignupRequestsPanel";
 import { useSignupRequests } from "@/hooks/useSignupRequests";
 import { useClientTypes } from "@/hooks/useClientTypes";
 import { NewClientTypeDialog } from "@/components/clientes/NewClientTypeDialog";
+import { EmptyState } from "@/components/ui/empty-state";
 
 // ---------- Static configs ----------
 
@@ -193,7 +194,15 @@ const Clientes = () => {
       </div>
 
       {/* Client listing */}
-      {viewMode === "table" ? (
+      {clients.length === 0 ? (
+        <EmptyState
+          icon={Users}
+          title="Nenhum cliente cadastrado ainda"
+          description="Cadastre seus clientes para acompanhar histórico, propostas, compras, tarefas e oportunidades em um só lugar."
+          primaryAction={{ label: "Novo cliente", onClick: handleNewClient }}
+          secondaryAction={{ label: "Compartilhar link de cadastro", onClick: () => setSignupLinkOpen(true), variant: "outline" }}
+        />
+      ) : viewMode === "table" ? (
         <div className="orbit-card overflow-hidden">
           <Table>
             <TableHeader>
@@ -249,7 +258,7 @@ const Clientes = () => {
             </TableBody>
           </Table>
           {filtered.length === 0 && (
-            <div className="py-12 text-center text-muted-foreground text-sm">Nenhum cliente encontrado.</div>
+            <div className="py-12 text-center text-muted-foreground text-sm">Nenhum cliente encontrado com esses filtros.</div>
           )}
         </div>
       ) : (
@@ -276,7 +285,7 @@ const Clientes = () => {
             </div>
           ))}
           {filtered.length === 0 && (
-            <div className="col-span-full py-12 text-center text-muted-foreground text-sm">Nenhum cliente encontrado.</div>
+            <div className="col-span-full py-12 text-center text-muted-foreground text-sm">Nenhum cliente encontrado com esses filtros.</div>
           )}
         </div>
       )}
