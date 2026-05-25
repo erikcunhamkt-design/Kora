@@ -138,8 +138,12 @@ const Clientes = () => {
   const [editClient, setEditClient] = useState<Client | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Client | null>(null);
   const [signupLinkOpen, setSignupLinkOpen] = useState(false);
+  const [requestsOpen, setRequestsOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [newTypeOpen, setNewTypeOpen] = useState(false);
+
+  const { addLead } = useLeads();
+
 
   const { wouldExceed, showPaywall, setUsage } = usePlan();
   const { pendingCount } = useSignupRequests();
