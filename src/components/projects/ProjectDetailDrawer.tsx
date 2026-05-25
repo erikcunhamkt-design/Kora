@@ -21,6 +21,8 @@ import {
   PROJECT_STATUS_LABEL, useProjects,
 } from "@/hooks/useProjects";
 import { useTasks, formatPtBr, type Task, type TaskPriority } from "@/hooks/useTasks";
+import { useClients } from "@/hooks/useClients";
+import { ClientTechnicalSheetSnapshot } from "@/components/clients/ClientTechnicalSheetSnapshot";
 
 interface ProjectDetailDrawerProps {
   project: Project | null;
@@ -72,6 +74,11 @@ export function ProjectDetailDrawer({ project, open, onOpenChange }: ProjectDeta
   const navigate = useNavigate();
   const { updateProject } = useProjects();
   const { tasks, addTask, moveTask } = useTasks();
+  const { clients } = useClients();
+  const linkedClient = useMemo(
+    () => (project?.clientId ? clients.find((c) => c.id === project.clientId) ?? null : null),
+    [clients, project],
+  );
 
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskDate, setNewTaskDate] = useState("");
@@ -404,6 +411,32 @@ export function ProjectDetailDrawer({ project, open, onOpenChange }: ProjectDeta
         </section>
 
         <Separator className="bg-border/60" />
+
+        {/* Client Technical Sheet snapshot */}
+        {project.clientId && linkedClient ? (
+          <>
+            <ClientTechnicalSheetSnapshot client={linkedClient} defaultOpen={false} />
+            <Separator className="bg-border/60" />
+          </>
+        ) : project.clientId && !linkedClient ? (
+          <>
+            <section className="p-6">
+              <p className="text-xs text-muted-foreground/80">
+                Cliente vinculado não foi encontrado nos registros locais.
+              </p>
+            </section>
+            <Separator className="bg-border/60" />
+          </>
+        ) : (
+          <>
+            <section className="p-6">
+              <p className="text-xs text-muted-foreground/80">
+                Este projeto ainda não possui cliente vinculado.
+              </p>
+            </section>
+            <Separator className="bg-border/60" />
+          </>
+        )}
 
         {/* Connections */}
         <section className="p-6 space-y-3">
