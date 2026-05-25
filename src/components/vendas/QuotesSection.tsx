@@ -78,6 +78,7 @@ export function QuotesSection() {
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Quote | null>(null);
   const [filterStatus, setFilterStatus] = useState<"all" | QuoteStatus>("all");
+  const [receivableQuote, setReceivableQuote] = useState<Quote | null>(null);
 
   /** Deep link: ?newQuote=1[&opportunityId=X][&clientId=Y] */
   useEffect(() => {
@@ -122,8 +123,8 @@ export function QuotesSection() {
   const openQuotes = quotes.filter((q) => effectiveStatus(q) === "rascunho" || effectiveStatus(q) === "enviado");
   const openValue = openQuotes.reduce((s, q) => s + q.total, 0);
   const approvedQuotes = quotes.filter((q) => q.status === "aprovado");
-  const decisive = quotes.filter((q) => q.status === "aprovado" || q.status === "recusado").length;
-  const approvalRate = decisive ? Math.round((approvedQuotes.length / decisive) * 100) : null;
+  const approvedPendingFinance = approvedQuotes.filter((q) => !q.financeEntryId);
+  const approvedPendingValue = approvedPendingFinance.reduce((s, q) => s + q.total, 0);
   const expiringSoon = quotes.filter((q) => {
     const d = getQuoteDaysToExpire(q);
     return q.status === "enviado" && d !== null && d >= 0 && d <= 5;
