@@ -810,6 +810,8 @@ function QuotePreview({
   onOpenClient?: () => void;
   onGenerateReceivable?: () => void;
   onOpenReceivable?: () => void;
+  onGenerateProject?: () => void;
+  onOpenProject?: () => void;
 }) {
   const eff = effectiveStatus(quote);
   const days = getQuoteDaysToExpire(quote);
