@@ -49,6 +49,37 @@ const priorityStyles: Record<Priority, string> = {
   baixa: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
 };
 
+const temperatureStyles: Record<LeadTemperature, string> = {
+  quente: "bg-primary/10 text-primary border-primary/25",
+  morno: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  frio: "bg-sky-500/10 text-sky-400 border-sky-500/20",
+  "não definida": "bg-muted text-muted-foreground/80 border-border/60",
+};
+
+// Quantos dias considera "parado" (sem interação)
+const STALE_DAYS = 14;
+
+const parseDateBR = (s?: string): Date | null => {
+  if (!s) return null;
+  // tenta ISO primeiro
+  const iso = new Date(s);
+  if (!isNaN(iso.getTime())) return iso;
+  // "12 Abr 2025"
+  const months: Record<string, number> = { jan:0,fev:1,mar:2,abr:3,mai:4,jun:5,jul:6,ago:7,set:8,out:9,nov:10,dez:11 };
+  const m = s.toLowerCase().match(/(\d{1,2})\s+([a-zç]{3,})\s+(\d{4})/);
+  if (m) {
+    const mo = months[m[2].slice(0, 3) as string];
+    if (mo !== undefined) return new Date(Number(m[3]), mo, Number(m[1]));
+  }
+  return null;
+};
+
+const daysSince = (s?: string): number | null => {
+  const d = parseDateBR(s);
+  if (!d) return null;
+  return Math.floor((Date.now() - d.getTime()) / 86_400_000);
+};
+
 const NEW_TYPE_VALUE = "__new_type__";
 const origins = ["Indicação", "Instagram", "LinkedIn", "Site", "WhatsApp", "Outro"];
 
