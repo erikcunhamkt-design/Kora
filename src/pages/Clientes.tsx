@@ -641,6 +641,10 @@ const Clientes = () => {
           updateClient(id, { assets });
           setSelectedClient((prev) => (prev && prev.id === id ? { ...prev, assets } : prev));
         }}
+        onUpdateTechnicalSheet={(id, technicalSheet) => {
+          updateClient(id, { technicalSheet });
+          setSelectedClient((prev) => (prev && prev.id === id ? { ...prev, technicalSheet } : prev));
+        }}
       />
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(v) => !v && setDeleteTarget(null)}>
