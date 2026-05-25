@@ -67,6 +67,7 @@ const App = () => (
                 <Route path="/" element={<ProtectedRoute><OnboardingGate><MainLayout><Index /></MainLayout></OnboardingGate></ProtectedRoute>} />
                 <Route path="/portfolio" element={<ProtectedRoute><OnboardingGate><MainLayout><Portfolio /></MainLayout></OnboardingGate></ProtectedRoute>} />
                 <Route path="/clientes" element={<ProtectedRoute><OnboardingGate><MainLayout><Clientes /></MainLayout></OnboardingGate></ProtectedRoute>} />
+                <Route path="/clientes/:clientId/ficha-tecnica" element={<ProtectedRoute><OnboardingGate><MainLayout><ClientTechnicalSheet /></MainLayout></OnboardingGate></ProtectedRoute>} />
                 <Route path="/crm" element={<ProtectedRoute><OnboardingGate><MainLayout><CRM /></MainLayout></OnboardingGate></ProtectedRoute>} />
                 <Route path="/vendas" element={<ProtectedRoute><OnboardingGate><MainLayout><Vendas /></MainLayout></OnboardingGate></ProtectedRoute>} />
                 <Route path="/financeiro" element={<ProtectedRoute><OnboardingGate><MainLayout><Financeiro /></MainLayout></OnboardingGate></ProtectedRoute>} />
