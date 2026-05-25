@@ -13,6 +13,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import Index from "./pages/Index";
 import Portfolio from "./pages/Portfolio";
 import Clientes from "./pages/Clientes";
+import ClientTechnicalSheet from "./pages/ClientTechnicalSheet";
 import CRM from "./pages/CRM";
 import Financeiro from "./pages/Financeiro";
 import Tarefas from "./pages/Tarefas";
