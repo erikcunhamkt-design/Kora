@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
   FileText, Plus, X, Download, Send, Copy, Check, Trash2, Archive,
-  Link2, AlertTriangle, Eye, MoreHorizontal, XCircle, User as UserIcon,
+  Link2, AlertTriangle, Eye, MoreHorizontal, XCircle, User as UserIcon, Wallet,
 } from "lucide-react";
 import {
   useQuotes, type Quote, type QuoteItem, type QuoteStatus, type QuoteSource,
@@ -19,6 +19,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { QuoteToReceivableDialog } from "@/components/vendas/QuoteToReceivableDialog";
 
 const BRL = (n: number) =>
   n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2 });
