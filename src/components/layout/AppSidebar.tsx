@@ -90,9 +90,9 @@ const navGroups: NavGroup[] = [
 ];
 
 const badgeStyles: Record<Badge, { label: string; className: string }> = {
-  soon: { label: "Em breve", className: "border-border/60 bg-muted/40 text-muted-foreground" },
-  beta: { label: "Beta", className: "border-primary/25 bg-primary/10 text-primary" },
-  pro: { label: "Pro", className: "border-primary/30 bg-primary/15 text-primary" },
+  soon: { label: "Em breve", className: "border-border/40 bg-transparent text-muted-foreground/60" },
+  beta: { label: "Beta", className: "border-border/40 bg-transparent text-muted-foreground/70" },
+  pro: { label: "Pro", className: "border-amber-500/25 bg-transparent text-amber-400/80" },
 };
 
 export function AppSidebar() {
