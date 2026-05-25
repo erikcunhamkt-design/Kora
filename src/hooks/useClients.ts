@@ -160,6 +160,7 @@ export interface Client {
   updatedAt?: string;
   archived?: boolean;
   assets?: ClientAsset[];
+  technicalSheet?: ClientTechnicalSheet;
 }
 
 const STORAGE_KEY = "orbyt.clients.v1";
