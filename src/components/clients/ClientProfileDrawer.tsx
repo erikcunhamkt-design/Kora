@@ -339,7 +339,7 @@ export const ClientProfileDrawer = ({
           <section>
             <SectionTitle icon={ClipboardList}>Ficha técnica</SectionTitle>
             <button
-              onClick={() => setTechOpen(true)}
+              onClick={() => navigate(`/clientes/${client.id}/ficha-tecnica`)}
               className="w-full text-left rounded-xl border border-border/60 bg-card/40 hover:bg-card/70 hover:border-border transition-all p-4"
             >
               <div className="flex items-start gap-3">
