@@ -123,7 +123,7 @@ export const ClientProfileDrawer = ({
   onUpdateAssets?: (clientId: number, assets: ClientAsset[]) => void;
   onUpdateTechnicalSheet?: (clientId: number, sheet: ClientTechnicalSheet) => void;
 }) => {
-  const [techOpen, setTechOpen] = useState(false);
+  const navigate = useNavigate();
   if (!client) return null;
 
   const hasPhone = !!(client.whatsapp || client.phone);
