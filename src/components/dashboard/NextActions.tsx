@@ -1,40 +1,62 @@
-import { FileText, Calculator, Image, Target } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { FileText, Calculator, Image, Target, ArrowRight, type LucideIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-const actions = [
-  { icon: FileText, title: "Responder proposta pendente", desc: "Cliente aguardando retorno há 2 dias", priority: "Alta", route: "/vendas", tone: "destructive" as const },
-  { icon: Calculator, title: "Revisar orçamento", desc: "Orçamento de identidade visual em rascunho", priority: "Média", route: "/financeiro", tone: "default" as const },
-  { icon: Image, title: "Publicar projeto no portfólio", desc: "Último projeto concluído ainda não publicado", priority: "Baixa", route: "/portfolio", tone: "secondary" as const },
-  { icon: Target, title: "Conferir meta mensal", desc: "Faltam R$ 3.550 para atingir a meta do mês", priority: "Média", route: "/metas", tone: "default" as const },
+interface NextAction {
+  icon: LucideIcon;
+  title: string;
+  reason: string;
+  cta?: string;
+  route?: string;
+  priority?: "alta" | "média" | "baixa";
+}
+
+const actions: NextAction[] = [
+  { icon: FileText, title: "Follow-up pendente", reason: "Proposta da Acme Corp sem resposta há 3 dias.", cta: "Abrir proposta", route: "/vendas?tab=orcamentos", priority: "alta" },
+  { icon: Calculator, title: "Revisar orçamento", reason: "Orçamento de identidade visual em rascunho.", cta: "Continuar", route: "/vendas?tab=orcamentos", priority: "média" },
+  { icon: Image, title: "Publicar projeto no portfólio", reason: "Último projeto concluído ainda não publicado.", cta: "Abrir portfólio", route: "/portfolio", priority: "baixa" },
+  { icon: Target, title: "Conferir meta mensal", reason: "Faltam R$ 3.550 para atingir a meta do mês.", cta: "Ver metas", route: "/metas", priority: "média" },
 ];
+
+const priorityDot: Record<NonNullable<NextAction["priority"]>, string> = {
+  alta: "bg-destructive",
+  média: "bg-amber-400",
+  baixa: "bg-emerald-400",
+};
 
 export function NextActions() {
   const navigate = useNavigate();
   return (
-    <div className="orbit-card p-6 space-y-4">
+    <div className="orbit-card p-6 space-y-5">
       <div>
-        <h3 className="text-lg font-semibold text-foreground">Próximas ações</h3>
-        <p className="text-sm text-muted-foreground">Pendências e alertas para hoje</p>
+        <h3 className="text-base font-semibold text-foreground">Próximas ações</h3>
+        <p className="text-[0.8125rem] text-muted-foreground mt-0.5">O que merece sua atenção agora</p>
       </div>
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         {actions.map((a) => (
-          <button
+          <div
             key={a.title}
-            onClick={() => navigate(a.route)}
-            className="w-full flex items-start gap-3 p-3 rounded-lg border border-border bg-muted/20 hover:bg-muted/40 transition-colors text-left"
+            className="flex items-start gap-3 p-3 rounded-lg hover:bg-muted/30 transition-colors duration-150"
           >
-            <div className="h-9 w-9 shrink-0 rounded-lg bg-primary/10 flex items-center justify-center">
-              <a.icon className="h-4 w-4 text-primary" />
+            <div className="relative h-9 w-9 shrink-0 rounded-lg bg-muted/40 flex items-center justify-center">
+              <a.icon className="h-4 w-4 text-muted-foreground" />
+              {a.priority && (
+                <span className={`absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full ring-2 ring-card ${priorityDot[a.priority]}`} />
+              )}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-medium text-foreground truncate">{a.title}</p>
-                <Badge variant={a.tone} className="shrink-0">{a.priority}</Badge>
-              </div>
-              <p className="text-xs text-muted-foreground mt-0.5">{a.desc}</p>
+              <p className="text-[0.9375rem] font-medium text-foreground leading-tight">{a.title}</p>
+              <p className="text-[0.8125rem] text-muted-foreground mt-0.5 leading-snug">{a.reason}</p>
             </div>
-          </button>
+            {a.cta && a.route && (
+              <button
+                onClick={() => navigate(a.route!)}
+                className="shrink-0 inline-flex items-center gap-1 text-[0.8125rem] font-medium text-primary hover:text-primary/80 transition-colors mt-1"
+              >
+                {a.cta}
+                <ArrowRight className="h-3 w-3" />
+              </button>
+            )}
+          </div>
         ))}
       </div>
     </div>
