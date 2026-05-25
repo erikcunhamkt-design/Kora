@@ -9,6 +9,7 @@ import { NextActions } from "@/components/dashboard/NextActions";
 import { QuickShortcuts } from "@/components/dashboard/QuickShortcuts";
 import { ComingSoon } from "@/components/dashboard/ComingSoon";
 import { GreetingHero } from "@/components/dashboard/GreetingHero";
+import { CriticalAlert } from "@/components/dashboard/CriticalAlert";
 import { PlanBanner } from "@/components/plan/PlanBanner";
 import { usePlan } from "@/contexts/PlanContext";
 import { Crown, AlertTriangle } from "lucide-react";
@@ -68,44 +69,60 @@ function UsageSummary() {
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const overdueTasks = 3;
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
+      {/* 1 — Saudação + próxima melhor ação */}
       <GreetingHero
         nextAction={{
           title: "Responder proposta da Acme Corp",
-          desc: "Cliente aguarda retorno há 2 dias — risco de esfriar.",
-          cta: "Abrir orçamento",
+          reason: "Cliente aguarda retorno há 3 dias — risco de esfriar.",
+          cta: "Abrir proposta",
           onClick: () => navigate("/vendas?tab=orcamentos"),
         }}
       />
 
       <PlanBanner />
 
-      {/* Resumo do negócio */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 stagger-children">
+      {/* 2 — Métricas principais */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 stagger-children">
         {metrics.map((m) => (
           <MetricCard key={m.title} {...m} />
         ))}
       </div>
 
-      <UsageSummary />
+      {/* 3 — Alerta crítico real (só aparece se houver) */}
+      {overdueTasks > 0 && (
+        <CriticalAlert
+          title={`${overdueTasks} tarefas atrasadas precisam de atenção`}
+          description="Revisar prazos hoje evita atrito com clientes e perda de receita."
+          cta="Abrir tarefas"
+          route="/tarefas"
+        />
+      )}
 
-      {/* Cockpit: próxima ação + central do dia */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <NextActions />
-        <TodayTasks />
-      </div>
-
-      {/* Negócio: pipeline + financeiro */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {/* 4 — Pipeline + financeiro (negócio) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <CRMPipeline />
         <FinanceSummary />
       </div>
 
+      {/* 5 — Tarefas do dia + próximas ações */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <NextActions />
+        <TodayTasks />
+      </div>
+
+      {/* Atalhos rápidos */}
       <QuickShortcuts />
 
+      {/* 6 — Insights */}
       <InsightsSection />
 
+      <UsageSummary />
+
+      {/* 7 — Roadmap (discreto, no final) */}
       <ComingSoon />
 
       <ActivityFeed />
