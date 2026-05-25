@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import {
   FileText, Plus, X, Download, Send, Copy, Check, Trash2, Archive,
   Link2, AlertTriangle, Eye, MoreHorizontal, XCircle, User as UserIcon, Wallet,
+  FolderKanban,
 } from "lucide-react";
 import {
   useQuotes, type Quote, type QuoteItem, type QuoteStatus, type QuoteSource,
@@ -20,6 +21,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { QuoteToReceivableDialog } from "@/components/vendas/QuoteToReceivableDialog";
+import { QuoteToProjectDialog } from "@/components/vendas/QuoteToProjectDialog";
 
 const BRL = (n: number) =>
   n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2 });
