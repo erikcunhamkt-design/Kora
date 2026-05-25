@@ -1284,7 +1284,17 @@ const LeadDetailSheet = ({
           <Button size="sm" variant="outline" className="gap-1.5" onClick={onSchedule}>
             <Calendar className="h-3.5 w-3.5" /> Agendar
           </Button>
+          {lead.quoteId ? (
+            <Button size="sm" variant="outline" className="gap-1.5 text-primary border-primary/30 hover:bg-primary/10" onClick={onOpenQuote}>
+              <FileText className="h-3.5 w-3.5" /> Ver orçamento
+            </Button>
+          ) : (
+            <Button size="sm" variant="outline" className="gap-1.5" onClick={onCreateQuote}>
+              <FileText className="h-3.5 w-3.5" /> Criar orçamento
+            </Button>
+          )}
         </div>
+
 
         <div className="space-y-6 pb-6">
           <Section title="Projeto" icon={Briefcase}>
