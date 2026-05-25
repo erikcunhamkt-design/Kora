@@ -271,7 +271,7 @@ export function ProjectsSection() {
                 <div className="pt-2 border-t border-border/40">
                   <button
                     type="button"
-                    onClick={() => navigate(`/vendas?tab=orcamentos`)}
+                    onClick={(e) => { e.stopPropagation(); navigate(`/vendas?tab=orcamentos`); }}
                     className="text-[11px] inline-flex items-center gap-1 text-primary hover:underline"
                     title="Abrir orçamento vinculado"
                   >
