@@ -24,16 +24,16 @@ import type {
 } from "@/hooks/useClients";
 import { CLIENT_ASSET_TYPE_LABELS, CLIENT_ASSET_ACCESS_LABELS } from "@/hooks/useClients";
 
-type SectionId =
+export type SectionId =
   | "overview" | "branding" | "persona" | "editorial" | "typography"
   | "social" | "accesses" | "competitors" | "briefing" | "assets";
 
-const FONT_SUGGESTIONS = [
+export const FONT_SUGGESTIONS = [
   "Inter", "Poppins", "Montserrat", "Roboto", "Lato",
   "Open Sans", "Playfair Display", "Merriweather", "Oswald", "Raleway",
 ];
 
-const SECTIONS: { id: Exclude<SectionId, "overview">; label: string; subtitle: string; icon: any }[] = [
+export const SECTIONS: { id: Exclude<SectionId, "overview">; label: string; subtitle: string; icon: any }[] = [
   { id: "branding", label: "Branding", subtitle: "Logo, cores, slogan e tom de voz", icon: Palette },
   { id: "persona", label: "Persona", subtitle: "Público-alvo, dores e desejos", icon: Users },
   { id: "editorial", label: "Linha Editorial", subtitle: "Pilares, frequência e formatos", icon: FileText },
@@ -45,9 +45,9 @@ const SECTIONS: { id: Exclude<SectionId, "overview">; label: string; subtitle: s
   { id: "assets", label: "Materiais e Anexos", subtitle: "Links de Drive, fotos, identidade e documentos", icon: FolderOpen },
 ];
 
-type FillStatus = "vazio" | "parcial" | "completo";
+export type FillStatus = "vazio" | "parcial" | "completo";
 
-function statusOf(section: Exclude<SectionId, "overview">, t?: ClientTechnicalSheet): FillStatus {
+export function statusOf(section: Exclude<SectionId, "overview">, t?: ClientTechnicalSheet): FillStatus {
   if (!t) return "vazio";
   const has = (v: any) => (Array.isArray(v) ? v.length > 0 : !!(v && String(v).trim()));
   switch (section) {
@@ -96,13 +96,13 @@ function statusOf(section: Exclude<SectionId, "overview">, t?: ClientTechnicalSh
   }
 }
 
-const statusStyles: Record<FillStatus, string> = {
+export const statusStyles: Record<FillStatus, string> = {
   vazio: "bg-muted/40 text-muted-foreground border-border/60",
   parcial: "bg-amber-500/10 text-amber-400 border-amber-500/20",
   completo: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
 };
 
-const statusLabel: Record<FillStatus, string> = {
+export const statusLabel: Record<FillStatus, string> = {
   vazio: "Vazio",
   parcial: "Parcial",
   completo: "Completo",
@@ -231,7 +231,7 @@ export function ClientTechnicalSheetDialog({
 // Overview
 // ============================================================
 
-function OverviewGrid({
+export function OverviewGrid({
   sheet, onOpen,
 }: { sheet: ClientTechnicalSheet; onOpen: (id: Exclude<SectionId, "overview">) => void }) {
   return (
@@ -318,7 +318,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 // Branding
 // ============================================================
 
-function BrandingSection({ value, onSave }: { value: ClientBranding; onSave: (v: ClientBranding) => void }) {
+export function BrandingSection({ value, onSave }: { value: ClientBranding; onSave: (v: ClientBranding) => void }) {
   const [local, setLocal] = useState<ClientBranding>(value);
   const [colorInput, setColorInput] = useState("");
 
@@ -428,7 +428,7 @@ function BrandingSection({ value, onSave }: { value: ClientBranding; onSave: (v:
 // Persona
 // ============================================================
 
-function PersonaSection({ value, onSave }: { value: ClientPersona; onSave: (v: ClientPersona) => void }) {
+export function PersonaSection({ value, onSave }: { value: ClientPersona; onSave: (v: ClientPersona) => void }) {
   const [local, setLocal] = useState<ClientPersona>(value);
   return (
     <SectionShell title="Persona" description="Para quem essa marca fala?" onSave={() => onSave(local)}>
@@ -506,7 +506,7 @@ function ChipList({
   );
 }
 
-function EditorialSection({ value, onSave }: { value: ClientEditorialLine; onSave: (v: ClientEditorialLine) => void }) {
+export function EditorialSection({ value, onSave }: { value: ClientEditorialLine; onSave: (v: ClientEditorialLine) => void }) {
   const [local, setLocal] = useState<ClientEditorialLine>(value);
   return (
     <SectionShell title="Linha Editorial" description="O que essa marca publica e em qual ritmo." onSave={() => onSave(local)}>
@@ -555,7 +555,7 @@ function EditorialSection({ value, onSave }: { value: ClientEditorialLine; onSav
 // Typography
 // ============================================================
 
-function TypographySection({ value, onSave }: { value: ClientTypography; onSave: (v: ClientTypography) => void }) {
+export function TypographySection({ value, onSave }: { value: ClientTypography; onSave: (v: ClientTypography) => void }) {
   const [local, setLocal] = useState<ClientTypography>(value);
   return (
     <SectionShell title="Tipografia" description="Fontes utilizadas pela marca." onSave={() => onSave(local)}>
@@ -609,7 +609,7 @@ function TypographySection({ value, onSave }: { value: ClientTypography; onSave:
 // Social Links
 // ============================================================
 
-function SocialSection({ value, onSave }: { value: ClientSocialLinks; onSave: (v: ClientSocialLinks) => void }) {
+export function SocialSection({ value, onSave }: { value: ClientSocialLinks; onSave: (v: ClientSocialLinks) => void }) {
   const [local, setLocal] = useState<ClientSocialLinks>(value);
   const [other, setOther] = useState({ label: "", url: "" });
 
@@ -687,7 +687,7 @@ function SocialSection({ value, onSave }: { value: ClientSocialLinks; onSave: (v
 // Accesses
 // ============================================================
 
-function AccessesSection({
+export function AccessesSection({
   value, onChange,
 }: { value: ClientAccess[]; onChange: (v: ClientAccess[]) => void }) {
   const [editing, setEditing] = useState<ClientAccess | null>(null);
@@ -828,7 +828,7 @@ function AccessesSection({
 // Competitors
 // ============================================================
 
-function CompetitorsSection({
+export function CompetitorsSection({
   value, onChange,
 }: { value: ClientCompetitor[]; onChange: (v: ClientCompetitor[]) => void }) {
   const [editing, setEditing] = useState<ClientCompetitor | null>(null);
@@ -926,7 +926,7 @@ function CompetitorsSection({
 // Briefing
 // ============================================================
 
-function BriefingSection({ value, onSave }: { value: ClientBriefing; onSave: (v: ClientBriefing) => void }) {
+export function BriefingSection({ value, onSave }: { value: ClientBriefing; onSave: (v: ClientBriefing) => void }) {
   const [local, setLocal] = useState<ClientBriefing>(value);
   return (
     <SectionShell title="Briefing & Notas" description="Contexto geral do cliente e da marca." onSave={() => onSave(local)}>
@@ -952,7 +952,7 @@ const ASSET_ACCESS: ClientAssetAccessStatus[] = [
   "liberado", "solicitar_acesso", "publico", "privado", "expirado", "revisar",
 ];
 
-function AssetsSection({
+export function AssetsSection({
   value, onChange,
 }: { value: ClientAsset[]; onChange: (v: ClientAsset[]) => void }) {
   const [editing, setEditing] = useState<ClientAsset | null>(null);
