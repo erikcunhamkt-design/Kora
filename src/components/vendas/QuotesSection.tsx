@@ -784,6 +784,8 @@ function QuotePreview({
   onApprove,
   onOpenOpportunity,
   onOpenClient,
+  onGenerateReceivable,
+  onOpenReceivable,
 }: {
   quote: Quote;
   onClose: () => void;
@@ -792,6 +794,8 @@ function QuotePreview({
   onApprove: () => void;
   onOpenOpportunity?: () => void;
   onOpenClient?: () => void;
+  onGenerateReceivable?: () => void;
+  onOpenReceivable?: () => void;
 }) {
   const eff = effectiveStatus(quote);
   const days = getQuoteDaysToExpire(quote);
