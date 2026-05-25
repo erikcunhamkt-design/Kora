@@ -21,6 +21,8 @@ import {
   PROJECT_STATUS_LABEL, useProjects,
 } from "@/hooks/useProjects";
 import { useTasks, formatPtBr, type Task, type TaskPriority } from "@/hooks/useTasks";
+import { useClients } from "@/hooks/useClients";
+import { ClientTechnicalSheetSnapshot } from "@/components/clients/ClientTechnicalSheetSnapshot";
 
 interface ProjectDetailDrawerProps {
   project: Project | null;
