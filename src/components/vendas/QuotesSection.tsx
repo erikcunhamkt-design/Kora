@@ -81,6 +81,7 @@ export function QuotesSection() {
   const [confirmDelete, setConfirmDelete] = useState<Quote | null>(null);
   const [filterStatus, setFilterStatus] = useState<"all" | QuoteStatus>("all");
   const [receivableQuote, setReceivableQuote] = useState<Quote | null>(null);
+  const [projectQuote, setProjectQuote] = useState<Quote | null>(null);
 
   /** Deep link: ?newQuote=1[&opportunityId=X][&clientId=Y] */
   useEffect(() => {
