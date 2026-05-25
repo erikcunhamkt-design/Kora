@@ -106,6 +106,8 @@ const Dashboard = () => (
 
     <CRMPipeline />
 
+    <ComingSoon />
+
     <ActivityFeed />
   </div>
 );
