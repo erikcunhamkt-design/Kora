@@ -72,15 +72,8 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-8">
-      {/* 1 — Saudação + próxima melhor ação */}
-      <GreetingHero
-        nextAction={{
-          title: "Responder proposta da Acme Corp",
-          reason: "Cliente aguarda retorno há 3 dias — risco de esfriar.",
-          cta: "Abrir proposta",
-          onClick: () => navigate("/vendas?tab=orcamentos"),
-        }}
-      />
+      {/* 1 — Saudação + próxima melhor ação (consome computeDayCenter via useDayCenterData) */}
+      <GreetingHero />
 
       <PlanBanner />
 
