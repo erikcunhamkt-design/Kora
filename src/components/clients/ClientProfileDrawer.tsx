@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,6 @@ import {
 import { cn } from "@/lib/utils";
 import type { Client, ClientStatus, ClientTemperature, ClientAsset, ClientTechnicalSheet } from "@/hooks/useClients";
 import { ClientLibrarySection } from "./ClientLibrarySection";
-import { ClientTechnicalSheetDialog } from "./ClientTechnicalSheetDialog";
 
 const statusBadge: Record<ClientStatus, string> = {
   "Ativo": "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
@@ -124,7 +123,7 @@ export const ClientProfileDrawer = ({
   onUpdateAssets?: (clientId: number, assets: ClientAsset[]) => void;
   onUpdateTechnicalSheet?: (clientId: number, sheet: ClientTechnicalSheet) => void;
 }) => {
-  const [techOpen, setTechOpen] = useState(false);
+  const navigate = useNavigate();
   if (!client) return null;
 
   const hasPhone = !!(client.whatsapp || client.phone);
@@ -340,7 +339,7 @@ export const ClientProfileDrawer = ({
           <section>
             <SectionTitle icon={ClipboardList}>Ficha técnica</SectionTitle>
             <button
-              onClick={() => setTechOpen(true)}
+              onClick={() => navigate(`/clientes/${client.id}/ficha-tecnica`)}
               className="w-full text-left rounded-xl border border-border/60 bg-card/40 hover:bg-card/70 hover:border-border transition-all p-4"
             >
               <div className="flex items-start gap-3">
@@ -480,13 +479,6 @@ export const ClientProfileDrawer = ({
           </div>
         </div>
       </SheetContent>
-
-      <ClientTechnicalSheetDialog
-        open={techOpen}
-        onOpenChange={setTechOpen}
-        client={client}
-        onSave={(id, sheet) => onUpdateTechnicalSheet?.(id, sheet)}
-      />
     </Sheet>
   );
 };
