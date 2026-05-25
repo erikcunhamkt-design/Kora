@@ -179,9 +179,9 @@ export function TopBar() {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-72 p-0 overflow-hidden">
             {/* Header */}
-            <div className="px-4 py-4 bg-gradient-to-br from-primary/8 via-card to-card border-b border-border/40">
+            <div className="px-4 py-4 bg-card-elevated/40 border-b border-border/40">
               <div className="flex items-center gap-3">
-                <Avatar className="h-11 w-11 border border-primary/30">
+                <Avatar className="h-11 w-11 border border-border/50">
                   <AvatarFallback className="orbit-gradient text-white text-sm font-bold">
                     {initials}
                   </AvatarFallback>
@@ -196,10 +196,10 @@ export function TopBar() {
               <div className="mt-3 flex items-center justify-between">
                 <span
                   className={cn(
-                    "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wide",
+                    "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wide border",
                     isPro
-                      ? "orbit-gradient text-white"
-                      : "border border-primary/20 bg-primary/8 text-primary",
+                      ? "border-amber-500/30 bg-amber-500/[0.06] text-amber-400/90"
+                      : "border-border/50 bg-transparent text-muted-foreground",
                   )}
                 >
                   <Crown className="h-2.5 w-2.5" />
@@ -208,7 +208,7 @@ export function TopBar() {
                 {!isPro && (
                   <button
                     onClick={() => navigate("/upgrade")}
-                    className="text-[11px] font-medium text-primary hover:text-primary/80 transition-colors"
+                    className="text-[11px] font-medium text-primary/90 hover:text-primary transition-colors"
                   >
                     Upgrade →
                   </button>
