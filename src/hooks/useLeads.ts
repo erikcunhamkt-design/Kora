@@ -346,9 +346,9 @@ export function useLeads() {
     setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, tags } : l)));
   }, []);
 
-  const markConverted = useCallback((id: number) => {
+  const markConverted = useCallback((id: number, convertedClientId?: number) => {
     setLeads((prev) =>
-      prev.map((l) => (l.id === id ? { ...l, converted: true } : l))
+      prev.map((l) => (l.id === id ? { ...l, converted: true, convertedClientId: convertedClientId ?? l.convertedClientId } : l))
     );
   }, []);
 
