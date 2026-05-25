@@ -41,6 +41,7 @@ import { useClientTypes } from "@/hooks/useClientTypes";
 import { NewClientTypeDialog } from "@/components/clientes/NewClientTypeDialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageToolbar } from "@/components/layout/PageToolbar";
+import { ClientProfileDrawer } from "@/components/clients/ClientProfileDrawer";
 import { cn } from "@/lib/utils";
 
 // ---------- Static configs ----------
