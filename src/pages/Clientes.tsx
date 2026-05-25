@@ -36,7 +36,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SignupLinkDrawer } from "@/components/clientes/SignupLinkDrawer";
 import { SignupRequestsPanel } from "@/components/clientes/SignupRequestsPanel";
-import { useSignupRequests } from "@/hooks/useSignupRequests";
+import { useSignupRequests, type SignupRequest } from "@/hooks/useSignupRequests";
+import { useLeads } from "@/hooks/useLeads";
+
 import { useClientTypes } from "@/hooks/useClientTypes";
 import { NewClientTypeDialog } from "@/components/clientes/NewClientTypeDialog";
 import { EmptyState } from "@/components/ui/empty-state";
