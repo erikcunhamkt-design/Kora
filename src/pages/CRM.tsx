@@ -343,12 +343,20 @@ const CRM = () => {
     <div className="space-y-6">
       <PageHeader
         title="CRM"
-        subtitle="Gerencie leads, pipelines e oportunidades"
+        subtitle="Acompanhe oportunidades, negociações e próximas ações comerciais."
         actions={
           <>
-            <UsageBadge resource="leads" label="leads" />
+            <UsageBadge resource="leads" label="oportunidades" />
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5 shrink-0"
+              onClick={() => { setEditingPipeline(activePipeline); setPipelineEditorOpen(true); }}
+            >
+              <Settings2 className="h-4 w-4" /> <span className="hidden sm:inline">Gerenciar funis</span>
+            </Button>
             <Button size="sm" onClick={handleNewLead} className="orbit-gradient text-white border-0 gap-1.5 shrink-0">
-              <Plus className="h-4 w-4" /> Novo lead
+              <Plus className="h-4 w-4" /> Nova oportunidade
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
