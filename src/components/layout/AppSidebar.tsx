@@ -1,10 +1,12 @@
 import {
   LayoutDashboard, Users, TrendingUp, ShoppingBag, FileText,
   DollarSign, CheckSquare, FolderKanban, Image as ImageIcon,
-  Target, Settings, Crown, Zap, Globe, CalendarCheck, LifeBuoy,
-  ClipboardList,
+  Settings, Crown, Zap, Globe, CalendarCheck, LifeBuoy,
+  ClipboardList, BarChart3, Link as LinkIcon, Calendar, Sparkles,
+  Bot, Plug, CreditCard,
   type LucideIcon,
 } from "lucide-react";
+import { toast } from "sonner";
 import koraLogo from "@/assets/kora-logo.png";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -14,11 +16,15 @@ import {
 } from "@/components/ui/sidebar";
 import { usePlan } from "@/contexts/PlanContext";
 
+type Badge = "soon" | "beta" | "pro";
+
 type NavItem = {
   title: string;
   icon: LucideIcon;
   url?: string;
   event?: string;
+  badge?: Badge;
+  disabled?: boolean;
 };
 
 type NavGroup = { label: string; items: NavItem[] };
@@ -29,48 +35,62 @@ const navGroups: NavGroup[] = [
     items: [
       { title: "Dashboard", url: "/", icon: LayoutDashboard },
       { title: "Central do Dia", event: "kora:open-day", icon: CalendarCheck },
-    ],
-  },
-  {
-    label: "Comercial",
-    items: [
       { title: "Clientes", url: "/clientes", icon: Users },
       { title: "CRM", url: "/crm", icon: TrendingUp },
-      { title: "Catálogo Comercial", url: "/vendas?tab=servicos", icon: ShoppingBag },
-      { title: "Orçamentos", url: "/vendas?tab=orcamentos", icon: FileText },
     ],
   },
   {
     label: "Operação",
     items: [
-      { title: "Tarefas", url: "/tarefas", icon: CheckSquare },
-      { title: "Briefings", url: "/briefings", icon: ClipboardList },
       { title: "Projetos", url: "/portfolio?tab=projetos", icon: FolderKanban },
+      { title: "Tarefas", url: "/tarefas", icon: CheckSquare },
       { title: "Conteúdo", url: "/portfolio?tab=conteudo", icon: ImageIcon },
+      { title: "Briefings", url: "/briefings", icon: ClipboardList },
     ],
   },
   {
-    label: "Gestão",
+    label: "Vendas",
     items: [
+      { title: "Serviços", url: "/vendas?tab=servicos", icon: ShoppingBag },
+      { title: "Orçamentos", url: "/vendas?tab=orcamentos", icon: FileText },
       { title: "Financeiro", url: "/financeiro", icon: DollarSign },
+      { title: "Relatórios", icon: BarChart3, badge: "soon", disabled: true },
     ],
   },
   {
-    label: "Crescimento",
+    label: "Presença",
     items: [
-      { title: "Automações & IA", url: "/automacoes", icon: Zap },
-      { title: "Presença", url: "/presenca", icon: Globe },
-      { title: "Metas", url: "/metas", icon: Target },
+      { title: "Página Pública", url: "/presenca?tab=publica", icon: Globe },
+      { title: "Portfólio", url: "/portfolio", icon: ImageIcon },
+      { title: "Link da Bio", url: "/presenca?tab=bio", icon: LinkIcon },
+      { title: "Formulários", url: "/presenca?tab=forms", icon: FileText, badge: "beta" },
+      { title: "Agendamento", url: "/presenca?tab=agenda", icon: Calendar, badge: "beta" },
+    ],
+  },
+  {
+    label: "Inteligência",
+    items: [
+      { title: "Agentes de IA", url: "/automacoes?tab=ia", icon: Bot, badge: "beta" },
+      { title: "Automações", url: "/automacoes?tab=automacoes", icon: Zap, badge: "beta" },
+      { title: "Créditos de IA", event: "orbyt:open-credits", icon: Sparkles },
     ],
   },
   {
     label: "Sistema",
     items: [
+      { title: "Integrações", url: "/automacoes?tab=integracoes", icon: Plug },
       { title: "Configurações", url: "/configuracoes", icon: Settings },
-      { title: "Ajuda & Suporte", event: "kora:open-support", icon: LifeBuoy },
+      { title: "Suporte", event: "kora:open-support", icon: LifeBuoy },
+      { title: "Assinatura", url: "/upgrade", icon: CreditCard },
     ],
   },
 ];
+
+const badgeStyles: Record<Badge, { label: string; className: string }> = {
+  soon: { label: "Em breve", className: "border-border/60 bg-muted/40 text-muted-foreground" },
+  beta: { label: "Beta", className: "border-primary/25 bg-primary/10 text-primary" },
+  pro: { label: "Pro", className: "border-primary/30 bg-primary/15 text-primary" },
+};
 
 export function AppSidebar() {
   const { state } = useSidebar();
@@ -84,17 +104,13 @@ export function AppSidebar() {
   const isActive = (item: NavItem) => {
     if (!item.url) return false;
     const [path, query] = item.url.split("?");
-    if (path === "/") {
-      // Dashboard active only on root without ?tab specialization
-      return location.pathname === "/";
-    }
+    if (path === "/") return location.pathname === "/";
     const pathMatch = location.pathname === path || location.pathname.startsWith(path + "/");
     if (!pathMatch) return false;
     if (query) {
       const tab = new URLSearchParams(query).get("tab");
       return tab === currentTab;
     }
-    // For items without specific tab, only active if no specific tab item also matches
     return !currentTab;
   };
 
@@ -123,9 +139,9 @@ export function AppSidebar() {
 
       <SidebarContent className={collapsed ? "px-2 py-4" : "px-3 py-4"}>
         {navGroups.map((group) => (
-          <SidebarGroup key={group.label} className={collapsed ? "p-0 mb-1" : "mb-1"}>
+          <SidebarGroup key={group.label} className={collapsed ? "p-0 mb-1" : "mb-2"}>
             {!collapsed && (
-              <SidebarGroupLabel className="px-3 text-[0.625rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground/50">
+              <SidebarGroupLabel className="px-3 text-[0.625rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground/45">
                 {group.label}
               </SidebarGroupLabel>
             )}
@@ -134,27 +150,58 @@ export function AppSidebar() {
                 {group.items.map((item) => {
                   const active = isActive(item);
                   const Icon = item.icon;
+                  const badge = item.badge ? badgeStyles[item.badge] : null;
                   const baseClass = `relative flex items-center rounded-lg font-medium transition-all duration-200 ${
                     collapsed
                       ? "h-10 w-10 mx-auto justify-center p-0"
-                      : "gap-3 px-3 py-2.5 text-[0.875rem]"
+                      : "gap-3 px-3 py-2 text-[0.875rem]"
                   } ${
-                    active
+                    item.disabled
+                      ? "text-muted-foreground/40 cursor-not-allowed"
+                      : active
                       ? "bg-primary/10 text-primary"
                       : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
                   }`;
-                  const style = active
+                  const style = active && !item.disabled
                     ? { boxShadow: "inset 0 0 0 1px hsl(348 94% 52% / 0.25)" }
                     : undefined;
+
+                  const content = (
+                    <>
+                      {active && !collapsed && !item.disabled && (
+                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full orbit-gradient" />
+                      )}
+                      <Icon className={`h-[18px] w-[18px] flex-shrink-0 transition-colors duration-200 ${active && !item.disabled ? "text-primary" : ""}`} />
+                      {!collapsed && (
+                        <>
+                          <span className="truncate flex-1">{item.title}</span>
+                          {badge && (
+                            <span className={`text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded border ${badge.className}`}>
+                              {badge.label}
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </>
+                  );
 
                   return (
                     <SidebarMenuItem key={item.title} className={collapsed ? "flex justify-center" : undefined}>
                       <SidebarMenuButton
                         asChild
-                        tooltip={item.title}
+                        tooltip={item.title + (badge ? ` · ${badge.label}` : "")}
                         className="group-data-[collapsible=icon]:!w-10 group-data-[collapsible=icon]:!h-10 group-data-[collapsible=icon]:!p-0"
                       >
-                        {item.url ? (
+                        {item.disabled ? (
+                          <button
+                            type="button"
+                            onClick={() => toast.info(`${item.title} estará disponível em breve.`)}
+                            title={collapsed ? `${item.title} · Em breve` : undefined}
+                            className={baseClass + " w-full text-left"}
+                          >
+                            {content}
+                          </button>
+                        ) : item.url ? (
                           <NavLink
                             to={item.url}
                             end={item.url === "/"}
@@ -163,11 +210,7 @@ export function AppSidebar() {
                             activeClassName=""
                             style={style}
                           >
-                            {active && !collapsed && (
-                              <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full orbit-gradient" />
-                            )}
-                            <Icon className={`h-[18px] w-[18px] flex-shrink-0 transition-colors duration-200 ${active ? "text-primary" : ""}`} />
-                            {!collapsed && <span className="truncate">{item.title}</span>}
+                            {content}
                           </NavLink>
                         ) : (
                           <button
@@ -176,8 +219,7 @@ export function AppSidebar() {
                             title={collapsed ? item.title : undefined}
                             className={baseClass + " w-full text-left"}
                           >
-                            <Icon className="h-[18px] w-[18px] flex-shrink-0" />
-                            {!collapsed && <span className="truncate">{item.title}</span>}
+                            {content}
                           </button>
                         )}
                       </SidebarMenuButton>

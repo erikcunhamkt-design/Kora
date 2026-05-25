@@ -10,6 +10,7 @@ import { FinanceSummary } from "@/components/dashboard/FinanceSummary";
 import { NextActions } from "@/components/dashboard/NextActions";
 import { QuickShortcuts } from "@/components/dashboard/QuickShortcuts";
 import { StudioProgress } from "@/components/dashboard/StudioProgress";
+import { ComingSoon } from "@/components/dashboard/ComingSoon";
 import { PlanBanner } from "@/components/plan/PlanBanner";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { usePlan } from "@/contexts/PlanContext";
