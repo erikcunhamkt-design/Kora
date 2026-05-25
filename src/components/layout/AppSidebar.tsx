@@ -140,11 +140,11 @@ export function AppSidebar() {
         )}
       </div>
 
-      <SidebarContent className={collapsed ? "px-2 py-4" : "px-3 py-4"}>
+      <SidebarContent className={collapsed ? "px-2 py-4" : "px-3 py-5"}>
         {navGroups.map((group) => (
-          <SidebarGroup key={group.label} className={collapsed ? "p-0 mb-1" : "mb-2"}>
+          <SidebarGroup key={group.label} className={collapsed ? "p-0 mb-2" : "mb-4"}>
             {!collapsed && (
-              <SidebarGroupLabel className="px-3 text-[0.625rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground/45">
+              <SidebarGroupLabel className="px-3 mb-1 text-[0.6rem] font-medium uppercase tracking-[0.16em] text-muted-foreground/35">
                 {group.label}
               </SidebarGroupLabel>
             )}
@@ -160,26 +160,23 @@ export function AppSidebar() {
                       : "gap-3 px-3 py-2 text-[0.875rem]"
                   } ${
                     item.disabled
-                      ? "text-muted-foreground/40 cursor-not-allowed"
+                      ? "text-muted-foreground/35 cursor-not-allowed hover:bg-transparent"
                       : active
-                      ? "bg-primary/10 text-primary"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                      ? "bg-card-elevated text-foreground"
+                      : "text-muted-foreground/85 hover:text-foreground hover:bg-muted/30"
                   }`;
-                  const style = active && !item.disabled
-                    ? { boxShadow: "inset 0 0 0 1px hsl(348 94% 52% / 0.25)" }
-                    : undefined;
 
                   const content = (
                     <>
                       {active && !collapsed && !item.disabled && (
-                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full orbit-gradient" />
+                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-4 rounded-r-full bg-primary/70" />
                       )}
-                      <Icon className={`h-[18px] w-[18px] flex-shrink-0 transition-colors duration-200 ${active && !item.disabled ? "text-primary" : ""}`} />
+                      <Icon className={`h-[18px] w-[18px] flex-shrink-0 transition-colors duration-200 ${active && !item.disabled ? "text-primary/90" : ""}`} />
                       {!collapsed && (
                         <>
                           <span className="truncate flex-1">{item.title}</span>
                           {badge && (
-                            <span className={`text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded border ${badge.className}`}>
+                            <span className={`text-[9px] font-medium uppercase tracking-wide px-1.5 py-0.5 rounded border ${badge.className}`}>
                               {badge.label}
                             </span>
                           )}
