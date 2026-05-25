@@ -336,11 +336,40 @@ export const ClientProfileDrawer = ({
             </div>
           </section>
 
+          {/* Ficha técnica */}
+          <section>
+            <SectionTitle icon={ClipboardList}>Ficha técnica</SectionTitle>
+            <button
+              onClick={() => setTechOpen(true)}
+              className="w-full text-left rounded-xl border border-border/60 bg-card/40 hover:bg-card/70 hover:border-border transition-all p-4"
+            >
+              <div className="flex items-start gap-3">
+                <div className="h-10 w-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                  <ClipboardList className="h-5 w-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-foreground">Ficha técnica</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 leading-snug">
+                    Branding, persona, redes, acessos e materiais da marca.
+                  </p>
+                  <TechSummary sheet={client.technicalSheet} />
+                </div>
+                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 mt-1" />
+              </div>
+              <div className="mt-3">
+                <span className="inline-flex items-center gap-1 text-xs text-primary font-medium">
+                  Abrir ficha técnica <ChevronRight className="h-3 w-3" />
+                </span>
+              </div>
+            </button>
+          </section>
+
           {/* Biblioteca do cliente */}
           <ClientLibrarySection
             assets={client.assets ?? []}
             onChange={(next) => onUpdateAssets?.(client.id, next)}
           />
+
 
           {/* Timeline */}
           <section>
