@@ -27,6 +27,11 @@ export interface Transaction {
   notes?: string;
   createdAt: string;
   isDemo?: boolean;
+  // --- v2 commercial linkage (optional, backward-compatible) ---
+  clientId?: number;
+  quoteId?: string;
+  quoteTitle?: string;
+  opportunityId?: number;
 }
 
 /** Legacy categorias usadas como fallback */
@@ -225,10 +230,9 @@ export function useFinance() {
 
   // Transactions
   const addTransaction = useCallback((data: Omit<Transaction, "id" | "isDemo" | "createdAt">) => {
-    setTransactions((prev) => [
-      { ...data, id: `tx-${Date.now()}`, createdAt: new Date().toISOString(), isDemo: false },
-      ...prev,
-    ]);
+    const tx: Transaction = { ...data, id: `tx-${Date.now()}`, createdAt: new Date().toISOString(), isDemo: false };
+    setTransactions((prev) => [tx, ...prev]);
+    return tx;
   }, []);
 
   const updateTransactionStatus = useCallback((id: string, status: TxStatus) => {
