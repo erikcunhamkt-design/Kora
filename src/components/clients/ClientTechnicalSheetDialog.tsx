@@ -364,36 +364,102 @@ export function BrandingSection({ value, onSave }: { value: ClientBranding; onSa
       description="Identidade visual e tom de voz da marca."
       onSave={() => onSave(local)}
     >
-      <Field label="Logo (URL)" hint="Cole a URL pública do logo. Upload seguro em etapa futura.">
-        <Input
-          placeholder="https://..."
-          value={local.logoUrl ?? ""}
-          onChange={(e) => setLocal({ ...local, logoUrl: e.target.value })}
-        />
+      <Field label="Logo" hint="Faça upload de uma imagem (PNG/SVG/JPG, até 500 KB) ou cole uma URL pública.">
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="inline-flex items-center gap-2 rounded-lg border border-border bg-secondary/50 hover:bg-secondary/70 px-3 h-11 cursor-pointer transition-colors">
+              <Upload className="h-4 w-4 text-muted-foreground" />
+              <span className="text-xs text-foreground">{local.logoFileName ? "Trocar arquivo" : "Enviar arquivo"}</span>
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                className="sr-only"
+                onChange={async (e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  if (!f) return;
+                  if (!f.type.startsWith("image/")) { toast.error("Selecione uma imagem"); return; }
+                  if (f.size > LOGO_MAX_BYTES) {
+                    toast.error(`Logo acima de ${formatBytes(LOGO_MAX_BYTES)}. Otimize antes (ex: TinyPNG) ou use URL externa.`);
+                    return;
+                  }
+                  try {
+                    const dataUrl = await readFileAsDataUrl(f);
+                    setLocal({
+                      ...local,
+                      logoUrl: dataUrl,
+                      logoFileName: f.name,
+                      logoFileSize: f.size,
+                      logoMimeType: f.type,
+                    });
+                    toast.success("Logo carregado");
+                  } catch {
+                    toast.error("Não foi possível ler o arquivo");
+                  }
+                }}
+              />
+            </label>
+            <span className="text-[11px] text-muted-foreground">ou</span>
+            <Input
+              className="flex-1 min-w-[200px]"
+              placeholder="https://..."
+              value={local.logoUrl?.startsWith("data:") ? "" : (local.logoUrl ?? "")}
+              onChange={(e) =>
+                setLocal({
+                  ...local,
+                  logoUrl: e.target.value,
+                  logoFileName: undefined,
+                  logoFileSize: undefined,
+                  logoMimeType: undefined,
+                })
+              }
+            />
+          </div>
+
+          {local.logoUrl ? (
+            <div className="rounded-lg border border-border/60 bg-secondary/40 p-4 flex items-center gap-4">
+              <img
+                src={local.logoUrl}
+                alt="Preview do logo"
+                className="h-20 w-20 object-contain rounded-md bg-background/40 border border-border/40"
+                onError={(e) => ((e.target as HTMLImageElement).style.display = "none")}
+              />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs uppercase tracking-wider text-muted-foreground/70 mb-1">Preview</p>
+                {local.logoFileName ? (
+                  <p className="text-xs text-muted-foreground truncate">
+                    {local.logoFileName} · {formatBytes(local.logoFileSize ?? 0)}
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground truncate">{local.logoUrl}</p>
+                )}
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() =>
+                  setLocal({
+                    ...local,
+                    logoUrl: undefined,
+                    logoFileName: undefined,
+                    logoFileSize: undefined,
+                    logoMimeType: undefined,
+                  })
+                }
+              >
+                <Trash2 className="h-3.5 w-3.5 text-destructive/80" />
+              </Button>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-dashed border-border/60 bg-secondary/20 p-4 text-xs text-muted-foreground">
+              Nenhum logo definido. Arquivos enviados ficam <strong>somente neste dispositivo</strong> (localStorage).
+              Para sincronizar entre dispositivos, use uma URL pública (Drive/Imgur/CDN).
+            </div>
+          )}
+        </div>
       </Field>
 
-      {local.logoUrl ? (
-        <div className="rounded-lg border border-border/60 bg-secondary/40 p-4 flex items-center gap-4">
-          <img
-            src={local.logoUrl}
-            alt="Preview do logo"
-            className="h-20 w-20 object-contain rounded-md bg-background/40 border border-border/40"
-            onError={(e) => ((e.target as HTMLImageElement).style.display = "none")}
-          />
-          <div className="min-w-0 flex-1">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground/70 mb-1">Preview</p>
-            <p className="text-xs text-muted-foreground truncate">{local.logoUrl}</p>
-          </div>
-        </div>
-      ) : (
-        <div className="rounded-lg border border-dashed border-border/60 bg-secondary/20 p-4 flex items-center justify-between gap-3 opacity-70 cursor-not-allowed">
-          <div className="text-xs text-muted-foreground">
-            <p className="font-medium text-foreground/70">Upload de logo</p>
-            <p className="mt-0.5">Upload seguro exige Storage e será implementado em etapa futura.</p>
-          </div>
-          <Button type="button" variant="outline" size="sm" disabled>Em breve</Button>
-        </div>
-      )}
 
       <Field label="Cores da marca" hint="Escolha pelo color picker ou cole um HEX. Rótulo é opcional.">
         <div className="flex flex-wrap items-center gap-2">
