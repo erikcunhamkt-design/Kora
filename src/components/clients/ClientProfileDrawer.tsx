@@ -480,7 +480,51 @@ export const ClientProfileDrawer = ({
           </div>
         </div>
       </SheetContent>
+
+      <ClientTechnicalSheetDialog
+        open={techOpen}
+        onOpenChange={setTechOpen}
+        client={client}
+        onSave={(id, sheet) => onUpdateTechnicalSheet?.(id, sheet)}
+      />
     </Sheet>
+  );
+};
+
+// Summary chips showing what's filled in the technical sheet
+const TechSummary = ({ sheet }: { sheet?: ClientTechnicalSheet }) => {
+  const s = sheet ?? {};
+  const branding = !!(s.branding && (s.branding.logoUrl || s.branding.slogan || s.branding.voiceTone || s.branding.brandNotes || s.branding.colors?.length));
+  const persona = !!(s.persona && (s.persona.name || s.persona.pains || s.persona.desires || s.persona.behavior));
+  const socialCount = (() => {
+    const sl = s.socialLinks ?? {};
+    const base = [sl.instagram, sl.youtube, sl.tiktok, sl.linkedin, sl.facebook, sl.website].filter(Boolean).length;
+    return base + (sl.otherLinks?.length ?? 0);
+  })();
+  const accesses = s.accesses?.length ?? 0;
+  const assets = s.assets?.length ?? 0;
+
+  const chip = (label: string, ok: boolean, count?: number) => (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px]",
+        ok
+          ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
+          : "border-border/60 bg-muted/40 text-muted-foreground"
+      )}
+    >
+      {label}{typeof count === "number" && count > 0 ? ` · ${count}` : ""}
+    </span>
+  );
+
+  return (
+    <div className="flex flex-wrap gap-1.5 mt-2">
+      {chip("Branding", branding)}
+      {chip("Persona", persona)}
+      {chip("Redes", socialCount > 0, socialCount)}
+      {chip("Acessos", accesses > 0, accesses)}
+      {chip("Materiais", assets > 0, assets)}
+    </div>
   );
 };
 
