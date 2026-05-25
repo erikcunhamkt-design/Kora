@@ -51,7 +51,18 @@ export function useSignupRequests() {
     return !error;
   }, []);
 
+  const deleteRequest = useCallback(async (id: string) => {
+    const { error } = await (supabase as any)
+      .from("client_signup_requests")
+      .delete()
+      .eq("id", id);
+    if (!error) {
+      setRequests((prev) => prev.filter((r) => r.id !== id));
+    }
+    return !error;
+  }, []);
+
   const pendingCount = requests.filter((r) => r.status === "pending").length;
 
-  return { requests, loading, refresh, updateStatus, pendingCount };
+  return { requests, loading, refresh, updateStatus, deleteRequest, pendingCount };
 }
