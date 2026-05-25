@@ -1,51 +1,149 @@
-import { useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { FileText, Plus, X, Download, Send, Copy, Check, Trash2 } from "lucide-react";
-import { useQuotes, type Quote, type QuoteItem, type QuoteStatus } from "@/hooks/useQuotes";
+import {
+  FileText, Plus, X, Download, Send, Copy, Check, Trash2, Archive,
+  Link2, AlertTriangle, Eye, MoreHorizontal, XCircle, User as UserIcon,
+} from "lucide-react";
+import {
+  useQuotes, type Quote, type QuoteItem, type QuoteStatus, type QuoteSource,
+  getQuoteDaysToExpire, isQuoteExpired,
+} from "@/hooks/useQuotes";
 import { useServices } from "@/hooks/useServices";
 import { useClients } from "@/hooks/useClients";
+import { useLeads } from "@/hooks/useLeads";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
-const BRL = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2 });
+const BRL = (n: number) =>
+  n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2 });
 
 const STATUS_LABEL: Record<QuoteStatus, string> = {
   rascunho: "Rascunho",
   enviado: "Enviado",
   aprovado: "Aprovado",
   recusado: "Recusado",
+  vencido: "Vencido",
+  arquivado: "Arquivado",
 };
 
 const STATUS_STYLE: Record<QuoteStatus, string> = {
-  rascunho: "bg-amber-500/15 text-amber-400",
-  enviado: "bg-primary/15 text-primary",
-  aprovado: "bg-emerald-500/15 text-emerald-400",
-  recusado: "bg-destructive/15 text-destructive",
+  rascunho: "bg-muted text-muted-foreground border border-border/60",
+  enviado: "bg-sky-500/10 text-sky-400 border border-sky-500/20",
+  aprovado: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
+  recusado: "bg-destructive/10 text-destructive border border-destructive/20",
+  vencido: "bg-amber-500/10 text-amber-400 border border-amber-500/20",
+  arquivado: "bg-muted/40 text-muted-foreground/70 border border-border/40",
 };
 
 function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
   return <div className={`rounded-2xl border border-border/60 bg-card ${className}`}>{children}</div>;
 }
 
-function Metric({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
+function Metric({
+  label, value, tone = "default", sub,
+}: { label: string; value: string; tone?: "default" | "primary" | "warning" | "success"; sub?: string }) {
+  const valueCls =
+    tone === "primary" ? "text-primary"
+    : tone === "warning" ? "text-amber-400"
+    : tone === "success" ? "text-emerald-400"
+    : "text-foreground";
   return (
     <Card className="p-4">
-      <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className={`mt-1 text-2xl font-black ${accent ? "text-primary" : "text-foreground"}`}>{value}</div>
+      <div className="text-[11px] uppercase tracking-wide text-muted-foreground/80">{label}</div>
+      <div className={`mt-1 text-2xl font-black ${valueCls}`}>{value}</div>
+      {sub && <div className="text-[11px] text-muted-foreground mt-0.5">{sub}</div>}
     </Card>
   );
 }
 
-export function QuotesSection() {
-  const { quotes, addQuote, updateStatus, duplicateQuote } = useQuotes();
-  const [modalOpen, setModalOpen] = useState(false);
-  const [previewId, setPreviewId] = useState<string | null>(null);
+/** Resolve effective status (computes "vencido" on the fly without mutating data). */
+const effectiveStatus = (q: Quote): QuoteStatus => (isQuoteExpired(q) ? "vencido" : q.status);
 
-  const totalSent = quotes.filter((q) => q.status === "enviado").length;
-  const totalApproved = quotes.filter((q) => q.status === "aprovado").length;
-  const openValue = quotes
-    .filter((q) => q.status === "enviado" || q.status === "rascunho")
-    .reduce((s, q) => s + q.total, 0);
+export function QuotesSection() {
+  const { quotes, addQuote, updateStatus, updateQuote, duplicateQuote, deleteQuote } = useQuotes();
+  const { clients } = useClients();
+  const { leads, updateLead } = useLeads();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+
+  const [modalOpen, setModalOpen] = useState(false);
+  const [initialData, setInitialData] = useState<Partial<Quote> | null>(null);
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<Quote | null>(null);
+  const [filterStatus, setFilterStatus] = useState<"all" | QuoteStatus>("all");
+
+  /** Deep link: ?newQuote=1[&opportunityId=X][&clientId=Y] */
+  useEffect(() => {
+    if (searchParams.get("newQuote") !== "1") return;
+    const oppId = Number(searchParams.get("opportunityId"));
+    const cliId = Number(searchParams.get("clientId"));
+    const seed: Partial<Quote> = {};
+    if (oppId) {
+      const opp = leads.find((l) => l.id === oppId);
+      if (opp) {
+        seed.opportunityId = opp.id;
+        seed.opportunityTitle = opp.serviceType || opp.name;
+        seed.source = "oportunidade";
+        seed.title = opp.serviceType ? `Proposta — ${opp.serviceType}` : `Proposta — ${opp.name}`;
+        if (opp.clientId) seed.clientId = opp.clientId;
+        seed.clientName = opp.name;
+        seed.company = opp.company;
+        seed.clientEmail = opp.email;
+        seed.clientWhatsapp = opp.phone;
+        seed.notes = opp.description || opp.notes;
+      }
+    }
+    if (!seed.clientId && cliId) {
+      const cli = clients.find((c) => c.id === cliId);
+      if (cli) {
+        seed.source = seed.source || "cliente";
+        seed.clientId = cli.id;
+        seed.clientName = cli.name;
+        seed.company = cli.company;
+        seed.clientEmail = cli.email;
+        seed.clientWhatsapp = cli.whatsapp || cli.phone;
+      }
+    }
+    setInitialData(Object.keys(seed).length ? seed : null);
+    setModalOpen(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete("newQuote"); next.delete("opportunityId"); next.delete("clientId");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, leads, clients, setSearchParams]);
+
+  // KPIs ---
+  const openQuotes = quotes.filter((q) => effectiveStatus(q) === "rascunho" || effectiveStatus(q) === "enviado");
+  const openValue = openQuotes.reduce((s, q) => s + q.total, 0);
+  const approvedQuotes = quotes.filter((q) => q.status === "aprovado");
+  const decisive = quotes.filter((q) => q.status === "aprovado" || q.status === "recusado").length;
+  const approvalRate = decisive ? Math.round((approvedQuotes.length / decisive) * 100) : null;
+  const expiringSoon = quotes.filter((q) => {
+    const d = getQuoteDaysToExpire(q);
+    return q.status === "enviado" && d !== null && d >= 0 && d <= 5;
+  }).length;
+
+  const filtered = useMemo(() => {
+    if (filterStatus === "all") return quotes.filter((q) => q.status !== "arquivado");
+    return quotes.filter((q) => effectiveStatus(q) === filterStatus);
+  }, [quotes, filterStatus]);
 
   const preview = quotes.find((q) => q.id === previewId) ?? null;
+
+  const handleSave = (data: Omit<Quote, "id" | "createdAt" | "subtotal" | "total" | "isDemo">) => {
+    const created = addQuote(data);
+    if (created.opportunityId) {
+      updateLead(created.opportunityId, { quoteId: created.id, quoteTitle: created.title });
+    }
+    toast.success("Orçamento salvo");
+    setModalOpen(false);
+    setInitialData(null);
+  };
 
   return (
     <div className="space-y-6">
@@ -56,7 +154,7 @@ export function QuotesSection() {
         </div>
         <button
           type="button"
-          onClick={() => setModalOpen(true)}
+          onClick={() => { setInitialData(null); setModalOpen(true); }}
           className="rounded-xl border border-border px-4 py-2 text-sm font-bold text-primary hover:bg-primary hover:text-primary-foreground transition flex items-center gap-2"
         >
           <Plus className="h-4 w-4" /> Novo orçamento
@@ -64,17 +162,41 @@ export function QuotesSection() {
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Metric label="Criados" value={String(quotes.length)} />
-        <Metric label="Enviados" value={String(totalSent)} />
-        <Metric label="Aprovados" value={String(totalApproved)} accent />
-        <Metric label="Valor em aberto" value={BRL(openValue)} />
+        <Metric label="Em aberto" value={String(openQuotes.length)} sub="Rascunho + enviado" />
+        <Metric label="Valor em propostas" value={BRL(openValue)} tone="primary" />
+        <Metric label="Aprovados" value={String(approvedQuotes.length)} tone="success" />
+        <Metric
+          label="Vencendo em breve"
+          value={String(expiringSoon)}
+          tone={expiringSoon > 0 ? "warning" : "default"}
+          sub={expiringSoon > 0 ? "Até 5 dias para expirar" : "Tudo dentro do prazo"}
+        />
       </div>
 
-      {quotes.length === 0 ? (
+      {/* Status filter */}
+      <div className="flex flex-wrap gap-1.5">
+        {(["all", "rascunho", "enviado", "aprovado", "recusado", "vencido", "arquivado"] as const).map((s) => (
+          <button
+            key={s}
+            onClick={() => setFilterStatus(s)}
+            className={`text-xs font-medium rounded-full px-3 py-1.5 border transition ${
+              filterStatus === s
+                ? "bg-primary/10 border-primary/30 text-primary"
+                : "border-border/60 text-muted-foreground hover:text-foreground hover:border-border"
+            }`}
+          >
+            {s === "all" ? "Todos ativos" : STATUS_LABEL[s]}
+          </button>
+        ))}
+      </div>
+
+      {filtered.length === 0 ? (
         <Card className="p-10 text-center">
           <FileText className="mx-auto h-10 w-10 text-primary" />
-          <h2 className="mt-4 text-xl font-black">Nenhum orçamento criado</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Crie seu primeiro orçamento para enviar ao cliente.</p>
+          <h2 className="mt-4 text-xl font-black">Nenhum orçamento por aqui</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Crie seu primeiro orçamento ou ajuste o filtro acima.
+          </p>
         </Card>
       ) : (
         <Card className="overflow-x-auto">
@@ -83,37 +205,137 @@ export function QuotesSection() {
               <tr className="border-b border-border/60">
                 <th className="px-4 py-3 text-left">Título</th>
                 <th className="px-4 py-3 text-left">Cliente</th>
-                <th className="px-4 py-3 text-right">Valor</th>
+                <th className="px-4 py-3 text-left">Vínculo</th>
                 <th className="px-4 py-3 text-left">Status</th>
-                <th className="px-4 py-3 text-left">Data</th>
+                <th className="px-4 py-3 text-right">Valor</th>
                 <th className="px-4 py-3 text-left">Validade</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60">
-              {quotes.map((q) => (
-                <tr key={q.id} className="hover:bg-muted/40/50 transition">
-                  <td className="px-4 py-3 font-bold text-foreground">{q.title}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{q.clientName}</td>
-                  <td className="px-4 py-3 text-right font-black text-primary">{BRL(q.total)}</td>
-                  <td className="px-4 py-3">
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${STATUS_STYLE[q.status]}`}>
-                      {STATUS_LABEL[q.status]}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">{q.createdAt}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{q.validityDays}d</td>
-                  <td className="px-4 py-3 text-right">
-                    <button
-                      type="button"
-                      onClick={() => setPreviewId(q.id)}
-                      className="rounded-lg border border-border/60 px-3 py-1.5 text-xs font-bold text-foreground hover:border-primary hover:text-primary transition"
-                    >
-                      Ver
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {filtered.map((q) => {
+                const eff = effectiveStatus(q);
+                const days = getQuoteDaysToExpire(q);
+                return (
+                  <tr key={q.id} className="hover:bg-muted/30 transition">
+                    <td className="px-4 py-3">
+                      <div className="font-bold text-foreground">{q.title}</div>
+                      <div className="text-xs text-muted-foreground">{q.createdAt}</div>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      <div className="text-foreground">{q.clientName}</div>
+                      {q.company && <div className="text-xs">{q.company}</div>}
+                    </td>
+                    <td className="px-4 py-3">
+                      {q.opportunityId ? (
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/crm`)}
+                          className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                          title="Ver oportunidade no CRM"
+                        >
+                          <Link2 className="h-3 w-3" /> {q.opportunityTitle || "Oportunidade"}
+                        </button>
+                      ) : q.clientId ? (
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/clientes?focus=${q.clientId}`)}
+                          className="inline-flex items-center gap-1 text-xs text-sky-400 hover:underline"
+                        >
+                          <UserIcon className="h-3 w-3" /> Cliente
+                        </button>
+                      ) : (
+                        <span className="text-xs text-muted-foreground/60">Manual</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${STATUS_STYLE[eff]}`}>
+                        {STATUS_LABEL[eff]}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right font-black text-foreground">{BRL(q.total)}</td>
+                    <td className="px-4 py-3">
+                      {days === null ? (
+                        <span className="text-xs text-muted-foreground/60">—</span>
+                      ) : days < 0 ? (
+                        <span className="text-xs text-amber-400 inline-flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3" /> vencido
+                        </span>
+                      ) : days <= 5 && q.status === "enviado" ? (
+                        <span className="text-xs text-amber-400">vence em {days}d</span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">{q.validityDays}d</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setPreviewId(q.id)}
+                          className="rounded-lg border border-border/60 px-3 py-1.5 text-xs font-bold text-foreground hover:border-primary hover:text-primary transition inline-flex items-center gap-1"
+                        >
+                          <Eye className="h-3 w-3" /> Ver
+                        </button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              type="button"
+                              className="rounded-lg border border-border/60 p-1.5 text-muted-foreground hover:text-foreground transition"
+                              aria-label="Mais ações"
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="bg-card border-border w-52">
+                            {q.status !== "enviado" && q.status !== "aprovado" && q.status !== "arquivado" && (
+                              <DropdownMenuItem onClick={() => { updateStatus(q.id, "enviado"); toast.success("Marcado como enviado"); }}>
+                                <Send className="h-3.5 w-3.5 mr-2" /> Marcar como enviado
+                              </DropdownMenuItem>
+                            )}
+                            {q.status !== "aprovado" && q.status !== "arquivado" && (
+                              <DropdownMenuItem onClick={() => { updateStatus(q.id, "aprovado"); toast.success("Orçamento aprovado"); }}>
+                                <Check className="h-3.5 w-3.5 mr-2" /> Marcar como aprovado
+                              </DropdownMenuItem>
+                            )}
+                            {q.status !== "recusado" && q.status !== "arquivado" && (
+                              <DropdownMenuItem onClick={() => { updateStatus(q.id, "recusado"); toast("Marcado como recusado"); }}>
+                                <XCircle className="h-3.5 w-3.5 mr-2" /> Marcar como recusado
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem onClick={() => { duplicateQuote(q.id); toast.success("Orçamento duplicado"); }}>
+                              <Copy className="h-3.5 w-3.5 mr-2" /> Duplicar
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => toast("Gerar projeto a partir de orçamento — em breve.")}
+                              className="text-muted-foreground"
+                            >
+                              <FileText className="h-3.5 w-3.5 mr-2" /> Gerar projeto
+                              <span className="ml-auto text-[9px] uppercase tracking-wide">soon</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            {q.status !== "arquivado" ? (
+                              <DropdownMenuItem onClick={() => { updateStatus(q.id, "arquivado"); toast("Orçamento arquivado"); }}>
+                                <Archive className="h-3.5 w-3.5 mr-2" /> Arquivar
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem onClick={() => { updateStatus(q.id, "rascunho"); toast.success("Orçamento restaurado"); }}>
+                                <Archive className="h-3.5 w-3.5 mr-2" /> Restaurar
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem
+                              onClick={() => setConfirmDelete(q)}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              <Trash2 className="h-3.5 w-3.5 mr-2" /> Excluir
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </Card>
@@ -121,12 +343,9 @@ export function QuotesSection() {
 
       {modalOpen && (
         <NewQuoteWizard
-          onClose={() => setModalOpen(false)}
-          onSave={(data) => {
-            addQuote(data);
-            toast.success("Orçamento salvo");
-            setModalOpen(false);
-          }}
+          initial={initialData}
+          onClose={() => { setModalOpen(false); setInitialData(null); }}
+          onSave={handleSave}
         />
       )}
 
@@ -147,8 +366,30 @@ export function QuotesSection() {
             updateStatus(preview.id, "aprovado");
             toast.success("Orçamento aprovado");
           }}
+          onOpenOpportunity={preview.opportunityId ? () => navigate("/crm") : undefined}
+          onOpenClient={preview.clientId ? () => navigate(`/clientes?focus=${preview.clientId}`) : undefined}
         />
       )}
+
+      <AlertDialog open={!!confirmDelete} onOpenChange={(v) => !v && setConfirmDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir orçamento?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação remove permanentemente <strong>{confirmDelete?.title}</strong>. Não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => { if (confirmDelete) { deleteQuote(confirmDelete.id); toast.success("Orçamento excluído"); setConfirmDelete(null); } }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -158,25 +399,35 @@ export function QuotesSection() {
 type WizardData = Omit<Quote, "id" | "createdAt" | "subtotal" | "total" | "isDemo">;
 
 function NewQuoteWizard({
+  initial,
   onClose,
   onSave,
 }: {
+  initial: Partial<Quote> | null;
   onClose: () => void;
   onSave: (data: WizardData) => void;
 }) {
   const { services } = useServices();
   const { clients } = useClients();
   const [step, setStep] = useState(1);
-  const [clientName, setClientName] = useState("");
-  const [clientEmail, setClientEmail] = useState("");
-  const [clientWhatsapp, setClientWhatsapp] = useState("");
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [items, setItems] = useState<QuoteItem[]>([]);
-  const [discount, setDiscount] = useState("0");
-  const [paymentCondition, setPaymentCondition] = useState("À vista no Pix");
-  const [deliveryDeadline, setDeliveryDeadline] = useState("15 dias");
-  const [validityDays, setValidityDays] = useState("15");
+
+  const [clientName, setClientName] = useState(initial?.clientName ?? "");
+  const [clientId, setClientId] = useState<number | undefined>(initial?.clientId);
+  const [company, setCompany] = useState(initial?.company ?? "");
+  const [clientEmail, setClientEmail] = useState(initial?.clientEmail ?? "");
+  const [clientWhatsapp, setClientWhatsapp] = useState(initial?.clientWhatsapp ?? "");
+  const [title, setTitle] = useState(initial?.title ?? "");
+  const [description, setDescription] = useState(initial?.description ?? "");
+  const [items, setItems] = useState<QuoteItem[]>(initial?.items ?? []);
+  const [discount, setDiscount] = useState(String(initial?.discount ?? "0"));
+  const [paymentCondition, setPaymentCondition] = useState(initial?.paymentCondition ?? "À vista no Pix");
+  const [deliveryDeadline, setDeliveryDeadline] = useState(initial?.deliveryDeadline ?? "15 dias");
+  const [validityDays, setValidityDays] = useState(String(initial?.validityDays ?? 15));
+  const [notes, setNotes] = useState(initial?.notes ?? "");
+
+  const opportunityId = initial?.opportunityId;
+  const opportunityTitle = initial?.opportunityTitle;
+  const source: QuoteSource = initial?.source ?? "manual";
 
   const subtotal = items.reduce((s, i) => s + i.quantity * i.unitPrice, 0);
   const total = Math.max(subtotal - Number(discount || 0), 0);
@@ -224,6 +475,11 @@ function NewQuoteWizard({
       clientName: clientName.trim(),
       clientEmail: clientEmail.trim(),
       clientWhatsapp: clientWhatsapp.trim(),
+      company: company.trim() || undefined,
+      clientId,
+      opportunityId,
+      opportunityTitle,
+      source,
       title: title.trim(),
       description: description.trim(),
       items,
@@ -231,12 +487,26 @@ function NewQuoteWizard({
       paymentCondition: paymentCondition.trim(),
       deliveryDeadline: deliveryDeadline.trim(),
       validityDays: Number(validityDays) || 0,
+      notes: notes.trim() || undefined,
       status: "rascunho",
     });
   }
 
+  const sourceBadge =
+    source === "oportunidade" ? { label: "Origem: oportunidade", cls: "bg-primary/10 text-primary border-primary/30" }
+    : source === "cliente" ? { label: "Origem: cliente", cls: "bg-sky-500/10 text-sky-400 border-sky-500/20" }
+    : null;
+
   return (
     <Shell title={`Novo orçamento — Etapa ${step} de 4`} onClose={onClose} wide>
+      {sourceBadge && (
+        <div className={`mb-4 inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide rounded-full px-3 py-1 border ${sourceBadge.cls}`}>
+          <Link2 className="h-3 w-3" />
+          {sourceBadge.label}
+          {opportunityTitle && <span className="text-muted-foreground normal-case">— {opportunityTitle}</span>}
+        </div>
+      )}
+
       <div className="mb-5 flex gap-1">
         {[1, 2, 3, 4].map((s) => (
           <div
@@ -257,8 +527,12 @@ function NewQuoteWizard({
                 setClientName(v);
                 const c = clients.find((cl) => cl.name === v);
                 if (c) {
+                  setClientId(c.id);
+                  setCompany(c.company || "");
                   setClientEmail(c.email || "");
                   setClientWhatsapp(c.whatsapp || c.phone || "");
+                } else {
+                  setClientId(undefined);
                 }
               }}
               placeholder="Nome do cliente"
@@ -270,6 +544,9 @@ function NewQuoteWizard({
                 <option key={c.id} value={c.name} />
               ))}
             </datalist>
+          </FieldLabel>
+          <FieldLabel label="Empresa">
+            <input value={company} onChange={(e) => setCompany(e.target.value)} maxLength={120} placeholder="Razão social, opcional" className="modal-input" />
           </FieldLabel>
           <div className="grid gap-4 md:grid-cols-2">
             <FieldLabel label="Email">
@@ -346,7 +623,7 @@ function NewQuoteWizard({
                     onChange={(e) => updateItem(it.id, { unitPrice: Number(e.target.value) || 0 })}
                     className="modal-input"
                   />
-                  <button type="button" onClick={() => removeItem(it.id)} className="text-muted-foreground hover:text-red-400 p-2" aria-label="Remover">
+                  <button type="button" onClick={() => removeItem(it.id)} className="text-muted-foreground hover:text-destructive p-2" aria-label="Remover">
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
@@ -381,6 +658,9 @@ function NewQuoteWizard({
           <FieldLabel label="Validade da proposta (dias)">
             <input type="number" min={1} value={validityDays} onChange={(e) => setValidityDays(e.target.value)} className="modal-input" />
           </FieldLabel>
+          <FieldLabel label="Observações / escopo">
+            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} maxLength={600} placeholder="O que está incluso, exclusões, condições adicionais..." className="modal-input resize-none" />
+          </FieldLabel>
           <WizardActions onClose={onClose} step={step} onBack={() => setStep(2)} />
         </form>
       )}
@@ -391,6 +671,7 @@ function NewQuoteWizard({
             <div>
               <div className="text-xs uppercase text-muted-foreground">Cliente</div>
               <div className="font-bold">{clientName}</div>
+              {company && <div className="text-xs text-muted-foreground">{company}</div>}
               {clientEmail && <div className="text-xs text-muted-foreground">{clientEmail}</div>}
               {clientWhatsapp && <div className="text-xs text-muted-foreground">{clientWhatsapp}</div>}
             </div>
@@ -426,6 +707,7 @@ function NewQuoteWizard({
               <div>Pagamento: {paymentCondition}</div>
               <div>Prazo: {deliveryDeadline}</div>
               <div>Validade: {validityDays} dias</div>
+              {notes && <div>Obs.: {notes}</div>}
             </div>
           </Card>
           <div className="flex gap-3">
@@ -460,42 +742,75 @@ function QuotePreview({
   onDuplicate,
   onSend,
   onApprove,
+  onOpenOpportunity,
+  onOpenClient,
 }: {
   quote: Quote;
   onClose: () => void;
   onDuplicate: () => void;
   onSend: () => void;
   onApprove: () => void;
+  onOpenOpportunity?: () => void;
+  onOpenClient?: () => void;
 }) {
+  const eff = effectiveStatus(quote);
+  const days = getQuoteDaysToExpire(quote);
+
   return (
     <Shell title="Preview do orçamento" onClose={onClose} wide>
+      <div className="mb-3 flex items-center flex-wrap gap-2">
+        <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${STATUS_STYLE[eff]}`}>
+          {STATUS_LABEL[eff]}
+        </span>
+        {quote.opportunityId && onOpenOpportunity && (
+          <button onClick={onOpenOpportunity} className="text-xs text-primary hover:underline inline-flex items-center gap-1">
+            <Link2 className="h-3 w-3" /> {quote.opportunityTitle || "Oportunidade vinculada"}
+          </button>
+        )}
+        {!quote.opportunityId && quote.clientId && onOpenClient && (
+          <button onClick={onOpenClient} className="text-xs text-sky-400 hover:underline inline-flex items-center gap-1">
+            <UserIcon className="h-3 w-3" /> Ver cliente
+          </button>
+        )}
+        {days !== null && days < 0 && (
+          <span className="text-xs text-amber-400 inline-flex items-center gap-1">
+            <AlertTriangle className="h-3 w-3" /> Proposta vencida
+          </span>
+        )}
+        {days !== null && days >= 0 && days <= 5 && quote.status === "enviado" && (
+          <span className="text-xs text-amber-400">vence em {days}d</span>
+        )}
+      </div>
+
       <div className="rounded-2xl border border-border/60 bg-white text-zinc-900 p-8 space-y-5">
         <div className="flex items-start justify-between border-b border-zinc-200 pb-4">
           <div>
-            <div className="text-xs uppercase tracking-wider text-muted-foreground">Orçamento</div>
+            <div className="text-xs uppercase tracking-wider text-zinc-500">Proposta comercial</div>
             <div className="text-2xl font-black">KORA HUB</div>
           </div>
-          <div className="text-right text-xs text-muted-foreground">
+          <div className="text-right text-xs text-zinc-500">
             <div>Emitido em {quote.createdAt}</div>
             <div>Validade {quote.validityDays} dias</div>
           </div>
         </div>
 
-        <div>
-          <div className="text-xs uppercase text-muted-foreground">Cliente</div>
-          <div className="font-bold">{quote.clientName}</div>
-          {quote.clientEmail && <div className="text-sm text-zinc-600">{quote.clientEmail}</div>}
-          {quote.clientWhatsapp && <div className="text-sm text-zinc-600">{quote.clientWhatsapp}</div>}
-        </div>
-
-        <div>
-          <div className="text-xs uppercase text-muted-foreground">Projeto</div>
-          <div className="font-bold">{quote.title}</div>
-          {quote.description && <p className="text-sm text-zinc-600 mt-1">{quote.description}</p>}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <div className="text-xs uppercase text-zinc-500">Cliente</div>
+            <div className="font-bold">{quote.clientName}</div>
+            {quote.company && <div className="text-sm text-zinc-600">{quote.company}</div>}
+            {quote.clientEmail && <div className="text-sm text-zinc-600">{quote.clientEmail}</div>}
+            {quote.clientWhatsapp && <div className="text-sm text-zinc-600">{quote.clientWhatsapp}</div>}
+          </div>
+          <div>
+            <div className="text-xs uppercase text-zinc-500">Projeto</div>
+            <div className="font-bold">{quote.title}</div>
+            {quote.description && <p className="text-sm text-zinc-600 mt-1">{quote.description}</p>}
+          </div>
         </div>
 
         <table className="w-full text-sm">
-          <thead className="text-xs uppercase text-muted-foreground border-b border-zinc-200">
+          <thead className="text-xs uppercase text-zinc-500 border-b border-zinc-200">
             <tr>
               <th className="py-2 text-left">Item</th>
               <th className="py-2 text-center w-16">Qtd</th>
@@ -525,15 +840,19 @@ function QuotePreview({
         <div className="grid gap-1 text-xs text-zinc-600 pt-3 border-t border-zinc-200">
           <div><strong>Pagamento:</strong> {quote.paymentCondition}</div>
           <div><strong>Prazo:</strong> {quote.deliveryDeadline}</div>
+          {quote.notes && <div className="mt-2"><strong>Observações:</strong> {quote.notes}</div>}
         </div>
       </div>
 
       <div className="mt-5 grid grid-cols-2 md:grid-cols-4 gap-2">
-        <ActionButton icon={<Download className="h-4 w-4" />} label="Baixar PDF" onClick={() => toast.info("PDF será implementado na próxima etapa")} />
-        <ActionButton icon={<Send className="h-4 w-4" />} label="Enviar" onClick={onSend} />
+        <ActionButton icon={<Download className="h-4 w-4" />} label="Baixar PDF" onClick={() => toast("Geração de PDF chega em breve.")} />
+        <ActionButton icon={<Send className="h-4 w-4" />} label="Marcar enviado" onClick={onSend} />
         <ActionButton icon={<Copy className="h-4 w-4" />} label="Duplicar" onClick={onDuplicate} />
         <ActionButton icon={<Check className="h-4 w-4" />} label="Aprovar" onClick={onApprove} primary />
       </div>
+      <p className="mt-3 text-[11px] text-muted-foreground">
+        Envio por WhatsApp/e-mail, aprovação online e checkout real chegam em breve.
+      </p>
     </Shell>
   );
 }
@@ -616,7 +935,7 @@ function ModalStyles() {
         color: white;
         outline: none;
       }
-      .modal-input:focus { border-color: #fbbf24; }
+      .modal-input:focus { border-color: hsl(var(--primary)); }
       .modal-input::placeholder { color: #71717a; }
     `}</style>
   );
