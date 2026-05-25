@@ -317,6 +317,16 @@ export function QuotesSection() {
                               <Copy className="h-3.5 w-3.5 mr-2" /> Duplicar
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
+                            {q.status === "aprovado" && !q.financeEntryId && (
+                              <DropdownMenuItem onClick={() => setReceivableQuote(q)}>
+                                <Wallet className="h-3.5 w-3.5 mr-2" /> Gerar conta a receber
+                              </DropdownMenuItem>
+                            )}
+                            {q.financeEntryId && (
+                              <DropdownMenuItem onClick={() => navigate(`/financeiro?tab=receivables&entryId=${q.financeEntryId}`)}>
+                                <Wallet className="h-3.5 w-3.5 mr-2" /> Ver recebível
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuItem
                               onClick={() => toast("Gerar projeto a partir de orçamento — em breve.")}
                               className="text-muted-foreground"
