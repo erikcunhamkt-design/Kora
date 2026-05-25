@@ -90,15 +90,8 @@ const Dashboard = () => {
         ))}
       </div>
 
-      {/* 3 — Alerta crítico real (só aparece se houver) */}
-      {overdueTasks > 0 && (
-        <CriticalAlert
-          title={`${overdueTasks} tarefas atrasadas precisam de atenção`}
-          description="Revisar prazos hoje evita atrito com clientes e perda de receita."
-          cta="Abrir tarefas"
-          route="/tarefas"
-        />
-      )}
+      {/* 3 — Central do Dia (próxima melhor ação + próximos itens + resumo por categoria) */}
+      <DayCenterSummary />
 
       {/* 4 — Pipeline + financeiro (negócio) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -106,11 +99,6 @@ const Dashboard = () => {
         <FinanceSummary />
       </div>
 
-      {/* 5 — Tarefas do dia + próximas ações */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <NextActions />
-        <TodayTasks />
-      </div>
 
       {/* Atalhos rápidos */}
       <QuickShortcuts />
