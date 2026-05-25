@@ -314,5 +314,3 @@ function EmptyTop() {
   );
 }
 
-// Re-export marker to satisfy unused import warning concerns
-void AlertTriangle;
