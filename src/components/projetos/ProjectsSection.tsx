@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Progress } from "@/components/ui/progress";
 import { Plus, Search, FolderOpen, Loader2, Eye, CheckCircle2, DollarSign, AlertTriangle, Calendar, User, Link2, FileText } from "lucide-react";
 import { useProjects, PROJECT_STATUS_LABEL, PROJECT_PRIORITY_LABEL, type ProjectStatus, type ProjectPriority } from "@/hooks/useProjects";
+import { ProjectDetailDrawer } from "@/components/projects/ProjectDetailDrawer";
 import { toast } from "@/hooks/use-toast";
 
 const SERVICE_TYPES = ["Branding", "Web", "Social", "Tráfego", "Vídeo", "Conteúdo", "Outro"];
