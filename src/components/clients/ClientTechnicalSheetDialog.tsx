@@ -549,7 +549,7 @@ export function BrandingSection({ value, onSave }: { value: ClientBranding; onSa
       </Field>
 
       <div className="rounded-lg border border-dashed border-border/60 bg-secondary/20 p-3 text-xs text-muted-foreground/80">
-        Upload seguro em etapa futura. Por enquanto, registre o link externo do logo.
+        Arquivos enviados ficam salvos localmente neste navegador. Sincronização entre dispositivos e cofre na nuvem virão em etapa futura.
       </div>
     </SectionShell>
   );
