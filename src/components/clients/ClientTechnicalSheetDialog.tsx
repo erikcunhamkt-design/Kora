@@ -14,7 +14,7 @@ import { toast } from "sonner";
 import {
   Palette, Users, FileText, Type, Share2, KeyRound, Swords,
   ClipboardList, FolderOpen, ChevronLeft, ChevronRight, Save, Plus, Trash2,
-  Eye, EyeOff, ShieldAlert, Copy, ExternalLink, Pencil, X,
+  Eye, EyeOff, ShieldAlert, Copy, ExternalLink, Pencil, X, Upload, Link2, FileUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type {
