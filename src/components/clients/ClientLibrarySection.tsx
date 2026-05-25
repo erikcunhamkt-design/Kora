@@ -2,8 +2,8 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   Library, Plus, ExternalLink, Copy, Pencil, Trash2,
-  FolderOpen, Figma, Palette, Type, Camera, Video, FileText,
-  FileSignature, Sparkles, Instagram, LinkIcon, ChevronDown, ChevronUp,
+  FolderOpen, Palette, Type, Camera, Video, FileText,
+  FileSignature, Sparkles, AtSign, ChevronDown, ChevronUp, Link as LinkIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -28,7 +28,7 @@ import {
 
 const TYPE_ICON: Record<ClientAssetType, any> = {
   drive: FolderOpen,
-  figma: Figma,
+  figma: Palette,
   canva: Palette,
   identidade_visual: Sparkles,
   tipografia: Type,
@@ -37,7 +37,7 @@ const TYPE_ICON: Record<ClientAssetType, any> = {
   briefing: FileText,
   contrato: FileSignature,
   referencias: LinkIcon,
-  redes_sociais: Instagram,
+  redes_sociais: AtSign,
   outro: LinkIcon,
 };
 
