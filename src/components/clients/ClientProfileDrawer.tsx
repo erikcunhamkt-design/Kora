@@ -107,7 +107,7 @@ const ConnectionCard = ({
 // ---------- Main ----------
 
 export const ClientProfileDrawer = ({
-  client, onClose, onEdit, onWhats, onArchive, onRestore,
+  client, onClose, onEdit, onWhats, onArchive, onRestore, onCreateOpportunity,
 }: {
   client: Client | null;
   onClose: () => void;
@@ -115,6 +115,7 @@ export const ClientProfileDrawer = ({
   onWhats: (c: Client) => void;
   onArchive?: (c: Client) => void;
   onRestore?: (c: Client) => void;
+  onCreateOpportunity?: (c: Client) => void;
 }) => {
   if (!client) return null;
 
