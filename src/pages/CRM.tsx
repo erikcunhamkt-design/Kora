@@ -398,14 +398,19 @@ const CRM = () => {
         }
       />
 
-      {/* Summary — compact strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
-        <SummaryCard icon={TrendingUp} label="Em pipeline" value={formatCurrency(totalPipeline)} accent="primary" />
-        <SummaryCard icon={DollarSign} label="Valor ganho" value={formatCurrency(wonValue)} sub={`${wonCount} fechado${wonCount !== 1 ? "s" : ""}`} accent="success" />
-        <SummaryCard icon={Sparkles} label="Leads novos" value={String(newCount)} accent="muted" />
-        <SummaryCard icon={CheckCircle2} label="Ganhos" value={String(wonCount)} accent="success" />
-        <SummaryCard icon={BarChart3} label="Conversão" value={`${conversion}%`} accent="primary" />
-        <SummaryCard icon={XCircle} label="Valor perdido" value={formatCurrency(lostValue)} accent="danger" />
+      {/* KPIs — foco em oportunidades abertas, valor e follow-ups */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+        <SummaryCard icon={TrendingUp} label="Oportunidades abertas" value={String(openLeads.length)} accent="primary" />
+        <SummaryCard icon={DollarSign} label="Valor no funil" value={formatCurrency(totalPipeline)} accent="primary" />
+        <SummaryCard
+          icon={Clock}
+          label="Follow-ups pendentes"
+          value={String(followupsPending)}
+          sub={followupsPending > 0 ? "definir próximo passo" : "tudo em dia"}
+          accent={followupsPending > 0 ? "danger" : "muted"}
+        />
+        <SummaryCard icon={BarChart3} label="Conversão" value={`${conversion}%`} accent="muted" />
+        <SummaryCard icon={CheckCircle2} label="Ganhas no período" value={String(wonCount)} sub={wonValue > 0 ? formatCurrency(wonValue) : undefined} accent="success" />
       </div>
 
       {/* Premium toolbar: pipeline + view + filters */}
