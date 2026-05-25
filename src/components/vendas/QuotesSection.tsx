@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import {
   FileText, Plus, X, Download, Send, Copy, Check, Trash2, Archive,
   Link2, AlertTriangle, Eye, MoreHorizontal, XCircle, User as UserIcon, Wallet,
+  FolderKanban,
 } from "lucide-react";
 import {
   useQuotes, type Quote, type QuoteItem, type QuoteStatus, type QuoteSource,
@@ -20,6 +21,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { QuoteToReceivableDialog } from "@/components/vendas/QuoteToReceivableDialog";
+import { QuoteToProjectDialog } from "@/components/vendas/QuoteToProjectDialog";
 
 const BRL = (n: number) =>
   n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2 });
@@ -79,6 +81,7 @@ export function QuotesSection() {
   const [confirmDelete, setConfirmDelete] = useState<Quote | null>(null);
   const [filterStatus, setFilterStatus] = useState<"all" | QuoteStatus>("all");
   const [receivableQuote, setReceivableQuote] = useState<Quote | null>(null);
+  const [projectQuote, setProjectQuote] = useState<Quote | null>(null);
 
   /** Deep link: ?newQuote=1[&opportunityId=X][&clientId=Y] */
   useEffect(() => {
@@ -327,13 +330,24 @@ export function QuotesSection() {
                                 <Wallet className="h-3.5 w-3.5 mr-2" /> Ver recebível
                               </DropdownMenuItem>
                             )}
-                            <DropdownMenuItem
-                              onClick={() => toast("Gerar projeto a partir de orçamento — em breve.")}
-                              className="text-muted-foreground"
-                            >
-                              <FileText className="h-3.5 w-3.5 mr-2" /> Gerar projeto
-                              <span className="ml-auto text-[9px] uppercase tracking-wide">soon</span>
-                            </DropdownMenuItem>
+                            {q.status === "aprovado" && !q.projectId && (
+                              <DropdownMenuItem onClick={() => setProjectQuote(q)}>
+                                <FolderKanban className="h-3.5 w-3.5 mr-2" /> Gerar projeto
+                              </DropdownMenuItem>
+                            )}
+                            {q.projectId && (
+                              <DropdownMenuItem onClick={() => navigate(`/portfolio?tab=projetos&projectId=${q.projectId}`)}>
+                                <FolderKanban className="h-3.5 w-3.5 mr-2" /> Ver projeto
+                              </DropdownMenuItem>
+                            )}
+                            {q.status === "aprovado" && q.projectId && (
+                              <DropdownMenuItem
+                                onClick={() => toast("Este orçamento já possui um projeto vinculado.")}
+                                className="hidden"
+                              >
+                                <FolderKanban className="h-3.5 w-3.5 mr-2" /> Projeto vinculado
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuSeparator />
                             {q.status !== "arquivado" ? (
                               <DropdownMenuItem onClick={() => { updateStatus(q.id, "arquivado"); toast("Orçamento arquivado"); }}>
@@ -396,6 +410,8 @@ export function QuotesSection() {
           onOpenReceivable={preview.financeEntryId ? () => navigate(`/financeiro?tab=receivables&entryId=${preview.financeEntryId}`) : undefined}
           onOpenOpportunity={preview.opportunityId ? () => navigate("/crm") : undefined}
           onOpenClient={preview.clientId ? () => navigate(`/clientes?focus=${preview.clientId}`) : undefined}
+          onGenerateProject={preview.status === "aprovado" && !preview.projectId ? () => setProjectQuote(preview) : undefined}
+          onOpenProject={preview.projectId ? () => navigate(`/portfolio?tab=projetos&projectId=${preview.projectId}`) : undefined}
         />
       )}
 
@@ -409,6 +425,18 @@ export function QuotesSection() {
           }
         }}
       />
+
+      <QuoteToProjectDialog
+        quote={projectQuote}
+        open={!!projectQuote}
+        onOpenChange={(v) => !v && setProjectQuote(null)}
+        onGenerated={(project) => {
+          if (projectQuote) {
+            updateQuote(projectQuote.id, { projectId: project.id, projectTitle: project.name });
+          }
+        }}
+      />
+
 
       <AlertDialog open={!!confirmDelete} onOpenChange={(v) => !v && setConfirmDelete(null)}>
         <AlertDialogContent>
@@ -786,6 +814,8 @@ function QuotePreview({
   onOpenClient,
   onGenerateReceivable,
   onOpenReceivable,
+  onGenerateProject,
+  onOpenProject,
 }: {
   quote: Quote;
   onClose: () => void;
@@ -796,6 +826,8 @@ function QuotePreview({
   onOpenClient?: () => void;
   onGenerateReceivable?: () => void;
   onOpenReceivable?: () => void;
+  onGenerateProject?: () => void;
+  onOpenProject?: () => void;
 }) {
   const eff = effectiveStatus(quote);
   const days = getQuoteDaysToExpire(quote);
@@ -923,6 +955,43 @@ function QuotePreview({
           )}
         </div>
       )}
+
+      {quote.status === "aprovado" && (
+        <div className="mt-3 rounded-xl border border-border/60 bg-card p-4 flex flex-wrap items-center gap-3">
+          <div className="h-9 w-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+            <FolderKanban className="h-4 w-4" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-[11px] uppercase tracking-wide text-muted-foreground/80">Entrega / Projeto</div>
+            <div className="text-sm font-semibold text-foreground">
+              {quote.projectId ? "Projeto criado" : "Projeto ainda não criado"}
+            </div>
+            <div className="text-[11px] text-muted-foreground">
+              {quote.projectId
+                ? (quote.projectTitle ?? "Acompanhe a entrega no módulo de projetos.")
+                : "Transforme este orçamento aprovado em um projeto com entregáveis."}
+            </div>
+          </div>
+          {quote.projectId ? (
+            <button
+              type="button"
+              onClick={onOpenProject}
+              className="rounded-lg border border-border/60 px-3 py-1.5 text-xs font-bold text-foreground hover:border-primary hover:text-primary transition inline-flex items-center gap-1"
+            >
+              <Eye className="h-3 w-3" /> Ver projeto
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onGenerateProject}
+              className="rounded-lg border border-border bg-primary/10 text-primary px-3 py-1.5 text-xs font-bold hover:bg-primary hover:text-primary-foreground transition inline-flex items-center gap-1"
+            >
+              <FolderKanban className="h-3 w-3" /> Gerar projeto
+            </button>
+          )}
+        </div>
+      )}
+
 
       <div className="mt-5 grid grid-cols-2 md:grid-cols-4 gap-2">
         <ActionButton icon={<Download className="h-4 w-4" />} label="Baixar PDF" onClick={() => toast("Geração de PDF chega em breve.")} />

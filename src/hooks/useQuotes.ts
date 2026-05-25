@@ -53,6 +53,9 @@ export interface Quote {
   expectedCloseDate?: string;
   /** ID da conta a receber gerada no Financeiro (vínculo 1:1 nesta etapa). */
   financeEntryId?: string;
+  /** ID do projeto local gerado a partir do orçamento aprovado. */
+  projectId?: string;
+  projectTitle?: string;
 }
 
 const STORAGE_KEY = "orbyt.quotes.v1";

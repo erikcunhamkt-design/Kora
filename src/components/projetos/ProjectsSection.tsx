@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
-import { Plus, Search, FolderOpen, Loader2, Eye, CheckCircle2, DollarSign, AlertTriangle, Calendar, User } from "lucide-react";
+import { Plus, Search, FolderOpen, Loader2, Eye, CheckCircle2, DollarSign, AlertTriangle, Calendar, User, Link2, FileText } from "lucide-react";
 import { useProjects, PROJECT_STATUS_LABEL, PROJECT_PRIORITY_LABEL, type ProjectStatus, type ProjectPriority } from "@/hooks/useProjects";
 import { toast } from "@/hooks/use-toast";
 
@@ -18,7 +19,9 @@ const statusBadge: Record<ProjectStatus, string> = {
   in_progress: "bg-amber-500/15 text-amber-400 border-amber-500/30",
   review: "bg-secondary/15 text-secondary border-secondary/30",
   delivered: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
-  paused: "bg-destructive/15 text-destructive border-destructive/30",
+  paused: "bg-muted/40 text-muted-foreground border-border/40",
+  cancelled: "bg-destructive/15 text-destructive border-destructive/30",
+  archived: "bg-muted/40 text-muted-foreground/70 border-border/40",
 };
 
 const priorityBadge: Record<ProjectPriority, string> = {
@@ -32,11 +35,31 @@ const fmtDate = (iso?: string) => (iso ? new Date(iso).toLocaleDateString("pt-BR
 
 export function ProjectsSection() {
   const { projects, addProject } = useProjects();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterService, setFilterService] = useState("all");
   const [filterPriority, setFilterPriority] = useState("all");
   const [open, setOpen] = useState(false);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+  const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  // Deep-link: ?projectId=X scrolls into view and highlights briefly.
+  useEffect(() => {
+    const pid = searchParams.get("projectId");
+    if (!pid) return;
+    if (!projects.some((p) => p.id === pid)) return;
+    setHighlightId(pid);
+    const el = cardRefs.current[pid];
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    const next = new URLSearchParams(searchParams);
+    next.delete("projectId");
+    setSearchParams(next, { replace: true });
+    const t = setTimeout(() => setHighlightId(null), 2500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, projects.length]);
 
   const filtered = useMemo(() => projects.filter((p) => {
     const q = search.toLowerCase();
@@ -188,32 +211,68 @@ export function ProjectsSection() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {filtered.map((p) => (
-          <div key={p.id} className="orbit-card p-4 space-y-3 hover:orbit-glow transition-all">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <h3 className="text-sm font-semibold text-foreground truncate">{p.name}</h3>
-                <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5"><User className="h-3 w-3" />{p.clientName}</p>
+        {filtered.map((p) => {
+          const isHL = highlightId === p.id;
+          const fromQuote = p.source === "orçamento";
+          const deliverables = p.deliverables ?? [];
+          const nextDeliverable = deliverables.find((d) => d.status !== "concluido");
+          return (
+            <div
+              key={p.id}
+              ref={(el) => { cardRefs.current[p.id] = el; }}
+              className={`orbit-card p-4 space-y-3 hover:orbit-glow transition-all ${isHL ? "ring-2 ring-primary/60 orbit-glow" : ""}`}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <h3 className="text-sm font-semibold text-foreground truncate">{p.name}</h3>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5"><User className="h-3 w-3" />{p.clientName}{p.company && ` · ${p.company}`}</p>
+                </div>
+                {p.isDemo && <Badge variant="outline" className="text-[10px] border-border text-muted-foreground">demo</Badge>}
               </div>
-              {p.isDemo && <Badge variant="outline" className="text-[10px] border-border text-muted-foreground">demo</Badge>}
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              <Badge variant="outline" className={`text-[10px] ${statusBadge[p.status]}`}>{PROJECT_STATUS_LABEL[p.status]}</Badge>
-              <Badge variant="outline" className={`text-[10px] ${priorityBadge[p.priority]}`}>{PROJECT_PRIORITY_LABEL[p.priority]}</Badge>
-              {p.serviceType && <Badge variant="outline" className="text-[10px] border-border text-muted-foreground">{p.serviceType}</Badge>}
-            </div>
-            <div>
-              <div className="flex justify-between text-xs text-muted-foreground mb-1">
-                <span>Progresso</span><span>{p.progress}%</span>
+              <div className="flex flex-wrap gap-1.5">
+                <Badge variant="outline" className={`text-[10px] ${statusBadge[p.status]}`}>{PROJECT_STATUS_LABEL[p.status]}</Badge>
+                <Badge variant="outline" className={`text-[10px] ${priorityBadge[p.priority]}`}>{PROJECT_PRIORITY_LABEL[p.priority]}</Badge>
+                {p.serviceType && <Badge variant="outline" className="text-[10px] border-border text-muted-foreground">{p.serviceType}</Badge>}
+                {fromQuote ? (
+                  <Badge variant="outline" className="text-[10px] border-primary/30 text-primary bg-primary/10 inline-flex items-center gap-1">
+                    <Link2 className="h-3 w-3" /> Orçamento
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-[10px] border-border text-muted-foreground">Manual</Badge>
+                )}
               </div>
-              <Progress value={p.progress} />
+              <div>
+                <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                  <span>Progresso</span><span>{p.progress}%</span>
+                </div>
+                <Progress value={p.progress} />
+              </div>
+              {deliverables.length > 0 && (
+                <div className="text-[11px] text-muted-foreground">
+                  {nextDeliverable
+                    ? <>Próxima entrega: <span className="text-foreground">{nextDeliverable.title}</span></>
+                    : <>{deliverables.length} entregáveis concluídos</>}
+                </div>
+              )}
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{fmtDate(p.dueDate)}</span>
+                <span className="font-medium text-foreground">{fmtBRL(p.budget)}</span>
+              </div>
+              {p.quoteId && (
+                <div className="pt-2 border-t border-border/40">
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/vendas?tab=orcamentos`)}
+                    className="text-[11px] inline-flex items-center gap-1 text-primary hover:underline"
+                    title="Abrir orçamento vinculado"
+                  >
+                    <FileText className="h-3 w-3" /> Ver orçamento{p.quoteTitle ? ` — ${p.quoteTitle}` : ""}
+                  </button>
+                </div>
+              )}
             </div>
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{fmtDate(p.dueDate)}</span>
-              <span className="font-medium text-foreground">{fmtBRL(p.budget)}</span>
-            </div>
-          </div>
-        ))}
+          );
+        })}
         {filtered.length === 0 && (
           <div className="md:col-span-2 xl:col-span-3 orbit-card p-10 text-center text-muted-foreground">
             <FolderOpen className="h-8 w-8 mx-auto mb-2 opacity-50" /> Nenhum projeto encontrado.
