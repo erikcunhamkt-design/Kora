@@ -3,6 +3,7 @@ import { DEFAULT_PIPELINE_ID } from "./usePipelines";
 
 export type Priority = "alta" | "média" | "baixa";
 export type StageKey = "lead" | "contato" | "proposta" | "negociacao" | "fechado" | "perdido";
+export type LeadTemperature = "frio" | "morno" | "quente" | "não definida";
 
 export interface Lead {
   id: number;
@@ -28,7 +29,33 @@ export interface Lead {
   notes: string;
   /** Dados de demonstração — não contam para o limite do plano Free */
   isDemo?: boolean;
+
+  // --- CRM v2: campos comerciais expandidos ---
+  /** Cliente vinculado (oportunidade pode ser avulsa). */
+  clientId?: number;
+  /** Temperatura comercial — quando ausente, derive de `priority`. */
+  temperature?: LeadTemperature;
+  /** Próxima ação / follow-up (ISO date). */
+  nextActionDate?: string;
+  expectedCloseDate?: string;
+  wonAt?: string;
+  lostReason?: string;
+  convertedClientId?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
+
+/** Mapeia priority legado → temperatura. */
+export const priorityToTemperature = (p?: Priority): LeadTemperature => {
+  if (p === "alta") return "quente";
+  if (p === "média") return "morno";
+  if (p === "baixa") return "frio";
+  return "não definida";
+};
+
+export const getLeadTemperature = (l: Pick<Lead, "temperature" | "priority">): LeadTemperature =>
+  l.temperature ?? priorityToTemperature(l.priority);
+
 
 const STORAGE_KEY = "orbyt.leads.v1";
 
