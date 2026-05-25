@@ -43,14 +43,16 @@ export function ProjectsSection() {
   const [filterPriority, setFilterPriority] = useState("all");
   const [open, setOpen] = useState(false);
   const [highlightId, setHighlightId] = useState<string | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
-  // Deep-link: ?projectId=X scrolls into view and highlights briefly.
+  // Deep-link: ?projectId=X — opens drawer, scrolls into view, then clears URL.
   useEffect(() => {
     const pid = searchParams.get("projectId");
     if (!pid) return;
     if (!projects.some((p) => p.id === pid)) return;
     setHighlightId(pid);
+    setDetailId(pid);
     const el = cardRefs.current[pid];
     if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
     const next = new URLSearchParams(searchParams);
@@ -60,6 +62,8 @@ export function ProjectsSection() {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, projects.length]);
+
+  const detailProject = detailId ? projects.find((p) => p.id === detailId) ?? null : null;
 
   const filtered = useMemo(() => projects.filter((p) => {
     const q = search.toLowerCase();
