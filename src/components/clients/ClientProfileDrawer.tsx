@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,10 +9,12 @@ import {
   FileText, Calendar, Clock, Target, StickyNote, Tag, Flame, Snowflake,
   Sparkles, DollarSign, TrendingUp, Activity, Archive, ArchiveRestore,
   Briefcase, FileSpreadsheet, FolderKanban, Wallet, CheckSquare,
+  ClipboardList, ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Client, ClientStatus, ClientTemperature, ClientAsset } from "@/hooks/useClients";
+import type { Client, ClientStatus, ClientTemperature, ClientAsset, ClientTechnicalSheet } from "@/hooks/useClients";
 import { ClientLibrarySection } from "./ClientLibrarySection";
+import { ClientTechnicalSheetDialog } from "./ClientTechnicalSheetDialog";
 
 const statusBadge: Record<ClientStatus, string> = {
   "Ativo": "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
@@ -108,7 +111,7 @@ const ConnectionCard = ({
 // ---------- Main ----------
 
 export const ClientProfileDrawer = ({
-  client, onClose, onEdit, onWhats, onArchive, onRestore, onCreateOpportunity, onCreateQuote, onUpdateAssets,
+  client, onClose, onEdit, onWhats, onArchive, onRestore, onCreateOpportunity, onCreateQuote, onUpdateAssets, onUpdateTechnicalSheet,
 }: {
   client: Client | null;
   onClose: () => void;
@@ -119,7 +122,9 @@ export const ClientProfileDrawer = ({
   onCreateOpportunity?: (c: Client) => void;
   onCreateQuote?: (c: Client) => void;
   onUpdateAssets?: (clientId: number, assets: ClientAsset[]) => void;
+  onUpdateTechnicalSheet?: (clientId: number, sheet: ClientTechnicalSheet) => void;
 }) => {
+  const [techOpen, setTechOpen] = useState(false);
   if (!client) return null;
 
   const hasPhone = !!(client.whatsapp || client.phone);
@@ -331,11 +336,40 @@ export const ClientProfileDrawer = ({
             </div>
           </section>
 
+          {/* Ficha técnica */}
+          <section>
+            <SectionTitle icon={ClipboardList}>Ficha técnica</SectionTitle>
+            <button
+              onClick={() => setTechOpen(true)}
+              className="w-full text-left rounded-xl border border-border/60 bg-card/40 hover:bg-card/70 hover:border-border transition-all p-4"
+            >
+              <div className="flex items-start gap-3">
+                <div className="h-10 w-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                  <ClipboardList className="h-5 w-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-foreground">Ficha técnica</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 leading-snug">
+                    Branding, persona, redes, acessos e materiais da marca.
+                  </p>
+                  <TechSummary sheet={client.technicalSheet} />
+                </div>
+                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 mt-1" />
+              </div>
+              <div className="mt-3">
+                <span className="inline-flex items-center gap-1 text-xs text-primary font-medium">
+                  Abrir ficha técnica <ChevronRight className="h-3 w-3" />
+                </span>
+              </div>
+            </button>
+          </section>
+
           {/* Biblioteca do cliente */}
           <ClientLibrarySection
             assets={client.assets ?? []}
             onChange={(next) => onUpdateAssets?.(client.id, next)}
           />
+
 
           {/* Timeline */}
           <section>
@@ -446,7 +480,51 @@ export const ClientProfileDrawer = ({
           </div>
         </div>
       </SheetContent>
+
+      <ClientTechnicalSheetDialog
+        open={techOpen}
+        onOpenChange={setTechOpen}
+        client={client}
+        onSave={(id, sheet) => onUpdateTechnicalSheet?.(id, sheet)}
+      />
     </Sheet>
+  );
+};
+
+// Summary chips showing what's filled in the technical sheet
+const TechSummary = ({ sheet }: { sheet?: ClientTechnicalSheet }) => {
+  const s = sheet ?? {};
+  const branding = !!(s.branding && (s.branding.logoUrl || s.branding.slogan || s.branding.voiceTone || s.branding.brandNotes || s.branding.colors?.length));
+  const persona = !!(s.persona && (s.persona.name || s.persona.pains || s.persona.desires || s.persona.behavior));
+  const socialCount = (() => {
+    const sl = s.socialLinks ?? {};
+    const base = [sl.instagram, sl.youtube, sl.tiktok, sl.linkedin, sl.facebook, sl.website].filter(Boolean).length;
+    return base + (sl.otherLinks?.length ?? 0);
+  })();
+  const accesses = s.accesses?.length ?? 0;
+  const assets = s.assets?.length ?? 0;
+
+  const chip = (label: string, ok: boolean, count?: number) => (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px]",
+        ok
+          ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
+          : "border-border/60 bg-muted/40 text-muted-foreground"
+      )}
+    >
+      {label}{typeof count === "number" && count > 0 ? ` · ${count}` : ""}
+    </span>
+  );
+
+  return (
+    <div className="flex flex-wrap gap-1.5 mt-2">
+      {chip("Branding", branding)}
+      {chip("Persona", persona)}
+      {chip("Redes", socialCount > 0, socialCount)}
+      {chip("Acessos", accesses > 0, accesses)}
+      {chip("Materiais", assets > 0, assets)}
+    </div>
   );
 };
 
