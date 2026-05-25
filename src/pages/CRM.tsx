@@ -40,6 +40,8 @@ import { MoveToPipelineDialog } from "@/components/crm/MoveToPipelineDialog";
 import { useClients } from "@/hooks/useClients";
 import { useClientTypes } from "@/hooks/useClientTypes";
 import { NewClientTypeDialog } from "@/components/clientes/NewClientTypeDialog";
+import { EmptyState } from "@/components/ui/empty-state";
+import { useNavigate } from "react-router-dom";
 
 const priorityStyles: Record<Priority, string> = {
   alta: "bg-destructive/10 text-destructive border-destructive/20",
@@ -442,7 +444,15 @@ const CRM = () => {
       </div>
 
       {/* View */}
-      {view === "kanban" ? (
+      {leads.filter((l) => !l.archived).length === 0 ? (
+        <EmptyState
+          icon={TrendingUp}
+          title="Seu pipeline ainda está vazio"
+          description="Crie oportunidades para acompanhar negociações, propostas enviadas e próximos passos comerciais."
+          primaryAction={{ label: "Criar oportunidade", onClick: handleNewLead }}
+          secondaryAction={{ label: "Ver clientes", onClick: () => navigate("/clientes"), variant: "outline" }}
+        />
+      ) : view === "kanban" ? (
         <div className="w-full max-w-full overflow-x-auto overflow-y-visible pb-4">
           <div className="flex gap-4 pr-6 min-w-min">
           {stages.map((stage) => {
