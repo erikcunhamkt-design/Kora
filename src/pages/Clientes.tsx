@@ -43,6 +43,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { PageToolbar } from "@/components/layout/PageToolbar";
 import { ClientProfileDrawer } from "@/components/clients/ClientProfileDrawer";
 import { cn } from "@/lib/utils";
+import { useNavigate } from "react-router-dom";
 
 // ---------- Static configs ----------
 
