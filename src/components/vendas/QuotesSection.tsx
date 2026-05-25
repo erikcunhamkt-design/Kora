@@ -954,6 +954,43 @@ function QuotePreview({
         </div>
       )}
 
+      {quote.status === "aprovado" && (
+        <div className="mt-3 rounded-xl border border-border/60 bg-card p-4 flex flex-wrap items-center gap-3">
+          <div className="h-9 w-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+            <FolderKanban className="h-4 w-4" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-[11px] uppercase tracking-wide text-muted-foreground/80">Entrega / Projeto</div>
+            <div className="text-sm font-semibold text-foreground">
+              {quote.projectId ? "Projeto criado" : "Projeto ainda não criado"}
+            </div>
+            <div className="text-[11px] text-muted-foreground">
+              {quote.projectId
+                ? (quote.projectTitle ?? "Acompanhe a entrega no módulo de projetos.")
+                : "Transforme este orçamento aprovado em um projeto com entregáveis."}
+            </div>
+          </div>
+          {quote.projectId ? (
+            <button
+              type="button"
+              onClick={onOpenProject}
+              className="rounded-lg border border-border/60 px-3 py-1.5 text-xs font-bold text-foreground hover:border-primary hover:text-primary transition inline-flex items-center gap-1"
+            >
+              <Eye className="h-3 w-3" /> Ver projeto
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onGenerateProject}
+              className="rounded-lg border border-border bg-primary/10 text-primary px-3 py-1.5 text-xs font-bold hover:bg-primary hover:text-primary-foreground transition inline-flex items-center gap-1"
+            >
+              <FolderKanban className="h-3 w-3" /> Gerar projeto
+            </button>
+          )}
+        </div>
+      )}
+
+
       <div className="mt-5 grid grid-cols-2 md:grid-cols-4 gap-2">
         <ActionButton icon={<Download className="h-4 w-4" />} label="Baixar PDF" onClick={() => toast("Geração de PDF chega em breve.")} />
         <ActionButton icon={<Send className="h-4 w-4" />} label="Marcar enviado" onClick={onSend} />
