@@ -599,14 +599,16 @@ export function EditorialSection({ value, onSave }: { value: ClientEditorialLine
 
 export function TypographySection({ value, onSave }: { value: ClientTypography; onSave: (v: ClientTypography) => void }) {
   const [local, setLocal] = useState<ClientTypography>(value);
+  const [target, setTarget] = useState<"primary" | "secondary">("primary");
   return (
     <SectionShell title="Tipografia" description="Fontes utilizadas pela marca." onSave={() => onSave(local)}>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Field label="Fonte primária" hint="Sugestões: Inter, Poppins, Montserrat, Playfair Display...">
+        <Field label="Fonte primária" hint="Clique nas sugestões abaixo para preencher.">
           <Input
             list="kora-font-suggestions"
             value={local.primaryFont ?? ""}
             onChange={(e) => setLocal({ ...local, primaryFont: e.target.value })}
+            onFocus={() => setTarget("primary")}
             placeholder="Ex: Inter"
           />
         </Field>
@@ -615,6 +617,7 @@ export function TypographySection({ value, onSave }: { value: ClientTypography; 
             list="kora-font-suggestions"
             value={local.secondaryFont ?? ""}
             onChange={(e) => setLocal({ ...local, secondaryFont: e.target.value })}
+            onFocus={() => setTarget("secondary")}
             placeholder="Ex: Playfair Display"
           />
         </Field>
@@ -622,6 +625,27 @@ export function TypographySection({ value, onSave }: { value: ClientTypography; 
       <datalist id="kora-font-suggestions">
         {FONT_SUGGESTIONS.map((f) => <option key={f} value={f} />)}
       </datalist>
+
+      <div>
+        <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
+          Sugestões — clique para aplicar em <span className="text-primary font-medium">{target === "primary" ? "primária" : "secundária"}</span>
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {FONT_SUGGESTIONS.map((f) => (
+            <button
+              key={f}
+              type="button"
+              onClick={() =>
+                setLocal(target === "primary" ? { ...local, primaryFont: f } : { ...local, secondaryFont: f })
+              }
+              className="rounded-md border border-border/60 bg-secondary/40 hover:bg-secondary/70 hover:border-border px-3 py-1.5 text-xs text-foreground transition-colors"
+            >
+              {f}
+            </button>
+          ))}
+        </div>
+      </div>
+
 
       <Field label="Links de fontes" hint="Google Fonts, arquivos de fonte em Drive, etc.">
         <ChipList
