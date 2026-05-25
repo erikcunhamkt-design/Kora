@@ -637,6 +637,10 @@ const Clientes = () => {
           setSelectedClient(null);
           navigate(`/vendas?tab=orcamentos&newQuote=1&clientId=${c.id}`);
         }}
+        onUpdateAssets={(id, assets) => {
+          updateClient(id, { assets });
+          setSelectedClient((prev) => (prev && prev.id === id ? { ...prev, assets } : prev));
+        }}
       />
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(v) => !v && setDeleteTarget(null)}>

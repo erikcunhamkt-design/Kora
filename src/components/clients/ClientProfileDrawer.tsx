@@ -10,7 +10,8 @@ import {
   Briefcase, FileSpreadsheet, FolderKanban, Wallet, CheckSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Client, ClientStatus, ClientTemperature } from "@/hooks/useClients";
+import type { Client, ClientStatus, ClientTemperature, ClientAsset } from "@/hooks/useClients";
+import { ClientLibrarySection } from "./ClientLibrarySection";
 
 const statusBadge: Record<ClientStatus, string> = {
   "Ativo": "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
@@ -107,7 +108,7 @@ const ConnectionCard = ({
 // ---------- Main ----------
 
 export const ClientProfileDrawer = ({
-  client, onClose, onEdit, onWhats, onArchive, onRestore, onCreateOpportunity, onCreateQuote,
+  client, onClose, onEdit, onWhats, onArchive, onRestore, onCreateOpportunity, onCreateQuote, onUpdateAssets,
 }: {
   client: Client | null;
   onClose: () => void;
@@ -117,6 +118,7 @@ export const ClientProfileDrawer = ({
   onRestore?: (c: Client) => void;
   onCreateOpportunity?: (c: Client) => void;
   onCreateQuote?: (c: Client) => void;
+  onUpdateAssets?: (clientId: number, assets: ClientAsset[]) => void;
 }) => {
   if (!client) return null;
 
@@ -328,6 +330,12 @@ export const ClientProfileDrawer = ({
               )}
             </div>
           </section>
+
+          {/* Biblioteca do cliente */}
+          <ClientLibrarySection
+            assets={client.assets ?? []}
+            onChange={(next) => onUpdateAssets?.(client.id, next)}
+          />
 
           {/* Timeline */}
           <section>
