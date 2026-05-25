@@ -614,7 +614,13 @@ const Clientes = () => {
 
       <NewClientTypeDialog open={newTypeOpen} onOpenChange={setNewTypeOpen} onCreated={(name) => setFilterType(name)} />
 
-      <SignupLinkDrawer open={signupLinkOpen} onOpenChange={setSignupLinkOpen} pendingCount={pendingCount} />
+      <SignupLinkDrawer
+        open={signupLinkOpen}
+        onOpenChange={setSignupLinkOpen}
+        pendingCount={pendingCount}
+        onOpenRequests={() => setRequestsOpen(true)}
+      />
+
 
       <ClientProfileDrawer
         client={selectedClient}
