@@ -208,7 +208,7 @@ export function AppSidebar() {
                             title={collapsed ? item.title : undefined}
                             className={baseClass}
                             activeClassName=""
-                            style={style}
+                            
                           >
                             {content}
                           </NavLink>
