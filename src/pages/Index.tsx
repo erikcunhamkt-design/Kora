@@ -67,7 +67,8 @@ function UsageSummary() {
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const overdueTasks = 3;
+
+
 
   return (
     <div className="space-y-8">
