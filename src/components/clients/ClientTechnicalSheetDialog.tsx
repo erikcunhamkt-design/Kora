@@ -14,7 +14,7 @@ import { toast } from "sonner";
 import {
   Palette, Users, FileText, Type, Share2, KeyRound, Swords,
   ClipboardList, FolderOpen, ChevronLeft, ChevronRight, Save, Plus, Trash2,
-  Eye, EyeOff, ShieldAlert, Copy, ExternalLink, Pencil, X,
+  Eye, EyeOff, ShieldAlert, Copy, ExternalLink, Pencil, X, Upload, Link2, FileUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type {
@@ -110,7 +110,30 @@ export const statusLabel: Record<FillStatus, string> = {
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 const isValidUrl = (u: string) => !u || /^https?:\/\//i.test(u) || /^[\w-]+(\.[\w-]+)+/.test(u);
-const normUrl = (u: string) => (!u ? u : /^https?:\/\//i.test(u) ? u : `https://${u}`);
+const normUrl = (u: string) => (!u ? u : /^https?:\/\//i.test(u) || /^data:/i.test(u) ? u : `https://${u}`);
+
+// ---- Upload local (dataURL em localStorage) ----
+// Limites conservadores: localStorage costuma ter ~5MB total por origem.
+export const LOGO_MAX_BYTES = 500 * 1024;        // 500 KB por logo
+export const ASSET_FILE_MAX_BYTES = 1024 * 1024; // 1 MB por arquivo
+export const ASSETS_QUOTA_BYTES = 5 * 1024 * 1024; // 5 MB de cota total de uploads do cliente
+
+export function formatBytes(n: number) {
+  if (!n) return "0 KB";
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+export function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result));
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(file);
+  });
+}
+
 
 export function ClientTechnicalSheetDialog({
   open, onOpenChange, client, onSave,
@@ -341,36 +364,102 @@ export function BrandingSection({ value, onSave }: { value: ClientBranding; onSa
       description="Identidade visual e tom de voz da marca."
       onSave={() => onSave(local)}
     >
-      <Field label="Logo (URL)" hint="Cole a URL pública do logo. Upload seguro em etapa futura.">
-        <Input
-          placeholder="https://..."
-          value={local.logoUrl ?? ""}
-          onChange={(e) => setLocal({ ...local, logoUrl: e.target.value })}
-        />
+      <Field label="Logo" hint="Faça upload de uma imagem (PNG/SVG/JPG, até 500 KB) ou cole uma URL pública.">
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="inline-flex items-center gap-2 rounded-lg border border-border bg-secondary/50 hover:bg-secondary/70 px-3 h-11 cursor-pointer transition-colors">
+              <Upload className="h-4 w-4 text-muted-foreground" />
+              <span className="text-xs text-foreground">{local.logoFileName ? "Trocar arquivo" : "Enviar arquivo"}</span>
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                className="sr-only"
+                onChange={async (e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  if (!f) return;
+                  if (!f.type.startsWith("image/")) { toast.error("Selecione uma imagem"); return; }
+                  if (f.size > LOGO_MAX_BYTES) {
+                    toast.error(`Logo acima de ${formatBytes(LOGO_MAX_BYTES)}. Otimize antes (ex: TinyPNG) ou use URL externa.`);
+                    return;
+                  }
+                  try {
+                    const dataUrl = await readFileAsDataUrl(f);
+                    setLocal({
+                      ...local,
+                      logoUrl: dataUrl,
+                      logoFileName: f.name,
+                      logoFileSize: f.size,
+                      logoMimeType: f.type,
+                    });
+                    toast.success("Logo carregado");
+                  } catch {
+                    toast.error("Não foi possível ler o arquivo");
+                  }
+                }}
+              />
+            </label>
+            <span className="text-[11px] text-muted-foreground">ou</span>
+            <Input
+              className="flex-1 min-w-[200px]"
+              placeholder="https://..."
+              value={local.logoUrl?.startsWith("data:") ? "" : (local.logoUrl ?? "")}
+              onChange={(e) =>
+                setLocal({
+                  ...local,
+                  logoUrl: e.target.value,
+                  logoFileName: undefined,
+                  logoFileSize: undefined,
+                  logoMimeType: undefined,
+                })
+              }
+            />
+          </div>
+
+          {local.logoUrl ? (
+            <div className="rounded-lg border border-border/60 bg-secondary/40 p-4 flex items-center gap-4">
+              <img
+                src={local.logoUrl}
+                alt="Preview do logo"
+                className="h-20 w-20 object-contain rounded-md bg-background/40 border border-border/40"
+                onError={(e) => ((e.target as HTMLImageElement).style.display = "none")}
+              />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs uppercase tracking-wider text-muted-foreground/70 mb-1">Preview</p>
+                {local.logoFileName ? (
+                  <p className="text-xs text-muted-foreground truncate">
+                    {local.logoFileName} · {formatBytes(local.logoFileSize ?? 0)}
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground truncate">{local.logoUrl}</p>
+                )}
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() =>
+                  setLocal({
+                    ...local,
+                    logoUrl: undefined,
+                    logoFileName: undefined,
+                    logoFileSize: undefined,
+                    logoMimeType: undefined,
+                  })
+                }
+              >
+                <Trash2 className="h-3.5 w-3.5 text-destructive/80" />
+              </Button>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-dashed border-border/60 bg-secondary/20 p-4 text-xs text-muted-foreground">
+              Nenhum logo definido. Arquivos enviados ficam <strong>somente neste dispositivo</strong> (localStorage).
+              Para sincronizar entre dispositivos, use uma URL pública (Drive/Imgur/CDN).
+            </div>
+          )}
+        </div>
       </Field>
 
-      {local.logoUrl ? (
-        <div className="rounded-lg border border-border/60 bg-secondary/40 p-4 flex items-center gap-4">
-          <img
-            src={local.logoUrl}
-            alt="Preview do logo"
-            className="h-20 w-20 object-contain rounded-md bg-background/40 border border-border/40"
-            onError={(e) => ((e.target as HTMLImageElement).style.display = "none")}
-          />
-          <div className="min-w-0 flex-1">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground/70 mb-1">Preview</p>
-            <p className="text-xs text-muted-foreground truncate">{local.logoUrl}</p>
-          </div>
-        </div>
-      ) : (
-        <div className="rounded-lg border border-dashed border-border/60 bg-secondary/20 p-4 flex items-center justify-between gap-3 opacity-70 cursor-not-allowed">
-          <div className="text-xs text-muted-foreground">
-            <p className="font-medium text-foreground/70">Upload de logo</p>
-            <p className="mt-0.5">Upload seguro exige Storage e será implementado em etapa futura.</p>
-          </div>
-          <Button type="button" variant="outline" size="sm" disabled>Em breve</Button>
-        </div>
-      )}
 
       <Field label="Cores da marca" hint="Escolha pelo color picker ou cole um HEX. Rótulo é opcional.">
         <div className="flex flex-wrap items-center gap-2">
@@ -460,7 +549,7 @@ export function BrandingSection({ value, onSave }: { value: ClientBranding; onSa
       </Field>
 
       <div className="rounded-lg border border-dashed border-border/60 bg-secondary/20 p-3 text-xs text-muted-foreground/80">
-        Upload seguro em etapa futura. Por enquanto, registre o link externo do logo.
+        Arquivos enviados ficam salvos localmente neste navegador. Sincronização entre dispositivos e cofre na nuvem virão em etapa futura.
       </div>
     </SectionShell>
   );
@@ -1035,30 +1124,103 @@ export function AssetsSection({
   const [open, setOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
+  const usedBytes = useMemo(
+    () => value.reduce((acc, a) => acc + (a.kind === "file" ? (a.fileSize ?? 0) : 0), 0),
+    [value]
+  );
+  const remainingBytes = Math.max(0, ASSETS_QUOTA_BYTES - usedBytes);
+  const quotaPct = Math.min(100, Math.round((usedBytes / ASSETS_QUOTA_BYTES) * 100));
+  const quotaFull = remainingBytes <= 0;
+
   const startNew = () => {
     const now = new Date().toISOString();
-    setEditing({ id: uid(), title: "", type: "drive", url: "", accessStatus: "liberado", createdAt: now, updatedAt: now });
+    setEditing({
+      id: uid(), title: "", type: "drive", url: "", accessStatus: "liberado",
+      kind: "link", createdAt: now, updatedAt: now,
+    });
     setOpen(true);
   };
-  const startEdit = (a: ClientAsset) => { setEditing({ ...a }); setOpen(true); };
+  const startEdit = (a: ClientAsset) => { setEditing({ ...a, kind: a.kind ?? "link" }); setOpen(true); };
 
   const save = () => {
     if (!editing) return;
     if (!editing.title.trim()) { toast.error("Informe o título"); return; }
-    if (!editing.url.trim()) { toast.error("Informe o link"); return; }
-    if (!isValidUrl(editing.url)) { toast.error("URL inválida"); return; }
+    if (!editing.url.trim()) { toast.error("Anexe um arquivo ou informe um link"); return; }
+    if (editing.kind !== "file" && !isValidUrl(editing.url)) { toast.error("URL inválida"); return; }
     const now = new Date().toISOString();
     const exists = value.some((a) => a.id === editing.id);
-    const norm: ClientAsset = { ...editing, url: normUrl(editing.url.trim()), updatedAt: now };
+    const norm: ClientAsset = {
+      ...editing,
+      url: editing.kind === "file" ? editing.url : normUrl(editing.url.trim()),
+      updatedAt: now,
+    };
     onChange(exists ? value.map((a) => a.id === editing.id ? norm : a) : [...value, norm]);
     toast.success(exists ? "Material atualizado" : "Material adicionado");
     setOpen(false); setEditing(null);
   };
 
+  const handleFile = async (file: File) => {
+    if (!editing) return;
+    if (file.size > ASSET_FILE_MAX_BYTES) {
+      toast.error(`Arquivo acima de ${formatBytes(ASSET_FILE_MAX_BYTES)}. Para maiores, use um link externo (Drive/Dropbox).`);
+      return;
+    }
+    // se já era um arquivo neste item, libera o tamanho dele do cálculo de cota
+    const previousSize = editing.kind === "file" ? (editing.fileSize ?? 0) : 0;
+    if (usedBytes - previousSize + file.size > ASSETS_QUOTA_BYTES) {
+      toast.error(`Cota local do cliente esgotada (${formatBytes(ASSETS_QUOTA_BYTES)}). Remova arquivos ou use links externos.`);
+      return;
+    }
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      setEditing({
+        ...editing,
+        kind: "file",
+        url: dataUrl,
+        fileName: file.name,
+        fileSize: file.size,
+        mimeType: file.type || "application/octet-stream",
+        title: editing.title || file.name.replace(/\.[^.]+$/, ""),
+      });
+      toast.success("Arquivo carregado");
+    } catch {
+      toast.error("Não foi possível ler o arquivo");
+    }
+  };
+
+  const downloadAsset = (a: ClientAsset) => {
+    const link = document.createElement("a");
+    link.href = a.url;
+    link.download = a.fileName || a.title || "arquivo";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  };
+
   return (
-    <SectionShell title="Materiais e Anexos" description="Links externos para Drive, Figma, fotos, contratos e referências." hideSave>
-      <div className="rounded-lg border border-dashed border-border/60 bg-secondary/20 p-3 text-xs text-muted-foreground/80">
-        Por enquanto, registre links externos importantes. Upload seguro e integração com Drive/Figma/Canva chegam depois.
+    <SectionShell title="Materiais e Anexos" description="Envie arquivos pequenos ou registre links externos." hideSave>
+      {/* Quota */}
+      <div className="rounded-lg border border-border/60 bg-card/60 p-4 space-y-2">
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-foreground font-medium">Cota local de uploads</span>
+          <span className="text-muted-foreground tabular-nums">
+            {formatBytes(usedBytes)} / {formatBytes(ASSETS_QUOTA_BYTES)}
+          </span>
+        </div>
+        <div className="h-1.5 w-full rounded-full bg-secondary/60 overflow-hidden">
+          <div
+            className={cn(
+              "h-full rounded-full transition-all",
+              quotaPct >= 90 ? "bg-destructive" : quotaPct >= 70 ? "bg-amber-500" : "bg-primary"
+            )}
+            style={{ width: `${quotaPct}%` }}
+          />
+        </div>
+        <p className="text-[11px] text-muted-foreground/80 leading-relaxed">
+          Arquivos ficam salvos <strong>somente neste navegador</strong> (localStorage). Limite por arquivo:{" "}
+          {formatBytes(ASSET_FILE_MAX_BYTES)}. Quando a cota esgotar, novos materiais só poderão ser adicionados como link externo
+          (Drive, Dropbox, Figma…). Storage em nuvem chega em etapa futura.
+        </p>
       </div>
 
       <div className="flex justify-end">
@@ -1071,36 +1233,65 @@ export function AssetsSection({
         </div>
       ) : (
         <div className="space-y-2">
-          {value.map((a) => (
-            <div key={a.id} className="rounded-lg border border-border/60 bg-card/60 p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="text-sm font-semibold text-foreground">{a.title}</p>
-                    <Badge variant="outline" className="text-[10px]">{CLIENT_ASSET_TYPE_LABELS[a.type]}</Badge>
-                    <Badge variant="outline" className="text-[10px]">{CLIENT_ASSET_ACCESS_LABELS[a.accessStatus]}</Badge>
-                  </div>
-                  <a href={a.url} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline truncate inline-block mt-1">{a.url}</a>
-                  {a.description && <p className="text-xs text-muted-foreground mt-2 whitespace-pre-line">{a.description}</p>}
-                  {!!a.tags?.length && (
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {a.tags.map((t) => <Badge key={t} variant="outline" className="text-[10px]">{t}</Badge>)}
+          {value.map((a) => {
+            const isFile = a.kind === "file";
+            return (
+              <div key={a.id} className="rounded-lg border border-border/60 bg-card/60 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-semibold text-foreground">{a.title}</p>
+                      <Badge variant="outline" className="text-[10px]">{CLIENT_ASSET_TYPE_LABELS[a.type]}</Badge>
+                      <Badge variant="outline" className="text-[10px]">{CLIENT_ASSET_ACCESS_LABELS[a.accessStatus]}</Badge>
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "text-[10px] gap-1",
+                          isFile ? "bg-primary/10 text-primary border-primary/20" : "bg-secondary/40"
+                        )}
+                      >
+                        {isFile ? <FileUp className="h-2.5 w-2.5" /> : <Link2 className="h-2.5 w-2.5" />}
+                        {isFile ? "Arquivo" : "Link"}
+                      </Badge>
                     </div>
-                  )}
-                </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <Button size="sm" variant="ghost" asChild>
-                    <a href={a.url} target="_blank" rel="noreferrer"><ExternalLink className="h-3.5 w-3.5" /></a>
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={async () => { await navigator.clipboard.writeText(a.url); toast.success("Link copiado"); }}>
-                    <Copy className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => startEdit(a)}><Pencil className="h-3.5 w-3.5" /></Button>
-                  <Button size="sm" variant="ghost" onClick={() => setDeleteId(a.id)}><Trash2 className="h-3.5 w-3.5 text-destructive/80" /></Button>
+                    {isFile ? (
+                      <p className="text-xs text-muted-foreground mt-1 truncate">
+                        {a.fileName} · {formatBytes(a.fileSize ?? 0)}
+                      </p>
+                    ) : (
+                      <a href={a.url} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline truncate inline-block mt-1">
+                        {a.url}
+                      </a>
+                    )}
+                    {a.description && <p className="text-xs text-muted-foreground mt-2 whitespace-pre-line">{a.description}</p>}
+                    {!!a.tags?.length && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {a.tags.map((t) => <Badge key={t} variant="outline" className="text-[10px]">{t}</Badge>)}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {isFile ? (
+                      <Button size="sm" variant="ghost" onClick={() => downloadAsset(a)} title="Baixar arquivo">
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </Button>
+                    ) : (
+                      <>
+                        <Button size="sm" variant="ghost" asChild>
+                          <a href={a.url} target="_blank" rel="noreferrer"><ExternalLink className="h-3.5 w-3.5" /></a>
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={async () => { await navigator.clipboard.writeText(a.url); toast.success("Link copiado"); }}>
+                          <Copy className="h-3.5 w-3.5" />
+                        </Button>
+                      </>
+                    )}
+                    <Button size="sm" variant="ghost" onClick={() => startEdit(a)}><Pencil className="h-3.5 w-3.5" /></Button>
+                    <Button size="sm" variant="ghost" onClick={() => setDeleteId(a.id)}><Trash2 className="h-3.5 w-3.5 text-destructive/80" /></Button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -1108,9 +1299,64 @@ export function AssetsSection({
         <DialogContent className="max-w-md bg-card border-border">
           <DialogHeader>
             <DialogTitle>{editing && value.some((a) => a.id === editing.id) ? "Editar material" : "Novo material"}</DialogTitle>
+            <DialogDescription className="text-xs">
+              Envie um arquivo (até {formatBytes(ASSET_FILE_MAX_BYTES)}) ou cole um link externo.
+            </DialogDescription>
           </DialogHeader>
           {editing && (
             <div className="space-y-3">
+              {/* Toggle kind */}
+              <div className="grid grid-cols-2 gap-2 p-1 rounded-lg bg-secondary/40 border border-border/60">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (quotaFull && editing.kind !== "file") {
+                      toast.error("Cota local esgotada. Use link externo.");
+                      return;
+                    }
+                    setEditing({
+                      ...editing, kind: "file",
+                      url: editing.kind === "file" ? editing.url : "",
+                      fileName: editing.kind === "file" ? editing.fileName : undefined,
+                      fileSize: editing.kind === "file" ? editing.fileSize : undefined,
+                      mimeType: editing.kind === "file" ? editing.mimeType : undefined,
+                    });
+                  }}
+                  disabled={quotaFull && editing.kind !== "file"}
+                  className={cn(
+                    "rounded-md px-3 py-2 text-xs font-medium flex items-center justify-center gap-2 transition-colors",
+                    editing.kind === "file"
+                      ? "bg-card text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
+                    quotaFull && editing.kind !== "file" && "opacity-40 cursor-not-allowed"
+                  )}
+                >
+                  <FileUp className="h-3.5 w-3.5" /> Upload de arquivo
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setEditing({
+                      ...editing, kind: "link",
+                      url: editing.kind === "file" ? "" : editing.url,
+                      fileName: undefined, fileSize: undefined, mimeType: undefined,
+                    })
+                  }
+                  className={cn(
+                    "rounded-md px-3 py-2 text-xs font-medium flex items-center justify-center gap-2 transition-colors",
+                    editing.kind !== "file" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <Link2 className="h-3.5 w-3.5" /> Link externo
+                </button>
+              </div>
+
+              {quotaFull && (
+                <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-2 text-[11px] text-amber-200/90">
+                  Cota local esgotada ({formatBytes(ASSETS_QUOTA_BYTES)}). Novos uploads bloqueados — adicione como link.
+                </div>
+              )}
+
               <Field label="Título"><Input value={editing.title} onChange={(e) => setEditing({ ...editing, title: e.target.value })} /></Field>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Tipo">
@@ -1132,7 +1378,39 @@ export function AssetsSection({
                   </select>
                 </Field>
               </div>
-              <Field label="Link"><Input value={editing.url} onChange={(e) => setEditing({ ...editing, url: e.target.value })} placeholder="https://..." /></Field>
+
+              {editing.kind === "file" ? (
+                <Field label="Arquivo" hint={`Limite por arquivo: ${formatBytes(ASSET_FILE_MAX_BYTES)}. Restante na cota: ${formatBytes(remainingBytes)}.`}>
+                  <label className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-border/60 bg-secondary/30 hover:bg-secondary/50 px-4 py-3 cursor-pointer transition-colors">
+                    <div className="min-w-0 flex-1">
+                      {editing.fileName ? (
+                        <>
+                          <p className="text-sm text-foreground truncate">{editing.fileName}</p>
+                          <p className="text-[11px] text-muted-foreground">{formatBytes(editing.fileSize ?? 0)}</p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-sm text-foreground">Selecionar arquivo</p>
+                          <p className="text-[11px] text-muted-foreground">PDF, imagem, doc, etc.</p>
+                        </>
+                      )}
+                    </div>
+                    <Upload className="h-4 w-4 text-muted-foreground" />
+                    <input
+                      type="file"
+                      className="sr-only"
+                      onChange={async (e) => {
+                        const f = e.target.files?.[0];
+                        e.target.value = "";
+                        if (f) await handleFile(f);
+                      }}
+                    />
+                  </label>
+                </Field>
+              ) : (
+                <Field label="Link"><Input value={editing.url} onChange={(e) => setEditing({ ...editing, url: e.target.value })} placeholder="https://..." /></Field>
+              )}
+
               <Field label="Descrição"><Textarea rows={3} value={editing.description ?? ""} onChange={(e) => setEditing({ ...editing, description: e.target.value })} /></Field>
               <Field label="Tags (separadas por vírgula)">
                 <Input
