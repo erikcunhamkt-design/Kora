@@ -211,6 +211,7 @@ const CRM = () => {
       showPaywall("leads");
       return;
     }
+    setNewLeadInitial(null);
     setNewLeadOpen(true);
   };
 
@@ -227,23 +228,32 @@ const CRM = () => {
       const matchStage = filterStage === "all" || l.stageId === filterStage;
       const matchOrigin = filterOrigin === "all" || (l.origin || l.source) === filterOrigin;
       const matchType = filterType === "all" || l.serviceType === filterType;
-      return matchSearch && matchStage && matchOrigin && matchType;
+      const matchTemp = filterTemperature === "all" || getLeadTemperature(l) === filterTemperature;
+      return matchSearch && matchStage && matchOrigin && matchType && matchTemp;
     });
-  }, [pipelineLeads, search, filterStage, filterOrigin, filterType]);
+  }, [pipelineLeads, search, filterStage, filterOrigin, filterType, filterTemperature]);
 
-  const totalPipeline = pipelineLeads
-    .filter((l) => {
-      const stage = stages.find((s) => s.id === l.stageId);
-      return stage?.type !== "won" && stage?.type !== "lost";
-    })
-    .reduce((s, l) => s + l.estimatedValue, 0);
-
+  // ---------- KPIs ----------
+  const openLeads = pipelineLeads.filter((l) => {
+    const stage = stages.find((s) => s.id === l.stageId);
+    return stage?.type !== "won" && stage?.type !== "lost";
+  });
+  const totalPipeline = openLeads.reduce((s, l) => s + l.estimatedValue, 0);
   const wonCount = pipelineLeads.filter((l) => stages.find((s) => s.id === l.stageId)?.type === "won").length;
   const wonValue = pipelineLeads.filter((l) => stages.find((s) => s.id === l.stageId)?.type === "won").reduce((s, l) => s + l.estimatedValue, 0);
-  const lostValue = pipelineLeads.filter((l) => stages.find((s) => s.id === l.stageId)?.type === "lost").reduce((s, l) => s + l.estimatedValue, 0);
-  const newCount = pipelineLeads.filter((l) => stages[0] && l.stageId === stages[0].id).length;
   const totalActive = pipelineLeads.filter((l) => stages.find((s) => s.id === l.stageId)?.type !== "lost").length;
   const conversion = totalActive > 0 ? Math.round((wonCount / totalActive) * 100) : 0;
+
+  // Follow-ups pendentes: aberto e (sem próxima ação ou data passou)
+  const today = new Date(); today.setHours(0,0,0,0);
+  const followupsPending = openLeads.filter((l) => {
+    if (!l.nextAction) return true;
+    if (l.nextActionDate) {
+      const d = new Date(l.nextActionDate);
+      if (!isNaN(d.getTime()) && d < today) return true;
+    }
+    return false;
+  }).length;
 
   const leadCountByStage = useMemo(() => {
     const map: Record<string, number> = {};
