@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Sheet,
@@ -13,54 +13,95 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import {
   AlertTriangle,
+  Briefcase,
   CalendarClock,
   CheckCircle2,
   ChevronRight,
-  Clock,
   DollarSign,
   FileText,
+  Flame,
   ListChecks,
-  PhoneCall,
+  RefreshCw,
   Sparkles,
+  Target,
+  UserCircle2,
   Users,
-  CalendarDays,
 } from "lucide-react";
 import { useTasks } from "@/hooks/useTasks";
 import { useLeads } from "@/hooks/useLeads";
 import { useFinance } from "@/hooks/useFinance";
 import { useQuotes } from "@/hooks/useQuotes";
-import { useScheduling } from "@/hooks/useScheduling";
+import { useProjects } from "@/hooks/useProjects";
+import { useClients } from "@/hooks/useClients";
+import {
+  computeDayCenter,
+  DAY_CATEGORY_LABEL,
+  type DayActionItem,
+  type DayCategory,
+  type DayPriority,
+} from "@/lib/dayCenter";
 
 interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }
 
-type Priority = "alta" | "média" | "baixa";
+type Filter = "all" | "task" | "commercial" | "finance" | "project";
 
-interface PriorityItem {
-  id: string;
-  icon: React.ComponentType<{ className?: string }>;
-  title: string;
-  description: string;
-  category: string;
-  priority: Priority;
-  route: string;
-  action: string;
-}
+const FILTERS: { key: Filter; label: string }[] = [
+  { key: "all", label: "Todos" },
+  { key: "task", label: "Tarefas" },
+  { key: "commercial", label: "Comercial" },
+  { key: "finance", label: "Financeiro" },
+  { key: "project", label: "Projetos" },
+];
 
-const PRIORITY_STYLE: Record<Priority, string> = {
-  alta: "border-destructive/40 bg-destructive/[0.06] text-destructive/90",
-  média: "border-primary/30 bg-primary/[0.06] text-primary/90",
-  baixa: "border-border/60 bg-muted/30 text-muted-foreground",
+const PRIORITY_STYLES: Record<DayPriority, { dot: string; text: string; ring: string; label: string }> = {
+  critical: {
+    dot: "bg-destructive",
+    text: "text-destructive",
+    ring: "border-destructive/40 bg-[hsl(0_70%_8%)]",
+    label: "Crítico",
+  },
+  high: {
+    dot: "bg-amber-400",
+    text: "text-amber-400",
+    ring: "border-amber-500/30 bg-amber-500/[0.05]",
+    label: "Alta",
+  },
+  medium: {
+    dot: "bg-primary",
+    text: "text-primary",
+    ring: "border-primary/30 bg-primary/[0.05]",
+    label: "Média",
+  },
+  low: {
+    dot: "bg-muted-foreground/60",
+    text: "text-muted-foreground",
+    ring: "border-border/60 bg-muted/20",
+    label: "Baixa",
+  },
 };
 
-function todayISO() {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+const CATEGORY_ICON: Record<DayCategory, React.ComponentType<{ className?: string }>> = {
+  task: ListChecks,
+  commercial: Users,
+  finance: DollarSign,
+  project: Briefcase,
+  client: UserCircle2,
+  quote: FileText,
+};
+
+function formatBR(amount?: number) {
+  if (typeof amount !== "number") return undefined;
+  return `R$ ${amount.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+}
+
+function formatDate(iso?: string) {
+  if (!iso) return undefined;
+  const [y, m, d] = iso.split("-").map(Number);
+  if (!y) return undefined;
+  return new Date(y, m - 1, d).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
 }
 
 export function DayCenter({ open, onOpenChange }: Props) {
@@ -69,370 +110,153 @@ export function DayCenter({ open, onOpenChange }: Props) {
   const { leads } = useLeads();
   const { transactions } = useFinance();
   const { quotes } = useQuotes();
-  const { appointments, meetingTypes } = useScheduling();
+  const { projects } = useProjects();
+  const { clients } = useClients();
+  const [filter, setFilter] = useState<Filter>("all");
+  const [tick, setTick] = useState(0);
 
-  const data = useMemo(() => {
-    const iso = todayISO();
+  const result = useMemo(
+    () => computeDayCenter({ tasks, leads, quotes, transactions, projects, clients }),
+    [tasks, leads, quotes, transactions, projects, clients, tick],
+  );
 
-    const openTasks = tasks.filter((t) => t.status !== "concluido");
-    const highTasks = openTasks
-      .filter((t) => t.priority === "alta")
-      .slice(0, 4);
-    const overdueTasksCount = openTasks.filter((t) => t.priority === "alta").length;
-
-    const followUps = leads
-      .filter(
-        (l) =>
-          !["fechado", "perdido"].includes(l.stage) &&
-          (l.priority === "alta" || !!l.nextAction),
-      )
-      .slice(0, 5);
-
-    const overdueFinance = transactions.filter(
-      (t) => t.status === "overdue" || (t.status === "pending" && t.dueDate <= iso),
-    );
-
-    const pendingQuotes = quotes.filter((q) => q.status === "enviado");
-
-    const todayAppointments = appointments.filter(
-      (a) => a.date === iso && a.status === "scheduled",
-    );
-
-    const priority: PriorityItem[] = [];
-
-    if (overdueTasksCount > 0) {
-      priority.push({
-        id: "p-tasks",
-        icon: ListChecks,
-        title: `${overdueTasksCount} ${overdueTasksCount === 1 ? "tarefa de alta prioridade" : "tarefas de alta prioridade"}`,
-        description: highTasks[0]?.title ?? "Revise sua lista de prioridades",
-        category: "Tarefas",
-        priority: "alta",
-        route: "/tarefas",
-        action: "Abrir tarefas",
-      });
-    }
-
-    if (pendingQuotes.length > 0) {
-      priority.push({
-        id: "p-quote",
-        icon: FileText,
-        title: pendingQuotes.length === 1 ? "Proposta aguardando retorno" : `${pendingQuotes.length} propostas aguardando`,
-        description: pendingQuotes[0].clientName + " · " + pendingQuotes[0].title,
-        category: "Vendas",
-        priority: "média",
-        route: "/vendas",
-        action: "Abrir vendas",
-      });
-    }
-
-    const hotLead = leads.find((l) => l.priority === "alta" && !["fechado", "perdido"].includes(l.stage));
-    if (hotLead) {
-      priority.push({
-        id: "p-lead",
-        icon: PhoneCall,
-        title: "Lead quente sem follow-up",
-        description: `${hotLead.name} · ${hotLead.company}`,
-        category: "CRM",
-        priority: "alta",
-        route: "/crm",
-        action: "Abrir CRM",
-      });
-    }
-
-    if (overdueFinance.length > 0) {
-      const totalOverdue = overdueFinance.reduce((s, t) => s + (t.type === "income" ? t.amount : -t.amount), 0);
-      priority.push({
-        id: "p-finance",
-        icon: DollarSign,
-        title: overdueFinance.length === 1 ? "Conta vencida" : `${overdueFinance.length} contas vencidas`,
-        description: `Saldo afetado: R$ ${Math.abs(totalOverdue).toLocaleString("pt-BR")}`,
-        category: "Financeiro",
-        priority: "alta",
-        route: "/financeiro",
-        action: "Abrir financeiro",
-      });
-    }
-
-    return {
-      counts: {
-        tasks: openTasks.length,
-        overdue: overdueTasksCount + overdueFinance.length,
-        followUps: followUps.length,
-        agenda: todayAppointments.length,
-      },
-      priority,
-      followUps,
-      overdueFinance: overdueFinance.slice(0, 4),
-      highTasks,
-      todayAppointments,
-    };
-  }, [tasks, leads, transactions, quotes, appointments]);
-
-  const totalPending =
-    data.counts.tasks + data.counts.overdue + data.counts.followUps + data.counts.agenda;
-
-  const go = (route: string) => {
+  const go = (route?: string) => {
+    if (!route) return;
     onOpenChange(false);
     navigate(route);
   };
+
+  const filtered = useMemo(() => {
+    if (filter === "all") return result.items;
+    if (filter === "commercial")
+      return result.items.filter((i) => i.category === "commercial" || i.category === "quote" || i.category === "client");
+    return result.items.filter((i) => i.category === filter);
+  }, [result.items, filter]);
+
+  const sectionsToShow: DayCategory[] = ["task", "commercial", "quote", "finance", "project", "client"];
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="w-full sm:max-w-[440px] p-0 flex flex-col bg-card border-l border-border/60"
+        className="w-full sm:max-w-[720px] p-0 flex flex-col bg-card border-l border-border/60"
       >
-        <SheetHeader className="px-5 pt-5 pb-4 border-b border-border/40 space-y-1.5">
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center">
+        <SheetHeader className="px-6 pt-6 pb-4 border-b border-border/40 space-y-3">
+          <div className="flex items-start gap-3">
+            <div className="h-9 w-9 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
               <Sparkles className="h-4 w-4 text-primary" />
             </div>
             <div className="flex-1 min-w-0">
-              <SheetTitle className="text-[0.95rem] font-semibold flex items-center gap-2">
+              <SheetTitle className="text-[1rem] font-semibold flex items-center gap-2">
                 Central do Dia
-                {totalPending > 0 && (
-                  <Badge
-                    variant="outline"
-                    className="h-5 px-2 text-[10px] font-semibold bg-primary/10 text-primary border-primary/30"
-                  >
-                    {totalPending} {totalPending === 1 ? "item" : "itens"}
+                {result.counts.critical > 0 && (
+                  <Badge variant="destructive" className="h-5 px-2 text-[10px]">
+                    {result.counts.critical} crítico{result.counts.critical > 1 ? "s" : ""}
                   </Badge>
                 )}
               </SheetTitle>
-              <SheetDescription className="text-[0.78rem] text-muted-foreground">
-                O que precisa da sua atenção agora
+              <SheetDescription className="text-[0.8125rem] text-muted-foreground leading-snug">
+                Prioridades, tarefas, follow-ups e alertas para manter sua operação em movimento.
               </SheetDescription>
             </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setTick((t) => t + 1)}
+                className="h-8 px-2 text-muted-foreground"
+                title="Atualizar"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => go("/tarefas")}
+                className="h-8 text-[0.75rem]"
+              >
+                Ver tarefas
+              </Button>
+            </div>
+          </div>
+
+          {/* Resumo */}
+          <div className="grid grid-cols-5 gap-2">
+            <MiniStat icon={CalendarClock} label="Hoje" value={result.counts.today} accent="primary" />
+            <MiniStat icon={AlertTriangle} label="Atrasados" value={result.counts.overdue} accent="destructive" />
+            <MiniStat icon={Users} label="Follow-ups" value={result.counts.followUps} accent="amber" />
+            <MiniStat icon={DollarSign} label="Recebíveis" value={result.counts.receivables} accent="emerald" />
+            <MiniStat icon={Briefcase} label="Projetos" value={result.counts.projectsAttention} accent="primary" />
           </div>
         </SheetHeader>
 
         <ScrollArea className="flex-1">
-          <div className="px-5 py-4 space-y-6">
-            {/* Mini counters */}
-            <div className="grid grid-cols-4 gap-2">
-              <MiniStat icon={ListChecks} label="Tarefas" value={data.counts.tasks} accent="primary" />
-              <MiniStat icon={AlertTriangle} label="Atrasadas" value={data.counts.overdue} accent="destructive" />
-              <MiniStat icon={Users} label="Retornos" value={data.counts.followUps} accent="amber" />
-              <MiniStat icon={CalendarDays} label="Agenda" value={data.counts.agenda} accent="emerald" />
-            </div>
+          <div className="px-6 py-5 space-y-6">
+            {/* Prioridade principal */}
+            {result.topAction ? (
+              <TopActionCard item={result.topAction} onGo={go} />
+            ) : (
+              <EmptyTopState onGo={go} />
+            )}
 
-            {/* Prioridade agora */}
-            <Section title="Prioridade agora" hint="Itens com maior impacto hoje">
-              {data.priority.length === 0 ? (
-                <EmptyState
-                  icon={CheckCircle2}
-                  title="Tudo sob controle"
-                  description="Você não tem prioridades urgentes neste momento."
-                />
-              ) : (
-                <div className="space-y-2">
-                  {data.priority.map((item) => {
-                    const Icon = item.icon;
-                    return (
-                      <button
-                        key={item.id}
-                        onClick={() => go(item.route)}
-                        className="group w-full text-left rounded-lg border border-border/60 bg-card hover:bg-muted/20 hover:border-primary/30 transition-all duration-150 px-3 py-2.5 flex items-center gap-3"
-                      >
-                        <div
-                          className={cn(
-                            "h-9 w-9 shrink-0 rounded-md border flex items-center justify-center",
-                            PRIORITY_STYLE[item.priority],
-                          )}
-                        >
-                          <Icon className="h-4 w-4" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start gap-2">
-                            <p className="text-[0.8125rem] font-medium text-foreground line-clamp-2 leading-snug flex-1">
-                              {item.title}
-                            </p>
-                            <Badge
-                              variant="outline"
-                              className="h-4 px-1 text-[9px] font-medium border-border/60 text-muted-foreground shrink-0 mt-0.5"
-                            >
-                              {item.category}
-                            </Badge>
-                          </div>
-                          <p className="text-[0.7rem] text-muted-foreground truncate mt-1">
-                            {item.description}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-1 text-[0.7rem] font-medium text-primary/90 group-hover:text-primary shrink-0 self-center">
-                          <span className="hidden sm:inline whitespace-nowrap">{item.action}</span>
-                          <ChevronRight className="h-3.5 w-3.5" />
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </Section>
-
-            {/* Agenda */}
-            <Section title="Minha agenda" hint="Compromissos de hoje">
-              {data.todayAppointments.length === 0 ? (
-                <EmptyState
-                  icon={CalendarClock}
-                  title="Sem reuniões para hoje"
-                  description="Quando o Google Calendar for conectado, seus compromissos aparecerão aqui."
-                />
-              ) : (
-                <div className="space-y-1.5">
-                  {data.todayAppointments.map((a) => {
-                    const mt = meetingTypes.find((m) => m.id === a.meetingTypeId);
-                    return (
-                      <button
-                        key={a.id}
-                        onClick={() => go("/presenca")}
-                        className="w-full text-left flex items-center gap-3 px-3 py-2 rounded-lg border border-border/50 bg-card hover:bg-muted/20 transition-colors"
-                      >
-                        <div className="flex flex-col items-center justify-center w-12 shrink-0">
-                          <span className="text-[0.65rem] text-muted-foreground uppercase tracking-wide">Hoje</span>
-                          <span className="text-[0.875rem] font-semibold text-foreground tabular-nums">{a.time}</span>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[0.8125rem] font-medium text-foreground truncate">{a.name}</p>
-                          <p className="text-[0.7rem] text-muted-foreground truncate">
-                            {mt?.name ?? "Reunião"} · {mt?.durationMinutes ?? 30} min
-                          </p>
-                        </div>
-                        <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </Section>
-
-            {/* Tarefas */}
-            <Section title="Tarefas de hoje" hint="Suas prioridades abertas">
-              {data.highTasks.length === 0 ? (
-                <EmptyState
-                  icon={ListChecks}
-                  title="Nenhuma tarefa urgente"
-                  description="Você está em dia. Que tal planejar algo novo?"
-                  action={
-                    <Button size="sm" variant="outline" onClick={() => go("/tarefas")}>
-                      Abrir tarefas
-                    </Button>
-                  }
-                />
-              ) : (
-                <div className="space-y-1.5">
-                  {data.highTasks.slice(0, 4).map((t) => (
+            {/* Filtros */}
+            {result.items.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {FILTERS.map((f) => {
+                  const active = filter === f.key;
+                  return (
                     <button
-                      key={t.id}
-                      onClick={() => go("/tarefas")}
-                      className="w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-lg border border-border/50 bg-card hover:bg-muted/20 transition-colors"
+                      key={f.key}
+                      onClick={() => setFilter(f.key)}
+                      className={cn(
+                        "h-7 px-3 rounded-full text-[0.75rem] font-medium border transition-all duration-150",
+                        active
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-transparent text-muted-foreground border-border/60 hover:text-foreground hover:border-border",
+                      )}
                     >
-                      <Clock className="h-3.5 w-3.5 text-primary/80 shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[0.8125rem] font-medium text-foreground truncate">{t.title}</p>
-                        <p className="text-[0.7rem] text-muted-foreground truncate">
-                          {t.client} · {t.deadline}
-                        </p>
-                      </div>
-                      <Badge variant="outline" className="h-5 px-1.5 text-[10px] font-semibold border-primary/40 text-primary bg-primary/[0.06]">
-                        {t.priority}
-                      </Badge>
+                      {f.label}
                     </button>
-                  ))}
-                  {data.highTasks.length > 0 && (
-                    <SeeAllLink label="Ver todas as tarefas" onClick={() => go("/tarefas")} />
-                  )}
-                </div>
-              )}
-            </Section>
+                  );
+                })}
+              </div>
+            )}
 
-            {/* Follow-ups */}
-            <Section title="Follow-ups" hint="Leads que precisam de retorno">
-              {data.followUps.length === 0 ? (
-                <EmptyState
-                  icon={Users}
-                  title="Nenhum follow-up urgente agora."
-                  description="Seu pipeline está fluindo."
-                />
-              ) : (
-                <div className="space-y-1.5">
-                  {data.followUps.slice(0, 3).map((l) => (
-                    <button
-                      key={l.id}
-                      onClick={() => go("/crm")}
-                      className="w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-lg border border-border/50 bg-card hover:bg-muted/20 transition-colors"
-                    >
-                      <div className="h-7 w-7 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-[0.65rem] font-semibold text-primary shrink-0">
-                        {l.name.split(" ").map((n) => n[0]).slice(0, 2).join("")}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[0.8125rem] font-medium text-foreground truncate">{l.name}</p>
-                        <p className="text-[0.7rem] text-muted-foreground truncate">
-                          {l.nextAction ?? `${l.company} · ${l.stage}`}
-                        </p>
-                      </div>
-                      <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                    </button>
-                  ))}
-                  <SeeAllLink label="Ver todos no CRM" onClick={() => go("/crm")} />
-                </div>
-              )}
-            </Section>
-
-            {/* Financeiro */}
-            <Section title="Financeiro do dia" hint="Contas vencendo ou vencidas">
-              {data.overdueFinance.length === 0 ? (
-                <EmptyState
-                  icon={DollarSign}
-                  title="Sem pendências hoje"
-                  description="Nenhuma conta vencendo no momento."
-                />
-              ) : (
-                <div className="space-y-1.5">
-                  {data.overdueFinance.slice(0, 3).map((t) => (
-                    <button
-                      key={t.id}
-                      onClick={() => go("/financeiro")}
-                      className="w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-lg border border-border/50 bg-card hover:bg-muted/20 transition-colors"
-                    >
-                      <div
-                        className={cn(
-                          "h-7 w-7 rounded-md flex items-center justify-center shrink-0 border",
-                          t.type === "income"
-                            ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-500"
-                            : "border-destructive/30 bg-destructive/10 text-destructive",
-                        )}
-                      >
-                        <DollarSign className="h-3.5 w-3.5" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[0.8125rem] font-medium text-foreground truncate">{t.title}</p>
-                        <p className="text-[0.7rem] text-muted-foreground truncate">
-                          {t.clientName ?? t.category} · vence {t.dueDate}
-                        </p>
-                      </div>
-                      <span
-                        className={cn(
-                          "text-[0.875rem] font-semibold tabular-nums shrink-0",
-                          t.type === "income" ? "text-emerald-500" : "text-destructive",
-                        )}
-                      >
-                        R$ {t.amount.toLocaleString("pt-BR")}
-                      </span>
-                    </button>
-                  ))}
-                  {data.overdueFinance.length > 2 && (
-                    <SeeAllLink label="Abrir financeiro" onClick={() => go("/financeiro")} />
-                  )}
-                </div>
-              )}
-            </Section>
+            {/* Sections */}
+            {filter === "all" ? (
+              <div className="space-y-6">
+                {sectionsToShow.map((cat) => {
+                  const items = result.byCategory[cat];
+                  if (!items.length) return null;
+                  return (
+                    <CategorySection
+                      key={cat}
+                      title={DAY_CATEGORY_LABEL[cat]}
+                      icon={CATEGORY_ICON[cat]}
+                      items={items}
+                      onGo={go}
+                    />
+                  );
+                })}
+                {result.items.length === 0 && <EmptyListState onGo={go} />}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {filtered.length === 0 ? (
+                  <EmptyListState onGo={go} />
+                ) : (
+                  filtered.map((it) => <ActionRow key={it.id} item={it} onGo={go} />)
+                )}
+              </div>
+            )}
           </div>
         </ScrollArea>
       </SheetContent>
     </Sheet>
   );
 }
+
+// ===== Componentes auxiliares =====
 
 function MiniStat({
   icon: Icon,
@@ -447,71 +271,172 @@ function MiniStat({
 }) {
   const accentMap = {
     primary: "text-primary/90 bg-primary/10 border-primary/20",
-    destructive: "text-destructive/90 bg-destructive/10 border-destructive/25",
-    amber: "text-amber-500/90 bg-amber-500/10 border-amber-500/20",
-    emerald: "text-emerald-500/90 bg-emerald-500/10 border-emerald-500/20",
+    destructive: "text-destructive bg-destructive/10 border-destructive/25",
+    amber: "text-amber-400 bg-amber-500/10 border-amber-500/20",
+    emerald: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
   } as const;
   return (
-    <div className="rounded-lg border border-border/50 bg-card/60 px-2.5 py-2.5 flex flex-col items-start gap-1.5 min-w-0">
-      <div className={cn("h-6 w-6 rounded-md border flex items-center justify-center", accentMap[accent])}>
-        <Icon className="h-3 w-3" />
+    <div className="rounded-lg border border-border/50 bg-card/60 px-2.5 py-2 flex flex-col items-start gap-1 min-w-0">
+      <div className={cn("h-5 w-5 rounded-md border flex items-center justify-center", accentMap[accent])}>
+        <Icon className="h-2.5 w-2.5" />
       </div>
-      <span className="text-[1.15rem] font-semibold tabular-nums leading-none text-foreground">{value}</span>
-      <span className="text-[0.625rem] font-semibold text-muted-foreground uppercase tracking-wider truncate w-full">{label}</span>
+      <span className="text-[1.1rem] font-semibold tabular-nums leading-none text-foreground">{value}</span>
+      <span className="text-[0.625rem] font-semibold text-muted-foreground uppercase tracking-wider truncate w-full">
+        {label}
+      </span>
     </div>
   );
 }
 
-function Section({
+function TopActionCard({ item, onGo }: { item: DayActionItem; onGo: (r?: string) => void }) {
+  const style = PRIORITY_STYLES[item.priority];
+  const Icon = CATEGORY_ICON[item.category];
+  return (
+    <div
+      className={cn(
+        "rounded-xl border p-4 flex items-start gap-3 transition-all",
+        style.ring,
+      )}
+    >
+      <div className="h-10 w-10 rounded-lg bg-card/80 border border-border/40 flex items-center justify-center shrink-0">
+        <Flame className={cn("h-5 w-5", style.text)} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-1">
+          <Badge variant="outline" className={cn("h-5 px-1.5 text-[10px] border-current", style.text)}>
+            <span className={cn("h-1.5 w-1.5 rounded-full mr-1", style.dot)} />
+            Próxima melhor ação
+          </Badge>
+          <Badge variant="outline" className="h-5 px-1.5 text-[10px] text-muted-foreground border-border/60">
+            <Icon className="h-2.5 w-2.5 mr-1" />
+            {DAY_CATEGORY_LABEL[item.category]}
+          </Badge>
+        </div>
+        <p className="text-[0.95rem] font-semibold text-foreground leading-snug line-clamp-2">{item.title}</p>
+        {item.description && (
+          <p className="text-[0.8125rem] text-muted-foreground mt-1 line-clamp-2">{item.description}</p>
+        )}
+        <div className="flex items-center gap-3 mt-3 flex-wrap">
+          {item.dueDate && (
+            <span className="text-[0.7rem] text-muted-foreground inline-flex items-center gap-1">
+              <CalendarClock className="h-3 w-3" />
+              {formatDate(item.dueDate)}
+            </span>
+          )}
+          {item.amount !== undefined && (
+            <span className="text-[0.7rem] text-muted-foreground font-medium tabular-nums">
+              {formatBR(item.amount)}
+            </span>
+          )}
+          <Button size="sm" onClick={() => onGo(item.route)} className="h-7 px-3 text-[0.75rem] ml-auto">
+            {item.actionLabel ?? "Abrir"}
+            <ChevronRight className="h-3 w-3 ml-1" />
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CategorySection({
   title,
-  hint,
-  children,
+  icon: Icon,
+  items,
+  onGo,
 }: {
   title: string;
-  hint?: string;
-  children: React.ReactNode;
+  icon: React.ComponentType<{ className?: string }>;
+  items: DayActionItem[];
+  onGo: (r?: string) => void;
 }) {
   return (
     <section className="space-y-2">
-      <div className="flex items-baseline justify-between gap-2">
-        <h3 className="text-[0.8125rem] font-semibold text-foreground">{title}</h3>
-        {hint && <span className="text-[0.7rem] text-muted-foreground truncate">{hint}</span>}
+      <div className="flex items-center justify-between">
+        <h3 className="text-[0.8125rem] font-semibold text-foreground flex items-center gap-2">
+          <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+          {title}
+          <Badge variant="outline" className="h-4 px-1.5 text-[10px] text-muted-foreground border-border/60">
+            {items.length}
+          </Badge>
+        </h3>
       </div>
-      {children}
+      <div className="space-y-1.5">
+        {items.slice(0, 5).map((it) => (
+          <ActionRow key={it.id} item={it} onGo={onGo} />
+        ))}
+      </div>
     </section>
   );
 }
 
-function SeeAllLink({ label, onClick }: { label: string; onClick: () => void }) {
+function ActionRow({ item, onGo }: { item: DayActionItem; onGo: (r?: string) => void }) {
+  const style = PRIORITY_STYLES[item.priority];
+  const Icon = CATEGORY_ICON[item.category];
   return (
     <button
-      onClick={onClick}
-      className="w-full text-center text-[0.7rem] font-medium text-primary/80 hover:text-primary py-1 transition-colors"
+      onClick={() => onGo(item.route)}
+      className="group w-full text-left rounded-lg border border-border/50 bg-card hover:bg-muted/15 hover:border-border transition-all duration-150 px-3 py-2.5 flex items-center gap-3"
     >
-      {label} →
+      <div className={cn("h-9 w-9 shrink-0 rounded-md border flex items-center justify-center", style.ring)}>
+        <Icon className={cn("h-4 w-4", style.text)} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <p className="text-[0.8125rem] font-medium text-foreground truncate flex-1">{item.title}</p>
+          <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", style.dot)} title={style.label} />
+        </div>
+        {item.description && (
+          <p className="text-[0.7rem] text-muted-foreground truncate mt-0.5">{item.description}</p>
+        )}
+      </div>
+      {item.amount !== undefined && (
+        <span className="text-[0.75rem] font-semibold tabular-nums text-foreground/80 shrink-0">
+          {formatBR(item.amount)}
+        </span>
+      )}
+      <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0 group-hover:text-foreground transition-colors" />
     </button>
   );
 }
 
-function EmptyState({
-  icon: Icon,
-  title,
-  description,
-  action,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  title: string;
-  description: string;
-  action?: React.ReactNode;
-}) {
+function EmptyTopState({ onGo }: { onGo: (r?: string) => void }) {
   return (
-    <div className="rounded-lg border border-dashed border-border/60 bg-muted/10 px-4 py-5 text-center flex flex-col items-center gap-2">
-      <div className="h-8 w-8 rounded-full bg-muted/40 flex items-center justify-center">
-        <Icon className="h-4 w-4 text-muted-foreground" />
+    <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/[0.04] p-5 flex items-start gap-3">
+      <div className="h-10 w-10 rounded-lg bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center shrink-0">
+        <CheckCircle2 className="h-5 w-5 text-emerald-400" />
       </div>
-      <p className="text-[0.8125rem] font-medium text-foreground">{title}</p>
-      <p className="text-[0.7rem] text-muted-foreground max-w-[280px] leading-relaxed">{description}</p>
-      {action && <div className="mt-1">{action}</div>}
+      <div className="flex-1 min-w-0">
+        <p className="text-[0.95rem] font-semibold text-foreground">Tudo em ordem por hoje</p>
+        <p className="text-[0.8125rem] text-muted-foreground mt-1">
+          Nenhuma prioridade crítica encontrada. Você pode revisar tarefas, oportunidades ou clientes
+          sem próximo passo.
+        </p>
+        <div className="flex gap-2 mt-3">
+          <Button size="sm" variant="outline" onClick={() => onGo("/tarefas")} className="h-7 text-[0.75rem]">
+            Ver tarefas
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => onGo("/crm")} className="h-7 text-[0.75rem]">
+            <Target className="h-3 w-3 mr-1" /> Abrir CRM
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EmptyListState({ onGo }: { onGo: (r?: string) => void }) {
+  return (
+    <div className="rounded-lg border border-dashed border-border/60 bg-muted/10 px-4 py-6 text-center flex flex-col items-center gap-2">
+      <div className="h-8 w-8 rounded-full bg-muted/40 flex items-center justify-center">
+        <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+      </div>
+      <p className="text-[0.8125rem] font-medium text-foreground">Nada por aqui</p>
+      <p className="text-[0.7rem] text-muted-foreground max-w-[320px]">
+        Nenhum item nesta categoria precisa de atenção agora.
+      </p>
+      <Button size="sm" variant="outline" onClick={() => onGo("/tarefas")} className="h-7 text-[0.75rem] mt-1">
+        Ver tarefas
+      </Button>
     </div>
   );
 }
