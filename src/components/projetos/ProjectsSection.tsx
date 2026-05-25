@@ -211,32 +211,68 @@ export function ProjectsSection() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {filtered.map((p) => (
-          <div key={p.id} className="orbit-card p-4 space-y-3 hover:orbit-glow transition-all">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <h3 className="text-sm font-semibold text-foreground truncate">{p.name}</h3>
-                <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5"><User className="h-3 w-3" />{p.clientName}</p>
+        {filtered.map((p) => {
+          const isHL = highlightId === p.id;
+          const fromQuote = p.source === "orçamento";
+          const deliverables = p.deliverables ?? [];
+          const nextDeliverable = deliverables.find((d) => d.status !== "concluido");
+          return (
+            <div
+              key={p.id}
+              ref={(el) => { cardRefs.current[p.id] = el; }}
+              className={`orbit-card p-4 space-y-3 hover:orbit-glow transition-all ${isHL ? "ring-2 ring-primary/60 orbit-glow" : ""}`}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <h3 className="text-sm font-semibold text-foreground truncate">{p.name}</h3>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5"><User className="h-3 w-3" />{p.clientName}{p.company && ` · ${p.company}`}</p>
+                </div>
+                {p.isDemo && <Badge variant="outline" className="text-[10px] border-border text-muted-foreground">demo</Badge>}
               </div>
-              {p.isDemo && <Badge variant="outline" className="text-[10px] border-border text-muted-foreground">demo</Badge>}
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              <Badge variant="outline" className={`text-[10px] ${statusBadge[p.status]}`}>{PROJECT_STATUS_LABEL[p.status]}</Badge>
-              <Badge variant="outline" className={`text-[10px] ${priorityBadge[p.priority]}`}>{PROJECT_PRIORITY_LABEL[p.priority]}</Badge>
-              {p.serviceType && <Badge variant="outline" className="text-[10px] border-border text-muted-foreground">{p.serviceType}</Badge>}
-            </div>
-            <div>
-              <div className="flex justify-between text-xs text-muted-foreground mb-1">
-                <span>Progresso</span><span>{p.progress}%</span>
+              <div className="flex flex-wrap gap-1.5">
+                <Badge variant="outline" className={`text-[10px] ${statusBadge[p.status]}`}>{PROJECT_STATUS_LABEL[p.status]}</Badge>
+                <Badge variant="outline" className={`text-[10px] ${priorityBadge[p.priority]}`}>{PROJECT_PRIORITY_LABEL[p.priority]}</Badge>
+                {p.serviceType && <Badge variant="outline" className="text-[10px] border-border text-muted-foreground">{p.serviceType}</Badge>}
+                {fromQuote ? (
+                  <Badge variant="outline" className="text-[10px] border-primary/30 text-primary bg-primary/10 inline-flex items-center gap-1">
+                    <Link2 className="h-3 w-3" /> Orçamento
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-[10px] border-border text-muted-foreground">Manual</Badge>
+                )}
               </div>
-              <Progress value={p.progress} />
+              <div>
+                <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                  <span>Progresso</span><span>{p.progress}%</span>
+                </div>
+                <Progress value={p.progress} />
+              </div>
+              {deliverables.length > 0 && (
+                <div className="text-[11px] text-muted-foreground">
+                  {nextDeliverable
+                    ? <>Próxima entrega: <span className="text-foreground">{nextDeliverable.title}</span></>
+                    : <>{deliverables.length} entregáveis concluídos</>}
+                </div>
+              )}
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{fmtDate(p.dueDate)}</span>
+                <span className="font-medium text-foreground">{fmtBRL(p.budget)}</span>
+              </div>
+              {p.quoteId && (
+                <div className="pt-2 border-t border-border/40">
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/vendas?tab=orcamentos`)}
+                    className="text-[11px] inline-flex items-center gap-1 text-primary hover:underline"
+                    title="Abrir orçamento vinculado"
+                  >
+                    <FileText className="h-3 w-3" /> Ver orçamento{p.quoteTitle ? ` — ${p.quoteTitle}` : ""}
+                  </button>
+                </div>
+              )}
             </div>
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{fmtDate(p.dueDate)}</span>
-              <span className="font-medium text-foreground">{fmtBRL(p.budget)}</span>
-            </div>
-          </div>
-        ))}
+          );
+        })}
         {filtered.length === 0 && (
           <div className="md:col-span-2 xl:col-span-3 orbit-card p-10 text-center text-muted-foreground">
             <FolderOpen className="h-8 w-8 mx-auto mb-2 opacity-50" /> Nenhum projeto encontrado.
