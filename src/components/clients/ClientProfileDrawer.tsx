@@ -378,7 +378,10 @@ export const ClientProfileDrawer = ({
                 label="Oportunidades"
                 hint="Acompanhe negociações no pipeline."
                 ctaLabel="Criar oportunidade"
-                onClick={() => toast("Criar oportunidade chega em breve no CRM.")}
+                onClick={() => {
+                  if (onCreateOpportunity) onCreateOpportunity(client);
+                  else toast("Criar oportunidade chega em breve no CRM.");
+                }}
               />
               <ConnectionCard
                 icon={FileSpreadsheet}
