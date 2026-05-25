@@ -68,6 +68,51 @@ export type Database = {
         }
         Relationships: []
       }
+      plans: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          display_name: string | null
+          features: Json | null
+          id: number
+          is_active: boolean | null
+          monthly_credits: number | null
+          name: string
+          price_annually: number | null
+          price_monthly: number | null
+          sort_order: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          display_name?: string | null
+          features?: Json | null
+          id?: never
+          is_active?: boolean | null
+          monthly_credits?: number | null
+          name: string
+          price_annually?: number | null
+          price_monthly?: number | null
+          sort_order?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          display_name?: string | null
+          features?: Json | null
+          id?: never
+          is_active?: boolean | null
+          monthly_credits?: number | null
+          name?: string
+          price_annually?: number | null
+          price_monthly?: number | null
+          sort_order?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -97,6 +142,68 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      user_plan: {
+        Row: {
+          billing_cycle_end: string | null
+          billing_cycle_start: string | null
+          cancelled_at: string | null
+          created_at: string | null
+          credits_allocated: number | null
+          credits_used: number | null
+          id: number
+          is_trial: boolean | null
+          plan_id: number | null
+          status: string | null
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          trial_ends_at: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          billing_cycle_end?: string | null
+          billing_cycle_start?: string | null
+          cancelled_at?: string | null
+          created_at?: string | null
+          credits_allocated?: number | null
+          credits_used?: number | null
+          id?: never
+          is_trial?: boolean | null
+          plan_id?: number | null
+          status?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          trial_ends_at?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          billing_cycle_end?: string | null
+          billing_cycle_start?: string | null
+          cancelled_at?: string | null
+          created_at?: string | null
+          credits_allocated?: number | null
+          credits_used?: number | null
+          id?: never
+          is_trial?: boolean | null
+          plan_id?: number | null
+          status?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          trial_ends_at?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_plan_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
