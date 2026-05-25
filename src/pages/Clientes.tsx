@@ -495,8 +495,8 @@ const Clientes = () => {
                 {c.nextAction ? (
                   <p className="text-sm text-foreground mt-0.5 line-clamp-2">{c.nextAction}</p>
                 ) : (
-                  <p className="text-xs text-amber-400/80 mt-0.5 flex items-center gap-1">
-                    <Target className="h-3 w-3" /> Defina o próximo passo
+                  <p className="text-xs text-muted-foreground/80 mt-0.5 flex items-center gap-1">
+                    <Target className="h-3 w-3" /> Adicionar próximo passo
                   </p>
                 )}
                 {c.nextActionDate && (
