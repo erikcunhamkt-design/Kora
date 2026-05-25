@@ -217,6 +217,7 @@ export const ClientProfileDrawer = ({
         <Tabs defaultValue="overview" className="px-6 pt-5">
           <TabsList className="w-full h-auto p-1 flex flex-wrap gap-1 justify-start bg-muted/40">
             <TabsTrigger value="overview" className="text-xs">Visão geral</TabsTrigger>
+            <TabsTrigger value="activities" className="text-xs">Atividades</TabsTrigger>
             <TabsTrigger value="contacts" className="text-xs">Contatos</TabsTrigger>
             <TabsTrigger value="commercial" className="text-xs">Comercial</TabsTrigger>
             <TabsTrigger value="projects" className="text-xs">Projetos</TabsTrigger>
@@ -228,6 +229,10 @@ export const ClientProfileDrawer = ({
           <div className="py-5 space-y-7">
             <TabsContent value="overview" className="mt-0 space-y-6">
               <OverviewTab client={client} onEdit={onEdit} />
+            </TabsContent>
+
+            <TabsContent value="activities" className="mt-0">
+              <ClientActivitiesTab client={client} onClose={onClose} onCreateOpportunity={onCreateOpportunity} />
             </TabsContent>
 
             <TabsContent value="contacts" className="mt-0">
