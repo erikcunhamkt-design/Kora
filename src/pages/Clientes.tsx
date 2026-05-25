@@ -560,6 +560,10 @@ const Clientes = () => {
         onWhats={handleOpenWhatsApp}
         onArchive={handleArchive}
         onRestore={handleRestore}
+        onCreateOpportunity={(c) => {
+          setSelectedClient(null);
+          navigate(`/crm?newOpportunity=1&clientId=${c.id}`);
+        }}
       />
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(v) => !v && setDeleteTarget(null)}>
