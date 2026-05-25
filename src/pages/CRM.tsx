@@ -37,11 +37,11 @@ import { ComingSoonDialog } from "@/components/crm/ComingSoonDialog";
 import { ScheduleMeetingDialog } from "@/components/crm/ScheduleMeetingDialog";
 import { EditTagsDialog } from "@/components/crm/EditTagsDialog";
 import { MoveToPipelineDialog } from "@/components/crm/MoveToPipelineDialog";
-import { useClients } from "@/hooks/useClients";
+import { useClients, type Client } from "@/hooks/useClients";
 import { useClientTypes } from "@/hooks/useClientTypes";
 import { NewClientTypeDialog } from "@/components/clientes/NewClientTypeDialog";
 import { EmptyState } from "@/components/ui/empty-state";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 const priorityStyles: Record<Priority, string> = {
   alta: "bg-destructive/10 text-destructive border-destructive/20",
