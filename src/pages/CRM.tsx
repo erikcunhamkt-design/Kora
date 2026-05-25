@@ -21,7 +21,7 @@ import {
   Phone, Mail, Clock, MoreHorizontal, User, Briefcase, Calendar,
   StickyNote, X as XIcon, ArrowRight, XCircle, GripVertical, Sparkles,
   Flame, LayoutGrid, List, Settings2, Zap, FileSpreadsheet, MessageCircle,
-  Archive, Trash2, Tag as TagIcon, ChevronDown,
+  Archive, Trash2, Tag as TagIcon, ChevronDown, FileText,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
@@ -725,7 +725,10 @@ const CRM = () => {
         onSchedule={() => selectedLead && setScheduleLeadId(selectedLead.id)}
         onUpdate={(patch) => selectedLead && updateLead(selectedLead.id, patch)}
         onOpenClient={(cid) => navigate(`/clientes?focus=${cid}`)}
+        onCreateQuote={() => selectedLead && navigate(`/vendas?tab=orcamentos&newQuote=1&opportunityId=${selectedLead.id}`)}
+        onOpenQuote={() => navigate(`/vendas?tab=orcamentos`)}
       />
+
 
       <PipelineEditorDialog
         open={pipelineEditorOpen}
@@ -1189,6 +1192,7 @@ const NewLeadDialog = ({
 // ---------- Lead Detail Sheet ----------
 const LeadDetailSheet = ({
   lead, stages, onClose, onMoveToStage, onEditTags, onSchedule, onUpdate, onOpenClient,
+  onCreateQuote, onOpenQuote,
 }: {
   lead: Lead | null;
   stages: PipelineStage[];
@@ -1198,6 +1202,8 @@ const LeadDetailSheet = ({
   onSchedule: () => void;
   onUpdate: (patch: Partial<Lead>) => void;
   onOpenClient?: (clientId: number) => void;
+  onCreateQuote?: () => void;
+  onOpenQuote?: () => void;
 }) => {
   const [noteText, setNoteText] = useState("");
   if (!lead) return null;
