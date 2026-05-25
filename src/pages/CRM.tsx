@@ -1188,7 +1188,7 @@ const NewLeadDialog = ({
 
 // ---------- Lead Detail Sheet ----------
 const LeadDetailSheet = ({
-  lead, stages, onClose, onMoveToStage, onEditTags, onSchedule, onUpdate,
+  lead, stages, onClose, onMoveToStage, onEditTags, onSchedule, onUpdate, onOpenClient,
 }: {
   lead: Lead | null;
   stages: PipelineStage[];
@@ -1197,6 +1197,7 @@ const LeadDetailSheet = ({
   onEditTags: () => void;
   onSchedule: () => void;
   onUpdate: (patch: Partial<Lead>) => void;
+  onOpenClient?: (clientId: number) => void;
 }) => {
   const [noteText, setNoteText] = useState("");
   if (!lead) return null;
@@ -1208,6 +1209,7 @@ const LeadDetailSheet = ({
     : null;
   const wonStage = stages.find((s) => s.type === "won");
   const lostStage = stages.find((s) => s.type === "lost");
+  const temperature = getLeadTemperature(lead);
 
   return (
     <Sheet open={!!lead} onOpenChange={(v) => !v && onClose()}>
@@ -1220,10 +1222,20 @@ const LeadDetailSheet = ({
             {lead.name}
           </SheetTitle>
           <SheetDescription className="flex items-center gap-2 flex-wrap">
-            <Badge variant="outline" className={priorityStyles[lead.priority]}>{lead.priority}</Badge>
-            <span className="text-muted-foreground">· {lead.company}</span>
+            <Badge variant="outline" className={`capitalize ${temperatureStyles[temperature]}`}>{temperature}</Badge>
+            {lead.company && <span className="text-muted-foreground">· {lead.company}</span>}
+            {lead.clientId && onOpenClient && (
+              <Button
+                size="sm" variant="ghost"
+                className="h-6 px-2 text-[11px] gap-1 text-primary hover:text-primary hover:bg-primary/10"
+                onClick={() => onOpenClient(lead.clientId!)}
+              >
+                <User className="h-3 w-3" /> Ver cliente
+              </Button>
+            )}
           </SheetDescription>
         </SheetHeader>
+
 
         <div className="my-4">
           <div className="flex items-center gap-1">
