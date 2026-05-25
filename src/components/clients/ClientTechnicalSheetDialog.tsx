@@ -320,13 +320,14 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 
 export function BrandingSection({ value, onSave }: { value: ClientBranding; onSave: (v: ClientBranding) => void }) {
   const [local, setLocal] = useState<ClientBranding>(value);
-  const [colorInput, setColorInput] = useState("");
+  const [colorHex, setColorHex] = useState("#F81040");
+  const [colorLabel, setColorLabel] = useState("");
 
-  const addColor = () => {
-    const c = colorInput.trim();
+  const addColor = (raw?: string) => {
+    const c = (raw ?? (colorLabel.trim() || colorHex)).trim();
     if (!c) return;
     setLocal({ ...local, colors: [...(local.colors ?? []), c] });
-    setColorInput("");
+    setColorLabel("");
   };
   const removeColor = (i: number) => {
     const next = [...(local.colors ?? [])];
@@ -348,49 +349,90 @@ export function BrandingSection({ value, onSave }: { value: ClientBranding; onSa
         />
       </Field>
 
-      {local.logoUrl && (
-        <div className="rounded-lg border border-border/60 bg-secondary/40 p-3 flex items-center gap-3">
+      {local.logoUrl ? (
+        <div className="rounded-lg border border-border/60 bg-secondary/40 p-4 flex items-center gap-4">
           <img
             src={local.logoUrl}
             alt="Preview do logo"
-            className="h-12 w-12 object-contain rounded bg-background/40"
+            className="h-20 w-20 object-contain rounded-md bg-background/40 border border-border/40"
             onError={(e) => ((e.target as HTMLImageElement).style.display = "none")}
           />
-          <p className="text-xs text-muted-foreground truncate">{local.logoUrl}</p>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs uppercase tracking-wider text-muted-foreground/70 mb-1">Preview</p>
+            <p className="text-xs text-muted-foreground truncate">{local.logoUrl}</p>
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-lg border border-dashed border-border/60 bg-secondary/20 p-4 flex items-center justify-between gap-3 opacity-70 cursor-not-allowed">
+          <div className="text-xs text-muted-foreground">
+            <p className="font-medium text-foreground/70">Upload de logo</p>
+            <p className="mt-0.5">Upload seguro exige Storage e será implementado em etapa futura.</p>
+          </div>
+          <Button type="button" variant="outline" size="sm" disabled>Em breve</Button>
         </div>
       )}
 
-      <Field label="Cores da marca" hint="Adicione hex (#000), nome ou rótulo. Ex: #F81040, Magenta primário.">
-        <div className="flex gap-2">
+      <Field label="Cores da marca" hint="Escolha pelo color picker ou cole um HEX. Rótulo é opcional.">
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="inline-flex items-center gap-2 rounded-lg border border-border bg-secondary/50 px-3 h-11 cursor-pointer">
+            <span className="h-6 w-6 rounded border border-border/40" style={{ backgroundColor: colorHex }} />
+            <input
+              type="color"
+              value={colorHex}
+              onChange={(e) => setColorHex(e.target.value)}
+              className="sr-only"
+            />
+            <span className="text-xs text-muted-foreground">Picker</span>
+          </label>
           <Input
-            placeholder="#F81040 ou Magenta primário"
-            value={colorInput}
-            onChange={(e) => setColorInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addColor())}
+            className="w-32 font-mono uppercase"
+            value={colorHex}
+            onChange={(e) => {
+              const v = e.target.value.trim();
+              setColorHex(v.startsWith("#") ? v : `#${v}`);
+            }}
+            placeholder="#F81040"
           />
-          <Button type="button" variant="outline" onClick={addColor} className="gap-1">
-            <Plus className="h-4 w-4" /> Adicionar
+          <Input
+            className="flex-1 min-w-[160px]"
+            placeholder="Rótulo opcional (ex: Magenta primário)"
+            value={colorLabel}
+            onChange={(e) => setColorLabel(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addColor(colorLabel.trim() ? `${colorHex} · ${colorLabel.trim()}` : colorHex))}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            className="gap-1"
+            onClick={() => addColor(colorLabel.trim() ? `${colorHex} · ${colorLabel.trim()}` : colorHex)}
+          >
+            <Plus className="h-4 w-4" /> Adicionar cor
           </Button>
         </div>
         {!!local.colors?.length && (
-          <div className="flex flex-wrap gap-2 mt-2">
+          <div className="flex flex-wrap gap-3 mt-4">
             {local.colors.map((c, i) => {
-              const isHex = /^#[0-9a-f]{3,8}$/i.test(c);
+              const hexMatch = c.match(/#[0-9a-f]{3,8}/i);
+              const swatch = hexMatch?.[0];
               return (
-                <div key={i} className="inline-flex items-center gap-2 rounded-md border border-border/60 bg-secondary/40 pl-1 pr-2 py-1">
-                  {isHex && (
-                    <span className="h-5 w-5 rounded border border-border/40" style={{ backgroundColor: c }} />
-                  )}
-                  <span className="text-xs text-foreground">{c}</span>
-                  <button onClick={() => removeColor(i)} className="text-muted-foreground hover:text-destructive">
-                    <X className="h-3 w-3" />
-                  </button>
+                <div key={i} className="group inline-flex flex-col items-stretch rounded-lg border border-border/60 bg-card/60 overflow-hidden w-32">
+                  <div
+                    className="h-16 w-full border-b border-border/40"
+                    style={{ backgroundColor: swatch || "transparent" }}
+                  />
+                  <div className="flex items-center justify-between gap-1 px-2 py-1.5">
+                    <span className="text-[11px] text-foreground truncate font-mono">{c}</span>
+                    <button onClick={() => removeColor(i)} className="text-muted-foreground hover:text-destructive shrink-0">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
                 </div>
               );
             })}
           </div>
         )}
       </Field>
+
 
       <Field label="Slogan">
         <Input
