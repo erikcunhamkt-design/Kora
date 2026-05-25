@@ -237,12 +237,12 @@ export function AppSidebar() {
           <button
             onClick={() => navigate("/upgrade")}
             title="Upgrade Pro"
-            className={`flex items-center rounded-lg border border-primary/15 bg-primary/5 hover:bg-primary/8 transition-all duration-200 text-sm press-effect group ${
-              collapsed ? "h-10 w-10 mx-auto justify-center p-0" : "w-full gap-2.5 px-4 py-3"
+            className={`flex items-center rounded-lg border border-border/50 bg-card-elevated/60 hover:bg-card-elevated hover:border-amber-500/30 transition-all duration-200 text-sm press-effect group ${
+              collapsed ? "h-10 w-10 mx-auto justify-center p-0" : "w-full gap-2.5 px-4 py-2.5"
             }`}
           >
-            <Crown className="h-4 w-4 text-primary shrink-0 group-hover:scale-110 transition-transform duration-200" />
-            {!collapsed && <span className="text-primary font-medium">Upgrade Pro</span>}
+            <Crown className="h-4 w-4 text-amber-400/80 shrink-0 group-hover:scale-110 transition-transform duration-200" />
+            {!collapsed && <span className="text-foreground/85 font-medium">Upgrade Pro</span>}
           </button>
         </SidebarFooter>
       )}
