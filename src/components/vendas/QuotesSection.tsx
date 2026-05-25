@@ -888,6 +888,42 @@ function QuotePreview({
         </div>
       </div>
 
+      {quote.status === "aprovado" && (
+        <div className="mt-4 rounded-xl border border-border/60 bg-card p-4 flex flex-wrap items-center gap-3">
+          <div className="h-9 w-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+            <Wallet className="h-4 w-4" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-[11px] uppercase tracking-wide text-muted-foreground/80">Financeiro</div>
+            <div className="text-sm font-semibold text-foreground">
+              {quote.financeEntryId ? "Conta a receber gerada" : "Sem conta a receber ainda"}
+            </div>
+            <div className="text-[11px] text-muted-foreground">
+              {quote.financeEntryId
+                ? "Acompanhe o recebimento e marque como pago no financeiro."
+                : "Transforme este orçamento aprovado em uma receita prevista."}
+            </div>
+          </div>
+          {quote.financeEntryId ? (
+            <button
+              type="button"
+              onClick={onOpenReceivable}
+              className="rounded-lg border border-border/60 px-3 py-1.5 text-xs font-bold text-foreground hover:border-primary hover:text-primary transition inline-flex items-center gap-1"
+            >
+              <Eye className="h-3 w-3" /> Ver recebível
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onGenerateReceivable}
+              className="rounded-lg border border-border bg-primary/10 text-primary px-3 py-1.5 text-xs font-bold hover:bg-primary hover:text-primary-foreground transition inline-flex items-center gap-1"
+            >
+              <Wallet className="h-3 w-3" /> Gerar conta a receber
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="mt-5 grid grid-cols-2 md:grid-cols-4 gap-2">
         <ActionButton icon={<Download className="h-4 w-4" />} label="Baixar PDF" onClick={() => toast("Geração de PDF chega em breve.")} />
         <ActionButton icon={<Send className="h-4 w-4" />} label="Marcar enviado" onClick={onSend} />
@@ -895,7 +931,7 @@ function QuotePreview({
         <ActionButton icon={<Check className="h-4 w-4" />} label="Aprovar" onClick={onApprove} primary />
       </div>
       <p className="mt-3 text-[11px] text-muted-foreground">
-        Envio por WhatsApp/e-mail, aprovação online e checkout real chegam em breve.
+        Envio por WhatsApp/e-mail, aprovação online, PIX automático e checkout real chegam em etapa futura.
       </p>
     </Shell>
   );
