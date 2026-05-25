@@ -331,6 +331,12 @@ export const ClientProfileDrawer = ({
             </div>
           </section>
 
+          {/* Biblioteca do cliente */}
+          <ClientLibrarySection
+            assets={client.assets ?? []}
+            onChange={(next) => onUpdateAssets?.(client.id, next)}
+          />
+
           {/* Timeline */}
           <section>
             <SectionTitle icon={Activity}>Histórico</SectionTitle>
