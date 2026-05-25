@@ -110,7 +110,30 @@ export const statusLabel: Record<FillStatus, string> = {
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 const isValidUrl = (u: string) => !u || /^https?:\/\//i.test(u) || /^[\w-]+(\.[\w-]+)+/.test(u);
-const normUrl = (u: string) => (!u ? u : /^https?:\/\//i.test(u) ? u : `https://${u}`);
+const normUrl = (u: string) => (!u ? u : /^https?:\/\//i.test(u) || /^data:/i.test(u) ? u : `https://${u}`);
+
+// ---- Upload local (dataURL em localStorage) ----
+// Limites conservadores: localStorage costuma ter ~5MB total por origem.
+export const LOGO_MAX_BYTES = 500 * 1024;        // 500 KB por logo
+export const ASSET_FILE_MAX_BYTES = 1024 * 1024; // 1 MB por arquivo
+export const ASSETS_QUOTA_BYTES = 5 * 1024 * 1024; // 5 MB de cota total de uploads do cliente
+
+export function formatBytes(n: number) {
+  if (!n) return "0 KB";
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+export function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result));
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(file);
+  });
+}
+
 
 export function ClientTechnicalSheetDialog({
   open, onOpenChange, client, onSave,
