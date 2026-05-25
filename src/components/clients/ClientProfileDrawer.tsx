@@ -111,7 +111,7 @@ const ConnectionCard = ({
 // ---------- Main ----------
 
 export const ClientProfileDrawer = ({
-  client, onClose, onEdit, onWhats, onArchive, onRestore, onCreateOpportunity, onCreateQuote, onUpdateAssets,
+  client, onClose, onEdit, onWhats, onArchive, onRestore, onCreateOpportunity, onCreateQuote, onUpdateAssets, onUpdateTechnicalSheet,
 }: {
   client: Client | null;
   onClose: () => void;
@@ -122,7 +122,9 @@ export const ClientProfileDrawer = ({
   onCreateOpportunity?: (c: Client) => void;
   onCreateQuote?: (c: Client) => void;
   onUpdateAssets?: (clientId: number, assets: ClientAsset[]) => void;
+  onUpdateTechnicalSheet?: (clientId: number, sheet: ClientTechnicalSheet) => void;
 }) => {
+  const [techOpen, setTechOpen] = useState(false);
   if (!client) return null;
 
   const hasPhone = !!(client.whatsapp || client.phone);
