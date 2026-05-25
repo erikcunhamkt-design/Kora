@@ -90,9 +90,9 @@ const navGroups: NavGroup[] = [
 ];
 
 const badgeStyles: Record<Badge, { label: string; className: string }> = {
-  soon: { label: "Em breve", className: "border-border/60 bg-muted/40 text-muted-foreground" },
-  beta: { label: "Beta", className: "border-primary/25 bg-primary/10 text-primary" },
-  pro: { label: "Pro", className: "border-primary/30 bg-primary/15 text-primary" },
+  soon: { label: "Em breve", className: "border-border/40 bg-transparent text-muted-foreground/60" },
+  beta: { label: "Beta", className: "border-border/40 bg-transparent text-muted-foreground/70" },
+  pro: { label: "Pro", className: "border-amber-500/25 bg-transparent text-amber-400/80" },
 };
 
 export function AppSidebar() {
@@ -140,11 +140,11 @@ export function AppSidebar() {
         )}
       </div>
 
-      <SidebarContent className={collapsed ? "px-2 py-4" : "px-3 py-4"}>
+      <SidebarContent className={collapsed ? "px-2 py-4" : "px-3 py-5"}>
         {navGroups.map((group) => (
-          <SidebarGroup key={group.label} className={collapsed ? "p-0 mb-1" : "mb-2"}>
+          <SidebarGroup key={group.label} className={collapsed ? "p-0 mb-2" : "mb-4"}>
             {!collapsed && (
-              <SidebarGroupLabel className="px-3 text-[0.625rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground/45">
+              <SidebarGroupLabel className="px-3 mb-1 text-[0.6rem] font-medium uppercase tracking-[0.16em] text-muted-foreground/35">
                 {group.label}
               </SidebarGroupLabel>
             )}
@@ -160,26 +160,23 @@ export function AppSidebar() {
                       : "gap-3 px-3 py-2 text-[0.875rem]"
                   } ${
                     item.disabled
-                      ? "text-muted-foreground/40 cursor-not-allowed"
+                      ? "text-muted-foreground/35 cursor-not-allowed hover:bg-transparent"
                       : active
-                      ? "bg-primary/10 text-primary"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                      ? "bg-card-elevated text-foreground"
+                      : "text-muted-foreground/85 hover:text-foreground hover:bg-muted/30"
                   }`;
-                  const style = active && !item.disabled
-                    ? { boxShadow: "inset 0 0 0 1px hsl(348 94% 52% / 0.25)" }
-                    : undefined;
 
                   const content = (
                     <>
                       {active && !collapsed && !item.disabled && (
-                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full orbit-gradient" />
+                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-4 rounded-r-full bg-primary/70" />
                       )}
-                      <Icon className={`h-[18px] w-[18px] flex-shrink-0 transition-colors duration-200 ${active && !item.disabled ? "text-primary" : ""}`} />
+                      <Icon className={`h-[18px] w-[18px] flex-shrink-0 transition-colors duration-200 ${active && !item.disabled ? "text-primary/90" : ""}`} />
                       {!collapsed && (
                         <>
                           <span className="truncate flex-1">{item.title}</span>
                           {badge && (
-                            <span className={`text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded border ${badge.className}`}>
+                            <span className={`text-[9px] font-medium uppercase tracking-wide px-1.5 py-0.5 rounded border ${badge.className}`}>
                               {badge.label}
                             </span>
                           )}
@@ -211,7 +208,7 @@ export function AppSidebar() {
                             title={collapsed ? item.title : undefined}
                             className={baseClass}
                             activeClassName=""
-                            style={style}
+                            
                           >
                             {content}
                           </NavLink>
@@ -240,12 +237,12 @@ export function AppSidebar() {
           <button
             onClick={() => navigate("/upgrade")}
             title="Upgrade Pro"
-            className={`flex items-center rounded-lg border border-primary/15 bg-primary/5 hover:bg-primary/8 transition-all duration-200 text-sm press-effect group ${
-              collapsed ? "h-10 w-10 mx-auto justify-center p-0" : "w-full gap-2.5 px-4 py-3"
+            className={`flex items-center rounded-lg border border-border/50 bg-card-elevated/60 hover:bg-card-elevated hover:border-amber-500/30 transition-all duration-200 text-sm press-effect group ${
+              collapsed ? "h-10 w-10 mx-auto justify-center p-0" : "w-full gap-2.5 px-4 py-2.5"
             }`}
           >
-            <Crown className="h-4 w-4 text-primary shrink-0 group-hover:scale-110 transition-transform duration-200" />
-            {!collapsed && <span className="text-primary font-medium">Upgrade Pro</span>}
+            <Crown className="h-4 w-4 text-amber-400/80 shrink-0 group-hover:scale-110 transition-transform duration-200" />
+            {!collapsed && <span className="text-foreground/85 font-medium">Upgrade Pro</span>}
           </button>
         </SidebarFooter>
       )}

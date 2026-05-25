@@ -63,43 +63,44 @@ export function TopBar() {
     : "DS";
 
   return (
-    <header className="h-16 shrink-0 border-b border-border/40 flex items-center justify-between gap-3 px-6 glass-panel-subtle sticky top-0 z-20">
+    <header className="h-16 shrink-0 border-b border-border/40 flex items-center justify-between gap-4 px-6 glass-panel-subtle sticky top-0 z-20">
       <div className="flex items-center gap-3 min-w-0">
-        <SidebarTrigger className="text-muted-foreground hover:text-foreground transition-colors duration-150" />
+        <SidebarTrigger className="text-muted-foreground/70 hover:text-foreground transition-colors duration-150" />
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         <button
           onClick={() => setCmdOpen(true)}
-          className="relative hidden md:flex items-center gap-2 w-64 h-9 px-3 bg-muted/30 border border-border/40 rounded-lg text-[0.8125rem] text-muted-foreground/70 hover:border-primary/40 hover:text-foreground transition-all duration-200 group"
+          className="relative hidden md:flex items-center gap-2.5 w-72 h-9 px-3.5 bg-muted/20 border border-border/40 rounded-lg text-[0.8125rem] text-muted-foreground/60 hover:border-border hover:bg-muted/30 hover:text-foreground/80 focus-within:border-primary/40 transition-all duration-200 group"
         >
           <Search className="h-3.5 w-3.5" />
-          <span className="flex-1 text-left">Buscar...</span>
-          <kbd className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium bg-background/60 rounded border border-border/40 text-muted-foreground">
+          <span className="flex-1 text-left">Buscar clientes, projetos, tarefas...</span>
+          <kbd className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium bg-background/40 rounded border border-border/40 text-muted-foreground/70">
             {isMac ? "⌘" : "Ctrl"} K
           </kbd>
         </button>
         <button
           onClick={() => setCmdOpen(true)}
           aria-label="Buscar"
-          className="md:hidden p-2.5 rounded-lg hover:bg-muted/40 transition-all duration-150 press-effect"
+          className="md:hidden p-2 rounded-lg hover:bg-muted/30 transition-all duration-150 press-effect"
         >
           <Search className="h-4 w-4 text-muted-foreground" />
         </button>
 
-        {/* Plan badge */}
+        <div className="hidden md:block w-px h-5 bg-border/50 mx-1" />
+
+        {/* Plan badge — informativo, neutro */}
         {!isPro && (
           <button
             onClick={() => navigate("/upgrade")}
-            className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-primary/15 bg-primary/5 text-primary text-[0.75rem] font-medium hover:bg-primary/8 transition-all duration-200 press-effect"
+            className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border/40 bg-transparent text-muted-foreground/80 text-[0.75rem] font-medium hover:text-foreground hover:border-border hover:bg-muted/20 transition-all duration-200 press-effect"
           >
-            <Crown className="h-3 w-3" />
+            <Crown className="h-3 w-3 text-amber-400/70" />
             Free
-            <Zap className="h-3 w-3 ml-0.5" />
           </button>
         )}
         {isPro && (
-          <span className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg orbit-gradient text-white text-[0.75rem] font-semibold shadow-[0_0_16px_hsl(263_84%_58%/0.2)]">
+          <span className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-amber-500/25 bg-amber-500/[0.04] text-amber-400/90 text-[0.75rem] font-semibold">
             <Crown className="h-3 w-3" /> Pro
           </span>
         )}
@@ -108,10 +109,10 @@ export function TopBar() {
           onClick={() => setDayOpen(true)}
           aria-label="Central do Dia"
           title="Central do Dia"
-          className="relative flex items-center gap-1.5 px-2.5 md:px-3 py-2 rounded-lg border border-border/40 bg-muted/20 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-all duration-150 press-effect"
+          className="relative flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-muted-foreground/80 hover:text-foreground hover:bg-muted/30 transition-all duration-150 press-effect"
         >
-          <CalendarCheck className="h-3.5 w-3.5" />
-          <span className="hidden md:inline text-[0.75rem] font-semibold">Hoje</span>
+          <CalendarCheck className="h-4 w-4" />
+          <span className="hidden lg:inline text-[0.8125rem] font-medium">Hoje</span>
         </button>
 
         <button
@@ -119,17 +120,16 @@ export function TopBar() {
           aria-label={`Créditos de IA: ${balance}`}
           title="Créditos de IA"
           className={cn(
-            "relative flex items-center gap-1.5 px-2.5 md:px-3 py-2 rounded-lg border transition-all duration-150 press-effect",
+            "relative flex items-center gap-1.5 px-2.5 py-2 rounded-lg transition-all duration-150 press-effect",
             lowCredits
-              ? "border-primary/30 bg-primary/[0.06] text-primary hover:bg-primary/[0.1]"
-              : "border-border/40 bg-muted/20 text-muted-foreground hover:text-foreground hover:bg-muted/40",
+              ? "text-amber-400/90 hover:bg-muted/30"
+              : "text-muted-foreground/80 hover:text-foreground hover:bg-muted/30",
           )}
         >
-          <Sparkles className={cn("h-3.5 w-3.5", lowCredits && "text-primary")} />
-          <span className="text-[0.75rem] font-semibold tabular-nums">{balance}</span>
-          <span className="hidden lg:inline text-[0.75rem] text-muted-foreground/80">créditos</span>
+          <Sparkles className="h-4 w-4" />
+          <span className="text-[0.8125rem] font-medium tabular-nums">{balance}</span>
           {lowCredits && (
-            <span className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_6px_hsl(var(--primary)/0.7)]" />
+            <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-amber-400/80" />
           )}
         </button>
 
@@ -137,36 +137,33 @@ export function TopBar() {
           onClick={() => setSupportOpen(true)}
           aria-label="Suporte"
           title="Suporte"
-          className="relative flex items-center gap-1.5 px-2.5 md:px-3 py-2 rounded-lg hover:bg-muted/40 text-muted-foreground hover:text-foreground transition-all duration-150 press-effect"
+          className="relative p-2 rounded-lg text-muted-foreground/80 hover:text-foreground hover:bg-muted/30 transition-all duration-150 press-effect"
         >
           <MessageCircleQuestion className="h-4 w-4" />
-          <span className="hidden md:inline text-[0.8125rem] font-medium">Ajuda</span>
           {hasOpenTickets && (
-            <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_6px_hsl(var(--primary)/0.6)]" />
+            <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-amber-400/80" />
           )}
         </button>
-
-
 
         <button
           onClick={() => setInboxOpen(true)}
           aria-label={`Notificações${unreadCount > 0 ? `, ${unreadCount} não lidas` : ""}`}
-          className="relative p-2.5 rounded-lg hover:bg-muted/40 transition-all duration-150 press-effect"
+          className="relative p-2 rounded-lg text-muted-foreground/80 hover:text-foreground hover:bg-muted/30 transition-all duration-150 press-effect"
         >
-          <Bell className={cn("h-4 w-4", unreadCount > 0 ? "text-foreground" : "text-muted-foreground")} />
+          <Bell className="h-4 w-4" />
           {unreadCount > 0 && (
             <span
               className={cn(
                 "absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-1 rounded-full flex items-center justify-center text-[9px] font-bold text-white border border-card",
-                hasHighPriorityUnread
-                  ? "bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.7)]"
-                  : "bg-primary/70",
+                hasHighPriorityUnread ? "bg-primary" : "bg-muted-foreground/60",
               )}
             >
               {unreadCount > 9 ? "9+" : unreadCount}
             </span>
           )}
         </button>
+
+        <div className="hidden md:block w-px h-5 bg-border/50 mx-1" />
 
         <DropdownMenu>
           <DropdownMenuTrigger className="flex items-center gap-2.5 focus:outline-none rounded-lg px-2 py-1.5 hover:bg-muted/30 transition-all duration-150">
@@ -182,9 +179,9 @@ export function TopBar() {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-72 p-0 overflow-hidden">
             {/* Header */}
-            <div className="px-4 py-4 bg-gradient-to-br from-primary/8 via-card to-card border-b border-border/40">
+            <div className="px-4 py-4 bg-card-elevated/40 border-b border-border/40">
               <div className="flex items-center gap-3">
-                <Avatar className="h-11 w-11 border border-primary/30">
+                <Avatar className="h-11 w-11 border border-border/50">
                   <AvatarFallback className="orbit-gradient text-white text-sm font-bold">
                     {initials}
                   </AvatarFallback>
@@ -199,10 +196,10 @@ export function TopBar() {
               <div className="mt-3 flex items-center justify-between">
                 <span
                   className={cn(
-                    "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wide",
+                    "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wide border",
                     isPro
-                      ? "orbit-gradient text-white"
-                      : "border border-primary/20 bg-primary/8 text-primary",
+                      ? "border-amber-500/30 bg-amber-500/[0.06] text-amber-400/90"
+                      : "border-border/50 bg-transparent text-muted-foreground",
                   )}
                 >
                   <Crown className="h-2.5 w-2.5" />
@@ -211,7 +208,7 @@ export function TopBar() {
                 {!isPro && (
                   <button
                     onClick={() => navigate("/upgrade")}
-                    className="text-[11px] font-medium text-primary hover:text-primary/80 transition-colors"
+                    className="text-[11px] font-medium text-primary/90 hover:text-primary transition-colors"
                   >
                     Upgrade →
                   </button>
