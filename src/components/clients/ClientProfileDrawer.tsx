@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,10 +9,12 @@ import {
   FileText, Calendar, Clock, Target, StickyNote, Tag, Flame, Snowflake,
   Sparkles, DollarSign, TrendingUp, Activity, Archive, ArchiveRestore,
   Briefcase, FileSpreadsheet, FolderKanban, Wallet, CheckSquare,
+  ClipboardList, ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Client, ClientStatus, ClientTemperature, ClientAsset } from "@/hooks/useClients";
+import type { Client, ClientStatus, ClientTemperature, ClientAsset, ClientTechnicalSheet } from "@/hooks/useClients";
 import { ClientLibrarySection } from "./ClientLibrarySection";
+import { ClientTechnicalSheetDialog } from "./ClientTechnicalSheetDialog";
 
 const statusBadge: Record<ClientStatus, string> = {
   "Ativo": "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
