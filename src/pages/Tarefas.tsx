@@ -225,14 +225,24 @@ const Tarefas = () => {
 
   // Deep link: /tarefas?task=<id>
   const [searchParams, setSearchParams] = useSearchParams();
+  const [highlightedTaskId, setHighlightedTaskId] = useState<number | null>(null);
   useEffect(() => {
     const raw = searchParams.get("task");
     if (!raw) return;
     const id = Number(raw);
     if (!Number.isFinite(id)) return;
     const found = tasks.find(t => t.id === id);
-    if (found) setSelectedTask(found);
+    if (found) {
+      setSelectedTask(found);
+      setHighlightedTaskId(id);
+    }
   }, [searchParams, tasks]);
+
+  useEffect(() => {
+    if (highlightedTaskId === null) return;
+    const t = setTimeout(() => setHighlightedTaskId(null), 4000);
+    return () => clearTimeout(t);
+  }, [highlightedTaskId]);
 
   const clearTaskParam = () => {
     if (!searchParams.get("task")) return;
@@ -513,6 +523,7 @@ const Tarefas = () => {
           setDraggedId={setDraggedId}
           onSelect={setSelectedTask}
           onDrop={handleDrop}
+          highlightedTaskId={highlightedTaskId}
         />
       ) : (
         <ListView
@@ -520,6 +531,7 @@ const Tarefas = () => {
           tasks={visibleTasks}
           taskProjects={taskProjects}
           onSelect={setSelectedTask}
+          highlightedTaskId={highlightedTaskId}
           onToggleComplete={handleToggleComplete}
           onArchive={(id) => archiveTask(id, true)}
           onUnarchive={(id) => archiveTask(id, false)}
@@ -615,7 +627,7 @@ const Tarefas = () => {
 /* ------------------------------------------------------------------ */
 
 const ListView = ({
-  view, tasks, taskProjects, onSelect, onToggleComplete, onArchive, onUnarchive, onDuplicate, onDelete, onMoveToProject,
+  view, tasks, taskProjects, onSelect, onToggleComplete, onArchive, onUnarchive, onDuplicate, onDelete, onMoveToProject, highlightedTaskId,
 }: {
   view: ViewKey;
   tasks: Task[];
@@ -627,6 +639,7 @@ const ListView = ({
   onDuplicate: (id: number) => void;
   onDelete: (t: Task) => void;
   onMoveToProject: (taskId: number, projectId: string) => void;
+  highlightedTaskId?: number | null;
 }) => {
   const groups = useMemo(() => {
     const g: { key: string; label: string; items: Task[] }[] = [];
@@ -686,6 +699,7 @@ const ListView = ({
                 onDuplicate={onDuplicate}
                 onDelete={onDelete}
                 onMoveToProject={onMoveToProject}
+                highlighted={highlightedTaskId === t.id}
               />
             ))}
           </div>
