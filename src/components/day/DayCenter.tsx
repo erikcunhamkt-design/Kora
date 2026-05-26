@@ -27,14 +27,8 @@ import {
   UserCircle2,
   Users,
 } from "lucide-react";
-import { useTasks } from "@/hooks/useTasks";
-import { useLeads } from "@/hooks/useLeads";
-import { useFinance } from "@/hooks/useFinance";
-import { useQuotes } from "@/hooks/useQuotes";
-import { useProjects } from "@/hooks/useProjects";
-import { useClients } from "@/hooks/useClients";
+import { useDayCenterData } from "@/hooks/useDayCenterData";
 import {
-  computeDayCenter,
   DAY_CATEGORY_LABEL,
   type DayActionItem,
   type DayCategory,
