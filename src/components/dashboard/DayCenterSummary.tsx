@@ -88,17 +88,7 @@ const CATEGORY_GROUPS: { key: DayCategory; label: string }[] = [
 
 export function DayCenterSummary() {
   const navigate = useNavigate();
-  const { tasks } = useTasks();
-  const { leads } = useLeads();
-  const { transactions } = useFinance();
-  const { quotes } = useQuotes();
-  const { projects } = useProjects();
-  const { clients } = useClients();
-
-  const result = useMemo(
-    () => computeDayCenter({ tasks, leads, quotes, transactions, projects, clients }),
-    [tasks, leads, quotes, transactions, projects, clients],
-  );
+  const result = useDayCenterData();
 
   const nextItems = useMemo(() => {
     const top = result.topAction;
