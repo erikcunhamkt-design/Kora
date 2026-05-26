@@ -36,7 +36,8 @@ import {
 import { useDayCenterData } from "@/hooks/useDayCenterData";
 import { useTasks } from "@/hooks/useTasks";
 import { useFinance } from "@/hooks/useFinance";
-import { useClientActivityLogs } from "@/hooks/useClientActivityLogs";
+import { useClientActivityLogs, useAllClientActivityLogs } from "@/hooks/useClientActivityLogs";
+import { useDayCenterResolvedActions } from "@/hooks/useDayCenterResolvedActions";
 import {
   DAY_CATEGORY_LABEL,
   type DayActionItem,
@@ -116,6 +117,8 @@ export function DayCenter({ open, onOpenChange }: Props) {
   const { updateTask } = useTasks();
   const { updateTransactionStatus, transactions } = useFinance();
   const { updateLog } = useClientActivityLogs();
+  const allManualLogs = useAllClientActivityLogs();
+  const { todayCount, todayActions, addAction } = useDayCenterResolvedActions();
   const [payConfirm, setPayConfirm] = useState<DayActionItem | null>(null);
 
   const go = (route?: string) => {
@@ -126,13 +129,38 @@ export function DayCenter({ open, onOpenChange }: Props) {
 
   const completeTask = (item: DayActionItem) => {
     if (item.relatedType !== "task" || item.relatedId == null) return;
-    updateTask(Number(item.relatedId), { status: "concluido" });
+    try {
+      updateTask(Number(item.relatedId), { status: "concluido" });
+    } catch {
+      toast.error("Não foi possível concluir a tarefa");
+      return;
+    }
+    addAction({
+      type: "task_completed",
+      relatedType: "task",
+      relatedId: String(item.relatedId),
+      title: item.title,
+    });
     toast.success("Tarefa concluída");
   };
 
   const resolveFollowUp = (item: DayActionItem) => {
     if (item.relatedType !== "manual_activity" || !item.relatedId) return;
-    updateLog(String(item.relatedId), { resolvedAt: new Date().toISOString() });
+    const logId = String(item.relatedId);
+    try {
+      updateLog(logId, { resolvedAt: new Date().toISOString() });
+    } catch {
+      toast.error("Não foi possível resolver o follow-up");
+      return;
+    }
+    const log = allManualLogs.find((l) => l.id === logId);
+    addAction({
+      type: "manual_followup_resolved",
+      relatedType: "manual_activity",
+      relatedId: logId,
+      title: item.title || log?.nextStep || "Follow-up",
+      clientId: log?.clientId,
+    });
     toast.success("Follow-up marcado como resolvido");
   };
 
@@ -142,7 +170,23 @@ export function DayCenter({ open, onOpenChange }: Props) {
 
   const confirmMarkPaid = () => {
     if (!payConfirm || !payConfirm.relatedId) return;
-    updateTransactionStatus(String(payConfirm.relatedId), "paid");
+    const txId = String(payConfirm.relatedId);
+    const tx = transactions.find((t) => t.id === txId);
+    try {
+      updateTransactionStatus(txId, "paid");
+    } catch {
+      toast.error("Não foi possível marcar como pago");
+      setPayConfirm(null);
+      return;
+    }
+    addAction({
+      type: "receivable_paid",
+      relatedType: "finance_transaction",
+      relatedId: txId,
+      title: tx?.title || payConfirm.title,
+      amount: tx?.amount ?? payConfirm.amount,
+      clientId: tx?.clientId,
+    });
     toast.success("Recebível marcado como pago");
     setPayConfirm(null);
   };
@@ -216,6 +260,23 @@ export function DayCenter({ open, onOpenChange }: Props) {
             <MiniStat icon={DollarSign} label="Recebíveis" value={result.counts.receivables} accent="emerald" />
             <MiniStat icon={Briefcase} label="Projetos" value={result.counts.projectsAttention} accent="primary" />
           </div>
+
+          {todayCount > 0 && (
+            <div className="flex items-center gap-2 rounded-md border border-emerald-500/20 bg-emerald-500/[0.04] px-2.5 py-1.5">
+              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+              <span className="text-[0.75rem] font-semibold text-emerald-400 tabular-nums">
+                {todayCount}
+              </span>
+              <span className="text-[0.7rem] text-muted-foreground truncate">
+                resolvido{todayCount > 1 ? "s" : ""} hoje pela Central
+              </span>
+              {todayActions[0] && (
+                <span className="text-[0.7rem] text-muted-foreground/70 truncate ml-auto hidden sm:inline">
+                  Último: {todayActions[0].title}
+                </span>
+              )}
+            </div>
+          )}
         </SheetHeader>
 
         <ScrollArea className="flex-1">

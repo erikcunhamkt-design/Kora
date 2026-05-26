@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useDayCenterData } from "@/hooks/useDayCenterData";
+import { useDayCenterResolvedActions } from "@/hooks/useDayCenterResolvedActions";
 import {
   DAY_CATEGORY_LABEL,
   type DayActionItem,
@@ -89,6 +90,7 @@ const CATEGORY_GROUPS: { key: DayCategory; label: string }[] = [
 export function DayCenterSummary() {
   const navigate = useNavigate();
   const result = useDayCenterData();
+  const { todayCount } = useDayCenterResolvedActions();
 
   const nextItems = useMemo(() => {
     const top = result.topAction;
@@ -114,10 +116,26 @@ export function DayCenterSummary() {
             </p>
           </div>
         </div>
-        <Button size="sm" variant="outline" onClick={openDayCenter} className="h-8 text-[0.75rem] shrink-0">
-          Abrir Central
-          <ArrowRight className="h-3 w-3" />
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          {todayCount > 0 && (
+            <div
+              className="hidden sm:flex items-center gap-1.5 rounded-md border border-emerald-500/20 bg-emerald-500/[0.04] px-2 py-1"
+              title="Ações concluídas pela Central do Dia"
+            >
+              <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+              <span className="text-[0.75rem] font-semibold text-emerald-400 tabular-nums leading-none">
+                {todayCount}
+              </span>
+              <span className="text-[0.7rem] text-muted-foreground leading-none">
+                resolvido{todayCount > 1 ? "s" : ""} hoje
+              </span>
+            </div>
+          )}
+          <Button size="sm" variant="outline" onClick={openDayCenter} className="h-8 text-[0.75rem]">
+            Abrir Central
+            <ArrowRight className="h-3 w-3" />
+          </Button>
+        </div>
       </div>
 
       {result.topAction ? (
