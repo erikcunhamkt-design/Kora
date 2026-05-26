@@ -150,7 +150,7 @@ export function computeDayCenter(inputs: DayCenterInputs): DayCenterResult {
           clientId: t.clientId,
           clientName: t.client,
           actionLabel: "Abrir tarefa",
-          route: "/tarefas",
+          route: `/tarefas?task=${t.id}`,
           icon: "task",
         });
       } else if (diff === 0) {
@@ -166,7 +166,7 @@ export function computeDayCenter(inputs: DayCenterInputs): DayCenterResult {
           clientId: t.clientId,
           clientName: t.client,
           actionLabel: "Abrir tarefa",
-          route: "/tarefas",
+          route: `/tarefas?task=${t.id}`,
           icon: "task",
         });
       }
@@ -181,7 +181,7 @@ export function computeDayCenter(inputs: DayCenterInputs): DayCenterResult {
         relatedType: "task",
         clientName: t.client,
         actionLabel: "Abrir tarefa",
-        route: "/tarefas",
+        route: `/tarefas?task=${t.id}`,
         icon: "task",
       });
     }
@@ -208,7 +208,7 @@ export function computeDayCenter(inputs: DayCenterInputs): DayCenterResult {
           relatedId: l.id,
           relatedType: "lead",
           actionLabel: "Ver oportunidade",
-          route: "/crm",
+          route: `/crm?lead=${l.id}`,
           icon: "lead",
         });
       } else if (diff === 0) {
@@ -225,7 +225,7 @@ export function computeDayCenter(inputs: DayCenterInputs): DayCenterResult {
           relatedId: l.id,
           relatedType: "lead",
           actionLabel: "Ver oportunidade",
-          route: "/crm",
+          route: `/crm?lead=${l.id}`,
           icon: "lead",
         });
       } else if (diff <= 7) {
@@ -242,7 +242,7 @@ export function computeDayCenter(inputs: DayCenterInputs): DayCenterResult {
           relatedId: l.id,
           relatedType: "lead",
           actionLabel: "Ver oportunidade",
-          route: "/crm",
+          route: `/crm?lead=${l.id}`,
           icon: "lead",
         });
       }
@@ -259,7 +259,7 @@ export function computeDayCenter(inputs: DayCenterInputs): DayCenterResult {
         relatedId: l.id,
         relatedType: "lead",
         actionLabel: "Ver oportunidade",
-        route: "/crm",
+        route: `/crm?lead=${l.id}`,
         icon: "lead",
       });
     }
