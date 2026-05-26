@@ -100,19 +100,9 @@ function formatDate(iso?: string) {
 
 export function DayCenter({ open, onOpenChange }: Props) {
   const navigate = useNavigate();
-  const { tasks } = useTasks();
-  const { leads } = useLeads();
-  const { transactions } = useFinance();
-  const { quotes } = useQuotes();
-  const { projects } = useProjects();
-  const { clients } = useClients();
   const [filter, setFilter] = useState<Filter>("all");
-  const [tick, setTick] = useState(0);
-
-  const result = useMemo(
-    () => computeDayCenter({ tasks, leads, quotes, transactions, projects, clients }),
-    [tasks, leads, quotes, transactions, projects, clients, tick],
-  );
+  const [, setTick] = useState(0);
+  const result = useDayCenterData();
 
   const go = (route?: string) => {
     if (!route) return;
