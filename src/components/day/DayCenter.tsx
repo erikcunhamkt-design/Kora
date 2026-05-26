@@ -114,9 +114,11 @@ export function DayCenter({ open, onOpenChange }: Props) {
   const [filter, setFilter] = useState<Filter>("all");
   const [, setTick] = useState(0);
   const result = useDayCenterData();
-  const { updateTask } = useTasks();
+  const { updateTask, tasks } = useTasks();
   const { updateTransactionStatus, transactions } = useFinance();
   const { updateLog } = useClientActivityLogs();
+  const allManualLogs = useAllClientActivityLogs();
+  const { todayCount, todayActions, addAction } = useDayCenterResolvedActions();
   const [payConfirm, setPayConfirm] = useState<DayActionItem | null>(null);
 
   const go = (route?: string) => {
@@ -127,13 +129,38 @@ export function DayCenter({ open, onOpenChange }: Props) {
 
   const completeTask = (item: DayActionItem) => {
     if (item.relatedType !== "task" || item.relatedId == null) return;
-    updateTask(Number(item.relatedId), { status: "concluido" });
+    try {
+      updateTask(Number(item.relatedId), { status: "concluido" });
+    } catch {
+      toast.error("Não foi possível concluir a tarefa");
+      return;
+    }
+    addAction({
+      type: "task_completed",
+      relatedType: "task",
+      relatedId: String(item.relatedId),
+      title: item.title,
+    });
     toast.success("Tarefa concluída");
   };
 
   const resolveFollowUp = (item: DayActionItem) => {
     if (item.relatedType !== "manual_activity" || !item.relatedId) return;
-    updateLog(String(item.relatedId), { resolvedAt: new Date().toISOString() });
+    const logId = String(item.relatedId);
+    try {
+      updateLog(logId, { resolvedAt: new Date().toISOString() });
+    } catch {
+      toast.error("Não foi possível resolver o follow-up");
+      return;
+    }
+    const log = allManualLogs.find((l) => l.id === logId);
+    addAction({
+      type: "manual_followup_resolved",
+      relatedType: "manual_activity",
+      relatedId: logId,
+      title: item.title || log?.nextStep || "Follow-up",
+      clientId: log?.clientId,
+    });
     toast.success("Follow-up marcado como resolvido");
   };
 
@@ -143,7 +170,23 @@ export function DayCenter({ open, onOpenChange }: Props) {
 
   const confirmMarkPaid = () => {
     if (!payConfirm || !payConfirm.relatedId) return;
-    updateTransactionStatus(String(payConfirm.relatedId), "paid");
+    const txId = String(payConfirm.relatedId);
+    const tx = transactions.find((t) => t.id === txId);
+    try {
+      updateTransactionStatus(txId, "paid");
+    } catch {
+      toast.error("Não foi possível marcar como pago");
+      setPayConfirm(null);
+      return;
+    }
+    addAction({
+      type: "receivable_paid",
+      relatedType: "finance_transaction",
+      relatedId: txId,
+      title: tx?.title || payConfirm.title,
+      amount: tx?.amount ?? payConfirm.amount,
+      clientId: tx?.clientId,
+    });
     toast.success("Recebível marcado como pago");
     setPayConfirm(null);
   };
