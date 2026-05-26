@@ -8,6 +8,7 @@ import type { Quote } from "@/hooks/useQuotes";
 import type { Transaction } from "@/hooks/useFinance";
 import type { Project } from "@/hooks/useProjects";
 import type { Client } from "@/hooks/useClients";
+import type { ClientManualActivity, ManualActivityType } from "@/hooks/useClientActivityLogs";
 
 export type DayPriority = "critical" | "high" | "medium" | "low";
 export type DayCategory =
@@ -40,6 +41,34 @@ const PRIORITY_WEIGHT: Record<DayPriority, number> = {
   high: 1,
   medium: 2,
   low: 3,
+};
+
+const MANUAL_TYPE_TO_DAY_CATEGORY: Record<ManualActivityType, DayCategory> = {
+  meeting: "commercial",
+  call: "commercial",
+  message: "commercial",
+  feedback: "commercial",
+  follow_up: "commercial",
+  decision: "commercial",
+  scope_change: "project",
+  issue: "project",
+  material_request: "client",
+  internal_note: "client",
+  other: "client",
+};
+
+const MANUAL_TYPE_LABEL: Record<ManualActivityType, string> = {
+  meeting: "Reunião",
+  call: "Ligação",
+  message: "Mensagem",
+  feedback: "Feedback",
+  scope_change: "Alteração de escopo",
+  material_request: "Pedido de material",
+  decision: "Decisão",
+  issue: "Problema",
+  internal_note: "Nota interna",
+  follow_up: "Follow-up",
+  other: "Atividade",
 };
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -79,6 +108,7 @@ export interface DayCenterInputs {
   transactions: Transaction[];
   projects: Project[];
   clients: Client[];
+  manualActivities?: ClientManualActivity[];
 }
 
 export interface DayCenterResult {
@@ -455,6 +485,41 @@ export function computeDayCenter(inputs: DayCenterInputs): DayCenterResult {
       actionLabel: "Abrir cliente",
       route: `/clientes`,
       icon: "client",
+    });
+  }
+
+  // ===== LOGS MANUAIS DE RELACIONAMENTO =====
+  const clientById = new Map<number, Client>();
+  for (const c of inputs.clients) clientById.set(c.id, c);
+
+  for (const log of inputs.manualActivities ?? []) {
+    if (!log.nextStep || !log.nextStep.trim()) continue;
+    const due = safeIso(log.nextStepDate);
+    if (!due) continue;
+    const diff = daysBetween(due, today);
+    if (diff > 7) continue;
+
+    const client = clientById.get(log.clientId);
+    const clientName = client?.company || client?.name;
+    const category = MANUAL_TYPE_TO_DAY_CATEGORY[log.type];
+    const priority: DayPriority = diff < 0 ? "critical" : diff === 0 ? "high" : "medium";
+    const whenLabel = diff < 0 ? `atrasado ${Math.abs(diff)}d` : diff === 0 ? "hoje" : `em ${diff}d`;
+    const typeLabel = MANUAL_TYPE_LABEL[log.type];
+
+    items.push({
+      id: `manual-${log.id}`,
+      category,
+      priority,
+      title: log.nextStep.trim(),
+      description: `${typeLabel}${clientName ? ` · ${clientName}` : ""} · ${whenLabel}`,
+      dueDate: due,
+      clientId: log.clientId,
+      clientName,
+      relatedId: log.id,
+      relatedType: "manual_activity",
+      actionLabel: "Ver cliente",
+      route: `/clientes?client=${log.clientId}`,
+      icon: "manual",
     });
   }
 
