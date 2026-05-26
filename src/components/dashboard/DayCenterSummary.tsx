@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useDayCenterData } from "@/hooks/useDayCenterData";
+import { useDayCenterResolvedActions } from "@/hooks/useDayCenterResolvedActions";
 import {
   DAY_CATEGORY_LABEL,
   type DayActionItem,
