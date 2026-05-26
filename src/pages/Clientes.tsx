@@ -143,6 +143,36 @@ const Clientes = () => {
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [newTypeOpen, setNewTypeOpen] = useState(false);
 
+  // Deep linking via ?client=<id>&tab=activities&activity=<id>
+  const queryClientId = searchParams.get("client");
+  const queryTab = searchParams.get("tab") ?? undefined;
+  const queryActivity = searchParams.get("activity") ?? undefined;
+
+  useEffect(() => {
+    if (!queryClientId) return;
+    const idNum = Number(queryClientId);
+    if (!Number.isFinite(idNum)) return;
+    const found = clients.find((c) => c.id === idNum);
+    if (found && (!selectedClient || selectedClient.id !== found.id)) {
+      setSelectedClient(found);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queryClientId, clients]);
+
+  const clearDeepLinkParams = () => {
+    const next = new URLSearchParams(searchParams);
+    let changed = false;
+    ["client", "tab", "activity"].forEach((k) => {
+      if (next.has(k)) { next.delete(k); changed = true; }
+    });
+    if (changed) setSearchParams(next, { replace: true });
+  };
+
+  const closeDrawer = () => {
+    setSelectedClient(null);
+    clearDeepLinkParams();
+  };
+
   const { addLead } = useLeads();
 
 
