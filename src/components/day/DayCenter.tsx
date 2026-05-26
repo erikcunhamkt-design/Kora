@@ -260,6 +260,23 @@ export function DayCenter({ open, onOpenChange }: Props) {
             <MiniStat icon={DollarSign} label="Recebíveis" value={result.counts.receivables} accent="emerald" />
             <MiniStat icon={Briefcase} label="Projetos" value={result.counts.projectsAttention} accent="primary" />
           </div>
+
+          {todayCount > 0 && (
+            <div className="flex items-center gap-2 rounded-md border border-emerald-500/20 bg-emerald-500/[0.04] px-2.5 py-1.5">
+              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+              <span className="text-[0.75rem] font-semibold text-emerald-400 tabular-nums">
+                {todayCount}
+              </span>
+              <span className="text-[0.7rem] text-muted-foreground truncate">
+                resolvido{todayCount > 1 ? "s" : ""} hoje pela Central
+              </span>
+              {todayActions[0] && (
+                <span className="text-[0.7rem] text-muted-foreground/70 truncate ml-auto hidden sm:inline">
+                  Último: {todayActions[0].title}
+                </span>
+              )}
+            </div>
+          )}
         </SheetHeader>
 
         <ScrollArea className="flex-1">
