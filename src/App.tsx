@@ -73,6 +73,7 @@ const App = () => (
                 <Route path="/vendas" element={<ProtectedRoute><OnboardingGate><MainLayout><Vendas /></MainLayout></OnboardingGate></ProtectedRoute>} />
                 <Route path="/financeiro" element={<ProtectedRoute><OnboardingGate><MainLayout><Financeiro /></MainLayout></OnboardingGate></ProtectedRoute>} />
                 <Route path="/tarefas" element={<ProtectedRoute><OnboardingGate><MainLayout><Tarefas /></MainLayout></OnboardingGate></ProtectedRoute>} />
+                <Route path="/central-do-dia" element={<ProtectedRoute><OnboardingGate><MainLayout><CentralDoDia /></MainLayout></OnboardingGate></ProtectedRoute>} />
                 <Route path="/briefings" element={<ProtectedRoute><OnboardingGate><MainLayout><Briefings /></MainLayout></OnboardingGate></ProtectedRoute>} />
                 <Route path="/metas" element={<ProtectedRoute><OnboardingGate><MainLayout><Metas /></MainLayout></OnboardingGate></ProtectedRoute>} />
                 <Route path="/automacoes" element={<ProtectedRoute><OnboardingGate><MainLayout><Automacoes /></MainLayout></OnboardingGate></ProtectedRoute>} />
