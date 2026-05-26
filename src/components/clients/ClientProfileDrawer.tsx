@@ -221,7 +221,7 @@ export const ClientProfileDrawer = ({
         </div>
 
         {/* Tabs */}
-        <Tabs defaultValue="overview" className="px-6 pt-5">
+        <Tabs value={tab} onValueChange={setTab} className="px-6 pt-5">
           <TabsList className="w-full h-auto p-1 flex flex-wrap gap-1 justify-start bg-muted/40">
             <TabsTrigger value="overview" className="text-xs">Visão geral</TabsTrigger>
             <TabsTrigger value="activities" className="text-xs">Atividades</TabsTrigger>
