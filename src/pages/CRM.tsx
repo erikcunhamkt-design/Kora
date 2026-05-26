@@ -615,6 +615,7 @@ const CRM = () => {
                       stages={stages}
                       pipelines={pipelines}
                       activePipelineId={activePipelineId}
+                      highlighted={highlightedLeadId === lead.id}
                       dragged={draggedId === lead.id}
                       onDragStart={() => handleDragStart(lead.id)}
                       onDragEnd={handleDragEnd}
@@ -674,7 +675,11 @@ const CRM = () => {
                 {filtered.map((lead) => {
                   const stage = stages.find((s) => s.id === lead.stageId);
                   return (
-                    <TableRow key={lead.id} className="cursor-pointer" onClick={() => setSelectedLead(lead)}>
+                    <TableRow
+                      key={lead.id}
+                      className={`cursor-pointer transition-all ${highlightedLeadId === lead.id ? "ring-2 ring-primary/30 bg-primary/5" : ""}`}
+                      onClick={() => setSelectedLead(lead)}
+                    >
                       <TableCell>
                         <div className="font-medium text-foreground">{lead.name}</div>
                         <div className="text-xs text-muted-foreground">{lead.company}</div>
@@ -819,7 +824,7 @@ const CRM = () => {
 
 // ---------- Lead Card ----------
 const LeadCard = ({
-  lead, stages, pipelines, activePipelineId, dragged,
+  lead, stages, pipelines, activePipelineId, dragged, highlighted,
   onDragStart, onDragEnd, onClick,
   onMoveToStage, onMovePipeline, onEditTags, onSchedule,
   onArchive, onUnarchive, onDelete, onConvert,
@@ -829,6 +834,7 @@ const LeadCard = ({
   pipelines: Pipeline[];
   activePipelineId: string;
   dragged: boolean;
+  highlighted?: boolean;
   onDragStart: () => void;
   onDragEnd: () => void;
   onClick: () => void;
@@ -849,7 +855,7 @@ const LeadCard = ({
       onClick={onClick}
       className={`orbit-card p-3 cursor-pointer hover:border-primary/50 hover:shadow-md transition-all duration-200 group ${
         dragged ? "opacity-50 scale-[0.97]" : ""
-      } ${lead.archived ? "opacity-60" : ""}`}
+      } ${lead.archived ? "opacity-60" : ""} ${highlighted ? "ring-2 ring-primary/30 bg-primary/5" : ""}`}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="flex items-center gap-2 min-w-0">
