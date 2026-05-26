@@ -80,6 +80,7 @@ export interface DayCenterInputs {
   transactions: Transaction[];
   projects: Project[];
   clients: Client[];
+  manualActivities?: ClientManualActivity[];
 }
 
 export interface DayCenterResult {
