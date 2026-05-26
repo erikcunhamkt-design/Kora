@@ -114,7 +114,7 @@ export function DayCenter({ open, onOpenChange }: Props) {
   const [filter, setFilter] = useState<Filter>("all");
   const [, setTick] = useState(0);
   const result = useDayCenterData();
-  const { updateTask, tasks } = useTasks();
+  const { updateTask } = useTasks();
   const { updateTransactionStatus, transactions } = useFinance();
   const { updateLog } = useClientActivityLogs();
   const allManualLogs = useAllClientActivityLogs();
