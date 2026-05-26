@@ -382,8 +382,11 @@ function manualToEvent(m: ClientManualActivity): ManualEvent {
     type: m.type,
     category: manualTypeToCategory(m.type),
     title: `${MANUAL_ACTIVITY_LABEL[m.type]}: ${m.title}`,
-    description: [m.description, m.outcome && `Resultado: ${m.outcome}`, m.nextStep && `Próximo passo: ${m.nextStep}`]
-      .filter(Boolean).join(" · ") || undefined,
+    description: [
+      m.description,
+      m.outcome && `Resultado: ${m.outcome}`,
+      m.nextStep && `Próximo passo: ${m.nextStep}${m.nextStepDate ? ` (${new Date(m.nextStepDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })})` : ""}`,
+    ].filter(Boolean).join(" · ") || undefined,
     date: m.date,
     tone: manualTone[m.type],
   };
