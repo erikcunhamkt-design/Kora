@@ -239,7 +239,7 @@ export const ClientProfileDrawer = ({
             </TabsContent>
 
             <TabsContent value="activities" className="mt-0">
-              <ClientActivitiesTab client={client} onClose={onClose} onCreateOpportunity={onCreateOpportunity} />
+              <ClientActivitiesTab client={client} onClose={onClose} onCreateOpportunity={onCreateOpportunity} highlightedActivityId={highlightedActivityId} />
             </TabsContent>
 
             <TabsContent value="contacts" className="mt-0">
