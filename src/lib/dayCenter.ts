@@ -493,6 +493,7 @@ export function computeDayCenter(inputs: DayCenterInputs): DayCenterResult {
   for (const c of inputs.clients) clientById.set(c.id, c);
 
   for (const log of inputs.manualActivities ?? []) {
+    if (log.resolvedAt) continue;
     if (!log.nextStep || !log.nextStep.trim()) continue;
     const due = safeIso(log.nextStepDate);
     if (!due) continue;

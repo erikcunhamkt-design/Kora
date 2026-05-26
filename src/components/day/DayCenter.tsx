@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import {
   Sheet,
   SheetContent,
@@ -10,11 +11,16 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import {
   AlertTriangle,
   Briefcase,
   CalendarClock,
+  Check,
   CheckCircle2,
   ChevronRight,
   DollarSign,
@@ -28,12 +34,16 @@ import {
   Users,
 } from "lucide-react";
 import { useDayCenterData } from "@/hooks/useDayCenterData";
+import { useTasks } from "@/hooks/useTasks";
+import { useFinance } from "@/hooks/useFinance";
+import { useClientActivityLogs } from "@/hooks/useClientActivityLogs";
 import {
   DAY_CATEGORY_LABEL,
   type DayActionItem,
   type DayCategory,
   type DayPriority,
 } from "@/lib/dayCenter";
+
 
 interface Props {
   open: boolean;
@@ -103,12 +113,46 @@ export function DayCenter({ open, onOpenChange }: Props) {
   const [filter, setFilter] = useState<Filter>("all");
   const [, setTick] = useState(0);
   const result = useDayCenterData();
+  const { updateTask } = useTasks();
+  const { updateTransactionStatus, transactions } = useFinance();
+  const { updateLog } = useClientActivityLogs();
+  const [payConfirm, setPayConfirm] = useState<DayActionItem | null>(null);
 
   const go = (route?: string) => {
     if (!route) return;
     onOpenChange(false);
     navigate(route);
   };
+
+  const completeTask = (item: DayActionItem) => {
+    if (item.relatedType !== "task" || item.relatedId == null) return;
+    updateTask(Number(item.relatedId), { status: "concluido" });
+    toast.success("Tarefa concluída");
+  };
+
+  const resolveFollowUp = (item: DayActionItem) => {
+    if (item.relatedType !== "manual_activity" || !item.relatedId) return;
+    updateLog(String(item.relatedId), { resolvedAt: new Date().toISOString() });
+    toast.success("Follow-up marcado como resolvido");
+  };
+
+  const requestMarkPaid = (item: DayActionItem) => {
+    setPayConfirm(item);
+  };
+
+  const confirmMarkPaid = () => {
+    if (!payConfirm || !payConfirm.relatedId) return;
+    updateTransactionStatus(String(payConfirm.relatedId), "paid");
+    toast.success("Recebível marcado como pago");
+    setPayConfirm(null);
+  };
+
+  const canMarkPaid = (item: DayActionItem): boolean => {
+    if (item.relatedType !== "finance_transaction") return false;
+    const tx = transactions.find((t) => t.id === item.relatedId);
+    return !!tx && tx.type === "income" && tx.status !== "paid" && tx.status !== "canceled";
+  };
+
 
   const filtered = useMemo(() => {
     if (filter === "all") return result.items;
@@ -178,7 +222,14 @@ export function DayCenter({ open, onOpenChange }: Props) {
           <div className="px-6 py-5 space-y-6">
             {/* Prioridade principal */}
             {result.topAction ? (
-              <TopActionCard item={result.topAction} onGo={go} />
+              <TopActionCard
+                item={result.topAction}
+                onGo={go}
+                onCompleteTask={completeTask}
+                onResolveFollowUp={resolveFollowUp}
+                onMarkPaid={requestMarkPaid}
+                canMarkPaid={canMarkPaid(result.topAction)}
+              />
             ) : (
               <EmptyTopState onGo={go} />
             )}
@@ -219,6 +270,10 @@ export function DayCenter({ open, onOpenChange }: Props) {
                       icon={CATEGORY_ICON[cat]}
                       items={items}
                       onGo={go}
+                      onCompleteTask={completeTask}
+                      onResolveFollowUp={resolveFollowUp}
+                      onMarkPaid={requestMarkPaid}
+                      canMarkPaid={canMarkPaid}
                     />
                   );
                 })}
@@ -229,16 +284,43 @@ export function DayCenter({ open, onOpenChange }: Props) {
                 {filtered.length === 0 ? (
                   <EmptyListState onGo={go} />
                 ) : (
-                  filtered.map((it) => <ActionRow key={it.id} item={it} onGo={go} />)
+                  filtered.map((it) => (
+                    <ActionRow
+                      key={it.id}
+                      item={it}
+                      onGo={go}
+                      onCompleteTask={completeTask}
+                      onResolveFollowUp={resolveFollowUp}
+                      onMarkPaid={requestMarkPaid}
+                      canMarkPaid={canMarkPaid(it)}
+                    />
+                  ))
                 )}
               </div>
             )}
           </div>
         </ScrollArea>
       </SheetContent>
+
+      <AlertDialog open={!!payConfirm} onOpenChange={(v) => !v && setPayConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Marcar como pago?</AlertDialogTitle>
+            <AlertDialogDescription>
+              O recebível {payConfirm?.title ? `"${payConfirm.title}"` : ""} será marcado como pago
+              com a data de hoje. Você poderá ajustar depois no Financeiro.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmMarkPaid}>Marcar como pago</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Sheet>
   );
 }
+
 
 // ===== Componentes auxiliares =====
 
@@ -272,7 +354,61 @@ function MiniStat({
   );
 }
 
-function TopActionCard({ item, onGo }: { item: DayActionItem; onGo: (r?: string) => void }) {
+interface QuickActionHandlers {
+  onCompleteTask: (item: DayActionItem) => void;
+  onResolveFollowUp: (item: DayActionItem) => void;
+  onMarkPaid: (item: DayActionItem) => void;
+}
+
+function QuickAction({ item, canMarkPaid, handlers }: {
+  item: DayActionItem;
+  canMarkPaid: boolean;
+  handlers: QuickActionHandlers;
+}) {
+  if (item.relatedType === "task") {
+    return (
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={(e) => { e.stopPropagation(); handlers.onCompleteTask(item); }}
+        className="h-7 px-2 text-[0.7rem] gap-1 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
+      >
+        <Check className="h-3 w-3" /> Concluir
+      </Button>
+    );
+  }
+  if (item.relatedType === "manual_activity") {
+    return (
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={(e) => { e.stopPropagation(); handlers.onResolveFollowUp(item); }}
+        className="h-7 px-2 text-[0.7rem] gap-1 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
+      >
+        <Check className="h-3 w-3" /> Resolver
+      </Button>
+    );
+  }
+  if (item.relatedType === "finance_transaction" && canMarkPaid) {
+    return (
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={(e) => { e.stopPropagation(); handlers.onMarkPaid(item); }}
+        className="h-7 px-2 text-[0.7rem] gap-1 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
+      >
+        <Check className="h-3 w-3" /> Marcar pago
+      </Button>
+    );
+  }
+  return null;
+}
+
+function TopActionCard({ item, onGo, onCompleteTask, onResolveFollowUp, onMarkPaid, canMarkPaid }: {
+  item: DayActionItem;
+  onGo: (r?: string) => void;
+  canMarkPaid: boolean;
+} & QuickActionHandlers) {
   const style = PRIORITY_STYLES[item.priority];
   const Icon = CATEGORY_ICON[item.category];
   return (
@@ -312,10 +448,17 @@ function TopActionCard({ item, onGo }: { item: DayActionItem; onGo: (r?: string)
               {formatBR(item.amount)}
             </span>
           )}
-          <Button size="sm" onClick={() => onGo(item.route)} className="h-7 px-3 text-[0.75rem] ml-auto">
-            {item.actionLabel ?? "Abrir"}
-            <ChevronRight className="h-3 w-3 ml-1" />
-          </Button>
+          <div className="ml-auto flex items-center gap-2">
+            <QuickAction
+              item={item}
+              canMarkPaid={canMarkPaid}
+              handlers={{ onCompleteTask, onResolveFollowUp, onMarkPaid }}
+            />
+            <Button size="sm" onClick={() => onGo(item.route)} className="h-7 px-3 text-[0.75rem]">
+              {item.actionLabel ?? "Abrir"}
+              <ChevronRight className="h-3 w-3 ml-1" />
+            </Button>
+          </div>
         </div>
       </div>
     </div>
@@ -327,12 +470,17 @@ function CategorySection({
   icon: Icon,
   items,
   onGo,
+  onCompleteTask,
+  onResolveFollowUp,
+  onMarkPaid,
+  canMarkPaid,
 }: {
   title: string;
   icon: React.ComponentType<{ className?: string }>;
   items: DayActionItem[];
   onGo: (r?: string) => void;
-}) {
+  canMarkPaid: (item: DayActionItem) => boolean;
+} & QuickActionHandlers) {
   return (
     <section className="space-y-2">
       <div className="flex items-center justify-between">
@@ -346,20 +494,35 @@ function CategorySection({
       </div>
       <div className="space-y-1.5">
         {items.slice(0, 5).map((it) => (
-          <ActionRow key={it.id} item={it} onGo={onGo} />
+          <ActionRow
+            key={it.id}
+            item={it}
+            onGo={onGo}
+            onCompleteTask={onCompleteTask}
+            onResolveFollowUp={onResolveFollowUp}
+            onMarkPaid={onMarkPaid}
+            canMarkPaid={canMarkPaid(it)}
+          />
         ))}
       </div>
     </section>
   );
 }
 
-function ActionRow({ item, onGo }: { item: DayActionItem; onGo: (r?: string) => void }) {
+function ActionRow({ item, onGo, onCompleteTask, onResolveFollowUp, onMarkPaid, canMarkPaid }: {
+  item: DayActionItem;
+  onGo: (r?: string) => void;
+  canMarkPaid: boolean;
+} & QuickActionHandlers) {
   const style = PRIORITY_STYLES[item.priority];
   const Icon = CATEGORY_ICON[item.category];
   return (
-    <button
+    <div
       onClick={() => onGo(item.route)}
-      className="group w-full text-left rounded-lg border border-border/50 bg-card hover:bg-muted/15 hover:border-border transition-all duration-150 px-3 py-2.5 flex items-center gap-3"
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onGo(item.route); } }}
+      className="group w-full text-left rounded-lg border border-border/50 bg-card hover:bg-muted/15 hover:border-border transition-all duration-150 px-3 py-2.5 flex items-center gap-3 cursor-pointer"
     >
       <div className={cn("h-9 w-9 shrink-0 rounded-md border flex items-center justify-center", style.ring)}>
         <Icon className={cn("h-4 w-4", style.text)} />
@@ -378,10 +541,16 @@ function ActionRow({ item, onGo }: { item: DayActionItem; onGo: (r?: string) => 
           {formatBR(item.amount)}
         </span>
       )}
+      <QuickAction
+        item={item}
+        canMarkPaid={canMarkPaid}
+        handlers={{ onCompleteTask, onResolveFollowUp, onMarkPaid }}
+      />
       <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0 group-hover:text-foreground transition-colors" />
-    </button>
+    </div>
   );
 }
+
 
 function EmptyTopState({ onGo }: { onGo: (r?: string) => void }) {
   return (

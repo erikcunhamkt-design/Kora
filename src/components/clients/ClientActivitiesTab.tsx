@@ -470,7 +470,13 @@ export const ClientActivitiesTab = ({
 
   const handleSubmit = (data: Omit<ClientManualActivity, "id" | "createdAt" | "updatedAt">) => {
     if (editing) {
-      updateLog(editing.id, data);
+      const nextStepDateChanged =
+        !!data.nextStepDate && data.nextStepDate !== editing.nextStepDate;
+      const patch: Partial<ClientManualActivity> = { ...data };
+      if (nextStepDateChanged && editing.resolvedAt) {
+        patch.resolvedAt = undefined;
+      }
+      updateLog(editing.id, patch);
       toast.success("Atividade atualizada");
     } else {
       addLog(data);
@@ -571,7 +577,12 @@ export const ClientActivitiesTab = ({
                             Manual
                           </Badge>
                         )}
-                        {e.origin === "manual" && e.raw.nextStep && e.raw.nextStepDate && (
+                        {e.origin === "manual" && e.raw.resolvedAt && (
+                          <Badge variant="outline" className="text-[9px] px-1.5 h-4 border-emerald-500/30 text-emerald-400">
+                            Resolvido
+                          </Badge>
+                        )}
+                        {e.origin === "manual" && !e.raw.resolvedAt && e.raw.nextStep && e.raw.nextStepDate && (
                           <Badge variant="outline" className="text-[9px] px-1.5 h-4 border-amber-500/30 text-amber-400">
                             Vai para Central do Dia
                           </Badge>

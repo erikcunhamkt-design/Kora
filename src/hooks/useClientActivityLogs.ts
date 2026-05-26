@@ -63,6 +63,8 @@ export interface ClientManualActivity {
   relatedProjectId?: string;
   relatedOpportunityId?: number;
   relatedQuoteId?: string;
+  /** Marca quando o próximo passo foi resolvido. Quando preenchido, sai da Central do Dia. */
+  resolvedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
