@@ -181,15 +181,24 @@ const CRM = () => {
   }, [searchParams, clients, setSearchParams]);
 
   // ----- Deep link: ?lead=<id> abre o drawer da oportunidade -----
+  const [highlightedLeadId, setHighlightedLeadId] = useState<number | null>(null);
   useEffect(() => {
     const raw = searchParams.get("lead");
     if (!raw) return;
     const id = Number(raw);
     if (!Number.isFinite(id)) return;
     const lead = leads.find((l) => l.id === id);
-    if (lead) setSelectedLead(lead);
-    // não limpamos aqui — o param é limpo no onClose do drawer
+    if (lead) {
+      setSelectedLead(lead);
+      setHighlightedLeadId(id);
+    }
   }, [searchParams, leads]);
+
+  useEffect(() => {
+    if (highlightedLeadId === null) return;
+    const t = setTimeout(() => setHighlightedLeadId(null), 4000);
+    return () => clearTimeout(t);
+  }, [highlightedLeadId]);
 
   const clearLeadParam = () => {
     if (!searchParams.get("lead")) return;
