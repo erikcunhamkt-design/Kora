@@ -655,17 +655,19 @@ const Clientes = () => {
 
       <ClientProfileDrawer
         client={selectedClient}
-        onClose={() => setSelectedClient(null)}
-        onEdit={(c) => { setSelectedClient(null); setEditClient(c); }}
+        initialTab={queryTab}
+        highlightedActivityId={queryActivity}
+        onClose={closeDrawer}
+        onEdit={(c) => { closeDrawer(); setEditClient(c); }}
         onWhats={handleOpenWhatsApp}
         onArchive={handleArchive}
         onRestore={handleRestore}
         onCreateOpportunity={(c) => {
-          setSelectedClient(null);
+          closeDrawer();
           navigate(`/crm?newOpportunity=1&clientId=${c.id}`);
         }}
         onCreateQuote={(c) => {
-          setSelectedClient(null);
+          closeDrawer();
           navigate(`/vendas?tab=orcamentos&newQuote=1&clientId=${c.id}`);
         }}
         onUpdateAssets={(id, assets) => {
