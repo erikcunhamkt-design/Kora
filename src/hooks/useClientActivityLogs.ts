@@ -57,6 +57,8 @@ export interface ClientManualActivity {
   date: string; // ISO
   outcome?: string;
   nextStep?: string;
+  /** Data planejada do próximo passo (yyyy-mm-dd ou ISO). Quando preenchida, entra na Central do Dia. */
+  nextStepDate?: string;
   relatedContactId?: string;
   relatedProjectId?: string;
   relatedOpportunityId?: number;
@@ -66,6 +68,8 @@ export interface ClientManualActivity {
 }
 
 const STORAGE_KEY = "kora.client.activityLogs.v1";
+
+export { STORAGE_KEY as CLIENT_ACTIVITY_LOGS_KEY };
 
 function loadAll(): ClientManualActivity[] {
   try {
