@@ -17,6 +17,7 @@ import ClientTechnicalSheet from "./pages/ClientTechnicalSheet";
 import CRM from "./pages/CRM";
 import Financeiro from "./pages/Financeiro";
 import Tarefas from "./pages/Tarefas";
+import CentralDoDia from "./pages/CentralDoDia";
 import Metas from "./pages/Metas";
 import Configuracoes from "./pages/Configuracoes";
 import Vendas from "./pages/Vendas";
