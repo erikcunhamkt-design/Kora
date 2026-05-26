@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import {
   Sheet,
   SheetContent,
@@ -10,11 +11,16 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import {
   AlertTriangle,
   Briefcase,
   CalendarClock,
+  Check,
   CheckCircle2,
   ChevronRight,
   DollarSign,
@@ -28,12 +34,16 @@ import {
   Users,
 } from "lucide-react";
 import { useDayCenterData } from "@/hooks/useDayCenterData";
+import { useTasks } from "@/hooks/useTasks";
+import { useFinance } from "@/hooks/useFinance";
+import { useClientActivityLogs } from "@/hooks/useClientActivityLogs";
 import {
   DAY_CATEGORY_LABEL,
   type DayActionItem,
   type DayCategory,
   type DayPriority,
 } from "@/lib/dayCenter";
+
 
 interface Props {
   open: boolean;
