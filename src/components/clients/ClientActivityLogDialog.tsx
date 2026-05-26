@@ -64,6 +64,7 @@ export function ClientActivityLogDialog({ open, onOpenChange, client, editing, o
       setDescription(editing.description ?? "");
       setOutcome(editing.outcome ?? "");
       setNextStep(editing.nextStep ?? "");
+      setNextStepDate(editing.nextStepDate ? editing.nextStepDate.slice(0, 10) : "");
       setRelatedContactId(editing.relatedContactId ?? NONE);
       setRelatedProjectId(editing.relatedProjectId ?? NONE);
       setRelatedOpportunityId(editing.relatedOpportunityId != null ? String(editing.relatedOpportunityId) : NONE);
@@ -75,6 +76,7 @@ export function ClientActivityLogDialog({ open, onOpenChange, client, editing, o
       setDescription("");
       setOutcome("");
       setNextStep("");
+      setNextStepDate("");
       setRelatedContactId(NONE);
       setRelatedProjectId(NONE);
       setRelatedOpportunityId(NONE);
