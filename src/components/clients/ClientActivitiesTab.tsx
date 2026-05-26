@@ -546,8 +546,13 @@ export const ClientActivitiesTab = ({
           {filtered.map((e) => {
             const Icon = e.origin === "manual" ? manualIcon[e.type] : (inferredIcon[e.type] ?? Activity);
             const tone = e.tone ?? "neutral";
+            const isHighlighted = highlightActive && e.origin === "manual" && e.raw.id === highlightedActivityId;
             return (
-              <li key={e.id} className="relative">
+              <li
+                key={e.id}
+                ref={isHighlighted ? highlightRef : undefined}
+                className={cn("relative transition-all", isHighlighted && "rounded-lg ring-2 ring-primary/40 bg-primary/5")}
+              >
                 <span
                   className={cn(
                     "absolute -left-5 top-3 h-4 w-4 rounded-full ring-2 ring-card flex items-center justify-center",
