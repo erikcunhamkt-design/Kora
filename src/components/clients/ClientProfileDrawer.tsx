@@ -157,8 +157,7 @@ export const ClientProfileDrawer = ({
   const VALID_TABS = ["overview", "activities", "contacts", "commercial", "projects", "finance", "materials", "sheet"];
   const safeInitial = initialTab && VALID_TABS.includes(initialTab) ? initialTab : "overview";
   const [tab, setTab] = useState<string>(safeInitial);
-  // Sync if initialTab changes for the same open drawer
-  useMemo(() => { setTab(safeInitial); }, [safeInitial, client?.id]);
+  useEffect(() => { setTab(safeInitial); }, [safeInitial, client?.id]);
   if (!client) return null;
 
   const hasPhone = !!(client.whatsapp || client.phone);
