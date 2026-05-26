@@ -88,17 +88,41 @@ function persist(list: ClientManualActivity[]) {
   } catch {}
 }
 
-export function useClientActivityLogs(clientId?: number) {
+const SYNC_EVENT = "kora:client-activity-logs:changed";
+
+function emitSync() {
+  try { window.dispatchEvent(new Event(SYNC_EVENT)); } catch {}
+}
+
+function useAllLogsStore() {
   const [all, setAll] = useState<ClientManualActivity[]>(() => loadAll());
 
   useEffect(() => {
-    persist(all);
-  }, [all]);
+    const reload = () => setAll(loadAll());
+    window.addEventListener(SYNC_EVENT, reload);
+    window.addEventListener("storage", reload);
+    return () => {
+      window.removeEventListener(SYNC_EVENT, reload);
+      window.removeEventListener("storage", reload);
+    };
+  }, []);
+
+  return [all, setAll] as const;
+}
+
+export function useClientActivityLogs(clientId?: number) {
+  const [all, setAll] = useAllLogsStore();
 
   const logs = useMemo(
-    () => (clientId == null ? [] : all.filter((a) => a.clientId === clientId)),
+    () => (clientId == null ? all : all.filter((a) => a.clientId === clientId)),
     [all, clientId],
   );
+
+  const commit = useCallback((next: ClientManualActivity[]) => {
+    setAll(next);
+    persist(next);
+    emitSync();
+  }, [setAll]);
 
   const addLog = useCallback(
     (data: Omit<ClientManualActivity, "id" | "createdAt" | "updatedAt">) => {
@@ -109,24 +133,31 @@ export function useClientActivityLogs(clientId?: number) {
         createdAt: now,
         updatedAt: now,
       };
-      setAll((prev) => [entry, ...prev]);
+      commit([entry, ...loadAll()]);
       return entry;
     },
-    [],
+    [commit],
   );
 
   const updateLog = useCallback(
     (id: string, patch: Partial<Omit<ClientManualActivity, "id" | "clientId" | "createdAt">>) => {
-      setAll((prev) =>
-        prev.map((a) => (a.id === id ? { ...a, ...patch, updatedAt: new Date().toISOString() } : a)),
+      const next = loadAll().map((a) =>
+        a.id === id ? { ...a, ...patch, updatedAt: new Date().toISOString() } : a,
       );
+      commit(next);
     },
-    [],
+    [commit],
   );
 
   const deleteLog = useCallback((id: string) => {
-    setAll((prev) => prev.filter((a) => a.id !== id));
-  }, []);
+    commit(loadAll().filter((a) => a.id !== id));
+  }, [commit]);
 
   return { logs, addLog, updateLog, deleteLog };
+}
+
+/** Hook somente-leitura para consumir todos os logs manuais agregados (Central do Dia). */
+export function useAllClientActivityLogs(): ClientManualActivity[] {
+  const [all] = useAllLogsStore();
+  return all;
 }
