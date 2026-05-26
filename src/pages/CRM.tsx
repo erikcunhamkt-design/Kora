@@ -180,6 +180,24 @@ const CRM = () => {
     setSearchParams(next, { replace: true });
   }, [searchParams, clients, setSearchParams]);
 
+  // ----- Deep link: ?lead=<id> abre o drawer da oportunidade -----
+  useEffect(() => {
+    const raw = searchParams.get("lead");
+    if (!raw) return;
+    const id = Number(raw);
+    if (!Number.isFinite(id)) return;
+    const lead = leads.find((l) => l.id === id);
+    if (lead) setSelectedLead(lead);
+    // não limpamos aqui — o param é limpo no onClose do drawer
+  }, [searchParams, leads]);
+
+  const clearLeadParam = () => {
+    if (!searchParams.get("lead")) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete("lead");
+    setSearchParams(next, { replace: true });
+  };
+
   // Sort stages of active pipeline
   const stages = useMemo(
     () => (activePipeline ? [...activePipeline.stages].sort((a, b) => a.order - b.order) : []),
@@ -719,7 +737,7 @@ const CRM = () => {
       <LeadDetailSheet
         lead={selectedLead}
         stages={stages}
-        onClose={() => setSelectedLead(null)}
+        onClose={() => { setSelectedLead(null); clearLeadParam(); }}
         onMoveToStage={(s) => selectedLead && handleMoveToStage(selectedLead.id, s)}
         onEditTags={() => selectedLead && setTagsLeadId(selectedLead.id)}
         onSchedule={() => selectedLead && setScheduleLeadId(selectedLead.id)}
