@@ -27,14 +27,8 @@ import {
   UserCircle2,
   Users,
 } from "lucide-react";
-import { useTasks } from "@/hooks/useTasks";
-import { useLeads } from "@/hooks/useLeads";
-import { useFinance } from "@/hooks/useFinance";
-import { useQuotes } from "@/hooks/useQuotes";
-import { useProjects } from "@/hooks/useProjects";
-import { useClients } from "@/hooks/useClients";
+import { useDayCenterData } from "@/hooks/useDayCenterData";
 import {
-  computeDayCenter,
   DAY_CATEGORY_LABEL,
   type DayActionItem,
   type DayCategory,
@@ -106,19 +100,9 @@ function formatDate(iso?: string) {
 
 export function DayCenter({ open, onOpenChange }: Props) {
   const navigate = useNavigate();
-  const { tasks } = useTasks();
-  const { leads } = useLeads();
-  const { transactions } = useFinance();
-  const { quotes } = useQuotes();
-  const { projects } = useProjects();
-  const { clients } = useClients();
   const [filter, setFilter] = useState<Filter>("all");
-  const [tick, setTick] = useState(0);
-
-  const result = useMemo(
-    () => computeDayCenter({ tasks, leads, quotes, transactions, projects, clients }),
-    [tasks, leads, quotes, transactions, projects, clients, tick],
-  );
+  const [, setTick] = useState(0);
+  const result = useDayCenterData();
 
   const go = (route?: string) => {
     if (!route) return;

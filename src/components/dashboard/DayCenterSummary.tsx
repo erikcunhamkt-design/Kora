@@ -17,14 +17,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useTasks } from "@/hooks/useTasks";
-import { useLeads } from "@/hooks/useLeads";
-import { useFinance } from "@/hooks/useFinance";
-import { useQuotes } from "@/hooks/useQuotes";
-import { useProjects } from "@/hooks/useProjects";
-import { useClients } from "@/hooks/useClients";
+import { useDayCenterData } from "@/hooks/useDayCenterData";
 import {
-  computeDayCenter,
   DAY_CATEGORY_LABEL,
   type DayActionItem,
   type DayCategory,
@@ -94,17 +88,7 @@ const CATEGORY_GROUPS: { key: DayCategory; label: string }[] = [
 
 export function DayCenterSummary() {
   const navigate = useNavigate();
-  const { tasks } = useTasks();
-  const { leads } = useLeads();
-  const { transactions } = useFinance();
-  const { quotes } = useQuotes();
-  const { projects } = useProjects();
-  const { clients } = useClients();
-
-  const result = useMemo(
-    () => computeDayCenter({ tasks, leads, quotes, transactions, projects, clients }),
-    [tasks, leads, quotes, transactions, projects, clients],
-  );
+  const result = useDayCenterData();
 
   const nextItems = useMemo(() => {
     const top = result.topAction;
