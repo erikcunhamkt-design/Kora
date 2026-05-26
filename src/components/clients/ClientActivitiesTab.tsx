@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -412,10 +412,12 @@ export const ClientActivitiesTab = ({
   client,
   onClose,
   onCreateOpportunity,
+  highlightedActivityId,
 }: {
   client: Client;
   onClose: () => void;
   onCreateOpportunity?: (c: Client) => void;
+  highlightedActivityId?: string;
 }) => {
   const navigate = useNavigate();
   const [filter, setFilter] = useState<ActivityCategory>("all");
@@ -439,6 +441,20 @@ export const ClientActivitiesTab = ({
   const filtered = filter === "all" ? events : events.filter((e) => e.category === filter);
   const hasInferred = events.some((e) => e.origin === "inferred");
   const hasManual = logs.length > 0;
+
+  const highlightRef = useRef<HTMLLIElement | null>(null);
+  const [highlightActive, setHighlightActive] = useState(false);
+  useEffect(() => {
+    if (!highlightedActivityId) { setHighlightActive(false); return; }
+    setHighlightActive(true);
+    const el = highlightRef.current;
+    if (el) {
+      try { el.scrollIntoView({ behavior: "smooth", block: "center" }); } catch { /* noop */ }
+    }
+    const t = window.setTimeout(() => setHighlightActive(false), 4000);
+    return () => window.clearTimeout(t);
+  }, [highlightedActivityId, client.id]);
+
 
   const filters: { key: ActivityCategory; label: string }[] = [
     { key: "all", label: "Todos" },
@@ -530,8 +546,13 @@ export const ClientActivitiesTab = ({
           {filtered.map((e) => {
             const Icon = e.origin === "manual" ? manualIcon[e.type] : (inferredIcon[e.type] ?? Activity);
             const tone = e.tone ?? "neutral";
+            const isHighlighted = highlightActive && e.origin === "manual" && e.raw.id === highlightedActivityId;
             return (
-              <li key={e.id} className="relative">
+              <li
+                key={e.id}
+                ref={isHighlighted ? highlightRef : undefined}
+                className={cn("relative transition-all", isHighlighted && "rounded-lg ring-2 ring-primary/40 bg-primary/5")}
+              >
                 <span
                   className={cn(
                     "absolute -left-5 top-3 h-4 w-4 rounded-full ring-2 ring-card flex items-center justify-center",

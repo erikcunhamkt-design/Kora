@@ -517,8 +517,8 @@ export function computeDayCenter(inputs: DayCenterInputs): DayCenterResult {
       clientName,
       relatedId: log.id,
       relatedType: "manual_activity",
-      actionLabel: "Ver cliente",
-      route: `/clientes?client=${log.clientId}`,
+      actionLabel: "Ver atividade",
+      route: `/clientes?client=${log.clientId}&tab=activities&activity=${log.id}`,
       icon: "manual",
     });
   }

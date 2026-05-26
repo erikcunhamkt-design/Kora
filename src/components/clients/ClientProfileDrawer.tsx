@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -137,6 +137,7 @@ export const ClientProfileDrawer = ({
   client, onClose, onEdit, onWhats, onArchive, onRestore,
   onCreateOpportunity, onCreateQuote,
   onUpdateAssets, onUpdateTechnicalSheet, onUpdateContacts,
+  initialTab, highlightedActivityId,
 }: {
   client: Client | null;
   onClose: () => void;
@@ -149,8 +150,14 @@ export const ClientProfileDrawer = ({
   onUpdateAssets?: (clientId: number, assets: ClientAsset[]) => void;
   onUpdateTechnicalSheet?: (clientId: number, sheet: ClientTechnicalSheet) => void;
   onUpdateContacts?: (clientId: number, contacts: ClientContact[]) => void;
+  initialTab?: string;
+  highlightedActivityId?: string;
 }) => {
   const navigate = useNavigate();
+  const VALID_TABS = ["overview", "activities", "contacts", "commercial", "projects", "finance", "materials", "sheet"];
+  const safeInitial = initialTab && VALID_TABS.includes(initialTab) ? initialTab : "overview";
+  const [tab, setTab] = useState<string>(safeInitial);
+  useEffect(() => { setTab(safeInitial); }, [safeInitial, client?.id]);
   if (!client) return null;
 
   const hasPhone = !!(client.whatsapp || client.phone);
@@ -214,7 +221,7 @@ export const ClientProfileDrawer = ({
         </div>
 
         {/* Tabs */}
-        <Tabs defaultValue="overview" className="px-6 pt-5">
+        <Tabs value={tab} onValueChange={setTab} className="px-6 pt-5">
           <TabsList className="w-full h-auto p-1 flex flex-wrap gap-1 justify-start bg-muted/40">
             <TabsTrigger value="overview" className="text-xs">Visão geral</TabsTrigger>
             <TabsTrigger value="activities" className="text-xs">Atividades</TabsTrigger>
@@ -232,7 +239,7 @@ export const ClientProfileDrawer = ({
             </TabsContent>
 
             <TabsContent value="activities" className="mt-0">
-              <ClientActivitiesTab client={client} onClose={onClose} onCreateOpportunity={onCreateOpportunity} />
+              <ClientActivitiesTab client={client} onClose={onClose} onCreateOpportunity={onCreateOpportunity} highlightedActivityId={highlightedActivityId} />
             </TabsContent>
 
             <TabsContent value="contacts" className="mt-0">

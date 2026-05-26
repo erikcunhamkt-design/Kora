@@ -45,7 +45,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { PageToolbar } from "@/components/layout/PageToolbar";
 import { ClientProfileDrawer } from "@/components/clients/ClientProfileDrawer";
 import { cn } from "@/lib/utils";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 // ---------- Static configs ----------
 
@@ -124,6 +124,7 @@ const TempPill = ({ t }: { t?: ClientTemperature }) => {
 const Clientes = () => {
   const { clients, addClient, updateClient, archiveClient, restoreClient, deleteClient } = useClients();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { activeTypes } = useClientTypes();
 
   const [search, setSearch] = useState("");
@@ -141,6 +142,36 @@ const Clientes = () => {
   const [requestsOpen, setRequestsOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [newTypeOpen, setNewTypeOpen] = useState(false);
+
+  // Deep linking via ?client=<id>&tab=activities&activity=<id>
+  const queryClientId = searchParams.get("client");
+  const queryTab = searchParams.get("tab") ?? undefined;
+  const queryActivity = searchParams.get("activity") ?? undefined;
+
+  useEffect(() => {
+    if (!queryClientId) return;
+    const idNum = Number(queryClientId);
+    if (!Number.isFinite(idNum)) return;
+    const found = clients.find((c) => c.id === idNum);
+    if (found && (!selectedClient || selectedClient.id !== found.id)) {
+      setSelectedClient(found);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queryClientId, clients]);
+
+  const clearDeepLinkParams = () => {
+    const next = new URLSearchParams(searchParams);
+    let changed = false;
+    ["client", "tab", "activity"].forEach((k) => {
+      if (next.has(k)) { next.delete(k); changed = true; }
+    });
+    if (changed) setSearchParams(next, { replace: true });
+  };
+
+  const closeDrawer = () => {
+    setSelectedClient(null);
+    clearDeepLinkParams();
+  };
 
   const { addLead } = useLeads();
 
@@ -624,17 +655,19 @@ const Clientes = () => {
 
       <ClientProfileDrawer
         client={selectedClient}
-        onClose={() => setSelectedClient(null)}
-        onEdit={(c) => { setSelectedClient(null); setEditClient(c); }}
+        initialTab={queryTab}
+        highlightedActivityId={queryActivity}
+        onClose={closeDrawer}
+        onEdit={(c) => { closeDrawer(); setEditClient(c); }}
         onWhats={handleOpenWhatsApp}
         onArchive={handleArchive}
         onRestore={handleRestore}
         onCreateOpportunity={(c) => {
-          setSelectedClient(null);
+          closeDrawer();
           navigate(`/crm?newOpportunity=1&clientId=${c.id}`);
         }}
         onCreateQuote={(c) => {
-          setSelectedClient(null);
+          closeDrawer();
           navigate(`/vendas?tab=orcamentos&newQuote=1&clientId=${c.id}`);
         }}
         onUpdateAssets={(id, assets) => {
