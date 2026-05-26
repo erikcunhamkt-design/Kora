@@ -49,6 +49,7 @@ export function ClientActivityLogDialog({ open, onOpenChange, client, editing, o
   const [description, setDescription] = useState("");
   const [outcome, setOutcome] = useState("");
   const [nextStep, setNextStep] = useState("");
+  const [nextStepDate, setNextStepDate] = useState("");
   const [relatedContactId, setRelatedContactId] = useState<string>(NONE);
   const [relatedProjectId, setRelatedProjectId] = useState<string>(NONE);
   const [relatedOpportunityId, setRelatedOpportunityId] = useState<string>(NONE);
