@@ -123,12 +123,20 @@ export function QuotesSection() {
   }, [searchParams, leads, clients, setSearchParams]);
 
   /** Deep link: ?quote=<id> abre preview do orçamento */
+  const [highlightedQuoteId, setHighlightedQuoteId] = useState<string | null>(null);
   useEffect(() => {
     const qid = searchParams.get("quote");
     if (!qid) return;
     if (!quotes.some((q) => q.id === qid)) return;
     setPreviewId(qid);
+    setHighlightedQuoteId(qid);
   }, [searchParams, quotes]);
+
+  useEffect(() => {
+    if (!highlightedQuoteId) return;
+    const t = setTimeout(() => setHighlightedQuoteId(null), 4000);
+    return () => clearTimeout(t);
+  }, [highlightedQuoteId]);
 
   const clearQuoteParam = () => {
     if (!searchParams.get("quote")) return;
@@ -246,7 +254,7 @@ export function QuotesSection() {
                 const eff = effectiveStatus(q);
                 const days = getQuoteDaysToExpire(q);
                 return (
-                  <tr key={q.id} className="hover:bg-muted/30 transition">
+                  <tr key={q.id} className={`hover:bg-muted/30 transition ${highlightedQuoteId === q.id ? "ring-2 ring-primary/30 bg-primary/5" : ""}`}>
                     <td className="px-4 py-3">
                       <div className="font-bold text-foreground">{q.title}</div>
                       <div className="text-xs text-muted-foreground">{q.createdAt}</div>

@@ -225,14 +225,24 @@ const Tarefas = () => {
 
   // Deep link: /tarefas?task=<id>
   const [searchParams, setSearchParams] = useSearchParams();
+  const [highlightedTaskId, setHighlightedTaskId] = useState<number | null>(null);
   useEffect(() => {
     const raw = searchParams.get("task");
     if (!raw) return;
     const id = Number(raw);
     if (!Number.isFinite(id)) return;
     const found = tasks.find(t => t.id === id);
-    if (found) setSelectedTask(found);
+    if (found) {
+      setSelectedTask(found);
+      setHighlightedTaskId(id);
+    }
   }, [searchParams, tasks]);
+
+  useEffect(() => {
+    if (highlightedTaskId === null) return;
+    const t = setTimeout(() => setHighlightedTaskId(null), 4000);
+    return () => clearTimeout(t);
+  }, [highlightedTaskId]);
 
   const clearTaskParam = () => {
     if (!searchParams.get("task")) return;
@@ -513,6 +523,7 @@ const Tarefas = () => {
           setDraggedId={setDraggedId}
           onSelect={setSelectedTask}
           onDrop={handleDrop}
+          highlightedTaskId={highlightedTaskId}
         />
       ) : (
         <ListView
@@ -520,6 +531,7 @@ const Tarefas = () => {
           tasks={visibleTasks}
           taskProjects={taskProjects}
           onSelect={setSelectedTask}
+          highlightedTaskId={highlightedTaskId}
           onToggleComplete={handleToggleComplete}
           onArchive={(id) => archiveTask(id, true)}
           onUnarchive={(id) => archiveTask(id, false)}
@@ -615,7 +627,7 @@ const Tarefas = () => {
 /* ------------------------------------------------------------------ */
 
 const ListView = ({
-  view, tasks, taskProjects, onSelect, onToggleComplete, onArchive, onUnarchive, onDuplicate, onDelete, onMoveToProject,
+  view, tasks, taskProjects, onSelect, onToggleComplete, onArchive, onUnarchive, onDuplicate, onDelete, onMoveToProject, highlightedTaskId,
 }: {
   view: ViewKey;
   tasks: Task[];
@@ -627,6 +639,7 @@ const ListView = ({
   onDuplicate: (id: number) => void;
   onDelete: (t: Task) => void;
   onMoveToProject: (taskId: number, projectId: string) => void;
+  highlightedTaskId?: number | null;
 }) => {
   const groups = useMemo(() => {
     const g: { key: string; label: string; items: Task[] }[] = [];
@@ -686,6 +699,7 @@ const ListView = ({
                 onDuplicate={onDuplicate}
                 onDelete={onDelete}
                 onMoveToProject={onMoveToProject}
+                highlighted={highlightedTaskId === t.id}
               />
             ))}
           </div>
@@ -712,7 +726,7 @@ const sortByDueOrPriority = (a: Task, b: Task) => {
 /* ------------------------------------------------------------------ */
 
 const TaskRow = ({
-  task, taskProjects, onSelect, onToggleComplete, onArchive, onUnarchive, onDuplicate, onDelete, onMoveToProject,
+  task, taskProjects, onSelect, onToggleComplete, onArchive, onUnarchive, onDuplicate, onDelete, onMoveToProject, highlighted,
 }: {
   task: Task;
   taskProjects: TaskProject[];
@@ -723,6 +737,7 @@ const TaskRow = ({
   onDuplicate: (id: number) => void;
   onDelete: (t: Task) => void;
   onMoveToProject: (taskId: number, projectId: string) => void;
+  highlighted?: boolean;
 }) => {
   const done = task.status === "concluido";
   const overdue = isOverdue(task);
@@ -736,6 +751,7 @@ const TaskRow = ({
       className={cn(
         "group flex items-start gap-3 px-3 sm:px-4 py-3 hover:bg-muted/30 cursor-pointer transition-colors",
         done && "opacity-60",
+        highlighted && "bg-primary/5 ring-2 ring-primary/30",
       )}
       onClick={() => onSelect(task)}
     >
@@ -896,13 +912,14 @@ const EmptyState = ({ view }: { view: ViewKey }) => {
 /*  Kanban                                                            */
 /* ------------------------------------------------------------------ */
 
-const KanbanView = ({ tasks, taskProjects, draggedId, setDraggedId, onSelect, onDrop }: {
+const KanbanView = ({ tasks, taskProjects, draggedId, setDraggedId, onSelect, onDrop, highlightedTaskId }: {
   tasks: Task[];
   taskProjects: TaskProject[];
   draggedId: number | null;
   setDraggedId: (n: number | null) => void;
   onSelect: (t: Task) => void;
   onDrop: (status: TaskStatus) => void;
+  highlightedTaskId?: number | null;
 }) => (
   <div className="w-full max-w-full overflow-x-auto overflow-y-visible pb-4">
     <div className="flex gap-4 pr-6 min-w-min">
@@ -940,6 +957,7 @@ const KanbanView = ({ tasks, taskProjects, draggedId, setDraggedId, onSelect, on
                     className={cn(
                       "orbit-card p-4 cursor-pointer hover:border-primary/30 transition-all duration-200 group",
                       draggedId === task.id && "opacity-50 scale-95",
+                      highlightedTaskId === task.id && "ring-2 ring-primary/30 bg-primary/5",
                     )}
                   >
                     <div className="flex flex-wrap items-center gap-1.5 mb-2">
