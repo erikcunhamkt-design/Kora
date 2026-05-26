@@ -36,7 +36,8 @@ import {
 import { useDayCenterData } from "@/hooks/useDayCenterData";
 import { useTasks } from "@/hooks/useTasks";
 import { useFinance } from "@/hooks/useFinance";
-import { useClientActivityLogs } from "@/hooks/useClientActivityLogs";
+import { useClientActivityLogs, useAllClientActivityLogs } from "@/hooks/useClientActivityLogs";
+import { useDayCenterResolvedActions } from "@/hooks/useDayCenterResolvedActions";
 import {
   DAY_CATEGORY_LABEL,
   type DayActionItem,
