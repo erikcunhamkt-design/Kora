@@ -43,6 +43,34 @@ const PRIORITY_WEIGHT: Record<DayPriority, number> = {
   low: 3,
 };
 
+const MANUAL_TYPE_TO_DAY_CATEGORY: Record<ManualActivityType, DayCategory> = {
+  meeting: "commercial",
+  call: "commercial",
+  message: "commercial",
+  feedback: "commercial",
+  follow_up: "commercial",
+  decision: "commercial",
+  scope_change: "project",
+  issue: "project",
+  material_request: "client",
+  internal_note: "client",
+  other: "client",
+};
+
+const MANUAL_TYPE_LABEL: Record<ManualActivityType, string> = {
+  meeting: "Reunião",
+  call: "Ligação",
+  message: "Mensagem",
+  feedback: "Feedback",
+  scope_change: "Alteração de escopo",
+  material_request: "Pedido de material",
+  decision: "Decisão",
+  issue: "Problema",
+  internal_note: "Nota interna",
+  follow_up: "Follow-up",
+  other: "Atividade",
+};
+
 const pad = (n: number) => String(n).padStart(2, "0");
 export function todayISO(): string {
   const d = new Date();
