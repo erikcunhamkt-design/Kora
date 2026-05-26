@@ -244,6 +244,14 @@ export function DayCenter({ open, onOpenChange }: Props) {
               <Button
                 size="sm"
                 variant="outline"
+                onClick={() => go("/central-do-dia")}
+                className="h-8 text-[0.75rem]"
+              >
+                Ver Central completa
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
                 onClick={() => go("/tarefas")}
                 className="h-8 text-[0.75rem]"
               >
