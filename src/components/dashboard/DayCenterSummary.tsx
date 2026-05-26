@@ -90,6 +90,7 @@ const CATEGORY_GROUPS: { key: DayCategory; label: string }[] = [
 export function DayCenterSummary() {
   const navigate = useNavigate();
   const result = useDayCenterData();
+  const { todayCount } = useDayCenterResolvedActions();
 
   const nextItems = useMemo(() => {
     const top = result.topAction;
