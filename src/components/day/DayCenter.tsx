@@ -222,7 +222,14 @@ export function DayCenter({ open, onOpenChange }: Props) {
           <div className="px-6 py-5 space-y-6">
             {/* Prioridade principal */}
             {result.topAction ? (
-              <TopActionCard item={result.topAction} onGo={go} />
+              <TopActionCard
+                item={result.topAction}
+                onGo={go}
+                onCompleteTask={completeTask}
+                onResolveFollowUp={resolveFollowUp}
+                onMarkPaid={requestMarkPaid}
+                canMarkPaid={canMarkPaid(result.topAction)}
+              />
             ) : (
               <EmptyTopState onGo={go} />
             )}
@@ -263,6 +270,10 @@ export function DayCenter({ open, onOpenChange }: Props) {
                       icon={CATEGORY_ICON[cat]}
                       items={items}
                       onGo={go}
+                      onCompleteTask={completeTask}
+                      onResolveFollowUp={resolveFollowUp}
+                      onMarkPaid={requestMarkPaid}
+                      canMarkPaid={canMarkPaid}
                     />
                   );
                 })}
@@ -273,16 +284,43 @@ export function DayCenter({ open, onOpenChange }: Props) {
                 {filtered.length === 0 ? (
                   <EmptyListState onGo={go} />
                 ) : (
-                  filtered.map((it) => <ActionRow key={it.id} item={it} onGo={go} />)
+                  filtered.map((it) => (
+                    <ActionRow
+                      key={it.id}
+                      item={it}
+                      onGo={go}
+                      onCompleteTask={completeTask}
+                      onResolveFollowUp={resolveFollowUp}
+                      onMarkPaid={requestMarkPaid}
+                      canMarkPaid={canMarkPaid(it)}
+                    />
+                  ))
                 )}
               </div>
             )}
           </div>
         </ScrollArea>
       </SheetContent>
+
+      <AlertDialog open={!!payConfirm} onOpenChange={(v) => !v && setPayConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Marcar como pago?</AlertDialogTitle>
+            <AlertDialogDescription>
+              O recebível {payConfirm?.title ? `"${payConfirm.title}"` : ""} será marcado como pago
+              com a data de hoje. Você poderá ajustar depois no Financeiro.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmMarkPaid}>Marcar como pago</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Sheet>
   );
 }
+
 
 // ===== Componentes auxiliares =====
 
