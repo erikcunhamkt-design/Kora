@@ -161,16 +161,17 @@ export function ClientActivityLogDialog({ open, onOpenChange, client, editing, o
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="act-outcome">Resultado / decisão</Label>
-              <Input
-                id="act-outcome"
-                placeholder="Ex: Cliente aprovou proposta"
-                value={outcome}
-                onChange={(e) => setOutcome(e.target.value)}
-              />
-            </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="act-outcome">Resultado / decisão</Label>
+            <Input
+              id="act-outcome"
+              placeholder="Ex: Cliente aprovou proposta"
+              value={outcome}
+              onChange={(e) => setOutcome(e.target.value)}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_180px] gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="act-next">Próximo passo</Label>
               <Input
@@ -180,7 +181,21 @@ export function ClientActivityLogDialog({ open, onOpenChange, client, editing, o
                 onChange={(e) => setNextStep(e.target.value)}
               />
             </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="act-next-date">Data do próximo passo</Label>
+              <Input
+                id="act-next-date"
+                type="date"
+                value={nextStepDate}
+                onChange={(e) => setNextStepDate(e.target.value)}
+              />
+            </div>
           </div>
+          {nextStep.trim() && !nextStepDate && (
+            <p className="text-[11px] text-amber-400/90 -mt-2">
+              Defina uma data para o próximo passo aparecer na Central do Dia.
+            </p>
+          )}
 
           {(contacts.length > 0 || clientProjects.length > 0 || clientLeads.length > 0 || clientQuotes.length > 0) && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-border/40">
