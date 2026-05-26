@@ -254,7 +254,7 @@ export function QuotesSection() {
                 const eff = effectiveStatus(q);
                 const days = getQuoteDaysToExpire(q);
                 return (
-                  <tr key={q.id} className="hover:bg-muted/30 transition">
+                  <tr key={q.id} className={`hover:bg-muted/30 transition ${highlightedQuoteId === q.id ? "ring-2 ring-primary/30 bg-primary/5" : ""}`}>
                     <td className="px-4 py-3">
                       <div className="font-bold text-foreground">{q.title}</div>
                       <div className="text-xs text-muted-foreground">{q.createdAt}</div>
