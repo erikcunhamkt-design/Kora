@@ -442,6 +442,20 @@ export const ClientActivitiesTab = ({
   const hasInferred = events.some((e) => e.origin === "inferred");
   const hasManual = logs.length > 0;
 
+  const highlightRef = useRef<HTMLLIElement | null>(null);
+  const [highlightActive, setHighlightActive] = useState(false);
+  useEffect(() => {
+    if (!highlightedActivityId) { setHighlightActive(false); return; }
+    setHighlightActive(true);
+    const el = highlightRef.current;
+    if (el) {
+      try { el.scrollIntoView({ behavior: "smooth", block: "center" }); } catch { /* noop */ }
+    }
+    const t = window.setTimeout(() => setHighlightActive(false), 4000);
+    return () => window.clearTimeout(t);
+  }, [highlightedActivityId, client.id]);
+
+
   const filters: { key: ActivityCategory; label: string }[] = [
     { key: "all", label: "Todos" },
     { key: "commercial", label: "Comercial" },
