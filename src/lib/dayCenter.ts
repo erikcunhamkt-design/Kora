@@ -8,6 +8,7 @@ import type { Quote } from "@/hooks/useQuotes";
 import type { Transaction } from "@/hooks/useFinance";
 import type { Project } from "@/hooks/useProjects";
 import type { Client } from "@/hooks/useClients";
+import type { ClientManualActivity, ManualActivityType } from "@/hooks/useClientActivityLogs";
 
 export type DayPriority = "critical" | "high" | "medium" | "low";
 export type DayCategory =
