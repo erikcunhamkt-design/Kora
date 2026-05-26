@@ -369,10 +369,9 @@ export function computeDayCenter(inputs: DayCenterInputs): DayCenterResult {
         clientId: tx.clientId,
         clientName: tx.clientName,
         relatedId: tx.id,
-        relatedType: "transaction",
+        relatedType: "finance_transaction",
         actionLabel: isIncome ? "Ver recebível" : "Ver pagamento",
         route: `/financeiro?tab=${isIncome ? "receivables" : "payables"}&entryId=${tx.id}`,
-        relatedType: "finance_transaction",
         icon: isIncome ? "receivable" : "payable",
       });
     } else if (diff === 0) {
@@ -387,10 +386,9 @@ export function computeDayCenter(inputs: DayCenterInputs): DayCenterResult {
         clientId: tx.clientId,
         clientName: tx.clientName,
         relatedId: tx.id,
-        relatedType: "transaction",
+        relatedType: "finance_transaction",
         actionLabel: isIncome ? "Ver recebível" : "Ver pagamento",
         route: `/financeiro?tab=${isIncome ? "receivables" : "payables"}&entryId=${tx.id}`,
-        relatedType: "finance_transaction",
         icon: isIncome ? "receivable" : "payable",
       });
     } else if (diff <= 7) {
@@ -405,10 +403,9 @@ export function computeDayCenter(inputs: DayCenterInputs): DayCenterResult {
         clientId: tx.clientId,
         clientName: tx.clientName,
         relatedId: tx.id,
-        relatedType: "transaction",
+        relatedType: "finance_transaction",
         actionLabel: isIncome ? "Ver recebível" : "Ver pagamento",
         route: `/financeiro?tab=${isIncome ? "receivables" : "payables"}&entryId=${tx.id}`,
-        relatedType: "finance_transaction",
         icon: isIncome ? "receivable" : "payable",
       });
     }
