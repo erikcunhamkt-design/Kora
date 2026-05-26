@@ -101,6 +101,7 @@ export function ClientActivityLogDialog({ open, onOpenChange, client, editing, o
       description: description.trim() || undefined,
       outcome: outcome.trim() || undefined,
       nextStep: nextStep.trim() || undefined,
+      nextStepDate: nextStepDate ? new Date(nextStepDate).toISOString() : undefined,
       relatedContactId: relatedContactId !== NONE ? relatedContactId : undefined,
       relatedProjectId: relatedProjectId !== NONE ? relatedProjectId : undefined,
       relatedOpportunityId:
