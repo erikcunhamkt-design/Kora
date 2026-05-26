@@ -289,7 +289,7 @@ export function computeDayCenter(inputs: DayCenterInputs): DayCenterResult {
           relatedId: q.id,
           relatedType: "quote",
           actionLabel: "Ver orçamento",
-          route: "/vendas",
+          route: `/vendas?tab=orcamentos&quote=${q.id}`,
           icon: "quote",
         });
       } else if (diff <= 3) {
@@ -306,7 +306,7 @@ export function computeDayCenter(inputs: DayCenterInputs): DayCenterResult {
           relatedId: q.id,
           relatedType: "quote",
           actionLabel: "Ver orçamento",
-          route: "/vendas",
+          route: `/vendas?tab=orcamentos&quote=${q.id}`,
           icon: "quote",
         });
       } else if (diff <= 7) {
@@ -323,7 +323,7 @@ export function computeDayCenter(inputs: DayCenterInputs): DayCenterResult {
           relatedId: q.id,
           relatedType: "quote",
           actionLabel: "Ver orçamento",
-          route: "/vendas",
+          route: `/vendas?tab=orcamentos&quote=${q.id}`,
           icon: "quote",
         });
       }
@@ -342,7 +342,7 @@ export function computeDayCenter(inputs: DayCenterInputs): DayCenterResult {
         relatedId: q.id,
         relatedType: "quote",
         actionLabel: "Gerar recebível",
-        route: "/vendas",
+        route: `/vendas?tab=orcamentos&quote=${q.id}`,
         icon: "quote",
       });
     }
@@ -371,7 +371,8 @@ export function computeDayCenter(inputs: DayCenterInputs): DayCenterResult {
         relatedId: tx.id,
         relatedType: "transaction",
         actionLabel: "Ver no financeiro",
-        route: "/financeiro",
+        route: `/financeiro?tab=${isIncome ? "receivables" : "payables"}&entryId=${tx.id}`,
+        relatedType: "finance_transaction",
         icon: isIncome ? "receivable" : "payable",
       });
     } else if (diff === 0) {
@@ -388,7 +389,8 @@ export function computeDayCenter(inputs: DayCenterInputs): DayCenterResult {
         relatedId: tx.id,
         relatedType: "transaction",
         actionLabel: "Ver no financeiro",
-        route: "/financeiro",
+        route: `/financeiro?tab=${isIncome ? "receivables" : "payables"}&entryId=${tx.id}`,
+        relatedType: "finance_transaction",
         icon: isIncome ? "receivable" : "payable",
       });
     } else if (diff <= 7) {
@@ -405,7 +407,8 @@ export function computeDayCenter(inputs: DayCenterInputs): DayCenterResult {
         relatedId: tx.id,
         relatedType: "transaction",
         actionLabel: "Ver no financeiro",
-        route: "/financeiro",
+        route: `/financeiro?tab=${isIncome ? "receivables" : "payables"}&entryId=${tx.id}`,
+        relatedType: "finance_transaction",
         icon: isIncome ? "receivable" : "payable",
       });
     }
@@ -430,7 +433,7 @@ export function computeDayCenter(inputs: DayCenterInputs): DayCenterResult {
         relatedId: p.id,
         relatedType: "project",
         actionLabel: "Ver projeto",
-        route: `/portfolio?project=${p.id}`,
+        route: `/portfolio?tab=projetos&projectId=${p.id}`,
         icon: "project",
       });
     } else if (diff <= 3) {
@@ -446,7 +449,7 @@ export function computeDayCenter(inputs: DayCenterInputs): DayCenterResult {
         relatedId: p.id,
         relatedType: "project",
         actionLabel: "Ver projeto",
-        route: `/portfolio?project=${p.id}`,
+        route: `/portfolio?tab=projetos&projectId=${p.id}`,
         icon: "project",
       });
     } else if (diff <= 7) {
@@ -462,7 +465,7 @@ export function computeDayCenter(inputs: DayCenterInputs): DayCenterResult {
         relatedId: p.id,
         relatedType: "project",
         actionLabel: "Ver projeto",
-        route: `/portfolio?project=${p.id}`,
+        route: `/portfolio?tab=projetos&projectId=${p.id}`,
         icon: "project",
       });
     }
@@ -483,7 +486,7 @@ export function computeDayCenter(inputs: DayCenterInputs): DayCenterResult {
       relatedId: c.id,
       relatedType: "client",
       actionLabel: "Abrir cliente",
-      route: `/clientes`,
+      route: `/clientes?client=${c.id}`,
       icon: "client",
     });
   }
