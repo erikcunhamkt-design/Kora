@@ -726,7 +726,7 @@ const sortByDueOrPriority = (a: Task, b: Task) => {
 /* ------------------------------------------------------------------ */
 
 const TaskRow = ({
-  task, taskProjects, onSelect, onToggleComplete, onArchive, onUnarchive, onDuplicate, onDelete, onMoveToProject,
+  task, taskProjects, onSelect, onToggleComplete, onArchive, onUnarchive, onDuplicate, onDelete, onMoveToProject, highlighted,
 }: {
   task: Task;
   taskProjects: TaskProject[];
@@ -737,6 +737,7 @@ const TaskRow = ({
   onDuplicate: (id: number) => void;
   onDelete: (t: Task) => void;
   onMoveToProject: (taskId: number, projectId: string) => void;
+  highlighted?: boolean;
 }) => {
   const done = task.status === "concluido";
   const overdue = isOverdue(task);
