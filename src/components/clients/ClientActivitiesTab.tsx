@@ -550,6 +550,11 @@ export const ClientActivitiesTab = ({
                             Manual
                           </Badge>
                         )}
+                        {e.origin === "manual" && e.raw.nextStep && e.raw.nextStepDate && (
+                          <Badge variant="outline" className="text-[9px] px-1.5 h-4 border-amber-500/30 text-amber-400">
+                            Vai para Central do Dia
+                          </Badge>
+                        )}
                         {e.status && (
                           <Badge variant="outline" className={cn("text-[10px]", toneCls[tone], "border-transparent")}>
                             {e.status}
