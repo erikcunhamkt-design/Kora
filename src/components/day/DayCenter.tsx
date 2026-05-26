@@ -113,12 +113,46 @@ export function DayCenter({ open, onOpenChange }: Props) {
   const [filter, setFilter] = useState<Filter>("all");
   const [, setTick] = useState(0);
   const result = useDayCenterData();
+  const { updateTask } = useTasks();
+  const { updateTransactionStatus, transactions } = useFinance();
+  const { updateLog } = useClientActivityLogs();
+  const [payConfirm, setPayConfirm] = useState<DayActionItem | null>(null);
 
   const go = (route?: string) => {
     if (!route) return;
     onOpenChange(false);
     navigate(route);
   };
+
+  const completeTask = (item: DayActionItem) => {
+    if (item.relatedType !== "task" || item.relatedId == null) return;
+    updateTask(Number(item.relatedId), { status: "concluido" });
+    toast.success("Tarefa concluída");
+  };
+
+  const resolveFollowUp = (item: DayActionItem) => {
+    if (item.relatedType !== "manual_activity" || !item.relatedId) return;
+    updateLog(String(item.relatedId), { resolvedAt: new Date().toISOString() });
+    toast.success("Follow-up marcado como resolvido");
+  };
+
+  const requestMarkPaid = (item: DayActionItem) => {
+    setPayConfirm(item);
+  };
+
+  const confirmMarkPaid = () => {
+    if (!payConfirm || !payConfirm.relatedId) return;
+    updateTransactionStatus(String(payConfirm.relatedId), "paid");
+    toast.success("Recebível marcado como pago");
+    setPayConfirm(null);
+  };
+
+  const canMarkPaid = (item: DayActionItem): boolean => {
+    if (item.relatedType !== "finance_transaction") return false;
+    const tx = transactions.find((t) => t.id === item.relatedId);
+    return !!tx && tx.type === "income" && tx.status !== "paid" && tx.status !== "canceled";
+  };
+
 
   const filtered = useMemo(() => {
     if (filter === "all") return result.items;
