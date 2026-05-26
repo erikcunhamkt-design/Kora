@@ -470,7 +470,13 @@ export const ClientActivitiesTab = ({
 
   const handleSubmit = (data: Omit<ClientManualActivity, "id" | "createdAt" | "updatedAt">) => {
     if (editing) {
-      updateLog(editing.id, data);
+      const nextStepDateChanged =
+        !!data.nextStepDate && data.nextStepDate !== editing.nextStepDate;
+      const patch: Partial<ClientManualActivity> = { ...data };
+      if (nextStepDateChanged && editing.resolvedAt) {
+        patch.resolvedAt = undefined;
+      }
+      updateLog(editing.id, patch);
       toast.success("Atividade atualizada");
     } else {
       addLog(data);
