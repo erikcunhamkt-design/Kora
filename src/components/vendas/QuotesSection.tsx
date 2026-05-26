@@ -122,6 +122,21 @@ export function QuotesSection() {
     setSearchParams(next, { replace: true });
   }, [searchParams, leads, clients, setSearchParams]);
 
+  /** Deep link: ?quote=<id> abre preview do orçamento */
+  useEffect(() => {
+    const qid = searchParams.get("quote");
+    if (!qid) return;
+    if (!quotes.some((q) => q.id === qid)) return;
+    setPreviewId(qid);
+  }, [searchParams, quotes]);
+
+  const clearQuoteParam = () => {
+    if (!searchParams.get("quote")) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete("quote");
+    setSearchParams(next, { replace: true });
+  };
+
   // KPIs ---
   const openQuotes = quotes.filter((q) => effectiveStatus(q) === "rascunho" || effectiveStatus(q) === "enviado");
   const openValue = openQuotes.reduce((s, q) => s + q.total, 0);
@@ -387,7 +402,7 @@ export function QuotesSection() {
       {preview && (
         <QuotePreview
           quote={preview}
-          onClose={() => setPreviewId(null)}
+          onClose={() => { setPreviewId(null); clearQuoteParam(); }}
           onDuplicate={() => {
             duplicateQuote(preview.id);
             toast.success("Orçamento duplicado");

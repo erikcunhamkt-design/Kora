@@ -1,5 +1,6 @@
 import { PageHeader } from "@/components/layout/PageHeader";
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { usePlan } from "@/contexts/PlanContext";
 import { UsageBadge } from "@/components/plan/UsageBadge";
 import { Badge } from "@/components/ui/badge";
@@ -221,6 +222,24 @@ const Tarefas = () => {
     const fresh = tasks.find(t => t.id === selectedTask.id);
     if (fresh && fresh !== selectedTask) setSelectedTask(fresh);
   }, [tasks]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Deep link: /tarefas?task=<id>
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const raw = searchParams.get("task");
+    if (!raw) return;
+    const id = Number(raw);
+    if (!Number.isFinite(id)) return;
+    const found = tasks.find(t => t.id === id);
+    if (found) setSelectedTask(found);
+  }, [searchParams, tasks]);
+
+  const clearTaskParam = () => {
+    if (!searchParams.get("task")) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete("task");
+    setSearchParams(next, { replace: true });
+  };
 
   const allTags = useMemo(() => {
     const s = new Set<string>();
@@ -523,7 +542,7 @@ const Tarefas = () => {
       <TaskDetailSheet
         task={selectedTask}
         taskProjects={taskProjects}
-        onClose={() => setSelectedTask(null)}
+        onClose={() => { setSelectedTask(null); clearTaskParam(); }}
         onMove={moveTask}
         onToggleSubtask={toggleSubtask}
         onAddSubtask={addSubtask}

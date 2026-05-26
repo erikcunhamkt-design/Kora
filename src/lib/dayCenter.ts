@@ -150,7 +150,7 @@ export function computeDayCenter(inputs: DayCenterInputs): DayCenterResult {
           clientId: t.clientId,
           clientName: t.client,
           actionLabel: "Abrir tarefa",
-          route: "/tarefas",
+          route: `/tarefas?task=${t.id}`,
           icon: "task",
         });
       } else if (diff === 0) {
@@ -166,7 +166,7 @@ export function computeDayCenter(inputs: DayCenterInputs): DayCenterResult {
           clientId: t.clientId,
           clientName: t.client,
           actionLabel: "Abrir tarefa",
-          route: "/tarefas",
+          route: `/tarefas?task=${t.id}`,
           icon: "task",
         });
       }
@@ -181,7 +181,7 @@ export function computeDayCenter(inputs: DayCenterInputs): DayCenterResult {
         relatedType: "task",
         clientName: t.client,
         actionLabel: "Abrir tarefa",
-        route: "/tarefas",
+        route: `/tarefas?task=${t.id}`,
         icon: "task",
       });
     }
@@ -208,7 +208,7 @@ export function computeDayCenter(inputs: DayCenterInputs): DayCenterResult {
           relatedId: l.id,
           relatedType: "lead",
           actionLabel: "Ver oportunidade",
-          route: "/crm",
+          route: `/crm?lead=${l.id}`,
           icon: "lead",
         });
       } else if (diff === 0) {
@@ -225,7 +225,7 @@ export function computeDayCenter(inputs: DayCenterInputs): DayCenterResult {
           relatedId: l.id,
           relatedType: "lead",
           actionLabel: "Ver oportunidade",
-          route: "/crm",
+          route: `/crm?lead=${l.id}`,
           icon: "lead",
         });
       } else if (diff <= 7) {
@@ -242,7 +242,7 @@ export function computeDayCenter(inputs: DayCenterInputs): DayCenterResult {
           relatedId: l.id,
           relatedType: "lead",
           actionLabel: "Ver oportunidade",
-          route: "/crm",
+          route: `/crm?lead=${l.id}`,
           icon: "lead",
         });
       }
@@ -259,7 +259,7 @@ export function computeDayCenter(inputs: DayCenterInputs): DayCenterResult {
         relatedId: l.id,
         relatedType: "lead",
         actionLabel: "Ver oportunidade",
-        route: "/crm",
+        route: `/crm?lead=${l.id}`,
         icon: "lead",
       });
     }
@@ -289,7 +289,7 @@ export function computeDayCenter(inputs: DayCenterInputs): DayCenterResult {
           relatedId: q.id,
           relatedType: "quote",
           actionLabel: "Ver orçamento",
-          route: "/vendas",
+          route: `/vendas?tab=orcamentos&quote=${q.id}`,
           icon: "quote",
         });
       } else if (diff <= 3) {
@@ -306,7 +306,7 @@ export function computeDayCenter(inputs: DayCenterInputs): DayCenterResult {
           relatedId: q.id,
           relatedType: "quote",
           actionLabel: "Ver orçamento",
-          route: "/vendas",
+          route: `/vendas?tab=orcamentos&quote=${q.id}`,
           icon: "quote",
         });
       } else if (diff <= 7) {
@@ -323,7 +323,7 @@ export function computeDayCenter(inputs: DayCenterInputs): DayCenterResult {
           relatedId: q.id,
           relatedType: "quote",
           actionLabel: "Ver orçamento",
-          route: "/vendas",
+          route: `/vendas?tab=orcamentos&quote=${q.id}`,
           icon: "quote",
         });
       }
@@ -342,7 +342,7 @@ export function computeDayCenter(inputs: DayCenterInputs): DayCenterResult {
         relatedId: q.id,
         relatedType: "quote",
         actionLabel: "Gerar recebível",
-        route: "/vendas",
+        route: `/vendas?tab=orcamentos&quote=${q.id}`,
         icon: "quote",
       });
     }
@@ -369,9 +369,9 @@ export function computeDayCenter(inputs: DayCenterInputs): DayCenterResult {
         clientId: tx.clientId,
         clientName: tx.clientName,
         relatedId: tx.id,
-        relatedType: "transaction",
-        actionLabel: "Ver no financeiro",
-        route: "/financeiro",
+        relatedType: "finance_transaction",
+        actionLabel: isIncome ? "Ver recebível" : "Ver pagamento",
+        route: `/financeiro?tab=${isIncome ? "receivables" : "payables"}&entryId=${tx.id}`,
         icon: isIncome ? "receivable" : "payable",
       });
     } else if (diff === 0) {
@@ -386,9 +386,9 @@ export function computeDayCenter(inputs: DayCenterInputs): DayCenterResult {
         clientId: tx.clientId,
         clientName: tx.clientName,
         relatedId: tx.id,
-        relatedType: "transaction",
-        actionLabel: "Ver no financeiro",
-        route: "/financeiro",
+        relatedType: "finance_transaction",
+        actionLabel: isIncome ? "Ver recebível" : "Ver pagamento",
+        route: `/financeiro?tab=${isIncome ? "receivables" : "payables"}&entryId=${tx.id}`,
         icon: isIncome ? "receivable" : "payable",
       });
     } else if (diff <= 7) {
@@ -403,9 +403,9 @@ export function computeDayCenter(inputs: DayCenterInputs): DayCenterResult {
         clientId: tx.clientId,
         clientName: tx.clientName,
         relatedId: tx.id,
-        relatedType: "transaction",
-        actionLabel: "Ver no financeiro",
-        route: "/financeiro",
+        relatedType: "finance_transaction",
+        actionLabel: isIncome ? "Ver recebível" : "Ver pagamento",
+        route: `/financeiro?tab=${isIncome ? "receivables" : "payables"}&entryId=${tx.id}`,
         icon: isIncome ? "receivable" : "payable",
       });
     }
@@ -430,7 +430,7 @@ export function computeDayCenter(inputs: DayCenterInputs): DayCenterResult {
         relatedId: p.id,
         relatedType: "project",
         actionLabel: "Ver projeto",
-        route: `/portfolio?project=${p.id}`,
+        route: `/portfolio?tab=projetos&projectId=${p.id}`,
         icon: "project",
       });
     } else if (diff <= 3) {
@@ -446,7 +446,7 @@ export function computeDayCenter(inputs: DayCenterInputs): DayCenterResult {
         relatedId: p.id,
         relatedType: "project",
         actionLabel: "Ver projeto",
-        route: `/portfolio?project=${p.id}`,
+        route: `/portfolio?tab=projetos&projectId=${p.id}`,
         icon: "project",
       });
     } else if (diff <= 7) {
@@ -462,7 +462,7 @@ export function computeDayCenter(inputs: DayCenterInputs): DayCenterResult {
         relatedId: p.id,
         relatedType: "project",
         actionLabel: "Ver projeto",
-        route: `/portfolio?project=${p.id}`,
+        route: `/portfolio?tab=projetos&projectId=${p.id}`,
         icon: "project",
       });
     }
@@ -483,7 +483,7 @@ export function computeDayCenter(inputs: DayCenterInputs): DayCenterResult {
       relatedId: c.id,
       relatedType: "client",
       actionLabel: "Abrir cliente",
-      route: `/clientes`,
+      route: `/clientes?client=${c.id}`,
       icon: "client",
     });
   }
