@@ -460,6 +460,41 @@ export function computeDayCenter(inputs: DayCenterInputs): DayCenterResult {
     });
   }
 
+  // ===== LOGS MANUAIS DE RELACIONAMENTO =====
+  const clientById = new Map<number, Client>();
+  for (const c of inputs.clients) clientById.set(c.id, c);
+
+  for (const log of inputs.manualActivities ?? []) {
+    if (!log.nextStep || !log.nextStep.trim()) continue;
+    const due = safeIso(log.nextStepDate);
+    if (!due) continue;
+    const diff = daysBetween(due, today);
+    if (diff > 7) continue;
+
+    const client = clientById.get(log.clientId);
+    const clientName = client?.company || client?.name;
+    const category = MANUAL_TYPE_TO_DAY_CATEGORY[log.type];
+    const priority: DayPriority = diff < 0 ? "critical" : diff === 0 ? "high" : "medium";
+    const whenLabel = diff < 0 ? `atrasado ${Math.abs(diff)}d` : diff === 0 ? "hoje" : `em ${diff}d`;
+    const typeLabel = MANUAL_TYPE_LABEL[log.type];
+
+    items.push({
+      id: `manual-${log.id}`,
+      category,
+      priority,
+      title: log.nextStep.trim(),
+      description: `${typeLabel}${clientName ? ` · ${clientName}` : ""} · ${whenLabel}`,
+      dueDate: due,
+      clientId: log.clientId,
+      clientName,
+      relatedId: log.id,
+      relatedType: "manual_activity",
+      actionLabel: "Ver cliente",
+      route: `/clientes?client=${log.clientId}`,
+      icon: "manual",
+    });
+  }
+
   // ===== ORDENAÇÃO =====
   items.sort((a, b) => {
     const pw = PRIORITY_WEIGHT[a.priority] - PRIORITY_WEIGHT[b.priority];
