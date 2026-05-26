@@ -412,10 +412,12 @@ export const ClientActivitiesTab = ({
   client,
   onClose,
   onCreateOpportunity,
+  highlightedActivityId,
 }: {
   client: Client;
   onClose: () => void;
   onCreateOpportunity?: (c: Client) => void;
+  highlightedActivityId?: string;
 }) => {
   const navigate = useNavigate();
   const [filter, setFilter] = useState<ActivityCategory>("all");
