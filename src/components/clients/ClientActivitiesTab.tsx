@@ -307,7 +307,7 @@ function buildInferredEvents(args: {
       origin: "inferred", id: `pj-c-${p.id}`, type: "project_created", category: "projects",
       title: "Projeto criado", description: p.name,
       date: created, tone: "primary",
-      action: { label: "Ver projeto", href: `/portfolio?project=${p.id}` },
+      action: { label: "Ver projeto", href: `/portfolio?tab=projetos&projectId=${p.id}` },
     });
     if (p.status === "in_progress" && p.startDate) {
       const s = parseDate(p.startDate);
@@ -315,7 +315,7 @@ function buildInferredEvents(args: {
         origin: "inferred", id: `pj-s-${p.id}`, type: "project_started", category: "projects",
         title: "Projeto iniciado", description: p.name,
         date: s, status: "Em andamento", tone: "warning",
-        action: { label: "Ver projeto", href: `/portfolio?project=${p.id}` },
+        action: { label: "Ver projeto", href: `/portfolio?tab=projetos&projectId=${p.id}` },
       });
     }
     if (p.completedAt) {
@@ -324,7 +324,7 @@ function buildInferredEvents(args: {
         origin: "inferred", id: `pj-done-${p.id}`, type: "project_completed", category: "projects",
         title: "Projeto concluído", description: p.name,
         date: d, status: "Entregue", tone: "success",
-        action: { label: "Ver projeto", href: `/portfolio?project=${p.id}` },
+        action: { label: "Ver projeto", href: `/portfolio?tab=projetos&projectId=${p.id}` },
       });
     }
     if (p.status === "cancelled") {
