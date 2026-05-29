@@ -830,7 +830,7 @@ const ProjectsTab = ({ client, onClose }: { client: Client; onClose: () => void 
             </div>
             <Button
               size="sm" variant="outline" className="gap-1.5 text-xs shrink-0"
-              onClick={() => { onClose(); navigate(`/portfolio?project=${p.id}`); }}
+              onClick={() => { onClose(); navigate(`/portfolio?tab=projetos&projectId=${p.id}`); }}
             >
               Ver <ChevronRight className="h-3 w-3" />
             </Button>

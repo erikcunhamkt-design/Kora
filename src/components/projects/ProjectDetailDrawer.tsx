@@ -193,12 +193,12 @@ export function ProjectDetailDrawer({ project, open, onOpenChange }: ProjectDeta
                 )}
                 <DropdownMenuSeparator />
                 {project.quoteId && (
-                  <DropdownMenuItem onClick={() => navigate(`/vendas?tab=orcamentos`)}>
+                  <DropdownMenuItem onClick={() => navigate(`/vendas?tab=orcamentos&quote=${project.quoteId}`)}>
                     <FileText className="h-3.5 w-3.5 mr-2" /> Ver orçamento
                   </DropdownMenuItem>
                 )}
                 {project.clientId && (
-                  <DropdownMenuItem onClick={() => navigate(`/clientes?focus=${project.clientId}`)}>
+                  <DropdownMenuItem onClick={() => navigate(`/clientes?client=${project.clientId}`)}>
                     <User className="h-3.5 w-3.5 mr-2" /> Ver cliente
                   </DropdownMenuItem>
                 )}
@@ -447,14 +447,14 @@ export function ProjectDetailDrawer({ project, open, onOpenChange }: ProjectDeta
               label="Cliente"
               value={project.clientName}
               actionLabel={project.clientId ? "Ver" : undefined}
-              onAction={project.clientId ? () => navigate(`/clientes?focus=${project.clientId}`) : undefined}
+              onAction={project.clientId ? () => navigate(`/clientes?client=${project.clientId}`) : undefined}
             />
             <ConnectionRow
               icon={FileText}
               label="Orçamento"
               value={project.quoteTitle ?? (project.quoteId ? "Vinculado" : "—")}
               actionLabel={project.quoteId ? "Ver" : undefined}
-              onAction={project.quoteId ? () => navigate(`/vendas?tab=orcamentos`) : undefined}
+              onAction={project.quoteId ? () => navigate(`/vendas?tab=orcamentos&quote=${project.quoteId}`) : undefined}
             />
             <ConnectionRow
               icon={Link2}

@@ -276,7 +276,7 @@ export function QuotesSection() {
                       ) : q.clientId ? (
                         <button
                           type="button"
-                          onClick={() => navigate(`/clientes?focus=${q.clientId}`)}
+                          onClick={() => navigate(`/clientes?client=${q.clientId}`)}
                           className="inline-flex items-center gap-1 text-xs text-sky-400 hover:underline"
                         >
                           <UserIcon className="h-3 w-3" /> Cliente
@@ -432,7 +432,7 @@ export function QuotesSection() {
           onGenerateReceivable={!preview.financeEntryId ? () => setReceivableQuote(preview) : undefined}
           onOpenReceivable={preview.financeEntryId ? () => navigate(`/financeiro?tab=receivables&entryId=${preview.financeEntryId}`) : undefined}
           onOpenOpportunity={preview.opportunityId ? () => navigate("/crm") : undefined}
-          onOpenClient={preview.clientId ? () => navigate(`/clientes?focus=${preview.clientId}`) : undefined}
+          onOpenClient={preview.clientId ? () => navigate(`/clientes?client=${preview.clientId}`) : undefined}
           onGenerateProject={preview.status === "aprovado" && !preview.projectId ? () => setProjectQuote(preview) : undefined}
           onOpenProject={preview.projectId ? () => navigate(`/portfolio?tab=projetos&projectId=${preview.projectId}`) : undefined}
         />
