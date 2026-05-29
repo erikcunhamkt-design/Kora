@@ -756,7 +756,7 @@ const CRM = () => {
         onEditTags={() => selectedLead && setTagsLeadId(selectedLead.id)}
         onSchedule={() => selectedLead && setScheduleLeadId(selectedLead.id)}
         onUpdate={(patch) => selectedLead && updateLead(selectedLead.id, patch)}
-        onOpenClient={(cid) => navigate(`/clientes?focus=${cid}`)}
+        onOpenClient={(cid) => navigate(`/clientes?client=${cid}`)}
         onCreateQuote={() => selectedLead && navigate(`/vendas?tab=orcamentos&newQuote=1&opportunityId=${selectedLead.id}`)}
         onOpenQuote={() => navigate(`/vendas?tab=orcamentos`)}
       />
