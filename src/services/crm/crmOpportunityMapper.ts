@@ -1,6 +1,13 @@
 import type { Lead, StageKey, Priority, LeadTemperature } from "@/hooks/useLeads";
 import type { SupabaseOpportunity, SupabaseOpportunityInput } from "@/repositories/crmOpportunitiesRepository";
 
+function stableNumericIdFromUuid(uuid: string): number {
+  const clean = uuid.replace(/-/g, "");
+  const slice = clean.slice(0, 12) || "0";
+  const parsed = Number.parseInt(slice, 16);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 export function mapLocalLeadToSupabaseOpportunity(lead: Lead): SupabaseOpportunityInput {
   return {
     client_id: lead.clientId ? String(lead.clientId) : null,
@@ -33,8 +40,10 @@ export function mapLocalLeadToSupabaseOpportunity(lead: Lead): SupabaseOpportuni
 }
 
 export function mapSupabaseOpportunityToLocalLead(opportunity: SupabaseOpportunity): Lead {
+  const stage = (opportunity.stage as StageKey) || "lead";
+
   return {
-    id: Math.floor(Math.random() * 1000000), // Como o id Supabase é UUID e local é number, cria um id numérico temporário
+    id: stableNumericIdFromUuid(opportunity.id),
     name: opportunity.title || opportunity.contact_name || "Oportunidade Sem Nome",
     company: opportunity.company || "",
     email: opportunity.email || "",
@@ -45,7 +54,9 @@ export function mapSupabaseOpportunityToLocalLead(opportunity: SupabaseOpportuni
     estimatedValue: Number(opportunity.potential_value || 0),
     priority: (opportunity.priority as Priority) || "média",
     lastInteraction: opportunity.updated_at ? new Date(opportunity.updated_at).toLocaleDateString() : new Date().toLocaleDateString(),
-    stage: (opportunity.stage as StageKey) || "lead",
+    stage,
+    pipelineId: "default",
+    stageId: stage,
     archived: opportunity.archived || false,
     converted: opportunity.stage === "fechado",
     nextAction: opportunity.next_action || "",
