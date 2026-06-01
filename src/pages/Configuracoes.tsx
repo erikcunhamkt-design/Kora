@@ -262,6 +262,61 @@ const Configuracoes = () => {
                 </div>
               )}
 
+              {!workspace && !wsLoading && (
+                <div className="mb-4">
+                  <SettingsCard title="Sincronização Supabase (Indisponível)">
+                    <div className="p-4 rounded-lg border border-amber-500/30 bg-amber-500/5 text-sm space-y-3">
+                      <div className="flex items-start gap-2 text-amber-400">
+                        <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-semibold">Nenhum Workspace ativo no Supabase</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            Seu usuário atual não possui um workspace vinculado no banco de dados Supabase remoto. 
+                            As funcionalidades de sincronização, importadores e feature flags experimentais requerem um workspace ativo.
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="pt-2 border-t border-border/40 space-y-2">
+                        <p className="text-xs text-foreground font-semibold">Como resolver:</p>
+                        <ul className="list-disc pl-4 text-xs text-muted-foreground space-y-1">
+                          <li>
+                            <strong>Método Recomendado:</strong> Crie uma nova conta acessando a página de registro (clique em "Sair" no menu lateral e vá em <a href="/signup" className="text-primary hover:underline">Criar conta</a>). O sistema gerará automaticamente um novo Workspace e Perfil no banco de dados.
+                          </li>
+                          <li>
+                            <strong>Para a conta atual:</strong> Execute o seguinte script SQL no <strong>SQL Editor</strong> do painel do seu projeto Supabase (<code className="bg-muted px-1 rounded text-amber-200">ewamvzncsloagtcvkbxv</code>) para vincular um workspace retroativamente:
+                          </li>
+                        </ul>
+                        <pre className="p-2 rounded bg-background/60 border border-border/60 text-[10px] text-muted-foreground overflow-x-auto whitespace-pre-wrap select-all">
+{`DO $$
+DECLARE
+  p RECORD;
+  new_ws_id UUID;
+BEGIN
+  FOR p IN 
+    SELECT user_id, display_name, email 
+    FROM public.profiles 
+    WHERE user_id NOT IN (
+      SELECT DISTINCT user_id FROM public.workspace_members
+    )
+  LOOP
+    INSERT INTO public.workspaces (name, owner_id)
+    VALUES (COALESCE(p.display_name, split_part(p.email, '@', 1)) || ' Workspace', p.user_id)
+    RETURNING id INTO new_ws_id;
+    
+    INSERT INTO public.workspace_members (workspace_id, user_id, role)
+    VALUES (new_ws_id, p.user_id, 'owner');
+  END LOOP;
+END;
+$$;`}
+                        </pre>
+                      </div>
+                    </div>
+                  </SettingsCard>
+                </div>
+              )}
+
+
               <SettingsCard>
                 <div className="flex items-center gap-4 mb-6">
                   <div className="h-16 w-16 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold text-lg">
