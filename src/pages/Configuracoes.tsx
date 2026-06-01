@@ -226,6 +226,31 @@ const Configuracoes = () => {
                   </Button>
                 </div>
               </SettingsCard>
+
+              <SettingsCard title={t("settings.language", "Idioma")} className="mt-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  <LangOption
+                    label="Português (BR)"
+                    active={language === "pt-BR"}
+                    onClick={() => setLanguage("pt-BR")}
+                  />
+                  <LangOption
+                    label="Português (PT)"
+                    active={language === "pt-PT"}
+                    onClick={() => setLanguage("pt-PT")}
+                  />
+                  <LangOption
+                    label="English"
+                    active={language === "en"}
+                    onClick={() => setLanguage("en")}
+                  />
+                  <LangOption
+                    label="Español"
+                    active={language === "es"}
+                    onClick={() => setLanguage("es")}
+                  />
+                </div>
+              </SettingsCard>
             </SettingsSection>
           )}
 
