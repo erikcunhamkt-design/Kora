@@ -12,7 +12,6 @@ import { useSupportTickets } from "@/hooks/useSupportTickets";
 import { NotificationInbox } from "@/components/notifications/NotificationInbox";
 import { useNotificationsCenter } from "@/hooks/useNotificationsCenter";
 import { AiCreditsDrawer } from "@/components/credits/AiCreditsDrawer";
-import { DayCenter } from "@/components/day/DayCenter";
 import { useAiCredits } from "@/hooks/useAiCredits";
 import { cn } from "@/lib/utils";
 
@@ -33,7 +32,6 @@ export function TopBar() {
   const [supportOpen, setSupportOpen] = useState(false);
   const [inboxOpen, setInboxOpen] = useState(false);
   const [creditsOpen, setCreditsOpen] = useState(false);
-  const [dayOpen, setDayOpen] = useState(false);
   const { tickets } = useSupportTickets();
   const { unreadCount, hasHighPriorityUnread } = useNotificationsCenter();
   const { balance } = useAiCredits();
@@ -42,7 +40,7 @@ export function TopBar() {
 
   useEffect(() => {
     const onCredits = () => setCreditsOpen(true);
-    const onDay = () => setDayOpen(true);
+    const onDay = () => navigate("/central-do-dia");
     const onSupport = () => setSupportOpen(true);
     window.addEventListener("orbyt:open-credits", onCredits);
     window.addEventListener("kora:open-day", onDay);
@@ -288,7 +286,6 @@ export function TopBar() {
       <SupportDrawer open={supportOpen} onOpenChange={setSupportOpen} />
       <NotificationInbox open={inboxOpen} onOpenChange={setInboxOpen} />
       <AiCreditsDrawer open={creditsOpen} onOpenChange={setCreditsOpen} />
-      <DayCenter open={dayOpen} onOpenChange={setDayOpen} />
     </header>
   );
 }
