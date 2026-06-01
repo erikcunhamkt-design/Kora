@@ -35,21 +35,29 @@ function openDayCenter() {
   window.dispatchEvent(new Event("kora:open-day"));
 }
 
+import { useAccessibility } from "@/contexts/AccessibilityContext";
+
 export function GreetingHero() {
   const { profile } = useAuth();
+  const { settings } = useAccessibility();
   const name = (profile?.display_name || "").split(" ")[0] || "por aqui";
   const dateLabel = weekdayLong.format(new Date());
 
   const { topAction, counts } = useDayCenterData();
 
   let subtext = "Tudo em ordem por hoje. Revise sua operação com calma.";
-  if (counts.critical > 0) {
+  if (settings.anxiety) {
+    subtext = "O dia está correndo bem. Faça as suas atividades no seu ritmo, sem nenhuma pressão.";
+  } else if (settings.autism) {
+    const totalCount = counts.critical + counts.high + counts.medium + counts.low;
+    subtext = `Você possui ${totalCount} ações cadastradas na sua central de atividades de hoje.`;
+  } else if (counts.critical > 0) {
     subtext = "Existe uma prioridade crítica pedindo atenção agora.";
   } else if (counts.high > 0) {
     subtext = "Você tem prioridades importantes para resolver hoje.";
   }
 
-  const isCritical = topAction?.priority === "critical";
+  const isCritical = topAction?.priority === "critical" && !settings.anxiety;
 
   return (
     <section className="relative overflow-hidden rounded-2xl border border-border/20 bg-card/25 backdrop-blur-xs px-7 py-9 sm:px-10 sm:py-12 animate-fade-up">
@@ -81,26 +89,38 @@ export function GreetingHero() {
           <div
             className={cn(
               "relative overflow-hidden rounded-xl border p-5 transition-all duration-300",
-              isCritical
+              settings.anxiety
+                ? "border-border/40 bg-muted/5 shadow-none"
+                : isCritical
                 ? "border-destructive/20 bg-destructive/[0.02] shadow-[0_4px_24px_rgba(239,68,68,0.06)]"
                 : "border-primary/20 bg-primary/[0.02] shadow-[0_4px_24px_rgba(236,72,153,0.06)]",
             )}
           >
             {/* Action Card Backlight Glow */}
-            <div className={cn(
-              "absolute -top-16 -left-16 w-36 h-36 rounded-full blur-[60px] pointer-events-none",
-              isCritical ? "bg-destructive/15" : "bg-primary/15"
-            )} />
-            <div className="absolute -bottom-16 -right-16 w-36 h-36 rounded-full bg-[#EC4899]/5 blur-[60px] pointer-events-none" />
+            {!settings.anxiety && (
+              <>
+                <div className={cn(
+                  "absolute -top-16 -left-16 w-36 h-36 rounded-full blur-[60px] pointer-events-none",
+                  isCritical ? "bg-destructive/15" : "bg-primary/15"
+                )} />
+                <div className="absolute -bottom-16 -right-16 w-36 h-36 rounded-full bg-[#EC4899]/5 blur-[60px] pointer-events-none" />
+              </>
+            )}
 
             <div className="relative z-10 flex items-center gap-2 mb-3 flex-wrap">
               <div
                 className={cn(
                   "h-7 w-7 rounded-md border flex items-center justify-center",
-                  isCritical ? "border-destructive/20 bg-destructive/5 text-destructive" : "border-primary/20 bg-primary/5 text-primary",
+                  settings.anxiety
+                    ? "border-border bg-muted/10 text-muted-foreground"
+                    : isCritical
+                    ? "border-destructive/20 bg-destructive/5 text-destructive"
+                    : "border-primary/20 bg-primary/5 text-primary",
                 )}
               >
-                {isCritical ? (
+                {settings.anxiety ? (
+                  <Sparkles className="h-3.5 w-3.5 text-muted-foreground" />
+                ) : isCritical ? (
                   <Flame className="h-3.5 w-3.5 text-destructive" />
                 ) : (
                   <Sparkles className="h-3.5 w-3.5 text-primary" />
@@ -109,10 +129,10 @@ export function GreetingHero() {
               <p
                 className={cn(
                   "text-[0.6875rem] uppercase tracking-[0.16em] font-bold",
-                  isCritical ? "text-destructive" : "text-primary",
+                  settings.anxiety ? "text-muted-foreground" : isCritical ? "text-destructive" : "text-primary",
                 )}
               >
-                Próxima melhor ação
+                Atividade sugerida
               </p>
               <Badge
                 variant="outline"
@@ -124,10 +144,10 @@ export function GreetingHero() {
                 variant="outline"
                 className={cn(
                   "h-5 px-1.5 text-[9px] font-bold uppercase tracking-wider border-current/20 bg-current/5",
-                  isCritical ? "text-destructive" : "text-primary",
+                  settings.anxiety ? "text-muted-foreground border-border bg-muted/10" : isCritical ? "text-destructive" : "text-primary",
                 )}
               >
-                {PRIORITY_LABEL[topAction.priority]}
+                {settings.anxiety ? "No seu tempo" : PRIORITY_LABEL[topAction.priority]}
               </Badge>
             </div>
             <p className="relative z-10 text-[0.95rem] font-bold text-foreground leading-snug tracking-tight line-clamp-2">

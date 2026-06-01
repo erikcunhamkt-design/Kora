@@ -37,8 +37,7 @@ import {
   RefreshCw,
   ChevronDown,
 } from "lucide-react";
-
-
+import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { SettingsNav, type SettingsNavItem } from "@/components/settings/SettingsNav";
 import { SettingsSection } from "@/components/settings/SettingsSection";
@@ -82,6 +81,7 @@ import { QuotesSupabaseBaseTasksToggleCard } from "@/components/settings/QuotesS
 import { QuotesSupabaseStatusTransitionToggleCard } from "@/components/settings/QuotesSupabaseStatusTransitionToggleCard";
 import { QuotesSupabaseTechnicalSheetsAutoSaveToggleCard } from "@/components/settings/QuotesSupabaseTechnicalSheetsAutoSaveToggleCard";
 import { useSupabaseClients } from "@/hooks/useSupabaseClients";
+import { useAccessibility } from "@/contexts/AccessibilityContext";
 
 
 
@@ -92,6 +92,7 @@ const NAV_ITEMS: SettingsNavItem[] = [
   { id: "company", label: "Empresa", icon: Building2 },
   { id: "links", label: "Links públicos", icon: Link2 },
   { id: "appearance", label: "Aparência", icon: Palette },
+  { id: "accessibility", label: "Acessibilidade", icon: Sparkles },
   { id: "notifications", label: "Notificações", icon: Bell },
   { id: "security", label: "Segurança", icon: Shield },
   { id: "plan", label: "Plano", icon: Crown },
@@ -126,6 +127,7 @@ const TAB_ALIASES: Record<string, string> = {
   empresa: "company",
   links: "links",
   aparencia: "appearance",
+  acessibilidade: "accessibility",
   notificacoes: "notifications",
   seguranca: "security",
   plano: "plan",
@@ -145,6 +147,7 @@ const Configuracoes = () => {
   const { profile, company, notifications, publicLinks, clientPortal, updateProfile, updateCompany, updatePublicLinks, updateClientPortal, resetClientPortal, toggleNotification } = useAppSettings();
   const { resetOnboarding } = useOnboarding();
   const { workspace, membership, loading: wsLoading } = useCurrentWorkspace();
+  const { settings: accSettings, updateSetting: updateAccSetting } = useAccessibility();
 
   useEffect(() => {
     const raw = searchParams.get("tab");
@@ -376,6 +379,96 @@ const Configuracoes = () => {
                   <LangOption label="Português (BR)" active />
                   <LangOption label="English" planned />
                   <LangOption label="Español" planned />
+                </div>
+              </SettingsCard>
+            </SettingsSection>
+          )}
+
+          {active === "accessibility" && (
+            <SettingsSection title="Acessibilidade" description="Personalize a interface com base no seu perfil visual ou cognitivo.">
+              <SettingsCard title="Necessidades Visuais" description="Ajustes de contraste, zoom e daltonismo.">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between py-2">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Deficiência Visual / Baixa Visão</p>
+                      <p className="text-xs text-muted-foreground">Aumenta a escala do texto da interface e adiciona bordas de alto contraste.</p>
+                    </div>
+                    <Switch checked={accSettings.lowVision} onCheckedChange={(v) => updateAccSetting("lowVision", v)} />
+                  </div>
+                  <Separator className="bg-border/30" />
+                  <div className="flex items-center justify-between py-2">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Otimizar para Dislexia</p>
+                      <p className="text-xs text-muted-foreground">Aumenta o espaçamento de caracteres e ajusta o fundo de texto.</p>
+                    </div>
+                    <Switch checked={accSettings.dyslexia} onCheckedChange={(v) => updateAccSetting("dyslexia", v)} />
+                  </div>
+                </div>
+              </SettingsCard>
+
+              <SettingsCard title="Filtros de Daltonismo">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {(["none", "deuteranopia", "protanopia", "tritanopia"] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => updateAccSetting("daltonism", mode)}
+                      className={cn(
+                        "px-3 py-2 text-xs font-medium rounded-md border text-center transition-all capitalize",
+                        accSettings.daltonism === mode
+                          ? "border-primary bg-primary text-white"
+                          : "border-border/80 bg-background text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      {mode === "none" ? "Nenhum" : mode}
+                    </button>
+                  ))}
+                </div>
+              </SettingsCard>
+
+              <SettingsCard title="Otimização Cognitiva / Neurodiversidade" description="Ajustes de estímulo, foco e tom de voz.">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between py-2">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">TDAH / Foco Dinâmico</p>
+                      <p className="text-xs text-muted-foreground">Desativa animações e transições de tela interativas.</p>
+                    </div>
+                    <Switch checked={accSettings.adhd} onCheckedChange={(v) => updateAccSetting("adhd", v)} />
+                  </div>
+                  <Separator className="bg-border/30" />
+                  <div className="flex items-center justify-between py-2">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Autismo (TEA)</p>
+                      <p className="text-xs text-muted-foreground">Tom de voz literal, desativa pop-ups de comemoração e modais automáticos.</p>
+                    </div>
+                    <Switch checked={accSettings.autism} onCheckedChange={(v) => updateAccSetting("autism", v)} />
+                  </div>
+                  <Separator className="bg-border/30" />
+                  <div className="flex items-center justify-between py-2">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Reduzir Ansiedade / Depressão</p>
+                      <p className="text-xs text-muted-foreground">Substitui alertas vermelhos por sugestões tranquilizadoras.</p>
+                    </div>
+                    <Switch checked={accSettings.anxiety} onCheckedChange={(v) => updateAccSetting("anxiety", v)} />
+                  </div>
+                  <Separator className="bg-border/30" />
+                  <div className="flex items-center justify-between py-2">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Discalculia (Otimização Numérica)</p>
+                      <p className="text-xs text-muted-foreground">Arredonda faturamentos longos nas métricas do painel.</p>
+                    </div>
+                    <Switch checked={accSettings.dyscalculia} onCheckedChange={(v) => updateAccSetting("dyscalculia", v)} />
+                  </div>
+                </div>
+              </SettingsCard>
+
+              <SettingsCard title="Limitações Motoras">
+                <div className="flex items-center justify-between py-2">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Limitações Motoras ( Parkinson / Tremores )</p>
+                    <p className="text-xs text-muted-foreground">Amplia as áreas de clique e adiciona contornos nítidos para uso com teclado.</p>
+                  </div>
+                  <Switch checked={accSettings.motor} onCheckedChange={(v) => updateAccSetting("motor", v)} />
                 </div>
               </SettingsCard>
             </SettingsSection>

@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { PlanProvider } from "@/contexts/PlanContext";
 import { OnboardingProvider } from "@/contexts/OnboardingContext";
+import { AccessibilityProvider } from "@/contexts/AccessibilityContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { OnboardingGate } from "@/components/onboarding/OnboardingGate";
 import { PaywallModal } from "@/components/plan/PaywallModal";
@@ -41,54 +42,55 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AuthProvider>
-          <PlanProvider>
-            <OnboardingProvider>
-              <PaywallModal />
-              <Routes>
-                {/* Public routes */}
-                <Route path="/landing" element={<Landing />} />
-                <Route path="/publico/:slug" element={<PublicProfilePage />} />
-                <Route path="/cadastro/:slug" element={<PublicClientSignup />} />
-                <Route path="/briefing/:token" element={<BriefingPublicForm />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/signup" element={<Signup />} />
-                <Route path="/forgot-password" element={<ForgotPassword />} />
-                <Route path="/reset-password" element={<ResetPassword />} />
-                <Route path="/auth/callback" element={<AuthCallback />} />
+    <AccessibilityProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AuthProvider>
+            <PlanProvider>
+              <OnboardingProvider>
+                <PaywallModal />
+                <Routes>
+                  {/* Public routes */}
+                  <Route path="/landing" element={<Landing />} />
+                  <Route path="/publico/:slug" element={<PublicProfilePage />} />
+                  <Route path="/cadastro/:slug" element={<PublicClientSignup />} />
+                  <Route path="/briefing/:token" element={<BriefingPublicForm />} />
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/signup" element={<Signup />} />
+                  <Route path="/forgot-password" element={<ForgotPassword />} />
+                  <Route path="/reset-password" element={<ResetPassword />} />
+                  <Route path="/auth/callback" element={<AuthCallback />} />
 
-                {/* Onboarding (gated by completion check inside) */}
-                <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
+                  {/* Onboarding (gated by completion check inside) */}
+                  <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
 
-                {/* Protected routes */}
-                <Route path="/" element={<ProtectedRoute><OnboardingGate><MainLayout><Index /></MainLayout></OnboardingGate></ProtectedRoute>} />
-                <Route path="/portfolio" element={<ProtectedRoute><OnboardingGate><MainLayout><Portfolio /></MainLayout></OnboardingGate></ProtectedRoute>} />
-                <Route path="/clientes" element={<ProtectedRoute><OnboardingGate><MainLayout><Clientes /></MainLayout></OnboardingGate></ProtectedRoute>} />
-                <Route path="/clientes/:clientId/ficha-tecnica" element={<ProtectedRoute><OnboardingGate><MainLayout><ClientTechnicalSheet /></MainLayout></OnboardingGate></ProtectedRoute>} />
-                <Route path="/crm" element={<ProtectedRoute><OnboardingGate><MainLayout><CRM /></MainLayout></OnboardingGate></ProtectedRoute>} />
-                <Route path="/vendas" element={<ProtectedRoute><OnboardingGate><MainLayout><Vendas /></MainLayout></OnboardingGate></ProtectedRoute>} />
-                <Route path="/financeiro" element={<ProtectedRoute><OnboardingGate><MainLayout><Financeiro /></MainLayout></OnboardingGate></ProtectedRoute>} />
-                <Route path="/tarefas" element={<ProtectedRoute><OnboardingGate><MainLayout><Tarefas /></MainLayout></OnboardingGate></ProtectedRoute>} />
-                <Route path="/central-do-dia" element={<ProtectedRoute><OnboardingGate><MainLayout><CentralDoDia /></MainLayout></OnboardingGate></ProtectedRoute>} />
-                <Route path="/briefings" element={<ProtectedRoute><OnboardingGate><MainLayout><Briefings /></MainLayout></OnboardingGate></ProtectedRoute>} />
-                <Route path="/metas" element={<ProtectedRoute><OnboardingGate><MainLayout><Metas /></MainLayout></OnboardingGate></ProtectedRoute>} />
-                <Route path="/automacoes" element={<ProtectedRoute><OnboardingGate><MainLayout><Automacoes /></MainLayout></OnboardingGate></ProtectedRoute>} />
-                <Route path="/presenca" element={<ProtectedRoute><OnboardingGate><MainLayout><Presenca /></MainLayout></OnboardingGate></ProtectedRoute>} />
-                <Route path="/configuracoes" element={<ProtectedRoute><OnboardingGate><MainLayout><Configuracoes /></MainLayout></OnboardingGate></ProtectedRoute>} />
-                <Route path="/upgrade" element={<ProtectedRoute><OnboardingGate><MainLayout><Upgrade /></MainLayout></OnboardingGate></ProtectedRoute>} />
+                  {/* Protected routes */}
+                  <Route path="/" element={<ProtectedRoute><OnboardingGate><MainLayout><Index /></MainLayout></OnboardingGate></ProtectedRoute>} />
+                  <Route path="/portfolio" element={<ProtectedRoute><OnboardingGate><MainLayout><Portfolio /></MainLayout></OnboardingGate></ProtectedRoute>} />
+                  <Route path="/clientes" element={<ProtectedRoute><OnboardingGate><MainLayout><Clientes /></MainLayout></OnboardingGate></ProtectedRoute>} />
+                  <Route path="/clientes/:clientId/ficha-tecnica" element={<ProtectedRoute><OnboardingGate><MainLayout><ClientTechnicalSheet /></MainLayout></OnboardingGate></ProtectedRoute>} />
+                  <Route path="/crm" element={<ProtectedRoute><OnboardingGate><MainLayout><CRM /></MainLayout></OnboardingGate></ProtectedRoute>} />
+                  <Route path="/vendas" element={<ProtectedRoute><OnboardingGate><MainLayout><Vendas /></MainLayout></OnboardingGate></ProtectedRoute>} />
+                  <Route path="/financeiro" element={<ProtectedRoute><OnboardingGate><MainLayout><Financeiro /></MainLayout></OnboardingGate></ProtectedRoute>} />
+                  <Route path="/tarefas" element={<ProtectedRoute><OnboardingGate><MainLayout><Tarefas /></MainLayout></OnboardingGate></ProtectedRoute>} />
+                  <Route path="/central-do-dia" element={<ProtectedRoute><OnboardingGate><MainLayout><CentralDoDia /></MainLayout></OnboardingGate></ProtectedRoute>} />
+                  <Route path="/briefings" element={<ProtectedRoute><OnboardingGate><MainLayout><Briefings /></MainLayout></OnboardingGate></ProtectedRoute>} />
+                  <Route path="/metas" element={<ProtectedRoute><OnboardingGate><MainLayout><Metas /></MainLayout></OnboardingGate></ProtectedRoute>} />
+                  <Route path="/automacoes" element={<ProtectedRoute><OnboardingGate><MainLayout><Automacoes /></MainLayout></OnboardingGate></ProtectedRoute>} />
+                  <Route path="/presenca" element={<ProtectedRoute><OnboardingGate><MainLayout><Presenca /></MainLayout></OnboardingGate></ProtectedRoute>} />
+                  <Route path="/configuracoes" element={<ProtectedRoute><OnboardingGate><MainLayout><Configuracoes /></MainLayout></OnboardingGate></ProtectedRoute>} />
+                  <Route path="/upgrade" element={<ProtectedRoute><OnboardingGate><MainLayout><Upgrade /></MainLayout></OnboardingGate></ProtectedRoute>} />
 
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </OnboardingProvider>
-          </PlanProvider>
-        </AuthProvider>
-      </BrowserRouter>
-
-    </TooltipProvider>
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </OnboardingProvider>
+            </PlanProvider>
+          </AuthProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </AccessibilityProvider>
   </QueryClientProvider>
 );
 

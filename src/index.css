@@ -316,3 +316,74 @@
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
 }
+
+/* ==========================================================================
+   Accessibility & Neurodiversity Style Overrides
+   ========================================================================== */
+
+/* 1. Low Vision / Visual Impairment */
+body.acc-lowvision {
+  font-size: 1.125rem !important;
+  line-height: 1.8 !important;
+}
+body.acc-lowvision h1 { font-size: 2.5rem !important; }
+body.acc-lowvision h2 { font-size: 1.85rem !important; }
+body.acc-lowvision h3 { font-size: 1.5rem !important; }
+body.acc-lowvision .orbit-card,
+body.acc-lowvision .border,
+body.acc-lowvision hr {
+  border-color: hsl(0 0% 85%) !important;
+  border-width: 2px !important;
+}
+body.acc-lowvision input,
+body.acc-lowvision select,
+body.acc-lowvision textarea,
+body.acc-lowvision button {
+  border-color: hsl(0 0% 100%) !important;
+  border-width: 2px !important;
+  outline: 2px solid white !important;
+}
+
+/* 2. Dyslexia Readability Spacing */
+body.acc-dyslexia {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  letter-spacing: 0.08em !important;
+  word-spacing: 0.12em !important;
+  line-height: 1.8 !important;
+}
+
+/* 3. Motor Impairments / Parkinson (Large Tap Targets) */
+body.acc-motor button,
+body.acc-motor a,
+body.acc-motor select,
+body.acc-motor input,
+body.acc-motor [role="button"] {
+  min-height: 48px !important;
+  padding-top: 0.75rem !important;
+  padding-bottom: 0.75rem !important;
+  margin-top: 0.25rem !important;
+  margin-bottom: 0.25rem !important;
+}
+
+/* 4. ADHD & Autism (Sensory Calm / Disable Animations) */
+body.acc-adhd *,
+body.acc-autism * {
+  animation-delay: 0s !important;
+  animation-duration: 0s !important;
+  transition-duration: 0s !important;
+}
+
+/* 5. Daltonism Palette Overrides */
+body.acc-daltonism-deuteranopia {
+  --success: 210 100% 50%; /* Clear Blue */
+  --destructive: 35 100% 50%; /* Orange/Amber */
+}
+body.acc-daltonism-protanopia {
+  --success: 210 100% 50%;
+  --destructive: 35 100% 50%;
+}
+body.acc-daltonism-tritanopia {
+  --success: 348 94% 52%;
+  --destructive: 210 100% 50%;
+}
+
