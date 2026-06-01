@@ -171,6 +171,47 @@ const Configuracoes = () => {
   const profileInitials = useMemo(() => initials(profileDraft.name), [profileDraft.name]);
   const companyInitials = useMemo(() => initials(companyDraft.name), [companyDraft.name]);
 
+  const readFileAsDataUrl = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+
+  const handleImageUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    target: "profile" | "company",
+  ) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+      toast.error("Formato inválido. Use PNG, JPEG ou WebP.");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Arquivo muito grande. Máximo 2MB.");
+      return;
+    }
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      if (target === "profile") {
+        const next = { ...profileDraft, avatarUrl: dataUrl };
+        setProfileDraft(next);
+        updateProfile({ avatarUrl: dataUrl });
+        toast.success("Foto de perfil atualizada");
+      } else {
+        const next = { ...companyDraft, logoUrl: dataUrl };
+        setCompanyDraft(next);
+        updateCompany({ logoUrl: dataUrl });
+        toast.success("Logo da empresa atualizado");
+      }
+    } catch {
+      toast.error("Não foi possível ler o arquivo.");
+    }
+  };
+
   return (
     <div className="max-w-6xl">
       <PageHeader
