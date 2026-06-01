@@ -54,13 +54,13 @@ export function useClientsDataSource() {
   const [source, setSourceState] = useState<"local" | "supabase">(() => {
     try {
       const saved = localStorage.getItem(DATA_SOURCE_KEY);
-      if (saved === "supabase" && workspace) {
-        return "supabase";
+      if (saved === "local") {
+        return "local";
       }
     } catch {
       // Ignore
     }
-    return "local";
+    return "supabase";
   });
 
   const setSource = useCallback((newSource: "local" | "supabase") => {
@@ -76,12 +76,19 @@ export function useClientsDataSource() {
     return true;
   }, [workspace]);
 
-  // Fallback check: if workspace is lost, fallback to local source automatically
+  // Fallback check: if workspace is lost, fallback to local source automatically.
+  // If workspace is present and was local, auto-promote to supabase.
   useEffect(() => {
     if (!workspace && source === "supabase") {
       setSourceState("local");
+    } else if (workspace && source === "local") {
+      const saved = localStorage.getItem(DATA_SOURCE_KEY);
+      if (saved !== "local") {
+        setSourceState("supabase");
+      }
     }
   }, [workspace, source]);
+
 
   const clients = useMemo(() => {
     if (source === "supabase") {

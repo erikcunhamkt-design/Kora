@@ -146,70 +146,28 @@ const CRM = () => {
   const { workspace } = useCurrentWorkspace();
 
   // ----- CRM Supabase Experimental Flag & DataSource Setup -----
-  const isExperimentalEnabled = useMemo(() => {
-    try {
-      const saved = localStorage.getItem("kora.crm.supabaseExperimental.enabled");
-      return saved === "true"; // Default to false
-    } catch {
-      return false;
-    }
-  }, []);
-
-  const isStageMoveEnabled = useMemo(() => {
-    try {
-      const saved = localStorage.getItem("kora.crm.supabaseStageMove.enabled");
-      return saved === "true"; // Default to false
-    } catch {
-      return false;
-    }
-  }, []);
-
-  const isBasicEditEnabled = useMemo(() => {
-    try {
-      const saved = localStorage.getItem("kora.crm.supabaseBasicEdit.enabled");
-      return saved === "true"; // Default to false
-    } catch {
-      return false;
-    }
-  }, []);
-
-  const isCreateOpportunityEnabled = useMemo(() => {
-    try {
-      const saved = localStorage.getItem("kora.crm.supabaseCreate.enabled");
-      return saved === "true"; // Default to false
-    } catch {
-      return false;
-    }
-  }, []);
-
-  const isArchiveEnabled = useMemo(() => {
-    try {
-      const saved = localStorage.getItem("kora.crm.supabaseArchive.enabled");
-      return saved === "true"; // Default to false
-    } catch {
-      return false;
-    }
-  }, []);
-
-  const isRestoreArchiveEnabled = useMemo(() => {
-    try {
-      const saved = localStorage.getItem("kora.crm.supabaseRestoreArchive.enabled");
-      return saved === "true"; // Default to false
-    } catch {
-      return false;
-    }
-  }, []);
+  const isExperimentalEnabled = true;
+  const isStageMoveEnabled = true;
+  const isBasicEditEnabled = true;
+  const isCreateOpportunityEnabled = true;
+  const isArchiveEnabled = true;
+  const isRestoreArchiveEnabled = true;
+  const isSoftDeleteEnabled = true;
 
   const [dataSource, setDataSource] = useState<"local" | "supabase">(() => {
     try {
       const saved = localStorage.getItem("kora.crm.dataSource.v1");
-      return saved === "supabase" ? "supabase" : "local";
+      if (saved === "local") {
+        return "local";
+      }
     } catch {
-      return "local";
+      // Ignore
     }
+    return "supabase";
   });
 
-  const activeDataSource = (isExperimentalEnabled && workspace) ? dataSource : "local";
+  const activeDataSource = workspace ? dataSource : "local";
+
 
   const {
     opportunities: supabaseOpportunities,

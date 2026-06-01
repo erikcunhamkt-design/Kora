@@ -240,16 +240,17 @@ export default function ClientTechnicalSheetPage() {
 
   const { workspace } = useCurrentWorkspace();
   const [savingToSupabase, setSavingToSupabase] = useState(false);
-  const [autosaveEnabled, setAutosaveEnabled] = useState(false);
+  const [autosaveEnabled, setAutosaveEnabled] = useState(true);
   const [syncStatus, setSyncStatus] = useState<"idle" | "saving" | "synced" | "error">("idle");
 
   // Sync feature flag state on mount & Storage changes
   useEffect(() => {
     const checkFlag = () => {
       try {
-        setAutosaveEnabled(localStorage.getItem("kora.technicalSheets.supabaseAutoSave.enabled") === "true");
+        const saved = localStorage.getItem("kora.technicalSheets.supabaseAutoSave.enabled");
+        setAutosaveEnabled(saved !== "false"); // Default to true
       } catch {
-        setAutosaveEnabled(false);
+        setAutosaveEnabled(true);
       }
     };
     checkFlag();
@@ -258,6 +259,7 @@ export default function ClientTechnicalSheetPage() {
       window.removeEventListener("storage", checkFlag);
     };
   }, []);
+
 
   const handleSaveToSupabase = async () => {
     if (!workspace?.id || !supabaseClientId) {
@@ -331,15 +333,29 @@ export default function ClientTechnicalSheetPage() {
       const saved = localStorage.getItem("kora.technicalSheets.dataSource.v1");
       if (saved) {
         const parsed = JSON.parse(saved);
-        return parsed[String(clientId)] === "supabase" ? "supabase" : "local";
+        if (parsed[String(clientId)] === "local") {
+          return "local";
+        }
       }
     } catch {
       // Ignore
     }
-    return "local";
+    return "supabase";
   });
 
   const activeDataSource = isExperimentalEnabled ? dataSource : "local";
+
+  // Auto-promote to supabase when client has a linked supabase ID
+  useEffect(() => {
+    if (supabaseClientId && dataSource === "local") {
+      const saved = localStorage.getItem("kora.technicalSheets.dataSource.v1");
+      const parsed = saved ? JSON.parse(saved) : {};
+      if (parsed[String(clientId)] !== "local") {
+        setDataSource("supabase");
+      }
+    }
+  }, [supabaseClientId, dataSource, clientId]);
+
 
   const handleSourceChange = (newSource: "local" | "supabase") => {
     if (!isExperimentalEnabled) return;
