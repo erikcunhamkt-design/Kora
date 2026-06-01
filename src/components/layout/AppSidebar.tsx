@@ -34,7 +34,7 @@ const navGroups: NavGroup[] = [
     label: "Principal",
     items: [
       { title: "Dashboard", url: "/", icon: LayoutDashboard },
-      { title: "Central do Dia", event: "kora:open-day", icon: CalendarCheck },
+      { title: "Central do Dia", url: "/central-do-dia", icon: CalendarCheck },
       { title: "Clientes", url: "/clientes", icon: Users },
       { title: "CRM", url: "/crm", icon: TrendingUp },
     ],
