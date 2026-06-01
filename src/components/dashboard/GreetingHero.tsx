@@ -142,7 +142,7 @@ export function GreetingHero() {
               <Button
                 size="sm"
                 onClick={openDayCenter}
-                className="h-8 text-xs font-semibold bg-primary/10 text-primary border border-primary/25 hover:bg-primary/20 transition-all duration-300"
+                className="h-8 text-xs font-semibold bg-primary/15 text-white border border-primary/30 hover:bg-primary/25 transition-all duration-300"
               >
                 Abrir Central do Dia
                 <ArrowRight className="h-3.5 w-3.5 ml-1" />

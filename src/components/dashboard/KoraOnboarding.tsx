@@ -304,7 +304,7 @@ export function KoraOnboarding() {
                     <Button
                       size="sm"
                       onClick={step.action}
-                      className="h-8 text-[11px] font-bold tracking-wide uppercase bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 hover:text-primary transition-all duration-300"
+                      className="h-8 text-[11px] font-bold tracking-wide uppercase bg-primary/15 text-white border border-primary/30 hover:bg-primary/25 transition-all duration-300"
                     >
                       {step.cta}
                     </Button>
