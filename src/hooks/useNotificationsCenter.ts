@@ -121,14 +121,14 @@ const load = (): AppNotification[] => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) return JSON.parse(raw) as AppNotification[];
-  } catch {}
+  } catch { /* intentionally empty */ }
   return [];
 };
 
 const persist = (n: AppNotification[]) => {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(n));
-  } catch {}
+  } catch { /* intentionally empty */ }
 };
 
 const ensureSeeded = (current: AppNotification[]): AppNotification[] => {

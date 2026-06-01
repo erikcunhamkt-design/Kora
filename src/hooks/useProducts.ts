@@ -56,12 +56,12 @@ export function useProducts() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) return JSON.parse(raw) as Product[];
-    } catch {}
+    } catch { /* intentionally empty */ }
     return SEEDS;
   });
 
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(products)); } catch {}
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(products)); } catch { /* intentionally empty */ }
   }, [products]);
 
   const addProduct = useCallback(

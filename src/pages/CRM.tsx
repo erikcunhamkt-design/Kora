@@ -21,7 +21,7 @@ import {
   Phone, Mail, Clock, MoreHorizontal, User, Briefcase, Calendar,
   StickyNote, X as XIcon, ArrowRight, XCircle, GripVertical, Sparkles,
   Flame, LayoutGrid, List, Settings2, Zap, FileSpreadsheet, MessageCircle,
-  Archive, Trash2, Tag as TagIcon, ChevronDown, FileText,
+  Archive, Trash2, Tag as TagIcon, ChevronDown, FileText, Globe,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
@@ -31,6 +31,16 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { PipelineEditorDialog } from "@/components/crm/PipelineEditorDialog";
 import { PipelineAutomationsDialog } from "@/components/crm/PipelineAutomationsDialog";
 import { ComingSoonDialog } from "@/components/crm/ComingSoonDialog";
@@ -108,9 +118,19 @@ const SummaryCard = ({ icon: Icon, label, value, sub, accent }: { icon: any; lab
   );
 };
 
+import { useSupabaseOpportunities } from "@/hooks/useSupabaseOpportunities";
+import { mapSupabaseOpportunityToLocalLead } from "@/services/crm/crmOpportunityMapper";
+import { type SupabaseOpportunityInput } from "@/repositories/crmOpportunitiesRepository";
+import { Cloud, Database, Lock, RefreshCw } from "lucide-react";
+import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
+import { CreateCrmSupabaseQuoteDialog } from "@/components/crm/CreateCrmSupabaseQuoteDialog";
+import { LinkedQuotesSection } from "@/components/crm/LinkedQuotesSection";
+
+
+
 const CRM = () => {
   const {
-    leads, addLead, moveLead, moveLeadToStage, moveLeadToPipeline,
+    leads: localLeads, addLead, moveLead, moveLeadToStage, moveLeadToPipeline,
     updateLead, archiveLead, deleteLead, setLeadTags, markConverted,
   } = useLeads();
   const {
@@ -123,6 +143,112 @@ const CRM = () => {
   const { wouldExceed, showPaywall, setUsage } = usePlan();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { workspace } = useCurrentWorkspace();
+
+  // ----- CRM Supabase Experimental Flag & DataSource Setup -----
+  const isExperimentalEnabled = useMemo(() => {
+    try {
+      const saved = localStorage.getItem("kora.crm.supabaseExperimental.enabled");
+      return saved === "true"; // Default to false
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const isStageMoveEnabled = useMemo(() => {
+    try {
+      const saved = localStorage.getItem("kora.crm.supabaseStageMove.enabled");
+      return saved === "true"; // Default to false
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const isBasicEditEnabled = useMemo(() => {
+    try {
+      const saved = localStorage.getItem("kora.crm.supabaseBasicEdit.enabled");
+      return saved === "true"; // Default to false
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const isCreateOpportunityEnabled = useMemo(() => {
+    try {
+      const saved = localStorage.getItem("kora.crm.supabaseCreate.enabled");
+      return saved === "true"; // Default to false
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const isArchiveEnabled = useMemo(() => {
+    try {
+      const saved = localStorage.getItem("kora.crm.supabaseArchive.enabled");
+      return saved === "true"; // Default to false
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const isRestoreArchiveEnabled = useMemo(() => {
+    try {
+      const saved = localStorage.getItem("kora.crm.supabaseRestoreArchive.enabled");
+      return saved === "true"; // Default to false
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const [dataSource, setDataSource] = useState<"local" | "supabase">(() => {
+    try {
+      const saved = localStorage.getItem("kora.crm.dataSource.v1");
+      return saved === "supabase" ? "supabase" : "local";
+    } catch {
+      return "local";
+    }
+  });
+
+  const activeDataSource = (isExperimentalEnabled && workspace) ? dataSource : "local";
+
+  const {
+    opportunities: supabaseOpportunities,
+    loading: supabaseLoading,
+    error: supabaseError,
+    refresh: refreshSupabase,
+  } = useSupabaseOpportunities({ includeArchived: true });
+
+  const leads = useMemo(() => {
+    if (activeDataSource === "supabase") {
+      return supabaseOpportunities.map((opp) => mapSupabaseOpportunityToLocalLead(opp));
+    }
+    return localLeads;
+  }, [activeDataSource, localLeads, supabaseOpportunities]);
+
+  const handleSourceChange = (newSource: "local" | "supabase") => {
+    if (!isExperimentalEnabled) return;
+    try {
+      localStorage.setItem("kora.crm.dataSource.v1", newSource);
+    } catch (e) {
+      console.error(e);
+    }
+    setDataSource(newSource);
+    toast.success(`Fonte do CRM alterada para ${newSource === "supabase" ? "Supabase experimental" : "Local"}.`);
+  };
+
+  const blockWriteAction = (isMovingStage = false, isBasicEdit = false) => {
+    if (activeDataSource === "supabase") {
+      if (isMovingStage && isStageMoveEnabled) {
+        return false; // Permitir mover estágio
+      }
+      if (isBasicEdit && isBasicEditEnabled) {
+        return false; // Permitir edição básica
+      }
+      toast.error("Edição no CRM Supabase entra na próxima etapa. Volte para Local para editar.");
+      return true;
+    }
+    return false;
+  };
 
   const [newTypeOpen, setNewTypeOpen] = useState(false);
   const [view, setView] = useState<"kanban" | "list">("kanban");
@@ -144,6 +270,138 @@ const CRM = () => {
   const [comingSoon, setComingSoon] = useState<null | {
     title: string; description: string; bullets?: string[];
   }>(null);
+
+  const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
+  const [archiveTargetLeadId, setArchiveTargetLeadId] = useState<number | null>(null);
+
+  const [restoreConfirmOpen, setRestoreConfirmOpen] = useState(false);
+  const [restoreTargetLeadId, setRestoreTargetLeadId] = useState<number | null>(null);
+
+  // States for creating Supabase quotes from opportunity
+  const [createQuoteOpen, setCreateQuoteOpen] = useState(false);
+  const [createQuoteLead, setCreateQuoteLead] = useState<Lead | null>(null);
+  const [refreshQuotesToggle, setRefreshQuotesToggle] = useState(false);
+
+  // Soft delete state
+
+
+  const [softDeleteConfirmOpen, setSoftDeleteConfirmOpen] = useState(false);
+  const [softDeleteTargetLeadId, setSoftDeleteTargetLeadId] = useState<number | null>(null);
+  const [softDeleteReason, setSoftDeleteReason] = useState<string>('');
+  const [softDeleteAck, setSoftDeleteAck] = useState<boolean>(false);
+
+
+  const handleArchiveClick = (leadId: number) => {
+    if (activeDataSource === "supabase") {
+      if (!isArchiveEnabled) {
+        toast.error("Arquivamento no CRM Supabase entra nesta etapa experimental. Ative em Configurações.");
+        return;
+      }
+      setArchiveTargetLeadId(leadId);
+      setArchiveConfirmOpen(true);
+    } else {
+      archiveLead(leadId, true);
+      toast.success("Lead arquivado");
+    }
+  };
+
+  // Soft delete handler
+  const handleDeleteClick = (leadId: number) => {
+    if (activeDataSource === "supabase") {
+      if (!isSoftDeleteEnabled) {
+        toast.error("Exclusão experimental no CRM Supabase está desativada. Ative a flag nas Configurações.");
+        return;
+      }
+      setSoftDeleteTargetLeadId(leadId);
+      setSoftDeleteConfirmOpen(true);
+    } else {
+      // Local hard delete (retain existing behavior)
+      if (window.confirm("Excluir este lead?")) {
+        deleteLead(leadId);
+        toast.success("Lead excluído");
+      }
+    }
+  };
+
+
+  const handleUnarchiveClick = (leadId: number) => {
+    if (activeDataSource === "supabase") {
+      if (!isRestoreArchiveEnabled) {
+        toast.error("Restauração no CRM Supabase está bloqueada nesta etapa experimental.");
+        return;
+      }
+      archiveLead(leadId, false);
+      toast.success("Lead restaurado");
+    } else {
+      archiveLead(leadId, false);
+      toast.success("Lead restaurado");
+    }
+  };
+
+  const persistArchiveSupabase = async (leadId: number, archived: boolean) => {
+    const lead = leads.find((l) => l.id === leadId);
+    if (!lead || !lead.supabaseId || !workspace) return;
+
+    try {
+      await crmOpportunitiesRepository.archiveOpportunity(workspace.id, lead.supabaseId, archived);
+      
+      if (archived) {
+        try {
+          const logRaw = localStorage.getItem("kora.crm.supabaseArchives.v1") || "[]";
+          const logParsed = JSON.parse(logRaw);
+          logParsed.push({
+            opportunityId: lead.supabaseId,
+            title: lead.name,
+            archivedAt: new Date().toISOString(),
+          });
+          localStorage.setItem("kora.crm.supabaseArchives.v1", JSON.stringify(logParsed));
+        } catch (err) {
+          console.error("Erro ao gravar log local de arquivamento:", err);
+        }
+      }
+
+      await refreshSupabase();
+      toast.success("Oportunidade arquivada com sucesso!");
+    } catch (err) {
+      console.error("Erro ao arquivar oportunidade no Supabase:", err);
+      const errMsg = err instanceof Error ? err.message : "Erro inesperado";
+      toast.error(`Erro ao arquivar no Supabase: ${errMsg}`);
+      await refreshSupabase();
+    }
+  };
+
+  // Persist soft delete to Supabase
+  const persistSoftDeleteSupabase = async (leadId: number, reason?: string) => {
+    const lead = leads.find((l) => l.id === leadId);
+    if (!lead || !lead.supabaseId || !workspace) return;
+
+    try {
+      await crmOpportunitiesRepository.softDeleteOpportunity(workspace.id, lead.supabaseId, reason);
+
+      // Log locally
+      try {
+        const logRaw = localStorage.getItem("kora.crm.supabaseSoftDeletes.v1") || "[]";
+        const logParsed = JSON.parse(logRaw);
+        logParsed.push({
+          opportunityId: lead.supabaseId,
+          title: lead.name,
+          deletedAt: new Date().toISOString(),
+          reason: reason || null,
+        });
+        localStorage.setItem("kora.crm.supabaseSoftDeletes.v1", JSON.stringify(logParsed));
+      } catch (logErr) {
+        console.error("Erro ao registrar log local de exclusão:", logErr);
+      }
+
+      await refreshSupabase();
+      toast.success("Oportunidade excluída (soft delete) com sucesso!");
+    } catch (err) {
+      console.error("Erro ao excluir oportunidade no Supabase:", err);
+      const errMsg = err instanceof Error ? err.message : "Erro inesperado";
+      toast.error(`Erro ao excluir no Supabase: ${errMsg}`);
+      await refreshSupabase();
+    }
+  };
 
   const [tagsLeadId, setTagsLeadId] = useState<number | null>(null);
   const [scheduleLeadId, setScheduleLeadId] = useState<number | null>(null);
@@ -234,6 +492,14 @@ const CRM = () => {
   }, [leads]);
 
   const handleNewLead = () => {
+    if (activeDataSource === "supabase") {
+      if (!isCreateOpportunityEnabled) {
+        toast.error("Criação no CRM Supabase entra nesta etapa experimental. Ative em Configurações.");
+        return;
+      }
+    } else {
+      if (blockWriteAction()) return;
+    }
     if (wouldExceed("maxLeads", realActiveLeads)) {
       showPaywall("leads");
       return;
@@ -313,7 +579,49 @@ const CRM = () => {
   };
 
   // --- Move lead handler ---
-  const handleMoveToStage = (leadId: number, stage: PipelineStage) => {
+  const handleMoveToStage = async (leadId: number, stage: PipelineStage) => {
+    if (activeDataSource === "supabase") {
+      if (blockWriteAction(true)) return;
+      if (!workspace) return;
+
+      const lead = leads.find((l) => l.id === leadId);
+      if (!lead || !lead.supabaseId) return;
+
+      const oldStageId = lead.stageId;
+      const oldStage = lead.stage;
+
+      // Optimistic update inside local State by temporary patch / hook refresh
+      toast.info("Sincronizando alteração de estágio no Supabase...");
+      try {
+        await crmOpportunitiesRepository.moveOpportunityStage(workspace.id, lead.supabaseId, stage.id);
+        
+        // Log locally (Success cases only)
+        try {
+          const logRaw = localStorage.getItem("kora.crm.supabaseStageMoves.v1") || "[]";
+          const logParsed = JSON.parse(logRaw);
+          logParsed.push({
+            opportunityId: lead.supabaseId,
+            fromStage: oldStageId || oldStage,
+            toStage: stage.id,
+            movedAt: new Date().toISOString(),
+          });
+          localStorage.setItem("kora.crm.supabaseStageMoves.v1", JSON.stringify(logParsed));
+        } catch (err) {
+          console.error("Local logger error:", err);
+        }
+
+        await refreshSupabase();
+        toast.success("Estágio atualizado com sucesso no Supabase!");
+      } catch (err) {
+        console.error("Failed to move stage in Supabase:", err);
+        toast.error("Erro ao persistir alteração no Supabase. Revertendo alteração...");
+        // force state refresh to rollback UI
+        await refreshSupabase();
+      }
+      return;
+    }
+
+    if (blockWriteAction()) return;
     moveLeadToStage(leadId, stage.id, stage.type);
     runAutomations(leadId, stage);
     if (stage.type === "won") toast.success("Lead marcado como ganho 🎉");
@@ -321,9 +629,17 @@ const CRM = () => {
   };
 
   // --- Drag handlers ---
-  const handleDragStart = (id: number) => setDraggedId(id);
+  const handleDragStart = (id: number) => {
+    if (activeDataSource === "supabase" && !isStageMoveEnabled) {
+      toast.error("Edição no CRM Supabase entra na próxima etapa. Volte para Local para editar.");
+      return; // block drag start in Supabase mode if move flag is off
+    }
+    setDraggedId(id);
+  };
   const handleDragEnd = () => setDraggedId(null);
   const handleDrop = (stage: PipelineStage) => {
+    const isSupabaseMove = activeDataSource === "supabase";
+    if (blockWriteAction(isSupabaseMove)) return;
     if (draggedId !== null) {
       handleMoveToStage(draggedId, stage);
       setDraggedId(null);
@@ -332,6 +648,7 @@ const CRM = () => {
 
   // --- Pipeline editor handlers ---
   const handleSavePipeline = (data: any) => {
+    if (blockWriteAction()) return;
     if (data.id) {
       updatePipeline(data.id, { name: data.name, stages: data.stages });
     } else {
@@ -341,6 +658,7 @@ const CRM = () => {
   };
 
   const handleConvertToClient = (lead: Lead) => {
+    if (blockWriteAction()) return;
     try {
       addClient({
         name: lead.name,
@@ -432,6 +750,80 @@ const CRM = () => {
           </>
         }
       />
+
+      {/* Seletor de Fonte do CRM e Badges Supabase */}
+      {isExperimentalEnabled && (
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-border bg-card/30">
+          <div className="flex items-center gap-2">
+            <Database className="h-4 w-4 text-primary" />
+            <span className="text-xs font-semibold text-foreground">Fonte do CRM:</span>
+            {activeDataSource === "supabase" && (
+              <Badge variant="outline" className="text-[10px] uppercase font-mono py-0 text-primary border-primary/30 bg-primary/5">
+                Supabase experimental
+              </Badge>
+            )}
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant={activeDataSource === "local" ? "default" : "outline"}
+              className="text-xs px-3 h-8"
+              onClick={() => handleSourceChange("local")}
+            >
+              Local
+            </Button>
+            <Button
+              size="sm"
+              variant={activeDataSource === "supabase" ? "default" : "outline"}
+              className="text-xs px-3 h-8 gap-1.5"
+              disabled={!workspace}
+              onClick={() => handleSourceChange("supabase")}
+              title={!workspace ? "Selecione um workspace ativo nas Configurações para usar o Supabase" : undefined}
+            >
+              Supabase experimental
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Banner de Aviso de Somente Leitura */}
+      {activeDataSource === "supabase" && (
+        <div className="flex items-start gap-2.5 p-3 rounded-lg border border-primary/20 bg-primary/5 text-xs text-foreground">
+          <Cloud className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+          <div className="flex-1 flex justify-between items-center gap-4 flex-wrap">
+            <div>
+              <span className="font-semibold block">Supabase experimental — somente leitura</span>
+              <p className="text-muted-foreground mt-0.5 leading-normal">
+                Você está visualizando as oportunidades importadas no Supabase. Edições, movimentações ou novos cadastros estão bloqueados neste modo.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => refreshSupabase()}
+              disabled={supabaseLoading}
+              className="h-7 text-xs gap-1.5 shrink-0 bg-background border-border/80"
+            >
+              <RefreshCw className={`h-3 w-3 ${supabaseLoading ? "animate-spin" : ""}`} />
+              Atualizar
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Estados do Supabase: Erro de Conexão */}
+      {activeDataSource === "supabase" && supabaseError && (
+        <div className="flex items-start gap-2.5 p-3 rounded-lg border border-destructive/20 bg-destructive/5 text-xs text-destructive">
+          <Cloud className="h-4 w-4 shrink-0 mt-0.5 text-destructive" />
+          <div className="flex-1">
+            <span className="font-semibold block">Erro ao carregar oportunidades do Supabase</span>
+            <p className="opacity-90 mt-0.5 leading-normal">
+              Não foi possível obter os dados da nuvem. Verifique sua conexão ou retorne para o modo Local.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* KPIs — foco em oportunidades abertas, valor e follow-ups */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
@@ -570,14 +962,28 @@ const CRM = () => {
       </div>
 
       {/* View */}
-      {leads.filter((l) => !l.archived).length === 0 ? (
-        <EmptyState
-          icon={TrendingUp}
-          title="Seu pipeline ainda está vazio"
-          description="Crie oportunidades para acompanhar negociações, propostas enviadas e próximos passos comerciais."
-          primaryAction={{ label: "Criar oportunidade", onClick: handleNewLead }}
-          secondaryAction={{ label: "Ver clientes", onClick: () => navigate("/clientes"), variant: "outline" }}
-        />
+      {supabaseLoading ? (
+        <div className="py-20 flex flex-col items-center justify-center text-sm text-muted-foreground gap-3">
+          <RefreshCw className="h-6 w-6 animate-spin text-primary" />
+          <span>Carregando oportunidades do Supabase...</span>
+        </div>
+      ) : leads.filter((l) => !l.archived).length === 0 ? (
+        activeDataSource === "supabase" ? (
+          <EmptyState
+            icon={TrendingUp}
+            title="Nenhuma oportunidade encontrada no Supabase"
+            description="Nenhuma oportunidade encontrada no Supabase. Importe oportunidades locais em Configurações."
+            primaryAction={{ label: "Ir para Configurações", onClick: () => navigate("/configuracoes") }}
+          />
+        ) : (
+          <EmptyState
+            icon={TrendingUp}
+            title="Seu pipeline ainda está vazio"
+            description="Crie oportunidades para acompanhar negociações, propostas enviadas e próximos passos comerciais."
+            primaryAction={{ label: "Criar oportunidade", onClick: handleNewLead }}
+            secondaryAction={{ label: "Ver clientes", onClick: () => navigate("/clientes"), variant: "outline" }}
+          />
+        )
       ) : view === "kanban" ? (
         <div className="w-full max-w-full overflow-x-auto overflow-y-visible pb-4">
           <div className="flex gap-4 pr-6 min-w-min">
@@ -624,8 +1030,8 @@ const CRM = () => {
                       onMovePipeline={() => setMovePipelineLeadId(lead.id)}
                       onEditTags={() => setTagsLeadId(lead.id)}
                       onSchedule={() => setScheduleLeadId(lead.id)}
-                      onArchive={() => { archiveLead(lead.id, true); toast.success("Lead arquivado"); }}
-                      onUnarchive={() => { archiveLead(lead.id, false); toast.success("Lead restaurado"); }}
+                      onArchive={() => handleArchiveClick(lead.id)}
+                      onUnarchive={() => handleUnarchiveClick(lead.id)}
                       onDelete={() => {
                         if (window.confirm("Excluir este lead?")) {
                           deleteLead(lead.id);
@@ -714,8 +1120,8 @@ const CRM = () => {
                           onMovePipeline={() => setMovePipelineLeadId(lead.id)}
                           onEditTags={() => setTagsLeadId(lead.id)}
                           onSchedule={() => setScheduleLeadId(lead.id)}
-                          onArchive={() => { archiveLead(lead.id, true); toast.success("Lead arquivado"); }}
-                          onUnarchive={() => { archiveLead(lead.id, false); toast.success("Lead restaurado"); }}
+                          onArchive={() => handleArchiveClick(lead.id)}
+                          onUnarchive={() => handleUnarchiveClick(lead.id)}
                           onConvert={() => handleConvertToClient(lead)}
                           onDelete={() => {
                             if (window.confirm("Excluir este lead?")) {
@@ -742,9 +1148,78 @@ const CRM = () => {
         stages={stages}
         pipelineId={activePipelineId}
         initial={newLeadInitial}
-        onSave={(data) => {
-          addLead(data);
-          toast.success(data.clientId ? "Oportunidade vinculada ao cliente" : "Oportunidade adicionada ao pipeline");
+        onSave={async (data) => {
+          if (activeDataSource === "supabase") {
+            try {
+              if (!workspace) throw new Error("Workspace não selecionado.");
+
+              // Map client link using clients import mapping
+              let supabaseClientId: string | null = null;
+              if (data.clientId) {
+                try {
+                  const rawMap = localStorage.getItem("kora.clients.supabaseImport.v1");
+                  if (rawMap) {
+                    const parsed = JSON.parse(rawMap);
+                    const mappedUuid = parsed.importedMap?.[String(data.clientId)];
+                    if (mappedUuid) {
+                      supabaseClientId = mappedUuid;
+                    }
+                  }
+                } catch (err) {
+                  console.error("Erro ao ler mapeamento de cliente:", err);
+                }
+              }
+
+              const payload: SupabaseOpportunityInput = {
+                title: data.name,
+                company: data.company || null,
+                contact_name: data.name || null,
+                email: data.email || null,
+                phone: data.phone || null,
+                whatsapp: data.phone || null,
+                stage: data.stage || "lead",
+                status: data.stage === "fechado" ? "won" : data.stage === "perdido" ? "lost" : "open",
+                source: data.source || data.origin || null,
+                temperature: data.temperature || "não definida",
+                priority: data.priority || "média",
+                potential_value: data.estimatedValue || 0,
+                next_action: data.nextAction || null,
+                next_action_date: data.nextActionDate || null,
+                expected_close_date: null,
+                notes: data.description || null,
+                archived: false,
+                is_demo: false,
+                client_id: supabaseClientId,
+              };
+
+              const result = await crmOpportunitiesRepository.createOpportunity(workspace.id, payload);
+
+              // Local logging for successful creation
+              try {
+                const logRaw = localStorage.getItem("kora.crm.supabaseCreates.v1") || "[]";
+                const logParsed = JSON.parse(logRaw);
+                logParsed.push({
+                  opportunityId: result.id,
+                  title: result.title,
+                  createdAt: new Date().toISOString(),
+                });
+                localStorage.setItem("kora.crm.supabaseCreates.v1", JSON.stringify(logParsed));
+              } catch (err) {
+                console.error("Erro ao registrar log local de criação:", err);
+              }
+
+              await refreshSupabase();
+              toast.success("Oportunidade criada com sucesso no Supabase!");
+            } catch (err) {
+              console.error("Erro na criação no Supabase:", err);
+              const errMsg = err instanceof Error ? err.message : "Erro inesperado";
+              toast.error(`Erro ao criar oportunidade no Supabase: ${errMsg}`);
+              throw err;
+            }
+          } else {
+            addLead(data);
+            toast.success(data.clientId ? "Oportunidade vinculada ao cliente" : "Oportunidade adicionada ao pipeline");
+          }
         }}
       />
 
@@ -755,11 +1230,105 @@ const CRM = () => {
         onMoveToStage={(s) => selectedLead && handleMoveToStage(selectedLead.id, s)}
         onEditTags={() => selectedLead && setTagsLeadId(selectedLead.id)}
         onSchedule={() => selectedLead && setScheduleLeadId(selectedLead.id)}
-        onUpdate={(patch) => selectedLead && updateLead(selectedLead.id, patch)}
+        onUpdate={async (patch) => {
+          if (!selectedLead) return;
+          if (activeDataSource === "supabase") {
+            if (blockWriteAction(false, true)) return;
+            if (!workspace || !selectedLead.supabaseId) return;
+
+            // Map local patch object properties to Supabase database columns
+            const allowedPatch: Partial<SupabaseOpportunityInput> = {};
+            if (patch.name !== undefined) allowedPatch.title = patch.name;
+            if (patch.name !== undefined) allowedPatch.contact_name = patch.name;
+            if (patch.company !== undefined) allowedPatch.company = patch.company;
+            if (patch.email !== undefined) allowedPatch.email = patch.email;
+            if (patch.phone !== undefined) {
+              allowedPatch.phone = patch.phone;
+              allowedPatch.whatsapp = patch.phone;
+            }
+            if (patch.source !== undefined) allowedPatch.source = patch.source;
+            if (patch.origin !== undefined) allowedPatch.source = patch.origin;
+            if (patch.temperature !== undefined) allowedPatch.temperature = patch.temperature;
+            if (patch.priority !== undefined) allowedPatch.priority = patch.priority;
+            if (patch.estimatedValue !== undefined) allowedPatch.potential_value = patch.estimatedValue;
+            if (patch.nextAction !== undefined) allowedPatch.next_action = patch.nextAction;
+            if (patch.nextActionDate !== undefined) allowedPatch.next_action_date = patch.nextActionDate;
+            if (patch.expectedCloseDate !== undefined) allowedPatch.expected_close_date = patch.expectedCloseDate;
+            if (patch.notes !== undefined) allowedPatch.notes = patch.notes;
+            if (patch.description !== undefined) allowedPatch.notes = patch.description;
+
+            toast.info("Salvando alterações no Supabase...");
+            try {
+              await crmOpportunitiesRepository.updateOpportunity(workspace.id, selectedLead.supabaseId, allowedPatch);
+              
+              // Optional Local Logger for basic edits
+              try {
+                const logRaw = localStorage.getItem("kora.crm.supabaseEdits.v1") || "[]";
+                const logParsed = JSON.parse(logRaw);
+                logParsed.push({
+                  opportunityId: selectedLead.supabaseId,
+                  editedFields: Object.keys(allowedPatch),
+                  editedAt: new Date().toISOString(),
+                });
+                localStorage.setItem("kora.crm.supabaseEdits.v1", JSON.stringify(logParsed));
+              } catch (logErr) {
+                console.error("Local logger error:", logErr);
+              }
+
+              await refreshSupabase();
+              // Update selected lead to reflect updates in drawer
+              const freshLead = supabaseOpportunities.find(o => o.id === selectedLead.supabaseId);
+              if (freshLead) {
+                setSelectedLead(mapSupabaseOpportunityToLocalLead(freshLead));
+              }
+              toast.success("Alterações salvas com sucesso no Supabase!");
+            } catch (err) {
+              console.error("Failed to update opportunity in Supabase:", err);
+              toast.error("Erro ao salvar alterações no Supabase. Revertendo...");
+              await refreshSupabase();
+            }
+            return;
+          }
+
+          updateLead(selectedLead.id, patch);
+        }}
         onOpenClient={(cid) => navigate(`/clientes?client=${cid}`)}
-        onCreateQuote={() => selectedLead && navigate(`/vendas?tab=orcamentos&newQuote=1&opportunityId=${selectedLead.id}`)}
+        onCreateQuote={() => {
+          if (activeDataSource === "supabase") {
+            const createQuoteFlag = localStorage.getItem("kora.crm.supabaseCreateQuote.enabled") === "true";
+            if (!createQuoteFlag) {
+              toast.info("Criação de orçamento no CRM Supabase entra nesta etapa experimental. Ative em Configurações.");
+              return;
+            }
+            if (selectedLead) {
+              setCreateQuoteLead(selectedLead);
+              setCreateQuoteOpen(true);
+            }
+          } else {
+            if (selectedLead) {
+              navigate(`/vendas?tab=orcamentos&newQuote=1&opportunityId=${selectedLead.id}`);
+            }
+          }
+        }}
         onOpenQuote={() => navigate(selectedLead?.quoteId ? `/vendas?tab=orcamentos&quote=${selectedLead.quoteId}` : `/vendas?tab=orcamentos`)}
+        isSupabaseMode={activeDataSource === "supabase"}
+        isBasicEditEnabled={isBasicEditEnabled}
+        triggerRefreshToggle={refreshQuotesToggle}
       />
+
+      {createQuoteLead && (
+        <CreateCrmSupabaseQuoteDialog
+          open={createQuoteOpen}
+          onOpenChange={setCreateQuoteOpen}
+          lead={createQuoteLead}
+          onSuccess={(quoteId) => {
+            toast.success(`Orçamento ${quoteId} associado à oportunidade!`);
+            setRefreshQuotesToggle((prev) => !prev);
+          }}
+        />
+      )}
+
+
 
 
       <PipelineEditorDialog
@@ -818,6 +1387,71 @@ const CRM = () => {
         onOpenChange={setNewTypeOpen}
         onCreated={(name) => setFilterType(name)}
       />
+
+      <AlertDialog open={archiveConfirmOpen} onOpenChange={setArchiveConfirmOpen}>
+        <AlertDialogContent className="bg-card border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-foreground">Arquivar oportunidade?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação moverá a oportunidade para o estado arquivado no Supabase. Ela não será excluída definitivamente. A restauração será liberada em etapa futura.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-border hover:bg-muted text-foreground">Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="orbit-gradient text-white border-0"
+              onClick={() => {
+                if (archiveTargetLeadId !== null) {
+                  persistArchiveSupabase(archiveTargetLeadId, true);
+                }
+              }}
+            >
+              Arquivar oportunidade
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Soft Delete Dialog */}
+      <AlertDialog open={softDeleteConfirmOpen} onOpenChange={setSoftDeleteConfirmOpen}>
+        <AlertDialogContent className="bg-card border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-foreground">Excluir oportunidade?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação removerá a oportunidade do funil ativo (soft delete). Ela não será excluída fisicamente e poderá ser restaurada em etapas futuras.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="px-6 py-2 space-y-2">
+            <div className="flex items-center space-x-2">
+              <input type="checkbox" id="softDeleteAck" checked={softDeleteAck} onChange={(e) => setSoftDeleteAck(e.target.checked)} />
+              <label htmlFor="softDeleteAck" className="text-sm text-muted-foreground">Entendo que esta oportunidade será removida do funil ativo</label>
+            </div>
+            <textarea
+              placeholder="Motivo (opcional)"
+              className="w-full p-2 border rounded-md text-sm"
+              value={softDeleteReason}
+              onChange={(e) => setSoftDeleteReason(e.target.value)}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-border hover:bg-muted text-foreground">Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="orbit-gradient text-white border-0"
+              disabled={!softDeleteAck}
+              onClick={() => {
+                if (softDeleteTargetLeadId !== null) {
+                  persistSoftDeleteSupabase(softDeleteTargetLeadId, softDeleteReason.trim() || undefined);
+                }
+                // Reset dialog state
+                setSoftDeleteAck(false);
+                setSoftDeleteReason('');
+              }}
+            >
+              Excluir oportunidade
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
@@ -879,6 +1513,7 @@ const LeadCard = ({
             onUnarchive={onUnarchive}
             onConvert={onConvert}
             onDelete={onDelete}
+            onSoftDelete={onSoftDelete}
             onEdit={onClick}
           />
         </div>
@@ -961,7 +1596,7 @@ const LeadCard = ({
 // ---------- Lead Actions Menu ----------
 const LeadActionsMenu = ({
   lead, stages, onEdit, onMoveToStage, onMovePipeline, onEditTags, onSchedule,
-  onArchive, onUnarchive, onConvert, onDelete,
+  onArchive, onUnarchive, onConvert, onDelete, onSoftDelete,
 }: {
   lead: Lead;
   stages: PipelineStage[];
@@ -974,6 +1609,7 @@ const LeadActionsMenu = ({
   onUnarchive: () => void;
   onConvert: () => void;
   onDelete: () => void;
+  onSoftDelete: () => void;
 }) => (
   <DropdownMenu>
     <DropdownMenuTrigger asChild>
@@ -1079,7 +1715,7 @@ const NewLeadDialog = ({
     // eslint-disable-next-line
   }, [open, initial]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.name.trim()) return toast.error("Informe o nome da oportunidade ou do contato");
     if (!form.email.trim() && !form.phone.trim())
       return toast.error("Informe email ou WhatsApp/telefone");
@@ -1089,27 +1725,31 @@ const NewLeadDialog = ({
       ? (form.stageId as StageKey)
       : "lead";
 
-    onSave({
-      name: form.name.trim(),
-      company: form.company.trim(),
-      email: form.email.trim(),
-      phone: form.phone.trim(),
-      serviceType: form.serviceType || "—",
-      origin: form.origin || undefined,
-      source: form.origin || undefined,
-      estimatedValue: Number(form.estimatedValue) || 0,
-      priority: tempToPriority(form.temperature),
-      temperature: form.temperature,
-      stage: stageKey,
-      stageId: form.stageId,
-      pipelineId,
-      tags: [],
-      nextAction: form.nextAction.trim() || undefined,
-      nextActionDate: form.nextActionDate || undefined,
-      description: form.description.trim(),
-      clientId: form.clientId,
-    });
-    onOpenChange(false);
+    try {
+      await onSave({
+        name: form.name.trim(),
+        company: form.company.trim(),
+        email: form.email.trim(),
+        phone: form.phone.trim(),
+        serviceType: form.serviceType || "—",
+        origin: form.origin || undefined,
+        source: form.origin || undefined,
+        estimatedValue: Number(form.estimatedValue) || 0,
+        priority: tempToPriority(form.temperature),
+        temperature: form.temperature,
+        stage: stageKey,
+        stageId: form.stageId,
+        pipelineId,
+        tags: [],
+        nextAction: form.nextAction.trim() || undefined,
+        nextActionDate: form.nextActionDate || undefined,
+        description: form.description.trim(),
+        clientId: form.clientId,
+      });
+      onOpenChange(false);
+    } catch (err) {
+      // Keep form open on error
+    }
   };
 
   return (
@@ -1222,10 +1862,9 @@ const NewLeadDialog = ({
 };
 
 
-// ---------- Lead Detail Sheet ----------
 const LeadDetailSheet = ({
   lead, stages, onClose, onMoveToStage, onEditTags, onSchedule, onUpdate, onOpenClient,
-  onCreateQuote, onOpenQuote,
+  onCreateQuote, onOpenQuote, isSupabaseMode, isBasicEditEnabled, triggerRefreshToggle,
 }: {
   lead: Lead | null;
   stages: PipelineStage[];
@@ -1237,8 +1876,35 @@ const LeadDetailSheet = ({
   onOpenClient?: (clientId: number) => void;
   onCreateQuote?: () => void;
   onOpenQuote?: () => void;
+  isSupabaseMode: boolean;
+  isBasicEditEnabled?: boolean;
+  triggerRefreshToggle?: boolean;
 }) => {
   const [noteText, setNoteText] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState<Partial<Lead>>({});
+
+  useEffect(() => {
+    if (lead) {
+      setEditForm({
+        name: lead.name,
+        company: lead.company,
+        email: lead.email,
+        phone: lead.phone,
+        serviceType: lead.serviceType,
+        origin: lead.origin || lead.source || "",
+        estimatedValue: lead.estimatedValue,
+        temperature: lead.temperature || "não definida",
+        priority: lead.priority || "média",
+        nextAction: lead.nextAction,
+        nextActionDate: lead.nextActionDate,
+        expectedCloseDate: lead.expectedCloseDate,
+        notes: lead.notes || lead.description || "",
+      });
+      setIsEditing(false);
+    }
+  }, [lead]);
+
   if (!lead) return null;
 
   const stageConfig = stages.find((s) => s.id === lead.stageId);
@@ -1250,19 +1916,84 @@ const LeadDetailSheet = ({
   const lostStage = stages.find((s) => s.type === "lost");
   const temperature = getLeadTemperature(lead);
 
+  const handleFieldChange = <K extends keyof Lead>(key: K, val: Lead[K]) => {
+    setEditForm((prev) => ({ ...prev, [key]: val }));
+  };
+
+  const handleSave = () => {
+    if (editForm.name !== undefined && !editForm.name.trim()) {
+      toast.error("O nome/contato não pode ser vazio.");
+      return;
+    }
+    onUpdate(editForm);
+    setIsEditing(false);
+  };
+
+  const isEditable = !isSupabaseMode || isBasicEditEnabled;
+
   return (
     <Sheet open={!!lead} onOpenChange={(v) => !v && onClose()}>
       <SheetContent className="bg-card border-border w-full sm:max-w-[480px] overflow-y-auto">
         <SheetHeader className="pb-2">
-          <SheetTitle className="text-foreground text-xl flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full orbit-gradient flex items-center justify-center text-sm font-bold text-white shrink-0">
-              {lead.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
-            </div>
-            {lead.name}
-          </SheetTitle>
-          <SheetDescription className="flex items-center gap-2 flex-wrap">
-            <Badge variant="outline" className={`capitalize ${temperatureStyles[temperature]}`}>{temperature}</Badge>
-            {lead.company && <span className="text-muted-foreground">· {lead.company}</span>}
+          <div className="flex items-center justify-between gap-4">
+            <SheetTitle className="text-foreground text-xl flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full orbit-gradient flex items-center justify-center text-sm font-bold text-white shrink-0">
+                {lead.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+              </div>
+              {isEditing ? (
+                <Input
+                  value={editForm.name || ""}
+                  onChange={(e) => handleFieldChange("name", e.target.value)}
+                  className="bg-muted/50 border-border max-w-[200px]"
+                />
+              ) : (
+                lead.name
+              )}
+            </SheetTitle>
+            {isEditable && (
+              <Button
+                size="sm"
+                variant={isEditing ? "default" : "outline"}
+                className={isEditing ? "orbit-gradient text-white border-0" : ""}
+                onClick={isEditing ? handleSave : () => setIsEditing(true)}
+              >
+                {isEditing ? "Salvar" : "Editar"}
+              </Button>
+            )}
+          </div>
+          <SheetDescription className="flex items-center gap-2 flex-wrap mt-1.5">
+            {isEditing ? (
+              <div className="flex items-center gap-1.5">
+                <Select
+                  value={editForm.temperature || "não definida"}
+                  onValueChange={(v) => handleFieldChange("temperature", v)}
+                >
+                  <SelectTrigger className="bg-muted/50 border-border h-7 text-[11px]"><SelectValue placeholder="Temperatura" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="quente">Quente</SelectItem>
+                    <SelectItem value="morno">Morno</SelectItem>
+                    <SelectItem value="frio">Frio</SelectItem>
+                    <SelectItem value="não definida">Não definida</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={editForm.priority || "média"}
+                  onValueChange={(v) => handleFieldChange("priority", v)}
+                >
+                  <SelectTrigger className="bg-muted/50 border-border h-7 text-[11px]"><SelectValue placeholder="Prioridade" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="alta">Alta</SelectItem>
+                    <SelectItem value="média">Média</SelectItem>
+                    <SelectItem value="baixa">Baixa</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <>
+                <Badge variant="outline" className={`capitalize ${temperatureStyles[temperature]}`}>{temperature}</Badge>
+                {lead.company && <span className="text-muted-foreground">· {lead.company}</span>}
+              </>
+            )}
             {lead.clientId && onOpenClient && (
               <Button
                 size="sm" variant="ghost"
@@ -1292,31 +2023,41 @@ const LeadDetailSheet = ({
           </p>
         </div>
 
-        <div className="flex gap-2 mb-4 flex-wrap">
-          {nextStage && (
-            <Button size="sm" className="orbit-gradient text-white border-0 gap-1.5" onClick={() => onMoveToStage(nextStage)}>
-              <ArrowRight className="h-3.5 w-3.5" /> Avançar para {nextStage.name}
-            </Button>
-          )}
-          {wonStage && lead.stageId !== wonStage.id && (
-            <Button size="sm" variant="outline" className="gap-1.5 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10" onClick={() => onMoveToStage(wonStage)}>
-              <CheckCircle2 className="h-3.5 w-3.5" /> Ganho
-            </Button>
-          )}
-          {lostStage && lead.stageId !== lostStage.id && (
-            <Button size="sm" variant="outline" className="gap-1.5 border-destructive/30 text-destructive hover:bg-destructive/10" onClick={() => onMoveToStage(lostStage)}>
-              <XCircle className="h-3.5 w-3.5" /> Perdido
-            </Button>
-          )}
-        </div>
+        {!isSupabaseMode ? (
+          <div className="flex gap-2 mb-4 flex-wrap">
+            {nextStage && (
+              <Button size="sm" className="orbit-gradient text-white border-0 gap-1.5" onClick={() => onMoveToStage(nextStage)}>
+                <ArrowRight className="h-3.5 w-3.5" /> Avançar para {nextStage.name}
+              </Button>
+            )}
+            {wonStage && lead.stageId !== wonStage.id && (
+              <Button size="sm" variant="outline" className="gap-1.5 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10" onClick={() => onMoveToStage(wonStage)}>
+                <CheckCircle2 className="h-3.5 w-3.5" /> Ganho
+              </Button>
+            )}
+            {lostStage && lead.stageId !== lostStage.id && (
+              <Button size="sm" variant="outline" className="gap-1.5 border-destructive/30 text-destructive hover:bg-destructive/10" onClick={() => onMoveToStage(lostStage)}>
+                <XCircle className="h-3.5 w-3.5" /> Perdido
+              </Button>
+            )}
+          </div>
+        ) : (
+          <div className="mb-4 p-2 rounded-md bg-amber-500/10 border border-amber-500/25 text-amber-500 text-[11px]">
+            ⚠️ Modo Supabase experimental. {isBasicEditEnabled ? "Permitida apenas edição básica de campos cadastrais." : "Modo somente leitura. Volte para Local para editar."}
+          </div>
+        )}
 
         <div className="flex gap-2 mb-6 flex-wrap">
-          <Button size="sm" variant="outline" className="gap-1.5" onClick={onEditTags}>
-            <TagIcon className="h-3.5 w-3.5" /> Tags
-          </Button>
-          <Button size="sm" variant="outline" className="gap-1.5" onClick={onSchedule}>
-            <Calendar className="h-3.5 w-3.5" /> Agendar
-          </Button>
+          {!isSupabaseMode && (
+            <>
+              <Button size="sm" variant="outline" className="gap-1.5" onClick={onEditTags}>
+                <TagIcon className="h-3.5 w-3.5" /> Tags
+              </Button>
+              <Button size="sm" variant="outline" className="gap-1.5" onClick={onSchedule}>
+                <Calendar className="h-3.5 w-3.5" /> Agendar
+              </Button>
+            </>
+          )}
           {lead.quoteId ? (
             <Button size="sm" variant="outline" className="gap-1.5 text-primary border-primary/30 hover:bg-primary/10" onClick={onOpenQuote}>
               <FileText className="h-3.5 w-3.5" /> Ver orçamento
@@ -1329,32 +2070,73 @@ const LeadDetailSheet = ({
         </div>
 
 
+
         <div className="space-y-6 pb-6">
           <Section title="Projeto" icon={Briefcase}>
             <div className="orbit-card p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Serviço</span>
-                <span className="text-sm text-foreground font-medium">{lead.serviceType}</span>
+                {isEditing && !isSupabaseMode ? (
+                  <Input
+                    value={editForm.serviceType || ""}
+                    onChange={(e) => handleFieldChange("serviceType", e.target.value)}
+                    className="bg-muted/50 border-border max-w-[200px] h-8 text-xs"
+                  />
+                ) : (
+                  <span className="text-sm text-foreground font-medium">{lead.serviceType}</span>
+                )}
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Valor estimado</span>
-                <span className="text-sm text-foreground font-bold">{formatCurrency(lead.estimatedValue)}</span>
+                {isEditing ? (
+                  <Input
+                    type="number"
+                    value={editForm.estimatedValue === undefined ? "" : editForm.estimatedValue}
+                    onChange={(e) => handleFieldChange("estimatedValue", Number(e.target.value) || 0)}
+                    className="bg-muted/50 border-border max-w-[200px] h-8 text-xs"
+                  />
+                ) : (
+                  <span className="text-sm text-foreground font-bold">{formatCurrency(lead.estimatedValue)}</span>
+                )}
               </div>
-              {lead.nextAction && (
-                <>
-                  <Separator className="bg-border" />
-                  <div>
-                    <span className="text-xs text-muted-foreground">Próxima ação</span>
-                    <p className="text-sm text-foreground mt-0.5">{lead.nextAction}</p>
-                  </div>
-                </>
-              )}
-              {lead.description && (
-                <>
-                  <Separator className="bg-border" />
-                  <p className="text-sm text-muted-foreground leading-relaxed">{lead.description}</p>
-                </>
-              )}
+              <div className="space-y-1">
+                <span className="text-xs text-muted-foreground">Próxima ação</span>
+                {isEditing ? (
+                  <Input
+                    value={editForm.nextAction || ""}
+                    onChange={(e) => handleFieldChange("nextAction", e.target.value)}
+                    className="bg-muted/50 border-border h-8 text-xs"
+                  />
+                ) : (
+                  lead.nextAction && <p className="text-sm text-foreground leading-normal">{lead.nextAction}</p>
+                )}
+              </div>
+              <div className="space-y-1">
+                <span className="text-xs text-muted-foreground">Data da próxima ação</span>
+                {isEditing ? (
+                  <Input
+                    type="date"
+                    value={editForm.nextActionDate || ""}
+                    onChange={(e) => handleFieldChange("nextActionDate", e.target.value)}
+                    className="bg-muted/50 border-border h-8 text-xs"
+                  />
+                ) : (
+                  lead.nextActionDate && <p className="text-sm text-foreground leading-normal">{lead.nextActionDate}</p>
+                )}
+              </div>
+              <div className="space-y-1">
+                <span className="text-xs text-muted-foreground">Data fechamento estimada</span>
+                {isEditing ? (
+                  <Input
+                    type="date"
+                    value={editForm.expectedCloseDate || ""}
+                    onChange={(e) => handleFieldChange("expectedCloseDate", e.target.value)}
+                    className="bg-muted/50 border-border h-8 text-xs"
+                  />
+                ) : (
+                  lead.expectedCloseDate && <p className="text-sm text-foreground leading-normal">{lead.expectedCloseDate}</p>
+                )}
+              </div>
             </div>
           </Section>
 
@@ -1369,14 +2151,59 @@ const LeadDetailSheet = ({
           )}
 
           <Section title="Contato" icon={User}>
-            <div className="orbit-card p-4 space-y-2.5">
+            <div className="orbit-card p-4 space-y-3">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground flex items-center gap-2"><Mail className="h-3.5 w-3.5" />Email</span>
-                <span className="text-foreground font-medium truncate ml-2">{lead.email || "—"}</span>
+                <span className="text-muted-foreground flex items-center gap-2 shrink-0"><Mail className="h-3.5 w-3.5" />Email</span>
+                {isEditing ? (
+                  <Input
+                    type="email"
+                    value={editForm.email || ""}
+                    onChange={(e) => handleFieldChange("email", e.target.value)}
+                    className="bg-muted/50 border-border max-w-[200px] h-8 text-xs ml-2"
+                  />
+                ) : (
+                  <span className="text-foreground font-medium truncate ml-2">{lead.email || "—"}</span>
+                )}
               </div>
               <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground flex items-center gap-2"><Phone className="h-3.5 w-3.5" />Telefone</span>
-                <span className="text-foreground font-medium">{lead.phone || "—"}</span>
+                <span className="text-muted-foreground flex items-center gap-2 shrink-0"><Phone className="h-3.5 w-3.5" />Telefone</span>
+                {isEditing ? (
+                  <Input
+                    value={editForm.phone || ""}
+                    onChange={(e) => handleFieldChange("phone", e.target.value)}
+                    className="bg-muted/50 border-border max-w-[200px] h-8 text-xs ml-2"
+                  />
+                ) : (
+                  <span className="text-foreground font-medium">{lead.phone || "—"}</span>
+                )}
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground flex items-center gap-2 shrink-0"><Briefcase className="h-3.5 w-3.5" />Empresa</span>
+                {isEditing ? (
+                  <Input
+                    value={editForm.company || ""}
+                    onChange={(e) => handleFieldChange("company", e.target.value)}
+                    className="bg-muted/50 border-border max-w-[200px] h-8 text-xs ml-2"
+                  />
+                ) : (
+                  <span className="text-foreground font-medium truncate ml-2">{lead.company || "—"}</span>
+                )}
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground flex items-center gap-2 shrink-0"><Globe className="h-3.5 w-3.5" />Origem</span>
+                {isEditing ? (
+                  <Select
+                    value={editForm.origin || ""}
+                    onValueChange={(v) => handleFieldChange("origin", v)}
+                  >
+                    <SelectTrigger className="bg-muted/50 border-border max-w-[200px] h-8 text-xs ml-2"><SelectValue placeholder="Origem" /></SelectTrigger>
+                    <SelectContent>
+                      {origins.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <span className="text-foreground font-medium">{lead.origin || lead.source || "—"}</span>
+                )}
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground flex items-center gap-2"><Calendar className="h-3.5 w-3.5" />Última interação</span>
@@ -1385,7 +2212,15 @@ const LeadDetailSheet = ({
             </div>
           </Section>
 
+          {isSupabaseMode && lead.supabaseId && (
+            <LinkedQuotesSection
+              opportunityId={lead.supabaseId}
+              triggerRefreshToggle={triggerRefreshToggle}
+            />
+          )}
+
           <Section title="Histórico" icon={Clock}>
+
             <div className="space-y-0">
               {lead.history.map((h, i) => (
                 <div key={i} className="flex gap-3 pb-4 last:pb-0">
@@ -1403,25 +2238,37 @@ const LeadDetailSheet = ({
           </Section>
 
           <Section title="Observações" icon={StickyNote}>
-            {lead.notes && (
-              <div className="orbit-card p-4">
-                <p className="text-sm text-muted-foreground leading-relaxed">{lead.notes}</p>
-              </div>
+            {isEditing ? (
+              <Textarea
+                value={editForm.notes || ""}
+                onChange={(e) => handleFieldChange("notes", e.target.value)}
+                className="bg-muted/50 border-border min-h-[80px] text-sm"
+              />
+            ) : (
+              lead.notes && (
+                <div className="orbit-card p-4">
+                  <p className="text-sm text-muted-foreground leading-relaxed">{lead.notes}</p>
+                </div>
+              )
             )}
-            <Textarea
-              placeholder="Adicionar nota..."
-              value={noteText}
-              onChange={(e) => setNoteText(e.target.value)}
-              className="bg-muted/50 border-border min-h-[60px] text-sm"
-            />
-            {noteText && (
-              <Button size="sm" variant="outline" className="mt-2" onClick={() => {
-                onUpdate({ notes: (lead.notes ? lead.notes + "\n\n" : "") + noteText });
-                setNoteText("");
-                toast.success("Nota salva");
-              }}>
-                Salvar nota
-              </Button>
+            {!isSupabaseMode && !isEditing && (
+              <>
+                <Textarea
+                  placeholder="Adicionar nota..."
+                  value={noteText}
+                  onChange={(e) => setNoteText(e.target.value)}
+                  className="bg-muted/50 border-border min-h-[60px] text-sm mt-3"
+                />
+                {noteText && (
+                  <Button size="sm" variant="outline" className="mt-2" onClick={() => {
+                    onUpdate({ notes: (lead.notes ? lead.notes + "\n\n" : "") + noteText });
+                    setNoteText("");
+                    toast.success("Nota salva");
+                  }}>
+                    Salvar nota
+                  </Button>
+                )}
+              </>
             )}
           </Section>
         </div>

@@ -69,7 +69,6 @@ export function ContentSection() {
       if (existing) existing.count = c.count;
       else map.set(c.name, { name: c.name, count: c.count });
     });
-    items.filter(i => !i.clientName).length;
     return Array.from(map.values())
       .filter(c => !search || c.name.toLowerCase().includes(search.toLowerCase()))
       .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));

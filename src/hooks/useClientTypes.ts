@@ -50,14 +50,14 @@ export function useClientTypes() {
         const parsed = JSON.parse(raw) as ClientType[];
         if (Array.isArray(parsed)) return ensureDefaults(parsed);
       }
-    } catch {}
+    } catch { /* intentionally empty */ }
     return buildSeeds();
   });
 
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(types));
-    } catch {}
+    } catch { /* intentionally empty */ }
   }, [types]);
 
   const activeTypes = useMemo(() => types.filter((t) => !t.archived), [types]);

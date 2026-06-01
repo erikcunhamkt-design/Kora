@@ -29,6 +29,7 @@ export function useSignupRequests() {
   const refresh = useCallback(async () => {
     if (!user) { setRequests([]); return; }
     setLoading(true);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (supabase as any)
       .from("client_signup_requests")
       .select("*")
@@ -41,6 +42,7 @@ export function useSignupRequests() {
   useEffect(() => { refresh(); }, [refresh]);
 
   const updateStatus = useCallback(async (id: string, status: SignupRequestStatus) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabase as any)
       .from("client_signup_requests")
       .update({ status })
@@ -52,6 +54,7 @@ export function useSignupRequests() {
   }, []);
 
   const deleteRequest = useCallback(async (id: string) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabase as any)
       .from("client_signup_requests")
       .delete()

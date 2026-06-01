@@ -47,7 +47,7 @@ export function useLeadForms() {
   const add = useCallback((f: Omit<LeadForm, "id" | "submissions" | "fields" | "isDemo"> & { fields?: LeadFormField[] }) => {
     setForms((prev) => {
       const next = [...prev, { ...f, id: crypto.randomUUID(), submissions: 0, fields: f.fields ?? DEFAULT_FIELDS, isDemo: false }];
-      try { localStorage.setItem(KEY, JSON.stringify(next)); } catch {}
+      try { localStorage.setItem(KEY, JSON.stringify(next)); } catch { /* intentionally empty */ }
       return next;
     });
   }, []);
@@ -55,7 +55,7 @@ export function useLeadForms() {
   const toggle = useCallback((id: string) => {
     setForms((prev) => {
       const next = prev.map((x) => x.id === id ? { ...x, active: !x.active } : x);
-      try { localStorage.setItem(KEY, JSON.stringify(next)); } catch {}
+      try { localStorage.setItem(KEY, JSON.stringify(next)); } catch { /* intentionally empty */ }
       return next;
     });
   }, []);
@@ -63,7 +63,7 @@ export function useLeadForms() {
   const submit = useCallback((id: string) => {
     setForms((prev) => {
       const next = prev.map((x) => x.id === id ? { ...x, submissions: x.submissions + 1 } : x);
-      try { localStorage.setItem(KEY, JSON.stringify(next)); } catch {}
+      try { localStorage.setItem(KEY, JSON.stringify(next)); } catch { /* intentionally empty */ }
       return next;
     });
   }, []);

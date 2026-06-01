@@ -34,6 +34,7 @@ import {
   Copy,
   ExternalLink,
   Users,
+  RefreshCw,
 } from "lucide-react";
 
 
@@ -50,9 +51,36 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { useAppSettings, type NotificationSettings } from "@/hooks/useAppSettings";
 import { useOnboarding } from "@/contexts/OnboardingContext";
+import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { SupportDrawer } from "@/components/support/SupportDrawer";
 import { ClientPortalSection } from "@/components/settings/ClientPortalSection";
 import { PlanSection } from "@/components/settings/PlanSection";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useLocalClientsImport } from "@/hooks/useLocalClientsImport";
+import { useLocalTechnicalSheetsImport } from "@/hooks/useLocalTechnicalSheetsImport";
+import { useLocalOpportunitiesImport } from "@/hooks/useLocalOpportunitiesImport";
+import { LocalQuotesImportCard } from "@/components/settings/LocalQuotesImportCard";
+import { QuotesSupabaseExperimentalToggleCard } from "@/components/settings/QuotesSupabaseExperimentalToggleCard";
+import { SupabaseQuotesViewerCard } from "@/components/settings/SupabaseQuotesViewerCard";
+import { CrmSupabaseCreateQuoteToggleCard } from "@/components/settings/CrmSupabaseCreateQuoteToggleCard";
+import { QuotesSupabaseApprovalToggleCard } from "@/components/settings/QuotesSupabaseApprovalToggleCard";
+import { QuotesSupabaseReceivableToggleCard } from "@/components/settings/QuotesSupabaseReceivableToggleCard";
+import { QuotesSupabaseProjectToggleCard } from "@/components/settings/QuotesSupabaseProjectToggleCard";
+import { SupabaseOperationalDashboardToggleCard } from "@/components/settings/SupabaseOperationalDashboardToggleCard";
+import { SupabaseOperationalDashboardCard } from "@/components/settings/SupabaseOperationalDashboardCard";
+import { QuotesSupabaseBaseTasksToggleCard } from "@/components/settings/QuotesSupabaseBaseTasksToggleCard";
+import { QuotesSupabaseStatusTransitionToggleCard } from "@/components/settings/QuotesSupabaseStatusTransitionToggleCard";
+
+
 
 
 const NAV_ITEMS: SettingsNavItem[] = [
@@ -112,6 +140,7 @@ const Configuracoes = () => {
   const [supportOpen, setSupportOpen] = useState(false);
   const { profile, company, notifications, publicLinks, clientPortal, updateProfile, updateCompany, updatePublicLinks, updateClientPortal, resetClientPortal, toggleNotification } = useAppSettings();
   const { resetOnboarding } = useOnboarding();
+  const { workspace, membership, loading: wsLoading } = useCurrentWorkspace();
 
   useEffect(() => {
     const raw = searchParams.get("tab");
@@ -193,6 +222,44 @@ const Configuracoes = () => {
 
           {active === "company" && (
             <SettingsSection title="Empresa" description="Dados do seu estúdio ou negócio.">
+              {workspace && (
+                <div className="space-y-4 mb-4">
+                  <SettingsCard title="Workspace Supabase ativo">
+                    <div className="flex items-center justify-between gap-4 p-4 rounded-lg border border-primary/20 bg-primary/[0.03]">
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">{workspace.name}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">Role: <span className="text-primary font-medium capitalize">{membership?.role || "owner"}</span></p>
+                      </div>
+                      <Badge variant="outline" className="text-[10px] border-primary/30 text-primary">Ativo</Badge>
+                    </div>
+                  </SettingsCard>
+                  
+                  <LocalClientsImportCard />
+                  <LocalTechnicalSheetsImportCard />
+                  <LocalOpportunitiesImportCard />
+                  <LocalQuotesImportCard />
+                  <QuotesSupabaseExperimentalToggleCard />
+                  <SupabaseQuotesViewerCard />
+                  <CrmSupabaseCreateQuoteToggleCard />
+                  <QuotesSupabaseApprovalToggleCard />
+                  <QuotesSupabaseReceivableToggleCard />
+                  <QuotesSupabaseProjectToggleCard />
+                  <QuotesSupabaseBaseTasksToggleCard />
+                  <QuotesSupabaseStatusTransitionToggleCard />
+                  <SupabaseCrmViewerCard />
+                  <SupabaseExperimentalToggleCard />
+                  <CrmSupabaseExperimentalToggleCard />
+                  <CrmSupabaseStageMoveToggleCard />
+                  <CrmSupabaseBasicEditToggleCard />
+                  <CrmSupabaseCreateToggleCard />
+                  <CrmSupabaseArchiveToggleCard />
+                  <CrmSupabaseRestoreArchiveToggleCard />
+                  <SupabaseClientsViewerCard />
+                  <SupabaseOperationalDashboardToggleCard />
+                  <SupabaseOperationalDashboardCard />
+                </div>
+              )}
+
               <SettingsCard>
                 <div className="flex items-center gap-4 mb-6">
                   <div className="h-16 w-16 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold text-lg">
@@ -390,7 +457,7 @@ const Configuracoes = () => {
                 <IntegrationCard icon={MessageCircle} name="WhatsApp Business" hint="Mensagens no app" state="disconnected" />
                 <IntegrationCard icon={CreditCard} name="Asaas" hint="Pix, boleto e cartão" state="disconnected" />
                 <IntegrationCard icon={CreditCard} name="Stripe / Paddle" hint="Pagamentos internacionais" state="planned" />
-                <IntegrationCard icon={Bot} name="IA generativa" hint="Modelos via Lovable AI" state="planned" />
+                <IntegrationCard icon={Bot} name="IA generativa" hint="Modelos de IA generativa" state="planned" />
                 <IntegrationCard icon={Webhook} name="Webhooks" hint="Eventos para qualquer URL" state="soon" />
               </div>
             </SettingsSection>
@@ -449,19 +516,44 @@ const Configuracoes = () => {
               </div>
 
               <SettingsCard title="Onboarding">
-                <p className="text-xs text-muted-foreground mb-3">
-                  Reinicie o assistente inicial para reconfigurar os dados do seu estúdio.
-                </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    resetOnboarding();
-                    window.location.href = "/onboarding";
-                  }}
-                >
-                  Reiniciar onboarding
-                </Button>
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-2">
+                      Reinicie o assistente inicial para reconfigurar os dados do seu estúdio (Geral).
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        resetOnboarding();
+                        window.location.href = "/onboarding";
+                      }}
+                    >
+                      Reiniciar onboarding
+                    </Button>
+                  </div>
+                  <div className="pt-2 border-t border-border/40">
+                    <p className="text-xs text-muted-foreground mb-2">
+                      Reinicie o checklist de ativação comercial e operacional no Dashboard.
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        try {
+                          localStorage.removeItem("kora.onboarding.v1");
+                          localStorage.removeItem("kora.daycenter.opened.v1");
+                          window.dispatchEvent(new Event("kora:onboarding:refresh"));
+                          toast.success("Checklist de ativação reiniciado!");
+                        } catch {
+                          toast.error("Erro ao reiniciar checklist.");
+                        }
+                      }}
+                    >
+                      Reativar checklist de ativação
+                    </Button>
+                  </div>
+                </div>
               </SettingsCard>
             </SettingsSection>
           )}
@@ -746,6 +838,1097 @@ function DataCard({
           <p className="text-xs text-muted-foreground">{hint}</p>
         </div>
         {state === "soon" ? <SoonBadge /> : <Badge variant="outline" className="text-[10px] uppercase">Local</Badge>}
+      </div>
+    </SettingsCard>
+  );
+}
+
+function LocalClientsImportCard() {
+  const { workspace } = useCurrentWorkspace();
+  const { candidates, importing, importSelected, metadata } = useLocalClientsImport();
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [isOpen, setIsOpen] = useState(false);
+
+  const eligibleCandidates = useMemo(() => {
+    return candidates.filter((c) => c.matchStatus !== "imported");
+  }, [candidates]);
+
+  const handleOpenDialog = () => {
+    const initialSelected = candidates
+      .filter((c) => c.matchStatus === "new")
+      .map((c) => c.id);
+    setSelectedIds(initialSelected);
+    setIsOpen(true);
+  };
+
+  const handleToggleSelectAll = () => {
+    if (selectedIds.length === eligibleCandidates.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(eligibleCandidates.map((c) => c.id));
+    }
+  };
+
+  const handleToggleSelect = (id: number) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleImport = async () => {
+    if (selectedIds.length === 0) return;
+    await importSelected(selectedIds);
+    setIsOpen(false);
+  };
+
+  const totalLocals = candidates.length;
+  const totalNew = candidates.filter((c) => c.matchStatus === "new").length;
+  const totalDuplicate = candidates.filter((c) => c.matchStatus === "duplicate").length;
+  const totalImported = candidates.filter((c) => c.matchStatus === "imported").length;
+
+  if (!workspace) {
+    return (
+      <SettingsCard title="Importar clientes locais">
+        <div className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Para importar seus clientes locais para o Supabase, você precisa de um Workspace ativo.
+          </p>
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-300/90 flex items-start gap-2">
+            <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+            Nenhum Workspace Supabase ativo detectado. Conecte sua conta para habilitar esta importação.
+          </div>
+        </div>
+      </SettingsCard>
+    );
+  }
+
+  return (
+    <SettingsCard title="Importar clientes locais">
+      <div className="space-y-4">
+        <p className="text-xs text-muted-foreground">
+          Detecte clientes salvos no armazenamento local (localStorage) deste navegador e envie-os para o workspace Supabase atual.
+        </p>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div className="p-3 bg-muted/10 border border-border/40 rounded-lg text-center">
+            <p className="text-[10px] text-muted-foreground uppercase font-semibold">Total Local</p>
+            <p className="text-lg font-bold text-foreground mt-0.5">{totalLocals}</p>
+          </div>
+          <div className="p-3 bg-muted/10 border border-border/40 rounded-lg text-center">
+            <p className="text-[10px] text-muted-foreground uppercase font-semibold">Pendentes</p>
+            <p className="text-lg font-bold text-emerald-400 mt-0.5">{eligibleCandidates.length}</p>
+          </div>
+          <div className="p-3 bg-muted/10 border border-border/40 rounded-lg text-center">
+            <p className="text-[10px] text-muted-foreground uppercase font-semibold">Duplicados</p>
+            <p className="text-lg font-bold text-amber-400 mt-0.5">{totalDuplicate}</p>
+          </div>
+          <div className="p-3 bg-muted/10 border border-border/40 rounded-lg text-center">
+            <p className="text-[10px] text-muted-foreground uppercase font-semibold">Já Importados</p>
+            <p className="text-lg font-bold text-blue-400 mt-0.5">{totalImported}</p>
+          </div>
+        </div>
+
+        {metadata?.lastImportedAt && (
+          <p className="text-[11px] text-muted-foreground italic">
+            Última importação: {new Date(metadata.lastImportedAt).toLocaleString()}
+          </p>
+        )}
+
+        <div className="rounded-lg border border-primary/20 bg-primary/[0.02] p-3 text-xs text-muted-foreground/90">
+          <p className="font-semibold text-foreground mb-1">Aviso Híbrido:</p>
+          Os clientes importados serão enviados para o Supabase, mas a tela Clientes ainda usa dados locais até a próxima etapa. Nenhum dado local será excluído. Para testar a leitura Supabase na tela Clientes, ative a fonte Supabase experimental.
+        </div>
+
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+          <DialogTrigger asChild>
+            <Button
+              onClick={handleOpenDialog}
+              disabled={eligibleCandidates.length === 0 || importing}
+              className="w-full gap-2 orbit-gradient text-white border-0"
+            >
+              Analisar importação
+            </Button>
+          </DialogTrigger>
+
+          <DialogContent className="max-w-2xl bg-card border-border/80 text-foreground">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-bold">Análise de Importação de Clientes</DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground">
+                Selecione os clientes locais que deseja importar para o Supabase. Duplicados foram sinalizados com base em e-mail, telefone ou nome e empresa iguais.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="my-4 border border-border/60 rounded-lg overflow-hidden bg-muted/5">
+              <div className="grid grid-cols-[auto_1fr_120px_100px] items-center gap-4 bg-muted/30 px-4 py-2 text-xs font-semibold text-muted-foreground border-b border-border/60">
+                <div className="flex items-center">
+                  <Checkbox
+                    id="select-all"
+                    checked={eligibleCandidates.length > 0 && selectedIds.length === eligibleCandidates.length}
+                    onCheckedChange={handleToggleSelectAll}
+                    disabled={eligibleCandidates.length === 0}
+                  />
+                </div>
+                <div>Cliente / Empresa</div>
+                <div>Status</div>
+                <div className="text-right font-medium">Ação</div>
+              </div>
+
+              {candidates.length === 0 ? (
+                <div className="p-8 text-center text-xs text-muted-foreground">
+                  Nenhum cliente local encontrado.
+                </div>
+              ) : (
+                <div className="max-h-[300px] overflow-y-auto divide-y divide-border/40">
+                  {candidates.map((candidate) => {
+                    const isImported = candidate.matchStatus === "imported";
+                    const isDuplicate = candidate.matchStatus === "duplicate";
+                    const isChecked = selectedIds.includes(candidate.id);
+
+                    return (
+                      <div
+                        key={candidate.id}
+                        className={`grid grid-cols-[auto_1fr_120px_100px] items-center gap-4 px-4 py-3 text-xs ${
+                          isImported ? "opacity-60 bg-muted/10" : ""
+                        }`}
+                      >
+                        <div>
+                          <Checkbox
+                            id={`client-${candidate.id}`}
+                            checked={isChecked || isImported}
+                            onCheckedChange={() => handleToggleSelect(candidate.id)}
+                            disabled={isImported}
+                          />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-semibold text-foreground truncate">{candidate.name}</p>
+                          {candidate.company && (
+                            <p className="text-[10px] text-muted-foreground truncate">{candidate.company}</p>
+                          )}
+                          <p className="text-[10px] text-muted-foreground/80 truncate">
+                            {candidate.email || "Sem e-mail"} {candidate.phone ? `• ${candidate.phone}` : ""}
+                          </p>
+                        </div>
+                        <div>
+                          {isImported ? (
+                            <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-400 border-blue-500/20">
+                              Já Importado
+                            </Badge>
+                          ) : isDuplicate ? (
+                            <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-400 border-amber-500/20">
+                              Duplicado
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+                              Novo
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          {isImported ? (
+                            <span className="text-[10px] text-muted-foreground">Importado</span>
+                          ) : isChecked ? (
+                            <span className="text-[10px] text-emerald-400 font-medium">Selecionado</span>
+                          ) : (
+                            <span className="text-[10px] text-muted-foreground">Ignorar</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-between items-center text-xs text-muted-foreground">
+              <span>{selectedIds.length} selecionado(s) para importação</span>
+              {totalDuplicate > 0 && (
+                <span className="text-amber-400/90 font-medium flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3" /> {totalDuplicate} duplicado(s) detectado(s)
+                </span>
+              )}
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0 mt-4">
+              <Button variant="outline" size="sm" onClick={() => setIsOpen(false)} disabled={importing}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleImport}
+                disabled={selectedIds.length === 0 || importing}
+                size="sm"
+                className="gap-1.5 orbit-gradient text-white border-0"
+              >
+                {importing ? "Importando..." : "Importar selecionados"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </SettingsCard>
+  );
+}
+
+function SupabaseClientsViewerCard() {
+  const { workspace } = useCurrentWorkspace();
+  const { clients, loading, error, refreshClients } = useSupabaseClients();
+  const { metadata } = useLocalClientsImport();
+
+  const isImportedFromLocal = useMemo(() => {
+    if (!metadata?.importedMap) return new Set<string>();
+    return new Set<string>(Object.values(metadata.importedMap));
+  }, [metadata]);
+
+  const visibleClients = useMemo(() => {
+    return (clients || []).slice(0, 10);
+  }, [clients]);
+
+  if (!workspace) return null;
+
+  return (
+    <SettingsCard 
+      title="Clientes no Supabase" 
+      headerActions={
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={refreshClients} 
+          disabled={loading}
+          className="h-8 gap-1.5 px-2.5"
+        >
+          <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
+          Atualizar
+        </Button>
+      }
+    >
+      <div className="space-y-4">
+        <p className="text-xs text-muted-foreground">
+          Visualização em tempo real dos clientes armazenados na nuvem (Supabase) para o workspace atual.
+        </p>
+
+        <div className="rounded-lg border border-primary/20 bg-primary/[0.02] p-3 text-xs text-muted-foreground/90">
+          Esta visualização confirma os dados já importados para o Supabase. A tela principal de Clientes ainda usa localStorage nesta fase.
+        </div>
+
+        {loading ? (
+          <div className="py-8 flex items-center justify-center text-xs text-muted-foreground gap-2">
+            <RefreshCw className="h-4 w-4 animate-spin text-primary" />
+            Carregando clientes do Supabase...
+          </div>
+        ) : error ? (
+          <div className="p-4 border border-destructive/30 bg-destructive/5 rounded-lg text-xs text-destructive flex flex-col gap-2">
+            <p className="font-semibold">Erro ao carregar clientes:</p>
+            <p className="opacity-90">{error.message || "Erro desconhecido"}</p>
+            <Button variant="outline" size="sm" onClick={refreshClients} className="w-fit self-end mt-2">
+              Tentar novamente
+            </Button>
+          </div>
+        ) : !clients || clients.length === 0 ? (
+          <div className="py-8 border border-dashed border-border/60 rounded-lg text-center text-xs text-muted-foreground">
+            Nenhum cliente encontrado no Supabase para este workspace.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="border border-border/60 rounded-lg overflow-hidden bg-muted/5 divide-y divide-border/40">
+              {visibleClients.map((client: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+                const imported = isImportedFromLocal.has(client.id);
+                return (
+                  <div key={client.id} className="p-3 flex items-start justify-between gap-4 text-xs">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-foreground truncate">{client.name}</span>
+                        <Badge variant="outline" className="text-[9px] uppercase tracking-wide text-primary border-primary/30 py-0 px-1.5">
+                          Supabase
+                        </Badge>
+                        {imported && (
+                          <Badge variant="outline" className="text-[9px] uppercase tracking-wide text-emerald-400 border-emerald-500/20 bg-emerald-500/10 py-0 px-1.5">
+                            Importado do local
+                          </Badge>
+                        )}
+                      </div>
+                      {client.company && (
+                        <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{client.company}</p>
+                      )}
+                      <p className="text-[10px] text-muted-foreground/80 mt-0.5 truncate">
+                        {client.email || "Sem e-mail"} {client.phone ? `• ${client.phone}` : ""}
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <Badge variant="outline" className="text-[10px] bg-muted capitalize">
+                        {client.status || "Ativo"}
+                      </Badge>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex justify-between items-center text-[11px] text-muted-foreground">
+              <span>Total no Supabase: {clients.length} cliente(s)</span>
+              {clients.length > 10 && (
+                <span>Mostrando os 10 primeiros</span>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </SettingsCard>
+  );
+}
+
+function LocalTechnicalSheetsImportCard() {
+  const { workspace } = useCurrentWorkspace();
+  const { candidates, importing, importSelected, metadata } = useLocalTechnicalSheetsImport();
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [isOpen, setIsOpen] = useState(false);
+
+  const eligibleCandidates = useMemo(() => {
+    return candidates.filter((c) => c.status === "pronto");
+  }, [candidates]);
+
+  const handleOpenDialog = () => {
+    setSelectedIds(eligibleCandidates.map((c) => c.localClientId));
+    setIsOpen(true);
+  };
+
+  const handleToggleSelectAll = () => {
+    if (selectedIds.length === eligibleCandidates.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(eligibleCandidates.map((c) => c.localClientId));
+    }
+  };
+
+  const handleToggleSelect = (id: number) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleImport = async () => {
+    if (selectedIds.length === 0) return;
+    await importSelected(selectedIds);
+    setIsOpen(false);
+  };
+
+  const totalWithSheet = candidates.filter((c) => c.status !== "sem_ficha").length;
+  const totalClientImported = candidates.filter((c) => c.supabaseClientId).length;
+  const totalPending = candidates.filter((c) => c.status === "pronto").length;
+  const totalExists = candidates.filter((c) => c.status === "existe").length;
+
+  if (!workspace) return null;
+
+  return (
+    <SettingsCard title="Importar Fichas Técnicas">
+      <div className="space-y-4">
+        <p className="text-xs text-muted-foreground">
+          Importe as Fichas Técnicas (Briefing, Marcas, Personas e referências de links) dos clientes que já foram importados para o Supabase.
+        </p>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div className="p-3 bg-muted/10 border border-border/40 rounded-lg text-center">
+            <p className="text-[10px] text-muted-foreground uppercase font-semibold">Locais c/ Ficha</p>
+            <p className="text-lg font-bold text-foreground mt-0.5">{totalWithSheet}</p>
+          </div>
+          <div className="p-3 bg-muted/10 border border-border/40 rounded-lg text-center">
+            <p className="text-[10px] text-muted-foreground uppercase font-semibold">Cliente na Nuvem</p>
+            <p className="text-lg font-bold text-blue-400 mt-0.5">{totalClientImported}</p>
+          </div>
+          <div className="p-3 bg-muted/10 border border-border/40 rounded-lg text-center">
+            <p className="text-[10px] text-muted-foreground uppercase font-semibold">Prontos</p>
+            <p className="text-lg font-bold text-emerald-400 mt-0.5">{totalPending}</p>
+          </div>
+          <div className="p-3 bg-muted/10 border border-border/40 rounded-lg text-center">
+            <p className="text-[10px] text-muted-foreground uppercase font-semibold">Já Importados</p>
+            <p className="text-lg font-bold text-amber-400 mt-0.5">{totalExists}</p>
+          </div>
+        </div>
+
+        {metadata?.lastImportedAt && (
+          <p className="text-[11px] text-muted-foreground italic">
+            Última importação de fichas: {new Date(metadata.lastImportedAt).toLocaleString()}
+          </p>
+        )}
+
+        <div className="rounded-lg border border-primary/20 bg-primary/[0.02] p-3 text-xs text-muted-foreground/90">
+          <p className="font-semibold text-foreground mb-1">Aviso de Backup Híbrido:</p>
+          A página Ficha Técnica principal continua usando localStorage nesta fase. O backup no Supabase servirá para transição futura. Arquivos binários locais não são migrados.
+        </div>
+
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+          <DialogTrigger asChild>
+            <Button
+              onClick={handleOpenDialog}
+              disabled={eligibleCandidates.length === 0 || importing}
+              className="w-full gap-2 orbit-gradient text-white border-0"
+            >
+              Analisar importação
+            </Button>
+          </DialogTrigger>
+
+          <DialogContent className="max-w-2xl bg-card border-border/80 text-foreground">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-bold">Análise de Importação de Fichas Técnicas</DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground">
+                Selecione as fichas técnicas dos clientes importados que deseja migrar para o Supabase.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="my-4 border border-border/60 rounded-lg overflow-hidden bg-muted/5">
+              <div className="grid grid-cols-[auto_1fr_150px_100px] items-center gap-4 bg-muted/30 px-4 py-2 text-xs font-semibold text-muted-foreground border-b border-border/60">
+                <div className="flex items-center">
+                  <Checkbox
+                    id="select-all-sheets"
+                    checked={eligibleCandidates.length > 0 && selectedIds.length === eligibleCandidates.length}
+                    onCheckedChange={handleToggleSelectAll}
+                    disabled={eligibleCandidates.length === 0}
+                  />
+                </div>
+                <div>Cliente / Empresa</div>
+                <div>Status</div>
+                <div className="text-right font-medium">Ação</div>
+              </div>
+
+              {candidates.length === 0 ? (
+                <div className="p-8 text-center text-xs text-muted-foreground">
+                  Nenhum cliente local com ficha técnica elegível encontrado.
+                </div>
+              ) : (
+                <div className="max-h-[300px] overflow-y-auto divide-y divide-border/40">
+                  {candidates.map((candidate) => {
+                    const isPronto = candidate.status === "pronto";
+                    const isChecked = selectedIds.includes(candidate.localClientId);
+
+                    return (
+                      <div
+                        key={candidate.localClientId}
+                        className={`grid grid-cols-[auto_1fr_150px_100px] items-center gap-4 px-4 py-3 text-xs ${
+                          !isPronto ? "opacity-60 bg-muted/10" : ""
+                        }`}
+                      >
+                        <div>
+                          <Checkbox
+                            id={`sheet-${candidate.localClientId}`}
+                            checked={isChecked || candidate.status === "existe"}
+                            onCheckedChange={() => handleToggleSelect(candidate.localClientId)}
+                            disabled={!isPronto}
+                          />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-semibold text-foreground truncate">{candidate.name}</p>
+                          {candidate.company && (
+                            <p className="text-[10px] text-muted-foreground truncate">{candidate.company}</p>
+                          )}
+                        </div>
+                        <div>
+                          {candidate.status === "existe" ? (
+                            <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-400 border-blue-500/20">
+                              Já Importada
+                            </Badge>
+                          ) : candidate.status === "sem_cliente" ? (
+                            <Badge variant="outline" className="text-[10px] bg-red-500/10 text-red-400 border-red-500/20">
+                              Cliente não importado
+                            </Badge>
+                          ) : candidate.status === "sem_ficha" ? (
+                            <Badge variant="outline" className="text-[10px] bg-muted text-muted-foreground">
+                              Sem ficha
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+                              Pronto para importar
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          {candidate.status === "existe" ? (
+                            <span className="text-[10px] text-muted-foreground">Importada</span>
+                          ) : isChecked && isPronto ? (
+                            <span className="text-[10px] text-emerald-400 font-medium">Selecionada</span>
+                          ) : (
+                            <span className="text-[10px] text-muted-foreground">Ignorar</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-between items-center text-xs text-muted-foreground">
+              <span>{selectedIds.length} selecionada(s) para importação</span>
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0 mt-4">
+              <Button variant="outline" size="sm" onClick={() => setIsOpen(false)} disabled={importing}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleImport}
+                disabled={selectedIds.length === 0 || importing}
+                size="sm"
+                className="gap-1.5 orbit-gradient text-white border-0"
+              >
+                {importing ? "Importando..." : "Importar selecionadas"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </SettingsCard>
+  );
+}
+
+function SupabaseExperimentalToggleCard() {
+  const [enabled, setEnabled] = useState(() => {
+    try {
+      const saved = localStorage.getItem("kora.technicalSheets.supabaseExperimental.enabled");
+      return saved === "false" ? false : true; // Default to true
+    } catch {
+      return true;
+    }
+  });
+
+  const handleToggle = () => {
+    const nextVal = !enabled;
+    try {
+      localStorage.setItem("kora.technicalSheets.supabaseExperimental.enabled", String(nextVal));
+    } catch (e) {
+      console.error(e);
+    }
+    setEnabled(nextVal);
+    toast.success(`Modo experimental da Ficha Técnica ${nextVal ? "ativado" : "desativado"}.`);
+  };
+
+  return (
+    <SettingsCard title="Modo Supabase Experimental da Ficha Técnica">
+      <div className="space-y-4">
+        <p className="text-xs text-muted-foreground leading-normal">
+          Permite testar a leitura e salvamento manual da Ficha Técnica no Supabase. O modo local continua preservado.
+        </p>
+        <div className="flex items-center justify-between gap-4 py-2 px-3 border border-border/60 bg-muted/10 rounded-lg">
+          <div className="flex items-center gap-2">
+            <div className={`h-2 w-2 rounded-full ${enabled ? "bg-emerald-500" : "bg-muted-foreground/45"}`} />
+            <span className="text-xs font-semibold text-foreground">
+              Status: {enabled ? "Ativo" : "Inativo"}
+            </span>
+          </div>
+          <Button
+            size="sm"
+            variant={enabled ? "destructive" : "default"}
+            className="text-xs h-8"
+            onClick={handleToggle}
+          >
+            {enabled ? "Desativar" : "Ativar"}
+          </Button>
+        </div>
+      </div>
+    </SettingsCard>
+  );
+}
+
+function CrmSupabaseExperimentalToggleCard() {
+  const [enabled, setEnabled] = useState(() => {
+    try {
+      const saved = localStorage.getItem("kora.crm.supabaseExperimental.enabled");
+      return saved === "true"; // Default to false
+    } catch {
+      return false;
+    }
+  });
+
+  const handleToggle = () => {
+    const nextVal = !enabled;
+    try {
+      localStorage.setItem("kora.crm.supabaseExperimental.enabled", String(nextVal));
+    } catch (e) {
+      console.error(e);
+    }
+    setEnabled(nextVal);
+    toast.success(`CRM Supabase Experimental ${nextVal ? "ativado" : "desativado"}.`);
+  };
+
+  return (
+    <SettingsCard title="CRM Supabase Experimental">
+      <div className="space-y-4">
+        <p className="text-xs text-muted-foreground leading-normal">
+          Permite visualizar oportunidades importadas no Supabase. O CRM operacional continua local nesta etapa.
+        </p>
+        <div className="flex items-center justify-between gap-4 py-2 px-3 border border-border/60 bg-muted/10 rounded-lg">
+          <div className="flex items-center gap-2">
+            <div className={`h-2 w-2 rounded-full ${enabled ? "bg-emerald-500" : "bg-muted-foreground/45"}`} />
+            <span className="text-xs font-semibold text-foreground">
+              Status: {enabled ? "Ativo" : "Inativo"}
+            </span>
+          </div>
+          <Button
+            size="sm"
+            variant={enabled ? "destructive" : "default"}
+            className="text-xs h-8"
+            onClick={handleToggle}
+          >
+            {enabled ? "Desativar" : "Ativar"}
+          </Button>
+        </div>
+      </div>
+    </SettingsCard>
+  );
+}
+
+function CrmSupabaseStageMoveToggleCard() {
+  const [enabled, setEnabled] = useState(() => {
+    try {
+      const saved = localStorage.getItem("kora.crm.supabaseStageMove.enabled");
+      return saved === "true"; // Default to false
+    } catch {
+      return false;
+    }
+  });
+
+  const handleToggle = () => {
+    const nextVal = !enabled;
+    try {
+      localStorage.setItem("kora.crm.supabaseStageMove.enabled", String(nextVal));
+    } catch (e) {
+      console.error(e);
+    }
+    setEnabled(nextVal);
+    toast.success(`Movimentação de estágio no CRM Supabase ${nextVal ? "ativada" : "desativada"}.`);
+  };
+
+  return (
+    <SettingsCard title="CRM Supabase - Mover Estágio Experimental">
+      <div className="space-y-4">
+        <p className="text-xs text-muted-foreground leading-normal">
+          Permitir mover estágio no CRM Supabase. Permite testar a movimentação de oportunidades entre etapas diretamente no Supabase. Criação, edição e exclusão continuam bloqueadas.
+        </p>
+        <div className="flex items-center justify-between gap-4 py-2 px-3 border border-border/60 bg-muted/10 rounded-lg">
+          <div className="flex items-center gap-2">
+            <div className={`h-2 w-2 rounded-full ${enabled ? "bg-emerald-500" : "bg-muted-foreground/45"}`} />
+            <span className="text-xs font-semibold text-foreground">
+              Status: {enabled ? "Ativo" : "Inativo"}
+            </span>
+          </div>
+          <Button
+            size="sm"
+            variant={enabled ? "destructive" : "default"}
+            className="text-xs h-8"
+            onClick={handleToggle}
+          >
+            {enabled ? "Desativar" : "Ativar"}
+          </Button>
+        </div>
+      </div>
+    </SettingsCard>
+  );
+}
+
+function CrmSupabaseBasicEditToggleCard() {
+  const [enabled, setEnabled] = useState(() => {
+    try {
+      const saved = localStorage.getItem("kora.crm.supabaseBasicEdit.enabled");
+      return saved === "true"; // Default to false
+    } catch {
+      return false;
+    }
+  });
+
+  const handleToggle = () => {
+    const nextVal = !enabled;
+    try {
+      localStorage.setItem("kora.crm.supabaseBasicEdit.enabled", String(nextVal));
+    } catch (e) {
+      console.error(e);
+    }
+    setEnabled(nextVal);
+    toast.success(`CRM Supabase - Edição Básica Experimental ${nextVal ? "ativado" : "desativado"}.`);
+  };
+
+  return (
+    <SettingsCard title="CRM Supabase - Edição Básica Experimental">
+      <div className="space-y-4">
+        <p className="text-xs text-muted-foreground leading-normal">
+          Permite editar campos básicos de oportunidades no Supabase. Criação, exclusão, conversão e orçamentos continuam bloqueados.
+        </p>
+        <div className="flex items-center justify-between gap-4 py-2 px-3 border border-border/60 bg-muted/10 rounded-lg">
+          <div className="flex items-center gap-2">
+            <div className={`h-2 w-2 rounded-full ${enabled ? "bg-emerald-500" : "bg-muted-foreground/45"}`} />
+            <span className="text-xs font-semibold text-foreground">
+              Status: {enabled ? "Ativo" : "Inativo"}
+            </span>
+          </div>
+          <Button
+            size="sm"
+            variant={enabled ? "destructive" : "default"}
+            className="text-xs h-8"
+            onClick={handleToggle}
+          >
+            {enabled ? "Desativar" : "Ativar"}
+          </Button>
+        </div>
+      </div>
+    </SettingsCard>
+  );
+}
+
+function CrmSupabaseCreateToggleCard() {
+  const [enabled, setEnabled] = useState(() => {
+    try {
+      const saved = localStorage.getItem("kora.crm.supabaseCreate.enabled");
+      return saved === "true"; // Default to false
+    } catch {
+      return false;
+    }
+  });
+
+  const handleToggle = () => {
+    const nextVal = !enabled;
+    try {
+      localStorage.setItem("kora.crm.supabaseCreate.enabled", String(nextVal));
+    } catch (e) {
+      console.error(e);
+    }
+    setEnabled(nextVal);
+    toast.success(`CRM Supabase - Criar Oportunidade Experimental ${nextVal ? "ativado" : "desativado"}.`);
+  };
+
+  return (
+    <SettingsCard title="CRM Supabase - Criar Oportunidade Experimental">
+      <div className="space-y-4">
+        <p className="text-xs text-muted-foreground leading-normal">
+          Permite criar oportunidades diretamente no Supabase. Arquivar, excluir, converter e criar orçamento continuam bloqueados.
+        </p>
+        <div className="flex items-center justify-between gap-4 py-2 px-3 border border-border/60 bg-muted/10 rounded-lg">
+          <div className="flex items-center gap-2">
+            <div className={`h-2 w-2 rounded-full ${enabled ? "bg-emerald-500" : "bg-muted-foreground/45"}`} />
+            <span className="text-xs font-semibold text-foreground">
+              Status: {enabled ? "Ativo" : "Inativo"}
+            </span>
+          </div>
+          <Button
+            size="sm"
+            variant={enabled ? "destructive" : "default"}
+            className="text-xs h-8"
+            onClick={handleToggle}
+          >
+            {enabled ? "Desativar" : "Ativar"}
+          </Button>
+        </div>
+      </div>
+    </SettingsCard>
+  );
+}
+
+function CrmSupabaseArchiveToggleCard() {
+  const [enabled, setEnabled] = useState(() => {
+    try {
+      const saved = localStorage.getItem("kora.crm.supabaseArchive.enabled");
+      return saved === "true"; // Default to false
+    } catch {
+      return false;
+    }
+  });
+
+  const handleToggle = () => {
+    const nextVal = !enabled;
+    try {
+      localStorage.setItem("kora.crm.supabaseArchive.enabled", String(nextVal));
+    } catch (e) {
+      console.error(e);
+    }
+    setEnabled(nextVal);
+    toast.success(`CRM Supabase - Arquivar Oportunidade Experimental ${nextVal ? "ativado" : "desativado"}.`);
+  };
+
+  return (
+    <SettingsCard title="CRM Supabase - Arquivar Oportunidade Experimental">
+      <div className="space-y-4">
+        <p className="text-xs text-muted-foreground leading-normal">
+          Permite arquivar oportunidades no Supabase. Exclusão definitiva, restauração, conversão e orçamentos continuam bloqueados.
+        </p>
+        <div className="flex items-center justify-between gap-4 py-2 px-3 border border-border/60 bg-muted/10 rounded-lg">
+          <div className="flex items-center gap-2">
+            <div className={`h-2 w-2 rounded-full ${enabled ? "bg-emerald-500" : "bg-muted-foreground/45"}`} />
+            <span className="text-xs font-semibold text-foreground">
+              Status: {enabled ? "Ativo" : "Inativo"}
+            </span>
+          </div>
+          <Button
+            size="sm"
+            variant={enabled ? "destructive" : "default"}
+            className="text-xs h-8"
+            onClick={handleToggle}
+          >
+            {enabled ? "Desativar" : "Ativar"}
+          </Button>
+        </div>
+      </div>
+    </SettingsCard>
+  );
+}
+
+function CrmSupabaseRestoreArchiveToggleCard() {
+  const [enabled, setEnabled] = useState(() => {
+    try {
+      const saved = localStorage.getItem("kora.crm.supabaseRestoreArchive.enabled");
+      return saved === "true"; // Default to false
+    } catch {
+      return false;
+    }
+  });
+
+  const handleToggle = () => {
+    const nextVal = !enabled;
+    try {
+      localStorage.setItem("kora.crm.supabaseRestoreArchive.enabled", String(nextVal));
+    } catch (e) {
+      console.error(e);
+    }
+    setEnabled(nextVal);
+    toast.success(`CRM Supabase - Restaurar Arquivadas Experimental ${nextVal ? "ativado" : "desativado"}.`);
+  };
+
+  return (
+    <SettingsCard title="CRM Supabase - Restaurar Arquivadas Experimental">
+      <div className="space-y-4">
+        <p className="text-xs text-muted-foreground leading-normal">
+          Permite restaurar oportunidades arquivadas no Supabase. Exclusão definitiva, conversão e orçamentos continuam bloqueados.
+        </p>
+        <div className="flex items-center justify-between gap-4 py-2 px-3 border border-border/60 bg-muted/10 rounded-lg">
+          <div className="flex items-center gap-2">
+            <div className={`h-2 w-2 rounded-full ${enabled ? "bg-emerald-500" : "bg-muted-foreground/45"}`} />
+            <span className="text-xs font-semibold text-foreground">
+              Status: {enabled ? "Ativo" : "Inativo"}
+            </span>
+          </div>
+          <Button
+            size="sm"
+            variant={enabled ? "destructive" : "default"}
+            className="text-xs h-8"
+            onClick={handleToggle}
+          >
+            {enabled ? "Desativar" : "Ativar"}
+          </Button>
+        </div>
+      </div>
+    </SettingsCard>
+  );
+}
+
+function LocalOpportunitiesImportCard() {
+  const { workspace } = useCurrentWorkspace();
+  const { candidates, importing, importSelected, metadata } = useLocalOpportunitiesImport();
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [isOpen, setIsOpen] = useState(false);
+
+  const eligibleCandidates = useMemo(() => {
+    return candidates.filter((c) => c.matchStatus !== "imported");
+  }, [candidates]);
+
+  const handleOpenDialog = () => {
+    setSelectedIds(eligibleCandidates.map((c) => c.id));
+    setIsOpen(true);
+  };
+
+  const handleToggleSelectAll = () => {
+    if (selectedIds.length === eligibleCandidates.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(eligibleCandidates.map((c) => c.id));
+    }
+  };
+
+  const handleToggleSelect = (id: number) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleImport = async () => {
+    if (selectedIds.length === 0) return;
+    await importSelected(selectedIds);
+    setIsOpen(false);
+  };
+
+  const totalLocals = candidates.length;
+  const totalPending = eligibleCandidates.filter((c) => c.matchStatus === "new").length;
+  const totalDuplicate = eligibleCandidates.filter((c) => c.matchStatus === "duplicate").length;
+  const totalImported = candidates.filter((c) => c.matchStatus === "imported").length;
+
+  if (!workspace) return null;
+
+  return (
+    <SettingsCard title="Importar Oportunidades Locais">
+      <div className="space-y-4">
+        <p className="text-xs text-muted-foreground">
+          Importe as Oportunidades e Leads comerciais locais armazenados no navegador para a nuvem do Supabase.
+        </p>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div className="p-3 bg-muted/10 border border-border/40 rounded-lg text-center">
+            <p className="text-[10px] text-muted-foreground uppercase font-semibold">Total Local</p>
+            <p className="text-lg font-bold text-foreground mt-0.5">{totalLocals}</p>
+          </div>
+          <div className="p-3 bg-muted/10 border border-border/40 rounded-lg text-center">
+            <p className="text-[10px] text-muted-foreground uppercase font-semibold">Novos</p>
+            <p className="text-lg font-bold text-emerald-400 mt-0.5">{totalPending}</p>
+          </div>
+          <div className="p-3 bg-muted/10 border border-border/40 rounded-lg text-center">
+            <p className="text-[10px] text-muted-foreground uppercase font-semibold">Duplicados</p>
+            <p className="text-lg font-bold text-amber-400 mt-0.5">{totalDuplicate}</p>
+          </div>
+          <div className="p-3 bg-muted/10 border border-border/40 rounded-lg text-center">
+            <p className="text-[10px] text-muted-foreground uppercase font-semibold">Já Importados</p>
+            <p className="text-lg font-bold text-blue-400 mt-0.5">{totalImported}</p>
+          </div>
+        </div>
+
+        {metadata?.lastImportedAt && (
+          <p className="text-[11px] text-muted-foreground italic">
+            Última importação de oportunidades: {new Date(metadata.lastImportedAt).toLocaleString()}
+          </p>
+        )}
+
+        <div className="rounded-lg border border-primary/20 bg-primary/[0.02] p-3 text-xs text-muted-foreground/90">
+          <p className="font-semibold text-foreground mb-1">Aviso Híbrido:</p>
+          As oportunidades importadas serão enviadas para o Supabase, mas a tela principal de CRM ainda usa dados locais nesta fase até a homologação completa.
+        </div>
+
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+          <DialogTrigger asChild>
+            <Button
+              onClick={handleOpenDialog}
+              disabled={eligibleCandidates.length === 0 || importing}
+              className="w-full gap-2 orbit-gradient text-white border-0"
+            >
+              Analisar importação
+            </Button>
+          </DialogTrigger>
+
+          <DialogContent className="max-w-2xl bg-card border-border/80 text-foreground">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-bold">Análise de Importação de Oportunidades</DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground">
+                Selecione as oportunidades comerciais que deseja importar para o Supabase. Duplicados foram sinalizados com base em e-mail, whatsapp ou título e empresa idênticos.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="my-4 border border-border/60 rounded-lg overflow-hidden bg-muted/5">
+              <div className="grid grid-cols-[auto_1fr_120px_100px] items-center gap-4 bg-muted/30 px-4 py-2 text-xs font-semibold text-muted-foreground border-b border-border/60">
+                <div className="flex items-center">
+                  <Checkbox
+                    id="select-all-opps"
+                    checked={eligibleCandidates.length > 0 && selectedIds.length === eligibleCandidates.length}
+                    onCheckedChange={handleToggleSelectAll}
+                    disabled={eligibleCandidates.length === 0}
+                  />
+                </div>
+                <div>Oportunidade / Empresa</div>
+                <div>Status</div>
+                <div className="text-right font-medium">Ação</div>
+              </div>
+
+              {candidates.length === 0 ? (
+                <div className="p-8 text-center text-xs text-muted-foreground">
+                  Nenhuma oportunidade local elegível encontrada.
+                </div>
+              ) : (
+                <div className="max-h-[300px] overflow-y-auto divide-y divide-border/40">
+                  {candidates.map((candidate) => {
+                    const isImported = candidate.matchStatus === "imported";
+                    const isDuplicate = candidate.matchStatus === "duplicate";
+                    const isChecked = selectedIds.includes(candidate.id);
+
+                    return (
+                      <div
+                        key={candidate.id}
+                        className={`grid grid-cols-[auto_1fr_120px_100px] items-center gap-4 px-4 py-3 text-xs ${
+                          isImported ? "opacity-60 bg-muted/10" : ""
+                        }`}
+                      >
+                        <div>
+                          <Checkbox
+                            id={`opp-${candidate.id}`}
+                            checked={isChecked || isImported}
+                            onCheckedChange={() => handleToggleSelect(candidate.id)}
+                            disabled={isImported}
+                          />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-semibold text-foreground truncate">{candidate.name}</p>
+                          {candidate.company && (
+                            <p className="text-[10px] text-muted-foreground truncate">{candidate.company}</p>
+                          )}
+                          <p className="text-[10px] text-muted-foreground/80 truncate">
+                            {candidate.email || "Sem e-mail"} {candidate.phone ? `• ${candidate.phone}` : ""}
+                          </p>
+                        </div>
+                        <div>
+                          {isImported ? (
+                            <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-400 border-blue-500/20">
+                              Já Importada
+                            </Badge>
+                          ) : isDuplicate ? (
+                            <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-400 border-amber-500/20">
+                              Duplicado
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+                              Novo
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          {isImported ? (
+                            <span className="text-[10px] text-muted-foreground">Importada</span>
+                          ) : isChecked ? (
+                            <span className="text-[10px] text-emerald-400 font-medium">Selecionada</span>
+                          ) : (
+                            <span className="text-[10px] text-muted-foreground">Ignorar</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-between items-center text-xs text-muted-foreground">
+              <span>{selectedIds.length} selecionada(s) para importação</span>
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0 mt-4">
+              <Button variant="outline" size="sm" onClick={() => setIsOpen(false)} disabled={importing}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleImport}
+                disabled={selectedIds.length === 0 || importing}
+                size="sm"
+                className="gap-1.5 orbit-gradient text-white border-0"
+              >
+                {importing ? "Importando..." : "Importar selecionadas"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </SettingsCard>
+  );
+}
+
+function SupabaseCrmViewerCard() {
+  return (
+    <SettingsCard title="CRM Supabase">
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-400 border-emerald-500/20 uppercase font-mono">
+            Infraestrutura pronta / experimental
+          </Badge>
+        </div>
+        <p className="text-xs text-muted-foreground leading-normal">
+          A persistência de oportunidades no Supabase foi preparada. A tela CRM principal ainda usa dados locais até a etapa de importação e validação.
+        </p>
       </div>
     </SettingsCard>
   );

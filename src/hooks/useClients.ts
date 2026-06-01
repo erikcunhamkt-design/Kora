@@ -1,15 +1,18 @@
 import { useEffect, useState, useCallback } from "react";
 
-export type ClientStatus = "Ativo" | "Em negociação" | "Inativo" | "Potencial" | "Arquivado";
-export type ClientTemperature = "Frio" | "Morno" | "Quente";
+import type {
+  ClientStatus, ClientTemperature, ClientAssetType, ClientAssetAccessStatus,
+  ClientAsset, ClientBranding, ClientPersona, ClientEditorialLine, ClientTypography,
+  ClientSocialLinks, ClientAccess, ClientCompetitor, ClientBriefing,
+  ClientTechnicalSheet, ClientContactRole, ClientContact, Client
+} from "@/types/domain";
 
-export type ClientAssetType =
-  | "drive" | "figma" | "canva" | "identidade_visual" | "tipografia"
-  | "fotos_ensaios" | "videos" | "briefing" | "contrato" | "referencias"
-  | "redes_sociais" | "outro";
-
-export type ClientAssetAccessStatus =
-  | "liberado" | "solicitar_acesso" | "publico" | "privado" | "expirado" | "revisar";
+export type {
+  ClientStatus, ClientTemperature, ClientAssetType, ClientAssetAccessStatus,
+  ClientAsset, ClientBranding, ClientPersona, ClientEditorialLine, ClientTypography,
+  ClientSocialLinks, ClientAccess, ClientCompetitor, ClientBriefing,
+  ClientTechnicalSheet, ClientContactRole, ClientContact, Client
+};
 
 export const CLIENT_ASSET_TYPE_LABELS: Record<ClientAssetType, string> = {
   drive: "Google Drive",
@@ -35,167 +38,10 @@ export const CLIENT_ASSET_ACCESS_LABELS: Record<ClientAssetAccessStatus, string>
   revisar: "Revisar permissão",
 };
 
-export interface ClientAsset {
-  id: string;
-  title: string;
-  type: ClientAssetType;
-  url: string;
-  description?: string;
-  tags?: string[];
-  accessStatus: ClientAssetAccessStatus;
-  /** "link" = URL externa, "file" = arquivo local embutido em dataURL (limitado por cota). */
-  kind?: "link" | "file";
-  fileName?: string;
-  fileSize?: number;
-  mimeType?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-// ---------- Ficha Técnica ----------
-
-export interface ClientBranding {
-  logoUrl?: string;
-  /** Metadados quando o logo foi carregado como arquivo local (dataURL). */
-  logoFileName?: string;
-  logoFileSize?: number;
-  logoMimeType?: string;
-  colors?: string[];
-  slogan?: string;
-  voiceTone?: string;
-  brandNotes?: string;
-}
-
-export interface ClientPersona {
-  name?: string;
-  ageRange?: string;
-  pains?: string;
-  desires?: string;
-  behavior?: string;
-  objections?: string;
-}
-
-export interface ClientEditorialLine {
-  pillars?: string[];
-  postingFrequency?: string;
-  preferredFormats?: string[];
-  contentNotes?: string;
-}
-
-export interface ClientTypography {
-  primaryFont?: string;
-  secondaryFont?: string;
-  fontLinks?: string[];
-  typographyNotes?: string;
-}
-
-export interface ClientSocialLinks {
-  instagram?: string;
-  youtube?: string;
-  tiktok?: string;
-  linkedin?: string;
-  facebook?: string;
-  website?: string;
-  otherLinks?: { label: string; url: string }[];
-}
-
-export interface ClientAccess {
-  id: string;
-  platform: string;
-  login?: string;
-  password?: string;
-  notes?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface ClientCompetitor {
-  id: string;
-  name: string;
-  url?: string;
-  notes?: string;
-}
-
-export interface ClientBriefing {
-  generalBriefing?: string;
-  additionalNotes?: string;
-}
-
-export interface ClientTechnicalSheet {
-  branding?: ClientBranding;
-  persona?: ClientPersona;
-  editorialLine?: ClientEditorialLine;
-  typography?: ClientTypography;
-  socialLinks?: ClientSocialLinks;
-  accesses?: ClientAccess[];
-  competitors?: ClientCompetitor[];
-  briefing?: ClientBriefing;
-  assets?: ClientAsset[];
-}
-
-export type ClientContactRole =
-  | "Decisor" | "Financeiro" | "Marketing" | "Atendimento"
-  | "Operacional" | "Aprovação" | "Dono" | "Outro";
-
 export const CLIENT_CONTACT_ROLES: ClientContactRole[] = [
   "Decisor", "Financeiro", "Marketing", "Atendimento",
   "Operacional", "Aprovação", "Dono", "Outro",
 ];
-
-export interface ClientContact {
-  id: string;
-  name: string;
-  role?: ClientContactRole | string;
-  email?: string;
-  phone?: string;
-  whatsapp?: string;
-  isPrimary?: boolean;
-  isFinancial?: boolean;
-  isDecisionMaker?: boolean;
-  notes?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface Client {
-  id: number;
-  name: string;
-  company: string;
-  email: string;
-  phone: string;
-  whatsapp: string;
-  instagram: string;
-  site: string;
-  serviceType: string;
-  origin?: string;
-  status: ClientStatus;
-  potentialValue: number;
-  /** Receita total já gerada (futuro: integra com Financeiro) */
-  totalRevenue?: number;
-  lastProject: string;
-  lastInteraction: string;
-  observations: string;
-  projects: { name: string; status: string }[];
-  tasks: { name: string; done: boolean }[];
-  /** Dados de demonstração — não contam para o limite do plano Free */
-  isDemo?: boolean;
-
-  // --- Novos campos opcionais (preparação para CRM/Financeiro) ---
-  document?: string;
-  city?: string;
-  state?: string;
-  address?: string;
-  tags?: string[];
-  temperature?: ClientTemperature;
-  nextAction?: string;
-  nextActionDate?: string; // ISO date
-  createdAt?: string;
-  updatedAt?: string;
-  archived?: boolean;
-  assets?: ClientAsset[];
-  technicalSheet?: ClientTechnicalSheet;
-  contacts?: ClientContact[];
-}
 
 const STORAGE_KEY = "orbyt.clients.v1";
 
@@ -309,14 +155,14 @@ export function useClients() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) return migrate(JSON.parse(raw) as Client[]);
-    } catch {}
+    } catch { /* intentionally empty */ }
     return initialClients;
   });
 
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(clients));
-    } catch {}
+    } catch { /* intentionally empty */ }
   }, [clients]);
 
   const addClient = useCallback((data: Omit<Client, "id" | "projects" | "tasks" | "lastProject" | "lastInteraction" | "isDemo"> & Partial<Pick<Client, "lastInteraction" | "lastProject">>) => {

@@ -106,12 +106,12 @@ export function useContentItems() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) return migrate(JSON.parse(raw) as ContentItem[]);
-    } catch {}
+    } catch { /* intentionally empty */ }
     return initialContent;
   });
 
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(items)); } catch {}
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(items)); } catch { /* intentionally empty */ }
   }, [items]);
 
   const addContentItem = useCallback((data: Omit<ContentItem, "id" | "isDemo" | "createdAt">) => {

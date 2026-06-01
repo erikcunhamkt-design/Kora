@@ -45,12 +45,12 @@ export function useTaskProjects() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) return migrate(JSON.parse(raw) as TaskProject[]);
-    } catch {}
+    } catch { /* intentionally empty */ }
     return SEEDS;
   });
 
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(projects)); } catch {}
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(projects)); } catch { /* intentionally empty */ }
   }, [projects]);
 
   const addProject = useCallback((data: { name: string; type?: TaskProjectType; color?: string; clientId?: string }) => {

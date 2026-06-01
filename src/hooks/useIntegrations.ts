@@ -30,12 +30,12 @@ export function useIntegrations() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) return JSON.parse(raw);
-    } catch {}
+    } catch { /* intentionally empty */ }
     return seed;
   });
 
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(items)); } catch {}
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(items)); } catch { /* intentionally empty */ }
   }, [items]);
 
   const toggleConnection = useCallback((id: string) => {

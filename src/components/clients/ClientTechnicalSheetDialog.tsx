@@ -12,11 +12,15 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import {
+  LucideIcon,
   Palette, Users, FileText, Type, Share2, KeyRound, Swords,
   ClipboardList, FolderOpen, ChevronLeft, ChevronRight, Save, Plus, Trash2,
   Eye, EyeOff, ShieldAlert, Copy, ExternalLink, Pencil, X, Upload, Link2, FileUp,
+  CloudLightning, RefreshCw, CheckCircle2, AlertCircle, FileImage,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
+import { clientAssetsStorage } from "@/services/storage/clientAssetsStorage";
 import type {
   Client, ClientTechnicalSheet, ClientBranding, ClientPersona,
   ClientEditorialLine, ClientTypography, ClientSocialLinks, ClientAccess,
@@ -33,7 +37,7 @@ export const FONT_SUGGESTIONS = [
   "Open Sans", "Playfair Display", "Merriweather", "Oswald", "Raleway",
 ];
 
-export const SECTIONS: { id: Exclude<SectionId, "overview">; label: string; subtitle: string; icon: any }[] = [
+export const SECTIONS: { id: Exclude<SectionId, "overview">; label: string; subtitle: string; icon: LucideIcon }[] = [
   { id: "branding", label: "Branding", subtitle: "Logo, cores, slogan e tom de voz", icon: Palette },
   { id: "persona", label: "Persona", subtitle: "Público-alvo, dores e desejos", icon: Users },
   { id: "editorial", label: "Linha Editorial", subtitle: "Pilares, frequência e formatos", icon: FileText },
@@ -49,7 +53,7 @@ export type FillStatus = "vazio" | "parcial" | "completo";
 
 export function statusOf(section: Exclude<SectionId, "overview">, t?: ClientTechnicalSheet): FillStatus {
   if (!t) return "vazio";
-  const has = (v: any) => (Array.isArray(v) ? v.length > 0 : !!(v && String(v).trim()));
+  const has = (v: unknown) => (Array.isArray(v) ? v.length > 0 : !!(v && String(v).trim()));
   switch (section) {
     case "branding": {
       const b = t.branding ?? {};
@@ -194,6 +198,7 @@ export function ClientTechnicalSheetDialog({
             <BrandingSection
               value={draft.branding ?? {}}
               onSave={(branding) => persist({ ...draft, branding }, "Branding salvo")}
+              clientId={client.id}
             />
           )}
           {view === "persona" && (
@@ -242,6 +247,7 @@ export function ClientTechnicalSheetDialog({
             <AssetsSection
               value={draft.assets ?? []}
               onChange={(assets) => persist({ ...draft, assets })}
+              clientId={client.id}
             />
           )}
         </div>
@@ -341,10 +347,99 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 // Branding
 // ============================================================
 
-export function BrandingSection({ value, onSave }: { value: ClientBranding; onSave: (v: ClientBranding) => void }) {
+export function BrandingSection({
+  value,
+  onSave,
+  clientId,
+}: {
+  value: ClientBranding;
+  onSave: (v: ClientBranding) => void;
+  clientId?: number;
+}) {
   const [local, setLocal] = useState<ClientBranding>(value);
   const [colorHex, setColorHex] = useState("#F81040");
   const [colorLabel, setColorLabel] = useState("");
+
+  const { workspace } = useCurrentWorkspace();
+
+  useEffect(() => {
+    if (local.logoStoragePath && (!local.logoUrl || local.logoUrl.startsWith("http"))) {
+      let isMounted = true;
+      clientAssetsStorage.getClientAssetSignedUrl(local.logoStoragePath)
+        .then((url) => {
+          if (isMounted) {
+            setLocal((prev) => ({ ...prev, logoUrl: url }));
+          }
+        })
+        .catch((err) => {
+          console.error("Failed to load signed URL for logo", err);
+        });
+      return () => {
+        isMounted = false;
+      };
+    }
+  }, [local.logoStoragePath]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const supabaseClientId = useMemo(() => {
+    if (!clientId) return null;
+    try {
+      const raw = localStorage.getItem("kora.clients.supabaseImport.v1");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const map = parsed.importedMap || {};
+        return (map[String(clientId)] as string) || null;
+      }
+    } catch {
+      // Ignore
+    }
+    return null;
+  }, [clientId]);
+
+  const [uploading, setUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<"idle" | "success" | "error" | "invalid" | "size_exceeded">("idle");
+  const [uploadErrorMsg, setUploadErrorMsg] = useState("");
+  const [uploadedPath, setUploadedPath] = useState("");
+  const [uploadedUrl, setUploadedUrl] = useState("");
+
+  const handleUploadLogo = async (file: File) => {
+    if (!workspace?.id || !supabaseClientId) {
+      toast.error("Vínculo Supabase ou workspace ativo ausente.");
+      return;
+    }
+
+    setUploading(true);
+    setUploadStatus("idle");
+    setUploadErrorMsg("");
+
+    const validation = clientAssetsStorage.validateFile(file);
+    if (!validation.valid) {
+      const errorType = validation.error?.includes("tamanho") ? "size_exceeded" : "invalid";
+      setUploadStatus(errorType);
+      setUploadErrorMsg(validation.error || "Arquivo inválido.");
+      toast.error(validation.error);
+      setUploading(false);
+      return;
+    }
+
+    try {
+      const result = await clientAssetsStorage.uploadClientLogo(
+        workspace.id,
+        supabaseClientId,
+        file
+      );
+      setUploadedPath(result.path);
+      setUploadedUrl(result.url);
+      setUploadStatus("success");
+      toast.success("Logo enviado ao Supabase Storage com sucesso!");
+    } catch (err) {
+      console.error("Storage upload error:", err);
+      setUploadStatus("error");
+      setUploadErrorMsg("Erro ao fazer upload para o Storage.");
+      toast.error("Erro ao fazer upload do logo.");
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const addColor = (raw?: string) => {
     const c = (raw ?? (colorLabel.trim() || colorHex)).trim();
@@ -411,10 +506,118 @@ export function BrandingSection({ value, onSave }: { value: ClientBranding; onSa
                   logoFileName: undefined,
                   logoFileSize: undefined,
                   logoMimeType: undefined,
+                  logoStoragePath: undefined,
                 })
               }
             />
           </div>
+
+          {/* Supabase Storage Logo Upload (Experimental V1) */}
+          {workspace && supabaseClientId && (
+            <div className="rounded-lg border border-primary/25 bg-primary/5 p-3.5 space-y-3 mt-1">
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <CloudLightning className="h-4 w-4 text-primary" />
+                  <span className="text-xs font-semibold text-foreground">Enviar logo para Supabase Storage</span>
+                  <Badge variant="outline" className="text-[9px] uppercase font-mono py-0 text-muted-foreground">
+                    Experimental V1
+                  </Badge>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <label className="inline-flex items-center gap-2 rounded-lg border border-border bg-background hover:bg-secondary/40 px-3 h-9 cursor-pointer transition-colors text-xs text-foreground font-medium disabled:opacity-50">
+                  <FileImage className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span>{uploading ? "Enviando..." : "Selecionar e Enviar"}</span>
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="sr-only"
+                    disabled={uploading}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = "";
+                      if (file) {
+                        handleUploadLogo(file);
+                      }
+                    }}
+                  />
+                </label>
+                <span className="text-[10px] text-muted-foreground">
+                  Formatos aceitos: PNG, JPEG, WebP (Máx: 2MB). Sem SVG.
+                </span>
+              </div>
+
+              {/* Upload Status / Actions */}
+              {uploading && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin text-primary" />
+                  <span>Enviando arquivo para a nuvem privada...</span>
+                </div>
+              )}
+
+              {uploadStatus === "success" && (
+                <div className="space-y-2.5">
+                  <div className="flex items-center gap-2 text-xs text-emerald-500 bg-emerald-500/10 p-2.5 rounded border border-emerald-500/25">
+                    <CheckCircle2 className="h-4 w-4 shrink-0" />
+                    <span>Logo enviado com sucesso! Caminho: <code className="font-mono text-[10px] break-all">{uploadedPath}</code></span>
+                  </div>
+                  
+                  <div className="bg-secondary/40 border border-border/50 rounded p-3 text-xs space-y-2">
+                    <p className="font-semibold text-foreground">
+                      Logo enviado. Deseja registrar este logo na Ficha Técnica local?
+                    </p>
+                    <p className="text-[11px] text-muted-foreground leading-normal">
+                      A URL assinada para visualização expira em 1 hora. O Supabase recebe apenas uma cópia de backup quando você clicar em "Salvar versão atual no Supabase".
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-[11px] h-7"
+                        type="button"
+                        onClick={() => {
+                          setUploadStatus("idle");
+                          setUploadedPath("");
+                          setUploadedUrl("");
+                        }}
+                      >
+                        Apenas manter no Supabase
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="text-[11px] h-7"
+                        type="button"
+                        onClick={() => {
+                          setLocal({
+                            ...local,
+                            logoUrl: uploadedUrl,
+                            logoFileName: `[Supabase Storage] ${uploadedPath.split("/").pop()}`,
+                            logoFileSize: undefined,
+                            logoMimeType: undefined,
+                            logoStoragePath: uploadedPath,
+                          });
+                          toast.success("Logo registrado na Ficha Técnica local.");
+                          setUploadStatus("idle");
+                          setUploadedPath("");
+                          setUploadedUrl("");
+                        }}
+                      >
+                        Usar na Ficha Técnica local
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {(uploadStatus === "error" || uploadStatus === "invalid" || uploadStatus === "size_exceeded") && (
+                <div className="flex items-center gap-2 text-xs text-destructive bg-destructive/10 p-2.5 rounded border border-destructive/25">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  <span>{uploadErrorMsg || "Erro ao fazer upload do logo."}</span>
+                </div>
+              )}
+            </div>
+          )}
 
           {local.logoUrl ? (
             <div className="rounded-lg border border-border/60 bg-secondary/40 p-4 flex items-center gap-4">
@@ -445,6 +648,7 @@ export function BrandingSection({ value, onSave }: { value: ClientBranding; onSa
                     logoFileName: undefined,
                     logoFileSize: undefined,
                     logoMimeType: undefined,
+                    logoStoragePath: undefined,
                   })
                 }
               >
@@ -1118,11 +1322,109 @@ const ASSET_ACCESS: ClientAssetAccessStatus[] = [
 ];
 
 export function AssetsSection({
-  value, onChange,
-}: { value: ClientAsset[]; onChange: (v: ClientAsset[]) => void }) {
+  value,
+  onChange,
+  clientId,
+}: {
+  value: ClientAsset[];
+  onChange: (v: ClientAsset[]) => void;
+  clientId?: number;
+}) {
   const [editing, setEditing] = useState<ClientAsset | null>(null);
   const [open, setOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  const { workspace } = useCurrentWorkspace();
+
+  const supabaseClientId = useMemo(() => {
+    if (!clientId) return null;
+    try {
+      const raw = localStorage.getItem("kora.clients.supabaseImport.v1");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const map = parsed.importedMap || {};
+        return (map[String(clientId)] as string) || null;
+      }
+    } catch {
+      // Ignore
+    }
+    return null;
+  }, [clientId]);
+
+  const [uploading, setUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<"idle" | "success" | "error" | "invalid" | "size_exceeded">("idle");
+  const [uploadErrorMsg, setUploadErrorMsg] = useState("");
+  const [uploadedMaterial, setUploadedMaterial] = useState<{
+    path: string;
+    url: string;
+    fileName: string;
+    fileSize: number;
+    mimeType: string;
+  } | null>(null);
+
+  const handleUploadMaterial = async (file: File) => {
+    if (!workspace?.id || !supabaseClientId) {
+      toast.error("Vínculo Supabase ou workspace ativo ausente.");
+      return;
+    }
+
+    setUploading(true);
+    setUploadStatus("idle");
+    setUploadErrorMsg("");
+    setUploadedMaterial(null);
+
+    const validation = clientAssetsStorage.validateMaterialFile(file);
+    if (!validation.valid) {
+      const errorType = validation.error?.includes("tamanho") ? "size_exceeded" : "invalid";
+      setUploadStatus(errorType);
+      setUploadErrorMsg(validation.error || "Arquivo inválido.");
+      toast.error(validation.error);
+      setUploading(false);
+      return;
+    }
+
+    try {
+      const result = await clientAssetsStorage.uploadClientMaterial(
+        workspace.id,
+        supabaseClientId,
+        file
+      );
+      setUploadedMaterial(result);
+      setUploadStatus("success");
+      toast.success("Material enviado ao Supabase Storage com sucesso!");
+    } catch (err) {
+      console.error("Storage material upload error:", err);
+      setUploadStatus("error");
+      setUploadErrorMsg("Erro ao fazer upload do material.");
+      toast.error("Erro ao fazer upload do material.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const openStorageAsset = async (a: ClientAsset) => {
+    if (!a.storagePath) {
+      const link = document.createElement("a");
+      link.href = a.url;
+      link.target = "_blank";
+      link.rel = "noreferrer";
+      if (a.kind === "file") {
+        link.download = a.fileName || a.title || "arquivo";
+      }
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      return;
+    }
+
+    try {
+      const freshUrl = await clientAssetsStorage.getClientAssetSignedUrl(a.storagePath);
+      window.open(freshUrl, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      console.error("Error generating signed URL for opening asset:", err);
+      toast.error("Erro ao gerar link de visualização. Tente novamente.");
+    }
+  };
 
   const usedBytes = useMemo(
     () => value.reduce((acc, a) => acc + (a.kind === "file" ? (a.fileSize ?? 0) : 0), 0),
@@ -1188,14 +1490,7 @@ export function AssetsSection({
     }
   };
 
-  const downloadAsset = (a: ClientAsset) => {
-    const link = document.createElement("a");
-    link.href = a.url;
-    link.download = a.fileName || a.title || "arquivo";
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-  };
+
 
   return (
     <SectionShell title="Materiais e Anexos" description="Envie arquivos pequenos ou registre links externos." hideSave>
@@ -1222,6 +1517,121 @@ export function AssetsSection({
           (Drive, Dropbox, Figma…). Storage em nuvem chega em etapa futura.
         </p>
       </div>
+
+      {/* Supabase Storage Materials Upload (Experimental V1) */}
+      {workspace && supabaseClientId && (
+        <div className="rounded-lg border border-primary/25 bg-primary/5 p-3.5 space-y-3">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-2">
+              <CloudLightning className="h-4 w-4 text-primary" />
+              <span className="text-xs font-semibold text-foreground">Enviar material para Supabase Storage</span>
+              <Badge variant="outline" className="text-[9px] uppercase font-mono py-0 text-muted-foreground">
+                Experimental V1
+              </Badge>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <label className="inline-flex items-center gap-2 rounded-lg border border-border bg-background hover:bg-secondary/40 px-3 h-9 cursor-pointer transition-colors text-xs text-foreground font-medium disabled:opacity-50">
+              <FileImage className="h-3.5 w-3.5 text-muted-foreground" />
+              <span>{uploading ? "Enviando..." : "Selecionar e Enviar"}</span>
+              <input
+                type="file"
+                accept="application/pdf,image/png,image/jpeg,image/webp,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                className="sr-only"
+                disabled={uploading}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = "";
+                  if (file) {
+                    handleUploadMaterial(file);
+                  }
+                }}
+              />
+            </label>
+            <span className="text-[10px] text-muted-foreground">
+              Formatos aceitos: PDF, PNG, JPEG, WebP, TXT, DOCX, XLSX (Máx: 8MB). Sem SVG ou ZIP.
+            </span>
+          </div>
+
+          {/* Upload Status / Actions */}
+          {uploading && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <RefreshCw className="h-3.5 w-3.5 animate-spin text-primary" />
+              <span>Enviando material para a nuvem privada...</span>
+            </div>
+          )}
+
+          {uploadStatus === "success" && uploadedMaterial && (
+            <div className="space-y-2.5">
+              <div className="flex items-center gap-2 text-xs text-emerald-500 bg-emerald-500/10 p-2.5 rounded border border-emerald-500/25">
+                <CheckCircle2 className="h-4 w-4 shrink-0" />
+                <span>Arquivo enviado com sucesso! Caminho: <code className="font-mono text-[10px] break-all">{uploadedMaterial.path}</code></span>
+              </div>
+              
+              <div className="bg-secondary/40 border border-border/50 rounded p-3 text-xs space-y-2">
+                <p className="font-semibold text-foreground">
+                  Material enviado. Deseja adicionar este item à Ficha Técnica local?
+                </p>
+                <p className="text-[11px] text-muted-foreground leading-normal">
+                  A URL assinada para visualização expira em 1 hora. O Supabase recebe as referências permanentemente quando você salvar a Ficha Técnica na nuvem.
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-[11px] h-7"
+                    type="button"
+                    onClick={() => {
+                      setUploadStatus("idle");
+                      setUploadedMaterial(null);
+                    }}
+                  >
+                    Apenas manter no Supabase
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="text-[11px] h-7"
+                    type="button"
+                    onClick={() => {
+                      const now = new Date().toISOString();
+                      const newItem: ClientAsset = {
+                        id: uid(),
+                        title: uploadedMaterial.fileName.replace(/\.[^.]+$/, ""),
+                        type: "outro", // Default type
+                        url: uploadedMaterial.url,
+                        accessStatus: "privado", // Default access status
+                        kind: "file",
+                        fileName: uploadedMaterial.fileName,
+                        fileSize: uploadedMaterial.fileSize,
+                        mimeType: uploadedMaterial.mimeType,
+                        storagePath: uploadedMaterial.path,
+                        uploadedAt: now,
+                        source: "storage",
+                        createdAt: now,
+                        updatedAt: now,
+                      };
+                      onChange([...value, newItem]);
+                      toast.success("Material adicionado à Ficha Técnica local.");
+                      setUploadStatus("idle");
+                      setUploadedMaterial(null);
+                    }}
+                  >
+                    Adicionar à Ficha Técnica local
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {(uploadStatus === "error" || uploadStatus === "invalid" || uploadStatus === "size_exceeded") && (
+            <div className="flex items-center gap-2 text-xs text-destructive bg-destructive/10 p-2.5 rounded border border-destructive/25">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span>{uploadErrorMsg || "Erro ao fazer upload do material."}</span>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="flex justify-end">
         <Button onClick={startNew} className="gap-2"><Plus className="h-4 w-4" /> Novo material</Button>
@@ -1272,13 +1682,13 @@ export function AssetsSection({
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     {isFile ? (
-                      <Button size="sm" variant="ghost" onClick={() => downloadAsset(a)} title="Baixar arquivo">
+                      <Button size="sm" variant="ghost" onClick={() => openStorageAsset(a)} title="Visualizar / Baixar arquivo">
                         <ExternalLink className="h-3.5 w-3.5" />
                       </Button>
                     ) : (
                       <>
-                        <Button size="sm" variant="ghost" asChild>
-                          <a href={a.url} target="_blank" rel="noreferrer"><ExternalLink className="h-3.5 w-3.5" /></a>
+                        <Button size="sm" variant="ghost" onClick={() => openStorageAsset(a)} title="Abrir link externo">
+                          <ExternalLink className="h-3.5 w-3.5" />
                         </Button>
                         <Button size="sm" variant="ghost" onClick={async () => { await navigator.clipboard.writeText(a.url); toast.success("Link copiado"); }}>
                           <Copy className="h-3.5 w-3.5" />

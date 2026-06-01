@@ -97,6 +97,13 @@ export default function CentralDoDia() {
   const [, setTick] = useState(0);
   const [payConfirm, setPayConfirm] = useState<DayActionItem | null>(null);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem("kora.daycenter.opened.v1", "true");
+      window.dispatchEvent(new Event("kora:onboarding:refresh"));
+    } catch { /* noop */ }
+  }, []);
+
   const result = useDayCenterData();
   const { todayActions, todayCount } = useDayCenterResolvedActions();
   const { completeTask, resolveManualFollowUp, markReceivablePaid, canMarkPaid } = useDayCenterActions();

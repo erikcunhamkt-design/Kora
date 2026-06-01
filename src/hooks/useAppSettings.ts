@@ -151,7 +151,7 @@ function load<T>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(key);
     if (raw) return { ...fallback, ...JSON.parse(raw) };
-  } catch {}
+  } catch { /* intentionally empty */ }
   return fallback;
 }
 
@@ -162,11 +162,11 @@ export function useAppSettings() {
   const [publicLinks, setPublicLinks] = useState<PublicLinksSettings>(() => load(LINKS_KEY, DEFAULT_LINKS));
   const [clientPortal, setClientPortal] = useState<ClientPortalSettings>(() => load(PORTAL_KEY, DEFAULT_CLIENT_PORTAL));
 
-  useEffect(() => { try { localStorage.setItem(PROFILE_KEY, JSON.stringify(profile)); } catch {} }, [profile]);
-  useEffect(() => { try { localStorage.setItem(COMPANY_KEY, JSON.stringify(company)); } catch {} }, [company]);
-  useEffect(() => { try { localStorage.setItem(NOTIF_KEY, JSON.stringify(notifications)); } catch {} }, [notifications]);
-  useEffect(() => { try { localStorage.setItem(LINKS_KEY, JSON.stringify(publicLinks)); } catch {} }, [publicLinks]);
-  useEffect(() => { try { localStorage.setItem(PORTAL_KEY, JSON.stringify(clientPortal)); } catch {} }, [clientPortal]);
+  useEffect(() => { try { localStorage.setItem(PROFILE_KEY, JSON.stringify(profile)); } catch { /* intentionally empty */ } }, [profile]);
+  useEffect(() => { try { localStorage.setItem(COMPANY_KEY, JSON.stringify(company)); } catch { /* intentionally empty */ } }, [company]);
+  useEffect(() => { try { localStorage.setItem(NOTIF_KEY, JSON.stringify(notifications)); } catch { /* intentionally empty */ } }, [notifications]);
+  useEffect(() => { try { localStorage.setItem(LINKS_KEY, JSON.stringify(publicLinks)); } catch { /* intentionally empty */ } }, [publicLinks]);
+  useEffect(() => { try { localStorage.setItem(PORTAL_KEY, JSON.stringify(clientPortal)); } catch { /* intentionally empty */ } }, [clientPortal]);
 
   const updateProfile = useCallback((patch: Partial<ProfileSettings>) => setProfile((p) => ({ ...p, ...patch })), []);
   const updateCompany = useCallback((patch: Partial<CompanySettings>) => setCompany((c) => ({ ...c, ...patch })), []);

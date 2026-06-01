@@ -32,12 +32,12 @@ export function useBioLinks() {
     } catch { setLinks(SEEDS); }
   }, []);
 
-  const persist = (l: BioLink[]) => { setLinks(l); try { localStorage.setItem(KEY, JSON.stringify(l)); } catch {} };
+  const persist = (l: BioLink[]) => { setLinks(l); try { localStorage.setItem(KEY, JSON.stringify(l)); } catch { /* intentionally empty */ } };
 
   const add = useCallback((l: Omit<BioLink, "id" | "clicks" | "order" | "isDemo">) => {
     setLinks((prev) => {
       const next = [...prev, { ...l, id: crypto.randomUUID(), clicks: 0, order: prev.length + 1, isDemo: false }];
-      try { localStorage.setItem(KEY, JSON.stringify(next)); } catch {}
+      try { localStorage.setItem(KEY, JSON.stringify(next)); } catch { /* intentionally empty */ }
       return next;
     });
   }, []);
@@ -45,7 +45,7 @@ export function useBioLinks() {
   const toggle = useCallback((id: string) => {
     setLinks((prev) => {
       const next = prev.map((x) => x.id === id ? { ...x, active: !x.active } : x);
-      try { localStorage.setItem(KEY, JSON.stringify(next)); } catch {}
+      try { localStorage.setItem(KEY, JSON.stringify(next)); } catch { /* intentionally empty */ }
       return next;
     });
   }, []);
@@ -53,7 +53,7 @@ export function useBioLinks() {
   const remove = useCallback((id: string) => {
     setLinks((prev) => {
       const next = prev.filter((x) => x.id !== id);
-      try { localStorage.setItem(KEY, JSON.stringify(next)); } catch {}
+      try { localStorage.setItem(KEY, JSON.stringify(next)); } catch { /* intentionally empty */ }
       return next;
     });
   }, []);

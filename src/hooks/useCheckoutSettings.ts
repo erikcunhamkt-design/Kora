@@ -23,12 +23,12 @@ export function useCheckoutSettings() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) return { ...DEFAULTS, ...JSON.parse(raw) };
-    } catch {}
+    } catch { /* intentionally empty */ }
     return DEFAULTS;
   });
 
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(settings)); } catch {}
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(settings)); } catch { /* intentionally empty */ }
   }, [settings]);
 
   const update = useCallback((patch: Partial<CheckoutSettings>) => {

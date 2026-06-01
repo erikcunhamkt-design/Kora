@@ -113,12 +113,12 @@ export function useTasks() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) return migrate(JSON.parse(raw) as Task[]);
-    } catch {}
+    } catch { /* intentionally empty */ }
     return initialTasks;
   });
 
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks)); } catch {}
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks)); } catch { /* intentionally empty */ }
   }, [tasks]);
 
   const addTask = useCallback((data: Omit<Task, "id" | "isDemo" | "createdAt">) => {

@@ -46,6 +46,7 @@ export interface Lead {
   /** v2 — orçamento vinculado (quote.id). */
   quoteId?: string;
   quoteTitle?: string;
+  supabaseId?: string;
 }
 
 /** Mapeia priority legado → temperatura. */
@@ -211,14 +212,14 @@ export function useLeads() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) return migrate(JSON.parse(raw) as Lead[]);
-    } catch {}
+    } catch { /* intentionally empty */ }
     return initialLeads;
   });
 
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(leads));
-    } catch {}
+    } catch { /* intentionally empty */ }
   }, [leads]);
 
   const addLead = useCallback(

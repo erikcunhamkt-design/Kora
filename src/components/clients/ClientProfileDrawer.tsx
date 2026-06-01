@@ -876,7 +876,15 @@ const FinanceTab = ({ client, onClose }: { client: Client; onClose: () => void }
         <p className="text-[11px] uppercase tracking-wider text-muted-foreground/80">Recebíveis vinculados</p>
         <Button
           size="sm" variant="outline" className="h-7 gap-1.5 text-xs"
-          onClick={() => { onClose(); navigate("/financeiro"); }}
+          onClick={() => {
+            onClose();
+            const first = items[0];
+            if (first) {
+              navigate(`/financeiro?tab=receivables&entryId=${first.id}`);
+            } else {
+              navigate("/financeiro");
+            }
+          }}
         >
           Ver no financeiro <ChevronRight className="h-3 w-3" />
         </Button>

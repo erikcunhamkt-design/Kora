@@ -45,12 +45,12 @@ export function useAiCredits() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) return JSON.parse(raw);
-    } catch {}
+    } catch { /* intentionally empty */ }
     return seed;
   });
 
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch {}
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch { /* intentionally empty */ }
   }, [state]);
 
   const addTransaction = useCallback(

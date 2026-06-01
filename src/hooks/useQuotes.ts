@@ -160,14 +160,14 @@ export function useQuotes() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) return migrate(JSON.parse(raw) as Quote[]);
-    } catch {}
+    } catch { /* intentionally empty */ }
     return initialQuotes;
   });
 
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(quotes));
-    } catch {}
+    } catch { /* intentionally empty */ }
   }, [quotes]);
 
   const addQuote = useCallback(

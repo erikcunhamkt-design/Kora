@@ -75,6 +75,10 @@ function formatDate(iso?: string) {
 }
 
 function openDayCenter() {
+  try {
+    localStorage.setItem("kora.daycenter.opened.v1", "true");
+    window.dispatchEvent(new Event("kora:onboarding:refresh"));
+  } catch { /* noop */ }
   window.dispatchEvent(new Event("kora:open-day"));
 }
 

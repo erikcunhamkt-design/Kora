@@ -102,7 +102,7 @@ function load<T>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(key);
     if (raw) return JSON.parse(raw);
-  } catch {}
+  } catch { /* intentionally empty */ }
   return fallback;
 }
 
@@ -112,10 +112,10 @@ export function useCampaigns() {
   const [consents, setConsents] = useState<ConsentRecord[]>(() => load(KEYS.consents, seedConsents));
   const [templates, setTemplates] = useState<MessageTemplate[]>(() => load(KEYS.templates, seedTemplates));
 
-  useEffect(() => { try { localStorage.setItem(KEYS.campaigns, JSON.stringify(campaigns)); } catch {} }, [campaigns]);
-  useEffect(() => { try { localStorage.setItem(KEYS.segments, JSON.stringify(segments)); } catch {} }, [segments]);
-  useEffect(() => { try { localStorage.setItem(KEYS.consents, JSON.stringify(consents)); } catch {} }, [consents]);
-  useEffect(() => { try { localStorage.setItem(KEYS.templates, JSON.stringify(templates)); } catch {} }, [templates]);
+  useEffect(() => { try { localStorage.setItem(KEYS.campaigns, JSON.stringify(campaigns)); } catch { /* intentionally empty */ } }, [campaigns]);
+  useEffect(() => { try { localStorage.setItem(KEYS.segments, JSON.stringify(segments)); } catch { /* intentionally empty */ } }, [segments]);
+  useEffect(() => { try { localStorage.setItem(KEYS.consents, JSON.stringify(consents)); } catch { /* intentionally empty */ } }, [consents]);
+  useEffect(() => { try { localStorage.setItem(KEYS.templates, JSON.stringify(templates)); } catch { /* intentionally empty */ } }, [templates]);
 
   const addCampaign = useCallback((data: Omit<Campaign, "id" | "createdAt" | "isDemo" | "sentCount" | "deliveredCount" | "repliedCount" | "optOutCount" | "status"> & { status?: CampaignStatus }) => {
     const c: Campaign = { ...data, status: data.status ?? "draft", id: `cmp-${Date.now()}`, createdAt: now(), isDemo: false, sentCount: 0, deliveredCount: 0, repliedCount: 0, optOutCount: 0 };

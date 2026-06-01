@@ -47,13 +47,13 @@ export function usePublicProfile() {
       const raw = localStorage.getItem(KEY);
       if (raw) setProfile({ ...DEFAULT, ...JSON.parse(raw) });
       else localStorage.setItem(KEY, JSON.stringify(DEFAULT));
-    } catch {}
+    } catch { /* intentionally empty */ }
   }, []);
 
   const update = useCallback((patch: Partial<PublicProfile>) => {
     setProfile((prev) => {
       const next = { ...prev, ...patch, updatedAt: new Date().toISOString() };
-      try { localStorage.setItem(KEY, JSON.stringify(next)); } catch {}
+      try { localStorage.setItem(KEY, JSON.stringify(next)); } catch { /* intentionally empty */ }
       return next;
     });
   }, []);

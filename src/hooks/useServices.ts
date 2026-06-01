@@ -51,12 +51,12 @@ export function useServices() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) return migrate(JSON.parse(raw) as Service[]);
-    } catch {}
+    } catch { /* intentionally empty */ }
     return initialServices;
   });
 
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(services)); } catch {}
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(services)); } catch { /* intentionally empty */ }
   }, [services]);
 
   const addService = useCallback((data: Omit<Service, "id" | "isDemo">) => {

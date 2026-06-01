@@ -54,7 +54,7 @@ function load<T>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(key);
     if (raw) return JSON.parse(raw);
-  } catch {}
+  } catch { /* intentionally empty */ }
   return fallback;
 }
 
@@ -63,9 +63,9 @@ export function useWhatsAppMock() {
   const [conversations, setConversations] = useState<Conversation[]>(() => load(CONV_KEY, seedConversations));
   const [messages, setMessages] = useState<WAMessage[]>(() => load(MSG_KEY, seedMessages));
 
-  useEffect(() => { try { localStorage.setItem(CONN_KEY, JSON.stringify(connection)); } catch {} }, [connection]);
-  useEffect(() => { try { localStorage.setItem(CONV_KEY, JSON.stringify(conversations)); } catch {} }, [conversations]);
-  useEffect(() => { try { localStorage.setItem(MSG_KEY, JSON.stringify(messages)); } catch {} }, [messages]);
+  useEffect(() => { try { localStorage.setItem(CONN_KEY, JSON.stringify(connection)); } catch { /* intentionally empty */ } }, [connection]);
+  useEffect(() => { try { localStorage.setItem(CONV_KEY, JSON.stringify(conversations)); } catch { /* intentionally empty */ } }, [conversations]);
+  useEffect(() => { try { localStorage.setItem(MSG_KEY, JSON.stringify(messages)); } catch { /* intentionally empty */ } }, [messages]);
 
   const simulateConnect = useCallback(() => {
     setConnection({ status: "connecting" });

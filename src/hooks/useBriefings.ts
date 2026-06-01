@@ -80,12 +80,12 @@ export function useBriefings() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) return JSON.parse(raw);
-    } catch {}
+    } catch { /* intentionally empty */ }
     return seedBriefings;
   });
 
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(briefings)); } catch {}
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(briefings)); } catch { /* intentionally empty */ }
   }, [briefings]);
 
   const addBriefing = useCallback((data: Omit<Briefing, "id" | "publicToken" | "createdAt" | "status" | "isDemo">) => {
@@ -125,7 +125,7 @@ export function useBriefings() {
       const all = raw ? JSON.parse(raw) : {};
       all[token] = { submittedAt: new Date().toISOString(), responses };
       localStorage.setItem(RESPONSES_KEY, JSON.stringify(all));
-    } catch {}
+    } catch { /* intentionally empty */ }
   }, []);
 
   const findByToken = useCallback((token: string) => {

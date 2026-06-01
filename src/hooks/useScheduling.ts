@@ -41,7 +41,7 @@ function load<T>(key: string, seeds: T[]): T[] {
     const raw = localStorage.getItem(key);
     if (raw) return JSON.parse(raw);
     localStorage.setItem(key, JSON.stringify(seeds));
-  } catch {}
+  } catch { /* intentionally empty */ }
   return seeds;
 }
 
@@ -57,7 +57,7 @@ export function useScheduling() {
   const addMeetingType = useCallback((m: Omit<MeetingType, "id" | "isDemo">) => {
     setMeetingTypes((prev) => {
       const next = [...prev, { ...m, id: crypto.randomUUID(), isDemo: false }];
-      try { localStorage.setItem(MT_KEY, JSON.stringify(next)); } catch {}
+      try { localStorage.setItem(MT_KEY, JSON.stringify(next)); } catch { /* intentionally empty */ }
       return next;
     });
   }, []);
@@ -65,7 +65,7 @@ export function useScheduling() {
   const addAppointment = useCallback((a: Omit<Appointment, "id" | "status" | "isDemo">) => {
     setAppointments((prev) => {
       const next = [...prev, { ...a, id: crypto.randomUUID(), status: "scheduled" as const, isDemo: false }];
-      try { localStorage.setItem(APP_KEY, JSON.stringify(next)); } catch {}
+      try { localStorage.setItem(APP_KEY, JSON.stringify(next)); } catch { /* intentionally empty */ }
       return next;
     });
   }, []);

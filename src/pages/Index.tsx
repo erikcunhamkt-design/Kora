@@ -65,6 +65,8 @@ function UsageSummary() {
   );
 }
 
+import { KoraOnboarding } from "@/components/dashboard/KoraOnboarding";
+
 const Dashboard = () => {
 
 
@@ -74,6 +76,9 @@ const Dashboard = () => {
     <div className="space-y-8">
       {/* 1 — Saudação + próxima melhor ação (consome computeDayCenter via useDayCenterData) */}
       <GreetingHero />
+
+      {/* Checklist de onboarding/ativação operacional do Kora */}
+      <KoraOnboarding />
 
       <PlanBanner />
 

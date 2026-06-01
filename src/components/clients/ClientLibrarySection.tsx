@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
-  Library, Plus, ExternalLink, Copy, Pencil, Trash2,
+  LucideIcon, Library, Plus, ExternalLink, Copy, Pencil, Trash2,
   FolderOpen, Palette, Type, Camera, Video, FileText,
   FileSignature, Sparkles, AtSign, ChevronDown, ChevronUp, Link as LinkIcon,
 } from "lucide-react";
@@ -26,7 +26,7 @@ import {
   CLIENT_ASSET_TYPE_LABELS, CLIENT_ASSET_ACCESS_LABELS,
 } from "@/hooks/useClients";
 
-const TYPE_ICON: Record<ClientAssetType, any> = {
+const TYPE_ICON: Record<ClientAssetType, LucideIcon> = {
   drive: FolderOpen,
   figma: Palette,
   canva: Palette,

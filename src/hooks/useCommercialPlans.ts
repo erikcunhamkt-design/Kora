@@ -66,12 +66,12 @@ export function useCommercialPlans() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) return JSON.parse(raw) as CommercialPlan[];
-    } catch {}
+    } catch { /* intentionally empty */ }
     return SEEDS;
   });
 
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(plans)); } catch {}
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(plans)); } catch { /* intentionally empty */ }
   }, [plans]);
 
   const addPlan = useCallback(

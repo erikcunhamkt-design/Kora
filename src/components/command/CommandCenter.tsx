@@ -47,7 +47,7 @@ function readLocalResults(query: string): LocalResult[] {
           if (out.length >= 12) return out;
         }
       }
-    } catch {}
+    } catch { /* intentionally empty */ }
   }
   return out;
 }

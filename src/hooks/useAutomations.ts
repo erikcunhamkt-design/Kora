@@ -29,13 +29,13 @@ export function useAutomations() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) return JSON.parse(raw);
-    } catch {}
+    } catch { /* intentionally empty */ }
     return seed;
   });
   const [executions, setExecutions] = useState(0);
 
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(rules)); } catch {}
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(rules)); } catch { /* intentionally empty */ }
   }, [rules]);
 
   const addRule = useCallback((data: Omit<AutomationRule, "id" | "createdAt" | "isDemo">) => {

@@ -46,7 +46,7 @@ export function useTaskReminders(
       try {
         new Notification(`⏰ ${t.title}`, { body, tag: `kora-task-${t.id}` });
         return;
-      } catch {}
+      } catch { /* intentionally empty */ }
     }
     toast({ title: `⏰ ${t.title}`, description: body });
   }, [permission, onMarkSent]);

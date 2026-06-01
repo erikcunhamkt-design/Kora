@@ -82,12 +82,12 @@ export function useProjects() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) return migrate(JSON.parse(raw) as Project[]);
-    } catch {}
+    } catch { /* intentionally empty */ }
     return initialProjects;
   });
 
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(projects)); } catch {}
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(projects)); } catch { /* intentionally empty */ }
   }, [projects]);
 
   const addProject = useCallback((data: Omit<Project, "id" | "isDemo" | "createdAt" | "progress"> & { progress?: number }) => {

@@ -75,7 +75,7 @@ const PublicClientSignup = () => {
       source: "public_signup",
     };
 
-    const { error: insErr } = await (supabase as any)
+    const { error: insErr } = await supabase
       .from("client_signup_requests")
       .insert(payload);
 

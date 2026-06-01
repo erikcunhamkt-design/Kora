@@ -1,17 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-export type ManualActivityType =
-  | "meeting"
-  | "call"
-  | "message"
-  | "feedback"
-  | "scope_change"
-  | "material_request"
-  | "decision"
-  | "issue"
-  | "internal_note"
-  | "follow_up"
-  | "other";
+import type {
+  ManualActivityType, ClientManualActivity
+} from "@/types/domain";
+
+export type {
+  ManualActivityType, ClientManualActivity
+};
 
 export const MANUAL_ACTIVITY_LABEL: Record<ManualActivityType, string> = {
   meeting: "Reunião",
@@ -48,26 +43,7 @@ export function manualTypeToCategory(
   }
 }
 
-export interface ClientManualActivity {
-  id: string;
-  clientId: number;
-  type: ManualActivityType;
-  title: string;
-  description?: string;
-  date: string; // ISO
-  outcome?: string;
-  nextStep?: string;
-  /** Data planejada do próximo passo (yyyy-mm-dd ou ISO). Quando preenchida, entra na Central do Dia. */
-  nextStepDate?: string;
-  relatedContactId?: string;
-  relatedProjectId?: string;
-  relatedOpportunityId?: number;
-  relatedQuoteId?: string;
-  /** Marca quando o próximo passo foi resolvido. Quando preenchido, sai da Central do Dia. */
-  resolvedAt?: string;
-  createdAt: string;
-  updatedAt: string;
-}
+
 
 const STORAGE_KEY = "kora.client.activityLogs.v1";
 
@@ -87,13 +63,13 @@ function loadAll(): ClientManualActivity[] {
 function persist(list: ClientManualActivity[]) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
-  } catch {}
+  } catch { /* intentionally empty */ }
 }
 
 const SYNC_EVENT = "kora:client-activity-logs:changed";
 
 function emitSync() {
-  try { window.dispatchEvent(new Event(SYNC_EVENT)); } catch {}
+  try { window.dispatchEvent(new Event(SYNC_EVENT)); } catch { /* intentionally empty */ }
 }
 
 function useAllLogsStore() {

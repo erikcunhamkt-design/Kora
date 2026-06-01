@@ -23,12 +23,13 @@ import { toast } from "sonner";
 import {
   useClients, type Client, type ClientStatus, type ClientTemperature,
 } from "@/hooks/useClients";
+import { useClientsDataSource } from "@/hooks/useClientsDataSource";
 import {
   Users, UserCheck, UserPlus, Search, SlidersHorizontal,
   Plus, ArrowUpDown, LayoutGrid, LayoutList, Phone, Mail, Globe,
   MessageCircle, Calendar, Clock, MoreHorizontal, AtSign,
-  Briefcase, CheckSquare, StickyNote, DollarSign, AlertCircle, Share2,
-  Edit2, Archive, Trash2, Copy, ChevronDown, Flame, Snowflake, Sparkles,
+  Briefcase, CheckSquare, StickyNote, DollarSign, AlertCircle, Share2, Database,
+  Edit2, Archive, Trash2, Copy, ChevronDown, Flame, Snowflake, Sparkles, RefreshCw,
   Target, ArchiveRestore,
 } from "lucide-react";
 import {
@@ -122,7 +123,8 @@ const TempPill = ({ t }: { t?: ClientTemperature }) => {
 
 // ---------- Main Component ----------
 const Clientes = () => {
-  const { clients, addClient, updateClient, archiveClient, restoreClient, deleteClient } = useClients();
+  const { addClient, updateClient, archiveClient, restoreClient, deleteClient } = useClients();
+  const { source, setSource, clients, loading, error, isSupabaseAvailable } = useClientsDataSource();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { activeTypes } = useClientTypes();
@@ -183,6 +185,10 @@ const Clientes = () => {
   useEffect(() => { setUsage("clients", realClientsCount); }, [realClientsCount, setUsage]);
 
   const handleNewClient = () => {
+    if (source === "supabase") {
+      toast.warning("Edição Supabase entra na próxima etapa. Use o modo Local para editar.");
+      return;
+    }
     if (wouldExceed("maxClients", realClientsCount)) {
       showPaywall("clients");
       return;
@@ -253,6 +259,10 @@ const Clientes = () => {
 
   // --- Signup request handlers ---
   const approveAsClient = (req: SignupRequest) => {
+    if (source === "supabase") {
+      toast.warning("Edição Supabase entra na próxima etapa. Use o modo Local para editar.");
+      return;
+    }
     if (wouldExceed("maxClients", realClientsCount)) {
       showPaywall("clients");
       return;
@@ -343,6 +353,26 @@ const Clientes = () => {
         searchPlaceholder="Buscar por nome, empresa, e-mail ou telefone..."
         filters={
           <>
+            {isSupabaseAvailable && (
+              <Select value={source} onValueChange={(v: "local" | "supabase") => {
+                if (v === "supabase") {
+                  toast.info("Modo Supabase experimental ativo (Somente Leitura).");
+                } else {
+                  toast.info("Retornando para a base local.");
+                }
+                setSource(v);
+              }}>
+                <SelectTrigger className="w-[180px] bg-muted/40 border-border/60">
+                  <Database className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+                  <SelectValue placeholder="Fonte de dados" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="local">Base Local (Padrão)</SelectItem>
+                  <SelectItem value="supabase">Supabase experimental</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+
             <Select value={filterStatus} onValueChange={setFilterStatus}>
               <SelectTrigger className="w-[150px] bg-muted/40 border-border/60">
                 <SlidersHorizontal className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
@@ -430,8 +460,38 @@ const Clientes = () => {
         }
       />
 
+      {source === "supabase" && (
+        <div className="rounded-lg border border-primary/20 bg-primary/[0.02] p-3.5 text-xs text-muted-foreground/90 space-y-1">
+          <p className="font-semibold text-foreground flex items-center gap-1.5">
+            <Sparkles className="h-3.5 w-3.5 text-primary" />
+            Modo Supabase experimental (Somente Leitura)
+          </p>
+          <p>
+            Você está visualizando os clientes importados no seu workspace Supabase atual. Edições, exclusões e cadastros estão desabilitados neste modo. Retorne à <strong>Base Local</strong> para realizar edições.
+          </p>
+        </div>
+      )}
+
+      {source === "supabase" && error && (
+        <div className="p-6 border border-destructive/30 bg-destructive/5 rounded-lg text-xs text-destructive flex flex-col gap-3">
+          <p className="font-semibold text-sm">Erro ao conectar com o Supabase</p>
+          <p className="opacity-95">{(error as { message?: string })?.message || "Falha na conexão com o banco de dados remoto."}</p>
+          <Button variant="outline" size="sm" onClick={() => setSource("local")} className="w-fit">
+            Voltar para a Base Local
+          </Button>
+        </div>
+      )}
+
       {/* Client listing */}
-      {noClients ? (
+      {source === "supabase" && !loading && !error && clients.length === 0 ? (
+        <EmptyState
+          icon={Database}
+          title="Nenhum cliente no Supabase"
+          description="Nenhum cliente foi encontrado no seu workspace do Supabase. Você pode importar seus clientes locais nas configurações."
+          primaryAction={{ label: "Ir para Configurações", onClick: () => navigate("/configuracoes?tab=company") }}
+          secondaryAction={{ label: "Voltar para Base Local", onClick: () => setSource("local"), variant: "outline" }}
+        />
+      ) : noClients ? (
         <EmptyState
           icon={Users}
           title="Comece pela sua base de clientes"
@@ -439,6 +499,11 @@ const Clientes = () => {
           primaryAction={{ label: "Novo cliente", onClick: handleNewClient }}
           secondaryAction={{ label: "Compartilhar link de cadastro", onClick: () => setSignupLinkOpen(true), variant: "outline" }}
         />
+      ) : loading ? (
+        <div className="py-12 flex items-center justify-center text-xs text-muted-foreground gap-2">
+          <RefreshCw className="h-5 w-5 animate-spin text-primary" />
+          Carregando clientes do Supabase...
+        </div>
       ) : viewMode === "table" ? (
         <div className="orbit-card overflow-hidden">
           <Table>
@@ -508,12 +573,36 @@ const Clientes = () => {
                     <ClientRowMenu
                       c={c}
                       onView={() => setSelectedClient(c)}
-                      onEdit={() => setEditClient(c)}
+                      onEdit={() => {
+                        if (source === "supabase") {
+                          toast.warning("Edição Supabase entra na próxima etapa. Use o modo Local para editar.");
+                        } else {
+                          setEditClient(c);
+                        }
+                      }}
                       onWhats={() => handleOpenWhatsApp(c)}
                       onCopy={() => handleCopyContact(c)}
-                      onArchive={() => handleArchive(c)}
-                      onRestore={() => handleRestore(c)}
-                      onDelete={() => setDeleteTarget(c)}
+                      onArchive={() => {
+                        if (source === "supabase") {
+                          toast.warning("Edição Supabase entra na próxima etapa. Use o modo Local para editar.");
+                        } else {
+                          handleArchive(c);
+                        }
+                      }}
+                      onRestore={() => {
+                        if (source === "supabase") {
+                          toast.warning("Edição Supabase entra na próxima etapa. Use o modo Local para editar.");
+                        } else {
+                          handleRestore(c);
+                        }
+                      }}
+                      onDelete={() => {
+                        if (source === "supabase") {
+                          toast.warning("Edição Supabase entra na próxima etapa. Use o modo Local para editar.");
+                        } else {
+                          setDeleteTarget(c);
+                        }
+                      }}
                     />
                   </TableCell>
                 </TableRow>
@@ -543,12 +632,36 @@ const Clientes = () => {
                   <ClientRowMenu
                     c={c}
                     onView={() => setSelectedClient(c)}
-                    onEdit={() => setEditClient(c)}
+                    onEdit={() => {
+                      if (source === "supabase") {
+                        toast.warning("Edição Supabase entra na próxima etapa. Use o modo Local para editar.");
+                      } else {
+                        setEditClient(c);
+                      }
+                    }}
                     onWhats={() => handleOpenWhatsApp(c)}
                     onCopy={() => handleCopyContact(c)}
-                    onArchive={() => handleArchive(c)}
-                    onRestore={() => handleRestore(c)}
-                    onDelete={() => setDeleteTarget(c)}
+                    onArchive={() => {
+                      if (source === "supabase") {
+                        toast.warning("Edição Supabase entra na próxima etapa. Use o modo Local para editar.");
+                      } else {
+                        handleArchive(c);
+                      }
+                    }}
+                    onRestore={() => {
+                      if (source === "supabase") {
+                        toast.warning("Edição Supabase entra na próxima etapa. Use o modo Local para editar.");
+                      } else {
+                        handleRestore(c);
+                      }
+                    }}
+                    onDelete={() => {
+                      if (source === "supabase") {
+                        toast.warning("Edição Supabase entra na próxima etapa. Use o modo Local para editar.");
+                      } else {
+                        setDeleteTarget(c);
+                      }
+                    }}
                   />
                 </div>
               </div>

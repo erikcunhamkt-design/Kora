@@ -26,12 +26,12 @@ export function useServiceCategories() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) return JSON.parse(raw) as ServiceCategory[];
-    } catch {}
+    } catch { /* intentionally empty */ }
     return initial;
   });
 
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(categories)); } catch {}
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(categories)); } catch { /* intentionally empty */ }
   }, [categories]);
 
   const addCategory = useCallback((data: Omit<ServiceCategory, "id" | "isDemo">) => {

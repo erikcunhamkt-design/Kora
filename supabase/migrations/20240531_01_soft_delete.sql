@@ -1,0 +1,2 @@
+-- Deprecated soft delete migration (replaced by 20260531_020000_add_soft_delete_columns_to_crm_opportunities.sql)
+-- This file is kept for history only and should not be executed.

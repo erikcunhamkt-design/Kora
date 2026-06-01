@@ -56,7 +56,7 @@ function load(): Pipeline[] {
         return parsed;
       }
     }
-  } catch {}
+  } catch { /* intentionally empty */ }
   return [defaultPipeline()];
 }
 
@@ -73,13 +73,13 @@ export function usePipelines() {
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(pipelines));
-    } catch {}
+    } catch { /* intentionally empty */ }
   }, [pipelines]);
 
   useEffect(() => {
     try {
       localStorage.setItem(ACTIVE_KEY, activePipelineId);
-    } catch {}
+    } catch { /* intentionally empty */ }
   }, [activePipelineId]);
 
   const setActivePipelineId = useCallback((id: string) => {

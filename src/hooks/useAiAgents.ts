@@ -327,12 +327,12 @@ export function useAiAgents() {
         const customs = parsed.filter((a) => !a.isDemo && !seed.find((s) => s.id === a.id));
         return [...merged, ...customs];
       }
-    } catch {}
+    } catch { /* intentionally empty */ }
     return seed;
   });
 
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(agents)); } catch {}
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(agents)); } catch { /* intentionally empty */ }
   }, [agents]);
 
   const addAgent = useCallback((data: Omit<AiAgent, "id" | "createdAt" | "isDemo" | "usageCount">) => {

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
+  LucideIcon,
   Activity, UserPlus, Users, Target, Trophy, XCircle,
   FileSpreadsheet, Send, CheckCircle2, AlertCircle, CalendarX,
   Wallet, DollarSign, Briefcase, Play, Flag, ClipboardList, BookOpen,
@@ -103,7 +104,7 @@ const toneCls: Record<Tone, string> = {
   danger: "bg-destructive/10 text-destructive",
 };
 
-const inferredIcon: Record<InferredType, any> = {
+const inferredIcon: Record<InferredType, LucideIcon> = {
   client_created: UserPlus,
   client_updated: Sparkles,
   contact_added: Users,
@@ -128,7 +129,7 @@ const inferredIcon: Record<InferredType, any> = {
   technical_sheet_updated: BookOpen,
 };
 
-const manualIcon: Record<ManualActivityType, any> = {
+const manualIcon: Record<ManualActivityType, LucideIcon> = {
   meeting: CalendarDays,
   call: Phone,
   message: MessageCircle,
@@ -205,7 +206,7 @@ function buildInferredEvents(args: {
         origin: "inferred", id: `lead-c-${l.id}`, type: "opportunity_created", category: "commercial",
         title: "Oportunidade criada", description: l.description || l.name,
         amount: l.estimatedValue, date: created, tone: "primary",
-        action: { label: "Ver no CRM", href: "/crm" },
+        action: { label: "Ver no CRM", href: `/crm?lead=${l.id}` },
       });
     }
     if (l.wonAt) {
@@ -214,7 +215,7 @@ function buildInferredEvents(args: {
         origin: "inferred", id: `lead-w-${l.id}`, type: "opportunity_won", category: "commercial",
         title: "Oportunidade ganha", description: l.name, amount: l.estimatedValue,
         date: w, status: "Ganho", tone: "success",
-        action: { label: "Ver no CRM", href: "/crm" },
+        action: { label: "Ver no CRM", href: `/crm?lead=${l.id}` },
       });
     }
     if (l.stage === "perdido" && l.lostReason) {
@@ -276,7 +277,7 @@ function buildInferredEvents(args: {
       title: "Conta a receber gerada",
       description: `${t.title} · venc. ${fmtDate(t.dueDate)}`,
       amount: t.amount, date: created, tone: "neutral",
-      action: { label: "Ver financeiro", href: "/financeiro" },
+      action: { label: "Ver financeiro", href: `/financeiro?tab=receivables&entryId=${t.id}` },
     });
     if (t.status === "paid" && t.paidDate) {
       const p = parseDate(t.paidDate);
@@ -284,7 +285,7 @@ function buildInferredEvents(args: {
         origin: "inferred", id: `tx-p-${t.id}`, type: "receivable_paid", category: "finance",
         title: "Pagamento recebido", description: t.title,
         amount: t.amount, date: p, status: "Pago", tone: "success",
-        action: { label: "Ver financeiro", href: "/financeiro" },
+        action: { label: "Ver financeiro", href: `/financeiro?tab=receivables&entryId=${t.id}` },
       });
     }
     const dueDate = new Date(t.dueDate);
@@ -339,19 +340,19 @@ function buildInferredEvents(args: {
 
   const clientTasks = tasks.filter(
     (t) =>
-      (t as any).clientId === client.id ||
-      matchesByName((t as any).client) ||
+      t.clientId === client.id ||
+      matchesByName(t.client) ||
       (t.projectId && clientProjectIds.has(t.projectId)),
   );
   clientTasks.forEach((t) => {
-    const created = parseDate((t as any).createdAt);
+    const created = parseDate(t.createdAt);
     if (created) evts.push({
       origin: "inferred", id: `tk-c-${t.id}`, type: "task_created", category: "tasks",
       title: "Tarefa criada", description: t.title,
       date: created, tone: "neutral",
     });
     if (t.status === "concluido") {
-      const d = parseDate((t as any).updatedAt) ?? created;
+      const d = parseDate(t.updatedAt) ?? created;
       if (d) evts.push({
         origin: "inferred", id: `tk-done-${t.id}`, type: "task_completed", category: "tasks",
         title: "Tarefa concluída", description: t.title,

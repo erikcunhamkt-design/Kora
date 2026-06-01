@@ -24,7 +24,7 @@ function load(): AutomationRule[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) return JSON.parse(raw);
-  } catch {}
+  } catch { /* intentionally empty */ }
   return [];
 }
 
@@ -34,7 +34,7 @@ export function usePipelineAutomations() {
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(rules));
-    } catch {}
+    } catch { /* intentionally empty */ }
   }, [rules]);
 
   const addRule = useCallback(

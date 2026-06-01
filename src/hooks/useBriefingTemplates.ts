@@ -76,12 +76,12 @@ export function useBriefingTemplates() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) return JSON.parse(raw);
-    } catch {}
+    } catch { /* intentionally empty */ }
     return seedTemplates;
   });
 
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(templates)); } catch {}
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(templates)); } catch { /* intentionally empty */ }
   }, [templates]);
 
   const addTemplate = useCallback((data: Omit<BriefingTemplate, "id" | "isDemo">) => {
