@@ -5,6 +5,7 @@ export interface ProfileSettings {
   email: string;
   phone: string;
   role: string;
+  avatarUrl?: string;
 }
 
 export interface CompanySettings {
