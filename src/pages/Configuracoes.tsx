@@ -79,6 +79,7 @@ import { SupabaseOperationalDashboardToggleCard } from "@/components/settings/Su
 import { SupabaseOperationalDashboardCard } from "@/components/settings/SupabaseOperationalDashboardCard";
 import { QuotesSupabaseBaseTasksToggleCard } from "@/components/settings/QuotesSupabaseBaseTasksToggleCard";
 import { QuotesSupabaseStatusTransitionToggleCard } from "@/components/settings/QuotesSupabaseStatusTransitionToggleCard";
+import { QuotesSupabaseTechnicalSheetsAutoSaveToggleCard } from "@/components/settings/QuotesSupabaseTechnicalSheetsAutoSaveToggleCard";
 
 
 
@@ -246,6 +247,7 @@ const Configuracoes = () => {
                   <QuotesSupabaseProjectToggleCard />
                   <QuotesSupabaseBaseTasksToggleCard />
                   <QuotesSupabaseStatusTransitionToggleCard />
+                  <QuotesSupabaseTechnicalSheetsAutoSaveToggleCard />
                   <SupabaseCrmViewerCard />
                   <SupabaseExperimentalToggleCard />
                   <CrmSupabaseExperimentalToggleCard />

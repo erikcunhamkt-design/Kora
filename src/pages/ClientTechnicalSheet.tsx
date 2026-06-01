@@ -240,6 +240,24 @@ export default function ClientTechnicalSheetPage() {
 
   const { workspace } = useCurrentWorkspace();
   const [savingToSupabase, setSavingToSupabase] = useState(false);
+  const [autosaveEnabled, setAutosaveEnabled] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<"idle" | "saving" | "synced" | "error">("idle");
+
+  // Sync feature flag state on mount & Storage changes
+  useEffect(() => {
+    const checkFlag = () => {
+      try {
+        setAutosaveEnabled(localStorage.getItem("kora.technicalSheets.supabaseAutoSave.enabled") === "true");
+      } catch {
+        setAutosaveEnabled(false);
+      }
+    };
+    checkFlag();
+    window.addEventListener("storage", checkFlag);
+    return () => {
+      window.removeEventListener("storage", checkFlag);
+    };
+  }, []);
 
   const handleSaveToSupabase = async () => {
     if (!workspace?.id || !supabaseClientId) {
@@ -261,6 +279,38 @@ export default function ClientTechnicalSheetPage() {
       toast.error("Ocorreu um erro ao salvar a cópia no Supabase.");
     } finally {
       setSavingToSupabase(false);
+    }
+  };
+
+  const persist = async (next: ClientTechnicalSheet) => {
+    setSheet(next);
+    if (activeDataSource === "local") {
+      updateClient(client.id, { technicalSheet: next });
+    } else if (activeDataSource === "supabase" && autosaveEnabled) {
+      if (!workspace?.id || !supabaseClientId) {
+        toast.error("Vínculo com o Supabase ou workspace ativo ausente.");
+        return;
+      }
+      setSyncStatus("saving");
+      try {
+        const payload = mapLocalToSupabaseSheet(next);
+        await clientTechnicalSheetsRepository.upsertTechnicalSheet(
+          workspace.id,
+          supabaseClientId,
+          payload
+        );
+        setSyncStatus("synced");
+        refreshSupabase();
+      } catch (err) {
+        console.error("Autosave technical sheet to Supabase error:", err);
+        setSyncStatus("error");
+        toast.error("Erro no salvamento automático. Modificações estão apenas locais até re-tentativa.");
+        // Rollback visual
+        if (supabaseSheet) {
+          const mapped = mapSupabaseToLocalSheet(supabaseSheet);
+          setSheet(mapped);
+        }
+      }
     }
   };
 
@@ -356,12 +406,7 @@ export default function ClientTechnicalSheetPage() {
     );
   }
 
-  const persist = (next: ClientTechnicalSheet) => {
-    setSheet(next);
-    if (activeDataSource === "local") {
-      updateClient(client.id, { technicalSheet: next });
-    }
-  };
+
 
   // overall completion: any section with content
   const filledCount = SECTIONS.filter((s) => statusOf(s.id, sheet) !== "vazio").length;
@@ -387,9 +432,33 @@ export default function ClientTechnicalSheetPage() {
               </p>
             </div>
           </div>
-          <Badge variant="outline" className={cn("text-[11px] uppercase tracking-wider", statusStyles[overallStatus])}>
-            Ficha {statusLabel[overallStatus].toLowerCase()}
-          </Badge>
+          <div className="flex items-center gap-2">
+            {activeDataSource === "supabase" && autosaveEnabled && (
+              <>
+                {syncStatus === "saving" && (
+                  <Badge variant="outline" className="text-[10px] uppercase text-amber-500 border-amber-500/30 bg-amber-500/5 animate-pulse gap-1">
+                    <RefreshCw className="h-2.5 w-2.5 animate-spin" />
+                    Sincronizando...
+                  </Badge>
+                )}
+                {syncStatus === "synced" && (
+                  <Badge variant="outline" className="text-[10px] uppercase text-emerald-500 border-emerald-500/30 bg-emerald-500/5 gap-1">
+                    <CheckCircle2 className="h-2.5 w-2.5" />
+                    Salvo no Supabase
+                  </Badge>
+                )}
+                {syncStatus === "error" && (
+                  <Badge variant="outline" className="text-[10px] uppercase text-destructive border-destructive/30 bg-destructive/5 gap-1">
+                    <XCircle className="h-2.5 w-2.5" />
+                    Erro de Sincronia
+                  </Badge>
+                )}
+              </>
+            )}
+            <Badge variant="outline" className={cn("text-[11px] uppercase tracking-wider", statusStyles[overallStatus])}>
+              Ficha {statusLabel[overallStatus].toLowerCase()}
+            </Badge>
+          </div>
         </div>
         <p className="text-xs text-muted-foreground max-w-3xl">
           Centralize a inteligência da marca: branding, persona, conteúdo, acessos e materiais.
