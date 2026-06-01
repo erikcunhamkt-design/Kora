@@ -111,7 +111,7 @@ const Landing = () => {
               <img src={orbitLogo} alt="KORA HUB" className="h-8 w-8 object-contain" />
             </div>
             <span className="text-xl font-bold orbit-gradient-text tracking-tight">KORA HUB</span>
-            <span className="hidden sm:inline text-xs text-muted-foreground/50 tracking-wide uppercase">Clarity for creative work</span>
+            <span className="hidden sm:inline text-xs text-muted-foreground/50 tracking-wide uppercase">Gestão inteligente para agências e empresas</span>
           </div>
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="sm" onClick={() => navigate("/login")} className="text-muted-foreground hover:text-foreground">Entrar</Button>
@@ -463,7 +463,7 @@ const Landing = () => {
               </div>
               <div className="flex flex-col">
                 <span className="text-lg font-bold orbit-gradient-text">KORA HUB</span>
-                <span className="text-[0.625rem] text-muted-foreground/50 tracking-wide uppercase">Clarity for creative work</span>
+                <span className="text-[0.625rem] text-muted-foreground/50 tracking-wide uppercase">Gestão inteligente para agências e empresas</span>
               </div>
             </div>
             <div className="flex gap-5 text-sm text-muted-foreground">

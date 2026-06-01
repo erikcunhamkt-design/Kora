@@ -23,8 +23,7 @@ import {
 import { cn } from "@/lib/utils";
 
 export const AccessibilityOnboardingDialog: React.FC = () => {
-  const { settings, updateSetting, hasCompletedOnboarding, completeOnboarding } = useAccessibility();
-  const [open, setOpen] = useState(!hasCompletedOnboarding);
+  const { settings, updateSetting, isDialogOpen, setDialogOpen, completeOnboarding } = useAccessibility();
 
   const handleToggle = (key: keyof AccessibilitySettings, value: boolean) => {
     updateSetting(key, value);
@@ -36,13 +35,11 @@ export const AccessibilityOnboardingDialog: React.FC = () => {
 
   const handleSave = () => {
     completeOnboarding();
-    setOpen(false);
+    setDialogOpen(false);
   };
 
   return (
-    <Dialog open={open} onOpenChange={(o) => {
-      if (!o) handleSave();
-    }}>
+    <Dialog open={isDialogOpen} onOpenChange={setDialogOpen}>
       <DialogContent className="sm:max-w-[620px] bg-card/95 border-border/40 backdrop-blur-md max-h-[85vh] overflow-y-auto">
         <DialogHeader className="space-y-2">
           <DialogTitle className="text-xl font-bold flex items-center gap-2">
@@ -174,6 +171,26 @@ export const AccessibilityOnboardingDialog: React.FC = () => {
               </div>
               <p className="text-[10px] text-muted-foreground mt-1.5 leading-relaxed">
                 Habilita arredondamentos de faturamentos (ex: R$ 18.000 em vez de R$ 18.293,42) nos cartões principais.
+              </p>
+            </div>
+
+            {/* Bipolaridade */}
+            <div className={cn(
+              "p-3 rounded-lg border transition-all duration-200",
+              settings.bipolar ? "border-primary/40 bg-primary/[0.02]" : "border-border/50 bg-muted/10 hover:border-border"
+            )}>
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-orange-400" />
+                  <span className="text-xs font-semibold">Oscilação de Ritmo / Bipolaridade</span>
+                </div>
+                <Switch
+                  checked={settings.bipolar}
+                  onCheckedChange={(v) => handleToggle("bipolar", v)}
+                />
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-1.5 leading-relaxed">
+                Habilita ritmos flexíveis de prazos de entrega e adaptabilidade para dias de alta vs. baixa energia produtiva.
               </p>
             </div>
 

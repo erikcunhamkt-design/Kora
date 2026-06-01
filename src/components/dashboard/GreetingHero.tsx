@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { ArrowRight, CalendarCheck, CheckCircle2, Flame, Sparkles } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -39,14 +40,26 @@ import { useAccessibility } from "@/contexts/AccessibilityContext";
 
 export function GreetingHero() {
   const { profile } = useAuth();
-  const { settings } = useAccessibility();
+  const { settings, updateSetting } = useAccessibility();
   const name = (profile?.display_name || "").split(" ")[0] || "por aqui";
   const dateLabel = weekdayLong.format(new Date());
 
   const { topAction, counts } = useDayCenterData();
 
+  const energyLevel = settings.bipolarEnergyLevel;
+
+  const changeEnergyLevel = (level: "high" | "low") => {
+    updateSetting("bipolarEnergyLevel", level);
+  };
+
   let subtext = "Tudo em ordem por hoje. Revise sua operação com calma.";
-  if (settings.anxiety) {
+  if (settings.bipolar) {
+    if (energyLevel === "low") {
+      subtext = "Hoje é um dia de ritmo calmo. Os alertas intensos foram suavizados. Foque em atividades leves no seu tempo.";
+    } else {
+      subtext = "Você está em um dia de alta energia e foco! Excelente momento para atacar tarefas críticas e tomar decisões.";
+    }
+  } else if (settings.anxiety) {
     subtext = "O dia está correndo bem. Faça as suas atividades no seu ritmo, sem nenhuma pressão.";
   } else if (settings.autism) {
     const totalCount = counts.critical + counts.high + counts.medium + counts.low;
@@ -57,7 +70,8 @@ export function GreetingHero() {
     subtext = "Você tem prioridades importantes para resolver hoje.";
   }
 
-  const isCritical = topAction?.priority === "critical" && !settings.anxiety;
+  const isAnxiousMode = settings.anxiety || (settings.bipolar && energyLevel === "low");
+  const isCritical = topAction?.priority === "critical" && !isAnxiousMode;
 
   return (
     <section className="relative overflow-hidden rounded-2xl border border-border/20 bg-card/25 backdrop-blur-xs px-7 py-9 sm:px-10 sm:py-12 animate-fade-up">
@@ -77,6 +91,39 @@ export function GreetingHero() {
           <p className="mt-3 text-[0.9375rem] text-muted-foreground/90 max-w-lg leading-relaxed font-normal">
             {subtext}
           </p>
+          
+          {settings.bipolar && (
+            <div className="mt-5 flex flex-col gap-2 p-3 rounded-lg border border-border/10 bg-background/25 max-w-[320px]">
+              <span className="text-[9px] uppercase font-bold tracking-wider text-muted-foreground/60">Sintonizar ritmo de hoje:</span>
+              <div className="flex gap-1.5">
+                <button
+                  onClick={() => changeEnergyLevel("high")}
+                  className={cn(
+                    "flex-1 flex items-center justify-center gap-1.5 py-1 px-2.5 rounded-md text-[11px] font-semibold border transition-all",
+                    energyLevel === "high"
+                      ? "bg-amber-500/10 border-amber-500/30 text-amber-400 font-bold"
+                      : "bg-background/20 border-border/30 text-muted-foreground hover:bg-background/40 hover:text-foreground"
+                  )}
+                >
+                  <Flame className="h-3 w-3" />
+                  Alta Energia
+                </button>
+                <button
+                  onClick={() => changeEnergyLevel("low")}
+                  className={cn(
+                    "flex-1 flex items-center justify-center gap-1.5 py-1 px-2.5 rounded-md text-[11px] font-semibold border transition-all",
+                    energyLevel === "low"
+                      ? "bg-sky-500/10 border-sky-500/30 text-sky-400 font-bold"
+                      : "bg-background/20 border-border/30 text-muted-foreground hover:bg-background/40 hover:text-foreground"
+                  )}
+                >
+                  <Sparkles className="h-3 w-3" />
+                  Ritmo Calmo
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="mt-6 flex flex-wrap items-center gap-2">
             <Button size="sm" variant="outline" onClick={openDayCenter} className="gap-1.5 h-9 font-semibold bg-background/50 border-border/40 hover:bg-muted/30">
               <CalendarCheck className="h-3.5 w-3.5 text-primary" />
@@ -89,7 +136,7 @@ export function GreetingHero() {
           <div
             className={cn(
               "relative overflow-hidden rounded-xl border p-5 transition-all duration-300",
-              settings.anxiety
+              isAnxiousMode
                 ? "border-border/40 bg-muted/5 shadow-none"
                 : isCritical
                 ? "border-destructive/20 bg-destructive/[0.02] shadow-[0_4px_24px_rgba(239,68,68,0.06)]"
@@ -97,7 +144,7 @@ export function GreetingHero() {
             )}
           >
             {/* Action Card Backlight Glow */}
-            {!settings.anxiety && (
+            {!isAnxiousMode && (
               <>
                 <div className={cn(
                   "absolute -top-16 -left-16 w-36 h-36 rounded-full blur-[60px] pointer-events-none",
@@ -111,14 +158,14 @@ export function GreetingHero() {
               <div
                 className={cn(
                   "h-7 w-7 rounded-md border flex items-center justify-center",
-                  settings.anxiety
+                  isAnxiousMode
                     ? "border-border bg-muted/10 text-muted-foreground"
                     : isCritical
                     ? "border-destructive/20 bg-destructive/5 text-destructive"
                     : "border-primary/20 bg-primary/5 text-primary",
                 )}
               >
-                {settings.anxiety ? (
+                {isAnxiousMode ? (
                   <Sparkles className="h-3.5 w-3.5 text-muted-foreground" />
                 ) : isCritical ? (
                   <Flame className="h-3.5 w-3.5 text-destructive" />
@@ -129,7 +176,7 @@ export function GreetingHero() {
               <p
                 className={cn(
                   "text-[0.6875rem] uppercase tracking-[0.16em] font-bold",
-                  settings.anxiety ? "text-muted-foreground" : isCritical ? "text-destructive" : "text-primary",
+                  isAnxiousMode ? "text-muted-foreground" : isCritical ? "text-destructive" : "text-primary",
                 )}
               >
                 Atividade sugerida
@@ -144,10 +191,10 @@ export function GreetingHero() {
                 variant="outline"
                 className={cn(
                   "h-5 px-1.5 text-[9px] font-bold uppercase tracking-wider border-current/20 bg-current/5",
-                  settings.anxiety ? "text-muted-foreground border-border bg-muted/10" : isCritical ? "text-destructive" : "text-primary",
+                  isAnxiousMode ? "text-muted-foreground border-border bg-muted/10" : isCritical ? "text-destructive" : "text-primary",
                 )}
               >
-                {settings.anxiety ? "No seu tempo" : PRIORITY_LABEL[topAction.priority]}
+                {isAnxiousMode ? "No seu tempo" : PRIORITY_LABEL[topAction.priority]}
               </Badge>
             </div>
             <p className="relative z-10 text-[0.95rem] font-bold text-foreground leading-snug tracking-tight line-clamp-2">

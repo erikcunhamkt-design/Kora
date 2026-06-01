@@ -120,15 +120,17 @@ const SummaryCard = ({ icon: Icon, label, value, sub, accent }: { icon: any; lab
 
 import { useSupabaseOpportunities } from "@/hooks/useSupabaseOpportunities";
 import { mapSupabaseOpportunityToLocalLead } from "@/services/crm/crmOpportunityMapper";
-import { type SupabaseOpportunityInput } from "@/repositories/crmOpportunitiesRepository";
+import { crmOpportunitiesRepository, type SupabaseOpportunityInput } from "@/repositories/crmOpportunitiesRepository";
 import { Cloud, Database, Lock, RefreshCw } from "lucide-react";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { CreateCrmSupabaseQuoteDialog } from "@/components/crm/CreateCrmSupabaseQuoteDialog";
 import { LinkedQuotesSection } from "@/components/crm/LinkedQuotesSection";
+import { useTranslation } from "@/contexts/LanguageContext";
 
 
 
 const CRM = () => {
+  const { t } = useTranslation();
   const {
     leads: localLeads, addLead, moveLead, moveLeadToStage, moveLeadToPipeline,
     updateLead, archiveLead, deleteLead, setLeadTags, markConverted,
@@ -645,8 +647,8 @@ const CRM = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="CRM"
-        subtitle="Acompanhe oportunidades, negociações e próximas ações comerciais."
+        title={t("crm.title", "CRM")}
+        subtitle={t("crm.subtitle", "Acompanhe oportunidades, negociações e próximas ações comerciais.")}
         actions={
           <>
             <UsageBadge resource="leads" label="oportunidades" />

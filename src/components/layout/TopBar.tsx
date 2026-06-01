@@ -1,4 +1,4 @@
-import { Search, Bell, LogOut, User, ChevronDown, Crown, Zap, MessageCircleQuestion, Sparkles, CalendarCheck, Building2, Settings, CreditCard, Shield, LifeBuoy, Users } from "lucide-react";
+import { Search, Bell, LogOut, User, ChevronDown, Crown, Zap, MessageCircleQuestion, Sparkles, CalendarCheck, Building2, Settings, CreditCard, Shield, LifeBuoy, Users, Brain } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePlan } from "@/contexts/PlanContext";
+import { useAccessibility } from "@/contexts/AccessibilityContext";
 import { CommandCenter } from "@/components/command/CommandCenter";
 import { SupportDrawer } from "@/components/support/SupportDrawer";
 import { useSupportTickets } from "@/hooks/useSupportTickets";
@@ -14,6 +15,7 @@ import { useNotificationsCenter } from "@/hooks/useNotificationsCenter";
 import { AiCreditsDrawer } from "@/components/credits/AiCreditsDrawer";
 import { useAiCredits } from "@/hooks/useAiCredits";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "@/contexts/LanguageContext";
 
 import {
   DropdownMenu,
@@ -28,6 +30,8 @@ export function TopBar() {
   const navigate = useNavigate();
   const { profile, signOut } = useAuth();
   const { isPro, plan } = usePlan();
+  const { setDialogOpen } = useAccessibility();
+  const { t } = useTranslation();
   const [cmdOpen, setCmdOpen] = useState(false);
   const [supportOpen, setSupportOpen] = useState(false);
   const [inboxOpen, setInboxOpen] = useState(false);
@@ -72,10 +76,18 @@ export function TopBar() {
           className="relative hidden md:flex items-center gap-2.5 w-64 h-8 px-3 rounded-full bg-muted/5 border border-border/25 text-[0.75rem] text-muted-foreground/75 hover:border-border/40 hover:bg-muted/10 transition-all duration-300 group"
         >
           <Search className="h-3.5 w-3.5 text-muted-foreground/60" />
-          <span className="flex-1 text-left">Buscar...</span>
+          <span className="flex-1 text-left">{t("topbar.search", "Buscar...")}</span>
           <kbd className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] font-bold bg-background/40 rounded border border-border/30 text-muted-foreground/60">
             {isMac ? "⌘" : "Ctrl"} K
           </kbd>
+        </button>
+        <button
+          onClick={() => setDialogOpen(true)}
+          aria-label="Acessibilidade e Neurodiversidade"
+          title="Acessibilidade e Neurodiversidade"
+          className="relative h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground/75 hover:text-foreground hover:bg-muted/10 transition-all duration-200"
+        >
+          <Brain className="h-4 w-4 text-purple-400" />
         </button>
         <button
           onClick={() => setCmdOpen(true)}
@@ -105,8 +117,8 @@ export function TopBar() {
 
         <button
           onClick={() => navigate("/central-do-dia")}
-          aria-label="Central do Dia"
-          title="Central do Dia"
+          aria-label={t("sidebar.daycenter", "Central do Dia")}
+          title={t("sidebar.daycenter", "Central do Dia")}
           className="relative h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground/75 hover:text-foreground hover:bg-muted/10 transition-all duration-200"
         >
           <CalendarCheck className="h-4 w-4" />
@@ -132,8 +144,8 @@ export function TopBar() {
 
         <button
           onClick={() => setSupportOpen(true)}
-          aria-label="Suporte"
-          title="Suporte"
+          aria-label={t("topbar.support", "Suporte")}
+          title={t("topbar.support", "Suporte")}
           className="relative h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground/75 hover:text-foreground hover:bg-muted/10 transition-all duration-200"
         >
           <MessageCircleQuestion className="h-4 w-4" />
@@ -217,15 +229,15 @@ export function TopBar() {
             <div className="py-1">
               <DropdownMenuItem onClick={() => navigate("/configuracoes?tab=perfil")} className="gap-2.5 text-[0.8125rem]">
                 <User className="h-4 w-4 text-muted-foreground" />
-                Perfil
+                {t("topbar.profile", "Perfil")}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => navigate("/configuracoes?tab=empresa")} className="gap-2.5 text-[0.8125rem]">
                 <Building2 className="h-4 w-4 text-muted-foreground" />
-                Empresa
+                {t("sidebar.group.system", "Empresa")}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => navigate("/configuracoes")} className="gap-2.5 text-[0.8125rem]">
                 <Settings className="h-4 w-4 text-muted-foreground" />
-                Configurações
+                {t("sidebar.settings", "Configurações")}
               </DropdownMenuItem>
             </div>
 
@@ -235,14 +247,14 @@ export function TopBar() {
             <div className="py-1">
               <DropdownMenuItem onClick={() => navigate("/configuracoes?tab=plano")} className="gap-2.5 text-[0.8125rem]">
                 <CreditCard className="h-4 w-4 text-muted-foreground" />
-                Assinatura
+                {t("sidebar.upgrade", "Assinatura")}
                 <span className="ml-auto text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">
                   {isPro ? "Pro" : "Free"}
                 </span>
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => navigate("/configuracoes?tab=seguranca")} className="gap-2.5 text-[0.8125rem]">
                 <Shield className="h-4 w-4 text-muted-foreground" />
-                Segurança
+                {t("sidebar.security", "Segurança")}
               </DropdownMenuItem>
             </div>
 
@@ -274,7 +286,7 @@ export function TopBar() {
             <div className="py-1">
               <DropdownMenuItem onClick={signOut} className="gap-2.5 text-[0.8125rem] text-destructive focus:text-destructive">
                 <LogOut className="h-4 w-4" />
-                Sair
+                {t("topbar.logout", "Sair")}
               </DropdownMenuItem>
             </div>
           </DropdownMenuContent>

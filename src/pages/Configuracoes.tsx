@@ -82,6 +82,7 @@ import { QuotesSupabaseStatusTransitionToggleCard } from "@/components/settings/
 import { QuotesSupabaseTechnicalSheetsAutoSaveToggleCard } from "@/components/settings/QuotesSupabaseTechnicalSheetsAutoSaveToggleCard";
 import { useSupabaseClients } from "@/hooks/useSupabaseClients";
 import { useAccessibility } from "@/contexts/AccessibilityContext";
+import { useTranslation } from "@/contexts/LanguageContext";
 
 
 
@@ -140,6 +141,7 @@ const TAB_ALIASES: Record<string, string> = {
 
 
 const Configuracoes = () => {
+  const { t, language, setLanguage } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTab = TAB_ALIASES[searchParams.get("tab") ?? ""] ?? searchParams.get("tab") ?? "profile";
   const [active, setActive] = useState(initialTab);
@@ -172,8 +174,8 @@ const Configuracoes = () => {
   return (
     <div className="max-w-6xl">
       <PageHeader
-        title="Configurações"
-        subtitle="Gerencie sua conta, empresa e preferências do KORA HUB"
+        title={t("settings.title", "Configurações")}
+        subtitle={t("settings.subtitle", "Gerencie sua conta, empresa e preferências do KORA HUB")}
       />
 
       <div className="grid md:grid-cols-[220px_1fr] gap-6 md:gap-8">
@@ -374,11 +376,28 @@ const Configuracoes = () => {
                 </div>
               </SettingsCard>
 
-              <SettingsCard title="Idioma">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <LangOption label="Português (BR)" active />
-                  <LangOption label="English" planned />
-                  <LangOption label="Español" planned />
+              <SettingsCard title={t("settings.language", "Idioma")}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  <LangOption
+                    label="Português (BR)"
+                    active={language === "pt-BR"}
+                    onClick={() => setLanguage("pt-BR")}
+                  />
+                  <LangOption
+                    label="Português (PT)"
+                    active={language === "pt-PT"}
+                    onClick={() => setLanguage("pt-PT")}
+                  />
+                  <LangOption
+                    label="English"
+                    active={language === "en"}
+                    onClick={() => setLanguage("en")}
+                  />
+                  <LangOption
+                    label="Español"
+                    active={language === "es"}
+                    onClick={() => setLanguage("es")}
+                  />
                 </div>
               </SettingsCard>
             </SettingsSection>
@@ -395,6 +414,30 @@ const Configuracoes = () => {
                     </div>
                     <Switch checked={accSettings.lowVision} onCheckedChange={(v) => updateAccSetting("lowVision", v)} />
                   </div>
+                  
+                  {accSettings.lowVision && (
+                    <div className="pl-6 border-l border-border/40 space-y-2 py-1">
+                      <p className="text-xs font-semibold text-muted-foreground">Tamanho da Fonte Base (Escala):</p>
+                      <div className="flex gap-2">
+                        {([1.0, 1.15, 1.30] as const).map((scale) => (
+                          <button
+                            key={scale}
+                            type="button"
+                            onClick={() => updateAccSetting("fontSizeScale", scale)}
+                            className={cn(
+                              "px-3 py-1.5 text-xs font-semibold rounded border transition-all",
+                              accSettings.fontSizeScale === scale
+                                ? "border-primary bg-primary/10 text-primary font-bold"
+                                : "border-border bg-background text-muted-foreground hover:text-foreground"
+                            )}
+                          >
+                            {scale === 1.0 ? "Padrão (100%)" : scale === 1.15 ? "Médio (115%)" : "Grande (130%)"}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <Separator className="bg-border/30" />
                   <div className="flex items-center justify-between py-2">
                     <div>
@@ -403,6 +446,16 @@ const Configuracoes = () => {
                     </div>
                     <Switch checked={accSettings.dyslexia} onCheckedChange={(v) => updateAccSetting("dyslexia", v)} />
                   </div>
+
+                  {accSettings.dyslexia && (
+                    <div className="pl-6 border-l border-border/40 flex items-center justify-between py-1">
+                      <div>
+                        <p className="text-xs font-semibold text-foreground">Forçar Fonte OpenDyslexic</p>
+                        <p className="text-[10px] text-muted-foreground">Substitui a fonte do sistema por uma fonte geometricamente balanceada para leitura disléxica.</p>
+                      </div>
+                      <Switch checked={accSettings.dyslexicFontActive} onCheckedChange={(v) => updateAccSetting("dyslexicFontActive", v)} />
+                    </div>
+                  )}
                 </div>
               </SettingsCard>
 
@@ -435,6 +488,17 @@ const Configuracoes = () => {
                     </div>
                     <Switch checked={accSettings.adhd} onCheckedChange={(v) => updateAccSetting("adhd", v)} />
                   </div>
+
+                  {accSettings.adhd && (
+                    <div className="pl-6 border-l border-border/40 flex items-center justify-between py-1">
+                      <div>
+                        <p className="text-xs font-semibold text-foreground">Modo Lanterna (Focus Spotlight)</p>
+                        <p className="text-[10px] text-muted-foreground">Escurece as bordas da tela e ilumina apenas a área ao redor do cursor.</p>
+                      </div>
+                      <Switch checked={accSettings.focusSpotlightActive} onCheckedChange={(v) => updateAccSetting("focusSpotlightActive", v)} />
+                    </div>
+                  )}
+
                   <Separator className="bg-border/30" />
                   <div className="flex items-center justify-between py-2">
                     <div>
@@ -454,8 +518,16 @@ const Configuracoes = () => {
                   <Separator className="bg-border/30" />
                   <div className="flex items-center justify-between py-2">
                     <div>
-                      <p className="text-sm font-medium text-foreground">Discalculia (Otimização Numérica)</p>
-                      <p className="text-xs text-muted-foreground">Arredonda faturamentos longos nas métricas do painel.</p>
+                      <p className="text-sm font-medium text-foreground">Oscilação de Ritmo / Bipolaridade</p>
+                      <p className="text-xs text-muted-foreground">Habilita ritmos flexíveis de prazos de entrega e adaptabilidade para dias de alta vs. baixa energia produtiva.</p>
+                    </div>
+                    <Switch checked={accSettings.bipolar} onCheckedChange={(v) => updateAccSetting("bipolar", v)} />
+                  </div>
+                  <Separator className="bg-border/30" />
+                  <div className="flex items-center justify-between py-2">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Otimizar para Números / Discalculia</p>
+                      <p className="text-xs text-muted-foreground">Arredonda faturamentos e valores numéricos complexos nos cartões principais.</p>
                     </div>
                     <Switch checked={accSettings.dyscalculia} onCheckedChange={(v) => updateAccSetting("dyscalculia", v)} />
                   </div>
@@ -749,15 +821,31 @@ function ToggleRow({ label, hint, active, planned }: { label: string; hint?: str
   );
 }
 
-function LangOption({ label, active, planned }: { label: string; active?: boolean; planned?: boolean }) {
+function LangOption({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active?: boolean;
+  onClick?: () => void;
+}) {
   return (
-    <div className={`rounded-lg border p-3 flex items-center justify-between ${active ? "border-primary/40 bg-primary/5" : "border-border/60 bg-muted/10"}`}>
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-full rounded-lg border p-3 flex items-center justify-between transition-all ${
+        active
+          ? "border-primary/40 bg-primary/5 cursor-default text-foreground"
+          : "border-border/60 bg-muted/10 hover:border-border text-muted-foreground hover:text-foreground"
+      }`}
+    >
       <div className="flex items-center gap-2">
         <Globe className="h-3.5 w-3.5 text-muted-foreground" />
-        <span className={`text-sm font-medium ${active ? "text-foreground" : "text-muted-foreground"}`}>{label}</span>
+        <span className="text-sm font-medium">{label}</span>
       </div>
-      {active ? <ActiveBadge /> : planned ? <PlannedBadge /> : null}
-    </div>
+      {active && <ActiveBadge />}
+    </button>
   );
 }
 
