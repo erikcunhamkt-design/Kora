@@ -80,6 +80,8 @@ import { SupabaseOperationalDashboardCard } from "@/components/settings/Supabase
 import { QuotesSupabaseBaseTasksToggleCard } from "@/components/settings/QuotesSupabaseBaseTasksToggleCard";
 import { QuotesSupabaseStatusTransitionToggleCard } from "@/components/settings/QuotesSupabaseStatusTransitionToggleCard";
 import { QuotesSupabaseTechnicalSheetsAutoSaveToggleCard } from "@/components/settings/QuotesSupabaseTechnicalSheetsAutoSaveToggleCard";
+import { useSupabaseClients } from "@/hooks/useSupabaseClients";
+
 
 
 
