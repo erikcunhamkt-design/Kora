@@ -22,6 +22,7 @@ export interface CompanySettings {
   number: string;
   postalCode: string;
   currency: string;
+  logoUrl?: string;
 }
 
 export interface NotificationSettings {
