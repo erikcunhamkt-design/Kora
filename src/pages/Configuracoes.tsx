@@ -483,8 +483,6 @@ const Configuracoes = () => {
                   </div>
                 </SettingsCard>
               </div>
-            </SettingsSection>
-          )}
 
               <SettingsCard title="Onboarding">
                 <div className="space-y-4">
