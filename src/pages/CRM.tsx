@@ -1471,7 +1471,6 @@ const LeadCard = ({
             onUnarchive={onUnarchive}
             onConvert={onConvert}
             onDelete={onDelete}
-            onSoftDelete={onSoftDelete}
             onEdit={onClick}
           />
         </div>
@@ -1554,7 +1553,7 @@ const LeadCard = ({
 // ---------- Lead Actions Menu ----------
 const LeadActionsMenu = ({
   lead, stages, onEdit, onMoveToStage, onMovePipeline, onEditTags, onSchedule,
-  onArchive, onUnarchive, onConvert, onDelete, onSoftDelete,
+  onArchive, onUnarchive, onConvert, onDelete,
 }: {
   lead: Lead;
   stages: PipelineStage[];
@@ -1567,7 +1566,6 @@ const LeadActionsMenu = ({
   onUnarchive: () => void;
   onConvert: () => void;
   onDelete: () => void;
-  onSoftDelete: () => void;
 }) => (
   <DropdownMenu>
     <DropdownMenuTrigger asChild>
