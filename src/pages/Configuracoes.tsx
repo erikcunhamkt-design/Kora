@@ -230,6 +230,7 @@ const Configuracoes = () => {
               <SettingsCard>
                 <div className="flex items-center gap-4 mb-6">
                   <Avatar className="h-16 w-16">
+                    {profileDraft.avatarUrl ? <AvatarImage src={profileDraft.avatarUrl} alt={profileDraft.name} /> : null}
                     <AvatarFallback className="orbit-gradient text-white text-lg font-bold">
                       {profileInitials}
                     </AvatarFallback>
@@ -238,9 +239,31 @@ const Configuracoes = () => {
                     <p className="font-semibold text-foreground truncate">{profileDraft.name || "Sem nome"}</p>
                     <p className="text-xs text-muted-foreground truncate">{profileDraft.email}</p>
                   </div>
-                  <Button variant="outline" size="sm" disabled className="gap-2">
-                    Alterar foto <SoonBadge />
-                  </Button>
+                  <label className="cursor-pointer">
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
+                      onChange={(e) => handleImageUpload(e, "profile")}
+                    />
+                    <Button variant="outline" size="sm" className="gap-2 pointer-events-none">
+                      <Upload className="h-4 w-4" />
+                      {profileDraft.avatarUrl ? "Trocar foto" : "Alterar foto"}
+                    </Button>
+                  </label>
+                  {profileDraft.avatarUrl && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setProfileDraft({ ...profileDraft, avatarUrl: undefined });
+                        updateProfile({ avatarUrl: undefined });
+                        toast.success("Foto removida");
+                      }}
+                    >
+                      Remover
+                    </Button>
+                  )}
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Field label="Nome">
