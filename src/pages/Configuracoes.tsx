@@ -47,7 +47,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { useAppSettings, type NotificationSettings } from "@/hooks/useAppSettings";
 import { useOnboarding } from "@/contexts/OnboardingContext";
@@ -171,6 +171,47 @@ const Configuracoes = () => {
   const profileInitials = useMemo(() => initials(profileDraft.name), [profileDraft.name]);
   const companyInitials = useMemo(() => initials(companyDraft.name), [companyDraft.name]);
 
+  const readFileAsDataUrl = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+
+  const handleImageUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    target: "profile" | "company",
+  ) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+      toast.error("Formato inválido. Use PNG, JPEG ou WebP.");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Arquivo muito grande. Máximo 2MB.");
+      return;
+    }
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      if (target === "profile") {
+        const next = { ...profileDraft, avatarUrl: dataUrl };
+        setProfileDraft(next);
+        updateProfile({ avatarUrl: dataUrl });
+        toast.success("Foto de perfil atualizada");
+      } else {
+        const next = { ...companyDraft, logoUrl: dataUrl };
+        setCompanyDraft(next);
+        updateCompany({ logoUrl: dataUrl });
+        toast.success("Logo da empresa atualizado");
+      }
+    } catch {
+      toast.error("Não foi possível ler o arquivo.");
+    }
+  };
+
   return (
     <div className="max-w-6xl">
       <PageHeader
@@ -189,6 +230,7 @@ const Configuracoes = () => {
               <SettingsCard>
                 <div className="flex items-center gap-4 mb-6">
                   <Avatar className="h-16 w-16">
+                    {profileDraft.avatarUrl ? <AvatarImage src={profileDraft.avatarUrl} alt={profileDraft.name} /> : null}
                     <AvatarFallback className="orbit-gradient text-white text-lg font-bold">
                       {profileInitials}
                     </AvatarFallback>
@@ -197,9 +239,31 @@ const Configuracoes = () => {
                     <p className="font-semibold text-foreground truncate">{profileDraft.name || "Sem nome"}</p>
                     <p className="text-xs text-muted-foreground truncate">{profileDraft.email}</p>
                   </div>
-                  <Button variant="outline" size="sm" disabled className="gap-2">
-                    Alterar foto <SoonBadge />
-                  </Button>
+                  <label className="cursor-pointer">
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
+                      onChange={(e) => handleImageUpload(e, "profile")}
+                    />
+                    <Button variant="outline" size="sm" className="gap-2 pointer-events-none">
+                      <Upload className="h-4 w-4" />
+                      {profileDraft.avatarUrl ? "Trocar foto" : "Alterar foto"}
+                    </Button>
+                  </label>
+                  {profileDraft.avatarUrl && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setProfileDraft({ ...profileDraft, avatarUrl: undefined });
+                        updateProfile({ avatarUrl: undefined });
+                        toast.success("Foto removida");
+                      }}
+                    >
+                      Remover
+                    </Button>
+                  )}
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Field label="Nome">
@@ -261,16 +325,42 @@ const Configuracoes = () => {
 
               <SettingsCard>
                 <div className="flex items-center gap-4 mb-6">
-                  <div className="h-16 w-16 rounded-xl bg-primary/25 border border-primary/35 flex items-center justify-center text-white font-bold text-lg">
-                    {companyInitials}
+                  <div className="h-16 w-16 rounded-xl bg-primary/25 border border-primary/35 flex items-center justify-center text-white font-bold text-lg overflow-hidden">
+                    {companyDraft.logoUrl ? (
+                      <img src={companyDraft.logoUrl} alt={companyDraft.name} className="h-full w-full object-cover" />
+                    ) : (
+                      companyInitials
+                    )}
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="font-semibold text-foreground truncate">{companyDraft.name}</p>
                     <p className="text-xs text-muted-foreground truncate">{companyDraft.segment}</p>
                   </div>
-                  <Button variant="outline" size="sm" disabled className="gap-2">
-                    Enviar logo <SoonBadge />
-                  </Button>
+                  <label className="cursor-pointer">
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
+                      onChange={(e) => handleImageUpload(e, "company")}
+                    />
+                    <Button variant="outline" size="sm" className="gap-2 pointer-events-none">
+                      <Upload className="h-4 w-4" />
+                      {companyDraft.logoUrl ? "Trocar logo" : "Enviar logo"}
+                    </Button>
+                  </label>
+                  {companyDraft.logoUrl && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setCompanyDraft({ ...companyDraft, logoUrl: undefined });
+                        updateCompany({ logoUrl: undefined });
+                        toast.success("Logo removido");
+                      }}
+                    >
+                      Remover
+                    </Button>
+                  )}
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Field label="Nome da empresa">

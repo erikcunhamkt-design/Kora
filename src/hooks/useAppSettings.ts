@@ -5,6 +5,7 @@ export interface ProfileSettings {
   email: string;
   phone: string;
   role: string;
+  avatarUrl?: string;
 }
 
 export interface CompanySettings {
@@ -21,6 +22,7 @@ export interface CompanySettings {
   number: string;
   postalCode: string;
   currency: string;
+  logoUrl?: string;
 }
 
 export interface NotificationSettings {
