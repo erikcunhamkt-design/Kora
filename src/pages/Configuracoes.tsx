@@ -325,16 +325,42 @@ const Configuracoes = () => {
 
               <SettingsCard>
                 <div className="flex items-center gap-4 mb-6">
-                  <div className="h-16 w-16 rounded-xl bg-primary/25 border border-primary/35 flex items-center justify-center text-white font-bold text-lg">
-                    {companyInitials}
+                  <div className="h-16 w-16 rounded-xl bg-primary/25 border border-primary/35 flex items-center justify-center text-white font-bold text-lg overflow-hidden">
+                    {companyDraft.logoUrl ? (
+                      <img src={companyDraft.logoUrl} alt={companyDraft.name} className="h-full w-full object-cover" />
+                    ) : (
+                      companyInitials
+                    )}
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="font-semibold text-foreground truncate">{companyDraft.name}</p>
                     <p className="text-xs text-muted-foreground truncate">{companyDraft.segment}</p>
                   </div>
-                  <Button variant="outline" size="sm" disabled className="gap-2">
-                    Enviar logo <SoonBadge />
-                  </Button>
+                  <label className="cursor-pointer">
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
+                      onChange={(e) => handleImageUpload(e, "company")}
+                    />
+                    <Button variant="outline" size="sm" className="gap-2 pointer-events-none">
+                      <Upload className="h-4 w-4" />
+                      {companyDraft.logoUrl ? "Trocar logo" : "Enviar logo"}
+                    </Button>
+                  </label>
+                  {companyDraft.logoUrl && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setCompanyDraft({ ...companyDraft, logoUrl: undefined });
+                        updateCompany({ logoUrl: undefined });
+                        toast.success("Logo removido");
+                      }}
+                    >
+                      Remover
+                    </Button>
+                  )}
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Field label="Nome da empresa">
