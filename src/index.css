@@ -323,25 +323,20 @@
 
 /* 1. Low Vision / Visual Impairment */
 body.acc-lowvision {
-  font-size: 1.125rem !important;
-  line-height: 1.8 !important;
+  font-size: 1.0625rem !important;
+  line-height: 1.7 !important;
+  /* Increase contrast of muted texts and borders */
+  --muted-foreground: 0 0% 85%;
+  --border: 0 0% 30%;
 }
-body.acc-lowvision h1 { font-size: 2.5rem !important; }
-body.acc-lowvision h2 { font-size: 1.85rem !important; }
-body.acc-lowvision h3 { font-size: 1.5rem !important; }
-body.acc-lowvision .orbit-card,
-body.acc-lowvision .border,
-body.acc-lowvision hr {
-  border-color: hsl(0 0% 85%) !important;
-  border-width: 2px !important;
-}
-body.acc-lowvision input,
-body.acc-lowvision select,
-body.acc-lowvision textarea,
-body.acc-lowvision button {
-  border-color: hsl(0 0% 100%) !important;
-  border-width: 2px !important;
-  outline: 2px solid white !important;
+body.acc-lowvision h1 { font-size: 2.25rem !important; }
+body.acc-lowvision h2 { font-size: 1.625rem !important; }
+body.acc-lowvision h3 { font-size: 1.375rem !important; }
+
+/* Apply crisp focus rings only on active keyboard focus */
+body.acc-lowvision *:focus-visible {
+  outline: 2px solid hsl(var(--primary)) !important;
+  outline-offset: 2px !important;
 }
 
 /* 2. Dyslexia Readability Spacing */
