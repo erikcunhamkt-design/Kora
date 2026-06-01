@@ -231,7 +231,7 @@ const Configuracoes = () => {
 
               <SettingsCard>
                 <div className="flex items-center gap-4 mb-6">
-                  <div className="h-16 w-16 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold text-lg">
+                  <div className="h-16 w-16 rounded-xl bg-primary/25 border border-primary/35 flex items-center justify-center text-white font-bold text-lg">
                     {companyInitials}
                   </div>
                   <div className="min-w-0 flex-1">
@@ -437,7 +437,7 @@ const Configuracoes = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <SettingsCard>
                   <div className="flex items-start gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                    <div className="h-10 w-10 rounded-lg bg-primary/25 border border-primary/35 text-white flex items-center justify-center">
                       <Mail className="h-4 w-4" />
                     </div>
                     <div className="min-w-0">
@@ -448,7 +448,7 @@ const Configuracoes = () => {
                 </SettingsCard>
                 <SettingsCard>
                   <div className="flex items-start gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                    <div className="h-10 w-10 rounded-lg bg-primary/25 border border-primary/35 text-white flex items-center justify-center">
                       <MessageCircle className="h-4 w-4" />
                     </div>
                     <div className="min-w-0">
@@ -459,7 +459,7 @@ const Configuracoes = () => {
                 </SettingsCard>
                 <SettingsCard>
                   <div className="flex items-start gap-3 mb-3">
-                    <div className="h-10 w-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                    <div className="h-10 w-10 rounded-lg bg-primary/25 border border-primary/35 text-white flex items-center justify-center">
                       <LifeBuoy className="h-4 w-4" />
                     </div>
                     <div className="min-w-0">
@@ -473,7 +473,7 @@ const Configuracoes = () => {
                 </SettingsCard>
                 <SettingsCard>
                   <div className="flex items-start gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                    <div className="h-10 w-10 rounded-lg bg-primary/25 border border-primary/35 text-white flex items-center justify-center">
                       <Sparkles className="h-4 w-4" />
                     </div>
                     <div className="min-w-0">
@@ -483,6 +483,8 @@ const Configuracoes = () => {
                   </div>
                 </SettingsCard>
               </div>
+            </SettingsSection>
+          )}
 
               <SettingsCard title="Onboarding">
                 <div className="space-y-4">
@@ -706,7 +708,7 @@ function SecurityCard({
   return (
     <SettingsCard>
       <div className="flex items-start gap-3">
-        <div className="h-10 w-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+        <div className="h-10 w-10 rounded-lg bg-primary/25 border border-primary/35 text-white flex items-center justify-center shrink-0">
           <Icon className="h-4 w-4" />
         </div>
         <div className="min-w-0 flex-1">
@@ -759,7 +761,7 @@ function IntegrationCard({
   return (
     <SettingsCard>
       <div className="flex items-start gap-3">
-        <div className="h-10 w-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+        <div className="h-10 w-10 rounded-lg bg-primary/25 border border-primary/35 text-white flex items-center justify-center shrink-0">
           <Icon className="h-4 w-4" />
         </div>
         <div className="min-w-0 flex-1">

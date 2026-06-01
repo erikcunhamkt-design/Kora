@@ -60,7 +60,7 @@ const priorityStyles: Record<Priority, string> = {
 };
 
 const temperatureStyles: Record<LeadTemperature, string> = {
-  quente: "bg-primary/10 text-primary border-primary/25",
+  quente: "bg-rose-500/15 text-rose-300 border-rose-500/30",
   morno: "bg-amber-500/10 text-amber-400 border-amber-500/20",
   frio: "bg-sky-500/10 text-sky-400 border-sky-500/20",
   "não definida": "bg-muted text-muted-foreground/80 border-border/60",
@@ -101,7 +101,7 @@ const SummaryCard = ({ icon: Icon, label, value, sub, accent }: { icon: any; lab
     accent === "success" ? "text-emerald-400 bg-emerald-500/10"
     : accent === "danger" ? "text-destructive bg-destructive/10"
     : accent === "muted" ? "text-muted-foreground bg-muted/60"
-    : "text-primary bg-primary/10";
+    : "text-white bg-primary/25 border border-primary/30";
   return (
     <div className="orbit-card px-3.5 py-2.5 flex items-center gap-3 min-h-0">
       <div className={`h-8 w-8 rounded-md flex items-center justify-center shrink-0 ${tone}`}>

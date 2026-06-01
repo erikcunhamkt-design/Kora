@@ -58,7 +58,7 @@ const statusLabels: Record<TaskStatus, string> = {
   a_fazer: "A fazer", em_andamento: "Em andamento", revisao: "Revisão", concluido: "Concluído",
 };
 const statusBadgeStyle: Record<TaskStatus, string> = {
-  a_fazer: "bg-primary/10 text-primary border-primary/20",
+  a_fazer: "bg-primary/25 text-white border-primary/35 border",
   em_andamento: "bg-amber-500/10 text-amber-400 border-amber-500/20",
   revisao: "bg-sky-500/10 text-sky-400 border-sky-500/20",
   concluido: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
@@ -161,7 +161,7 @@ const ViewChip = ({ label, count, active, onClick, icon: Icon }: {
     className={cn(
       "inline-flex items-center gap-2 h-9 px-3 rounded-lg text-sm whitespace-nowrap transition-all border",
       active
-        ? "bg-primary/10 text-primary border-primary/40"
+        ? "bg-primary text-white border-0 shadow-md shadow-primary/20 hover:bg-primary/90"
         : "bg-card text-muted-foreground border-border/60 hover:text-foreground hover:border-border",
     )}
   >
@@ -169,7 +169,7 @@ const ViewChip = ({ label, count, active, onClick, icon: Icon }: {
     <span className="font-medium">{label}</span>
     {typeof count === "number" && (
       <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full",
-        active ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground")}>
+        active ? "bg-white/20 text-white font-medium" : "bg-muted text-muted-foreground")}>
         {count}
       </span>
     )}

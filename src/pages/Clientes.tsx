@@ -92,7 +92,7 @@ const KpiCard = ({
 }) => {
   const toneCls: Record<string, string> = {
     neutral: "text-muted-foreground bg-muted/40",
-    primary: "text-primary bg-primary/10",
+    primary: "text-white bg-primary/25 border border-primary/30",
     warning: "text-amber-400 bg-amber-500/10",
     success: "text-emerald-400 bg-emerald-500/10",
   };

@@ -501,7 +501,7 @@ const TransactionsTab = ({ fin, type, onCreate, highlightId }: { fin: ReturnType
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="truncate max-w-[260px]">{t.title}</span>
                       {t.source === "quote" && (
-                        <Badge variant="outline" className="text-[10px] bg-primary/10 border-primary/30 text-primary">Orçamento</Badge>
+                        <Badge variant="outline" className="text-[10px] bg-primary/20 border-primary/40 text-white font-medium">Orçamento</Badge>
                       )}
                       {t.isDemo && <Badge variant="outline" className="text-[10px] bg-muted/40 border-border text-muted-foreground">demo</Badge>}
                       {t.recurrence !== "none" && <Repeat className="h-3 w-3 text-muted-foreground" />}
