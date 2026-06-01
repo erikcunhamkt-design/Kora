@@ -272,8 +272,9 @@ export function AppSidebar() {
                 })}
               </SidebarMenu>
             </SidebarGroupContent>
-          </SidebarGroup>
-        ))}
+            </SidebarGroup>
+          );
+        })}
       </SidebarContent>
 
       {!isPro && (
