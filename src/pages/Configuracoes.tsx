@@ -702,7 +702,6 @@ const Configuracoes = () => {
           )}
 
           {active === "data" && (
-
             <SettingsSection title="Dados" description="Exportação, importação e armazenamento.">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <DataCard icon={Download} title="Exportar dados" hint="Baixe seus dados em CSV/JSON" state="soon" />
@@ -710,7 +709,18 @@ const Configuracoes = () => {
                 <DataCard icon={Trash2} title="Limpar dados locais" hint="Remove dados de protótipo deste navegador" state="soon" danger />
                 <DataCard icon={Database} title="Status de armazenamento" hint="Dados de protótipo salvos localmente" state="info" />
               </div>
-              <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-300/90 flex items-start gap-2">
+
+              <div className="mt-6 space-y-4">
+                <h3 className="text-sm font-semibold text-foreground">Migração de Dados Locais para o Supabase</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <LocalClientsImportCard />
+                  <LocalOpportunitiesImportCard />
+                  <LocalTechnicalSheetsImportCard />
+                  <LocalQuotesImportCard />
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-300/90 flex items-start gap-2 mt-6">
                 <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
                 Alguns dados ainda estão em modo local/protótipo e serão migrados para Supabase antes da produção.
               </div>
