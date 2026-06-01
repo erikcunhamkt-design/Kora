@@ -231,35 +231,32 @@ const Configuracoes = () => {
                     <div className="flex items-center justify-between gap-4 p-4 rounded-lg border border-primary/20 bg-primary/[0.03]">
                       <div>
                         <p className="text-sm font-semibold text-foreground">{workspace.name}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">Role: <span className="text-primary font-medium capitalize">{membership?.role || "owner"}</span></p>
+                        <p className="text-xs text-muted-foreground mt-0.5">Cargo: <span className="text-primary font-medium capitalize">{membership?.role || "owner"}</span></p>
                       </div>
-                      <Badge variant="outline" className="text-[10px] border-primary/30 text-primary">Ativo</Badge>
+                      <Badge variant="outline" className="text-[10px] border-primary/30 text-primary">Conectado na Nuvem</Badge>
                     </div>
                   </SettingsCard>
                   
-                  <LocalClientsImportCard />
-                  <LocalTechnicalSheetsImportCard />
-                  <LocalOpportunitiesImportCard />
-                  <LocalQuotesImportCard />
-                  <QuotesSupabaseExperimentalToggleCard />
-                  <SupabaseQuotesViewerCard />
-                  <CrmSupabaseCreateQuoteToggleCard />
-                  <QuotesSupabaseApprovalToggleCard />
-                  <QuotesSupabaseReceivableToggleCard />
-                  <QuotesSupabaseProjectToggleCard />
-                  <QuotesSupabaseBaseTasksToggleCard />
-                  <QuotesSupabaseStatusTransitionToggleCard />
-                  <QuotesSupabaseTechnicalSheetsAutoSaveToggleCard />
-                  <SupabaseCrmViewerCard />
-                  <SupabaseExperimentalToggleCard />
-                  <CrmSupabaseExperimentalToggleCard />
-                  <CrmSupabaseStageMoveToggleCard />
-                  <CrmSupabaseBasicEditToggleCard />
-                  <CrmSupabaseCreateToggleCard />
-                  <CrmSupabaseArchiveToggleCard />
-                  <CrmSupabaseRestoreArchiveToggleCard />
-                  <SupabaseClientsViewerCard />
-                  <SupabaseOperationalDashboardToggleCard />
+                  {/* Collapsible Importers Block */}
+                  <details className="group border border-border/60 bg-muted/5 rounded-xl overflow-hidden">
+                    <summary className="flex items-center justify-between p-4 font-semibold text-sm cursor-pointer select-none text-muted-foreground hover:text-foreground">
+                      <span>Importar dados do navegador para a Nuvem</span>
+                      <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
+                    </summary>
+                    <div className="p-4 pt-0 space-y-4 border-t border-border/40 bg-card/10">
+                      <p className="text-xs text-muted-foreground">
+                        Utilize estes importadores caso precise enviar dados locais residuais armazenados neste navegador para o Supabase.
+                      </p>
+                      <div className="space-y-4">
+                        <LocalClientsImportCard />
+                        <LocalTechnicalSheetsImportCard />
+                        <LocalOpportunitiesImportCard />
+                        <LocalQuotesImportCard />
+                      </div>
+                    </div>
+                  </details>
+
+                  {/* Passive Operational Dashboard */}
                   <SupabaseOperationalDashboardCard />
                 </div>
               )}
