@@ -193,14 +193,14 @@ export function KoraOnboarding() {
   // Render compacto quando tudo estiver completo
   if (allCompleted) {
     return (
-      <div className="orbit-card p-4 flex items-center justify-between border-emerald-500/20 bg-emerald-500/[0.03] animate-fade-up">
+      <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.03] p-4 flex items-center justify-between animate-fade-up">
         <div className="flex items-center gap-3">
           <div className="h-8 w-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
             <Check className="h-4.5 w-4.5 text-emerald-400" />
           </div>
           <div>
-            <p className="text-[0.9375rem] font-semibold text-foreground">Setup inicial concluído!</p>
-            <p className="text-xs text-muted-foreground">KORA configurado com sucesso para a sua operação.</p>
+            <p className="text-[0.9375rem] font-bold text-foreground">Setup inicial concluído!</p>
+            <p className="text-xs text-muted-foreground/80 font-normal">KORA configurado com sucesso para a sua operação.</p>
           </div>
         </div>
         <Button
@@ -216,16 +216,16 @@ export function KoraOnboarding() {
   }
 
   return (
-    <div className="orbit-card overflow-hidden animate-fade-up">
+    <div className="rounded-2xl border border-border/20 bg-card/25 backdrop-blur-xs overflow-hidden animate-fade-up">
       {/* Header do checklist */}
-      <div className="p-5 flex items-center justify-between border-b border-border/40">
+      <div className="p-5 flex items-center justify-between border-b border-border/10">
         <div className="flex items-center gap-2.5">
           <div className="h-8 w-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center">
             <Sparkles className="h-4 w-4 text-primary" />
           </div>
           <div>
-            <h3 className="text-[0.9375rem] font-semibold text-foreground">Comece pelo essencial</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">
+            <h3 className="text-[0.9375rem] font-bold text-foreground">Comece pelo essencial</h3>
+            <p className="text-xs text-muted-foreground/80 mt-0.5 font-normal">
               Configure sua operação em poucos passos e transforme o KORA no seu cockpit comercial e operacional.
             </p>
           </div>
@@ -235,7 +235,7 @@ export function KoraOnboarding() {
             variant="ghost"
             size="icon"
             onClick={() => saveState({ ...state, minimized: !state.minimized, updatedAt: new Date().toISOString() })}
-            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-border/10 rounded-lg"
           >
             {state.minimized ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
           </Button>
@@ -247,7 +247,7 @@ export function KoraOnboarding() {
                 saveState({ ...state, dismissed: true, updatedAt: new Date().toISOString() });
               }
             }}
-            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-border/10 rounded-lg"
           >
             <EyeOff className="h-4 w-4" />
           </Button>
@@ -255,41 +255,41 @@ export function KoraOnboarding() {
       </div>
 
       {/* Progresso Geral */}
-      <div className="px-5 py-4 border-b border-border/40 bg-muted/10">
-        <div className="flex items-center justify-between text-xs text-muted-foreground mb-1.5 font-medium">
+      <div className="px-5 py-4 border-b border-border/10 bg-muted/[0.02]">
+        <div className="flex items-center justify-between text-xs text-muted-foreground/80 mb-2 font-semibold">
           <span>Progresso da ativação</span>
-          <span className="tabular-nums font-semibold">{completedCount} de {steps.length} concluídos ({progressPct}%)</span>
+          <span className="tabular-nums font-bold text-foreground">{completedCount} de {steps.length} concluídos ({progressPct}%)</span>
         </div>
-        <Progress value={progressPct} className="h-1.5" />
+        <Progress value={progressPct} className="h-1 bg-border/10" />
       </div>
 
       {/* Lista de passos (se não minimizado) */}
       {!state.minimized && (
-        <div className="divide-y divide-border/40">
+        <div className="divide-y divide-border/10">
           {steps.map((step) => {
             const Icon = step.icon;
             return (
               <div
                 key={step.id}
-                className={`p-4 sm:px-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all duration-200 ${
-                  step.completed ? "bg-muted/10 opacity-70" : "hover:bg-muted/5"
+                className={`p-4 sm:px-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all duration-300 ${
+                  step.completed ? "bg-muted/[0.01] opacity-60" : "hover:bg-muted/[0.03]"
                 }`}
               >
-                <div className="flex gap-3">
+                <div className="flex gap-3.5">
                   <div
-                    className={`h-8 w-8 rounded-lg border flex items-center justify-center shrink-0 mt-0.5 ${
+                    className={`h-8 w-8 rounded-lg border flex items-center justify-center shrink-0 mt-0.5 transition-all duration-300 ${
                       step.completed
                         ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
-                        : "bg-muted/40 border-border text-muted-foreground"
+                        : "bg-background/40 border-border/30 text-muted-foreground"
                     }`}
                   >
                     {step.completed ? <Check className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
                   </div>
                   <div className="min-w-0">
-                    <p className={`text-xs font-semibold ${step.completed ? "text-muted-foreground line-through" : "text-foreground"}`}>
+                    <p className={`text-xs font-bold ${step.completed ? "text-muted-foreground/80 line-through" : "text-foreground"}`}>
                       {step.title}
                     </p>
-                    <p className="text-[11px] text-muted-foreground leading-normal mt-0.5">
+                    <p className="text-[11px] text-muted-foreground/75 leading-normal mt-0.5 font-normal">
                       {step.description}
                     </p>
                   </div>
@@ -297,14 +297,14 @@ export function KoraOnboarding() {
 
                 <div className="shrink-0 flex items-center sm:justify-end pl-11 sm:pl-0">
                   {step.completed ? (
-                    <span className="text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
+                    <span className="text-[11px] text-emerald-400 font-bold flex items-center gap-1.5">
                       <Check className="h-3.5 w-3.5" /> Concluído
                     </span>
                   ) : (
                     <Button
                       size="sm"
                       onClick={step.action}
-                      className="h-8 text-xs font-medium bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 hover:text-primary shrink-0"
+                      className="h-8 text-[11px] font-bold tracking-wide uppercase bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 hover:text-primary transition-all duration-300"
                     >
                       {step.cta}
                     </Button>

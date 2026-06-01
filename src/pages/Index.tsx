@@ -14,11 +14,11 @@ import { Crown, AlertTriangle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 const metrics = [
-  { title: "Clientes Ativos", value: "24", change: "+3 novos este mês", changeType: "positive" as const, icon: Users },
-  { title: "Leads Abertos", value: "9", change: "4 sem retorno há 3+ dias", changeType: "neutral" as const, icon: TrendingUp },
-  { title: "Propostas em Aberto", value: "5", change: "2 aguardando resposta", changeType: "neutral" as const, icon: FileText },
-  { title: "Valor Previsto", value: "R$ 18.300", change: "Pipeline ponderado", changeType: "positive" as const, icon: DollarSign },
-  { title: "Tarefas Pendentes", value: "8", change: "3 com prazo próximo", changeType: "negative" as const, icon: CheckSquare },
+  { title: "Clientes Ativos", value: "24", change: "+3 novos este mês", changeType: "positive" as const, icon: Users, accent: "emerald" as const },
+  { title: "Leads Abertos", value: "9", change: "4 sem retorno há 3+ dias", changeType: "neutral" as const, icon: TrendingUp, accent: "primary" as const },
+  { title: "Propostas em Aberto", value: "5", change: "2 aguardando resposta", changeType: "neutral" as const, icon: FileText, accent: "amber" as const },
+  { title: "Valor Previsto", value: "R$ 18.300", change: "Pipeline ponderado", changeType: "positive" as const, icon: DollarSign, accent: "emerald" as const },
+  { title: "Tarefas Pendentes", value: "8", change: "3 com prazo próximo", changeType: "negative" as const, icon: CheckSquare, accent: "destructive" as const },
 ];
 
 function UsageSummary() {
