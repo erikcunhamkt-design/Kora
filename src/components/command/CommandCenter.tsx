@@ -143,7 +143,7 @@ export function CommandCenter({ open, onOpenChange }: Props) {
                   className="gap-3"
                 >
                   <div className="h-8 w-8 rounded-md bg-primary/10 flex items-center justify-center">
-                    <Icon className="h-4 w-4 text-primary/85" />
+                    <Icon className="h-4 w-4 text-white" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium truncate text-foreground">{it.title}</div>
