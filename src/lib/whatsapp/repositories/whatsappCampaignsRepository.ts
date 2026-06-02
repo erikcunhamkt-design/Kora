@@ -199,7 +199,7 @@ export interface SenderBatchResult {
 
 /**
  * Invoca a edge function whatsapp-campaign-v2-sender para processar UM lote.
- * O servidor é a única fonte de verdade — valida workspace, template aprovado,
+ * O servidor é a única fonte de verdade — valida workspace, modelo de mensagem ativo,
  * idempotência e bloqueia opt-out/inválidos. Frontend nunca toca em tokens.
  */
 export async function invokeCampaignSenderBatch(
