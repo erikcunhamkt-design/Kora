@@ -20,6 +20,7 @@ import { Link } from "react-router-dom";
 import { useWhatsAppInstance } from "@/hooks/useWhatsAppInstance";
 import { useWhatsAppConversations } from "@/hooks/useWhatsAppConversations";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
+import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { WhatsAppMessageBubble } from "@/components/whatsapp/WhatsAppMessageBubble";
 import { WhatsAppConversationItem } from "@/components/whatsapp/WhatsAppConversationItem";
