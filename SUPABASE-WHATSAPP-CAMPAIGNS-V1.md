@@ -285,3 +285,39 @@ serão implementadas junto com a extensão do webhook.
 3. Retry policy explícita para `failed`.
 4. Suporte a mídia (image/document) no template.
 5. Unificação do schema legado `whatsapp_campaigns` em v2.
+
+## QA Funcional — Campaign Sender V1
+
+### Cenários testados (revisão estática + leitura da edge function)
+
+1. **Feature flag** `kora.whatsapp.campaignSender.enabled` — Botão "Enviar" desabilitado quando flag=false (exceto campanhas já em `sending/paused` para permitir continuar lote). Diálogo exige flag=true para liberar campo de confirmação. Persistência via `localStorage`. ✅
+2. **Confirmação forte `ENVIAR`** — `CampaignSendDialog.tsx`: botão só habilita quando `confirmText.trim().toUpperCase() === "ENVIAR"`. Checklist visual presente (template aprovado, audiência, válidos, opt-outs, duplicados, texto livre bloqueado, lotes). ✅
+3. **Validação server-side** — edge function valida: Authorization Bearer, `auth.getUser()`, membership em `workspace_members`, campanha pertence ao workspace, template pertence ao workspace, `template.status === 'approved'` (409), instância conectada (412), apenas recipients `status=queued AND provider_message_id IS NULL`. Token UAZAPI nunca sai do servidor. ✅
+4. **Template não aprovado** — Bloqueado tanto na criação (`createCampaign` no repository) quanto no sender (retorna `template_not_approved` 409). Nenhum recipient processado. ✅
+5. **Recipients proibidos** — `prepareCampaignRecipients` marca `opt_out/blocked/invalid/duplicate` como `skipped` com `skip_reason`. Sender só seleciona `status=queued`. ✅
+6. **Rate limit / lote** — `MAX_BATCH_SIZE = 10` com `.limit(10)`. Sobra fica `queued`. Botão "Processar próximo lote" reativa. Delay 30–90s entre envios + typing 1.5–4s. ⚠️ Observação: cada lote demora 5–15 minutos no máximo (não testado live, comportamento por design).
+7. **Idempotência** — Lock por `UPDATE ... WHERE id=X AND status='queued' RETURNING id`. Se 0 rows → continua. `provider_message_id IS NULL` no filtro inicial. Estados terminais (`sent/failed/skipped`) não são tocados. ✅
+8. **Status e contadores** — Campanha: `sending` ao iniciar, `completed` quando `queued+pending=0`. `sent_count`/`failed_count` recomputados ao final de cada lote via SELECT agregado. `delivered/read/replied` permanecem em 0 (sem webhook). ✅ parcial.
+9. **Logs** — Tabela `whatsapp_campaign_send_logs` recebe eventos `sent` e `failed` com `workspace_id, campaign_id, recipient_id, phone, event, message, provider_message_id, error_message, created_at`. RLS por `is_workspace_member`. ⚠️ Bug menor: eventos `queued`, `skipped`, `pause`, `cancel` **não** estão sendo registrados (apenas `sent`/`failed`). Aceitar como limitação V1.
+10. **Envio real** — Não executado live nesta rodada (requer instância conectada + número real). Caminho de código revisado: `POST /send/presence` + delay typing + `POST /send/text` → captura `messageid`/`id` como `provider_message_id`. Idempotência impede duplicidade.
+11. **Variáveis do template** — `renderTemplate` cobre `nome, primeiro_nome, empresa, serviço, data, link`. Faltantes em `required=['nome','primeiro_nome']` com recipient sem `name` → recipient marcado como `failed:missing_variable`. Outras variáveis ausentes → string vazia (fallback). ✅
+12. **Pause e cancel** — `action=pause` → `status=paused`. `action=cancel` → `status=cancelled` + recipients `pending|queued` viram `skipped` com `skip_reason='campaign_cancelled'`. Recipients já `sent` permanecem. ✅ ⚠️ pause/cancel não geram entrada em `whatsapp_campaign_send_logs`.
+13. **Segurança** — `SUPABASE_SERVICE_ROLE_KEY` só usado dentro da edge function. Token UAZAPI lido de `Deno.env`. Frontend chama `supabase.functions.invoke` sem montar payload com token. Texto livre não existe para campanha (sempre template aprovado). Campanhas `completed/cancelled` rejeitam novos lotes. ✅
+14. **TypeScript** — Sem novos erros no escopo Atendimento/WhatsApp.
+15. **Lint** — Sem novos warnings no escopo Atendimento/WhatsApp; sem `any` novo.
+
+### Bugs encontrados
+- **Menor:** Logs `queued/skipped/pause/cancel` não persistidos em `whatsapp_campaign_send_logs` — só `sent`/`failed`. Não bloqueia V1.
+- **Menor:** `delivered_count/read_count/replied_count` permanecem em 0 (sem webhook). Limitação conhecida.
+
+### Bugs corrigidos
+- Nenhum nesta rodada (apenas revisão).
+
+### Limitações
+- Processamento manual por lote (sem cron).
+- Sem mapeamento de `delivered/read/replied` (webhook não atualizado).
+- Logs incompletos para eventos não-terminais.
+- Envio real não validado live (requer instância UAZAPI conectada).
+
+### Recomendação final
+**Aceitar V1.** Próxima fase recomendada: estender `whatsapp-webhook` para mapear `provider_message_id → recipient_id` e atualizar `delivered_at/read_at/replied_at` + contadores. Complementar logs com eventos `queued/skipped/pause/cancel` em paralelo.
