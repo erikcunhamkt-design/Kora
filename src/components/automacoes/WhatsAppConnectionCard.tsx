@@ -132,7 +132,7 @@ export function WhatsAppConnectionCard({
           </div>
           <div className="flex flex-wrap gap-2">
             {status === "connected" && showSync && onSync && (
-              <Button variant="outline" onClick={onSync} disabled={syncing}>
+              <Button variant="outline" onClick={() => void onSync()} disabled={syncing}>
                 {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCw className="h-4 w-4" />}
                 Sincronizar conversas
               </Button>
@@ -195,7 +195,7 @@ export function WhatsAppConnectionCard({
               <img
                 src={qrCode.startsWith("data:") ? qrCode : `data:image/png;base64,${qrCode}`}
                 alt="QR Code WhatsApp"
-                className="h-64 w-64 rounded-lg bg-white p-2"
+                className="h-64 w-64 rounded-lg bg-foreground p-2"
               />
             ) : (
               <div className="flex h-64 w-64 items-center justify-center rounded-lg bg-muted/40">
