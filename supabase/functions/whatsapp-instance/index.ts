@@ -218,7 +218,7 @@ Deno.serve(async (req) => {
       // Valida o token consultando /instance/status no servidor informado
       const statusRes = await fetch(`${baseUrl}/instance/status`, {
         method: "GET",
-        headers: { "Content-Type": "application/json", token: resolvedToken },
+        headers: { "Content-Type": "application/json", token: importToken },
       });
       const statusText = await statusRes.text();
       let statusData: unknown = statusText;
