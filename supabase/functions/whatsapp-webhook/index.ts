@@ -384,6 +384,30 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Trigger Gemini bot reply for inbound text messages (fire-and-forget)
+    if (!fromMe && (internalKind === "text" || text)) {
+      try {
+        const { data: bot } = await admin
+          .from("whatsapp_bot_settings")
+          .select("is_active")
+          .eq("workspace_id", workspaceId)
+          .maybeSingle();
+        if (bot?.is_active) {
+          const botUrl = `${SUPABASE_URL}/functions/v1/whatsapp-bot-reply`;
+          fetch(botUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${SERVICE_ROLE}`,
+            },
+            body: JSON.stringify({ conversationId, workspaceId }),
+          }).catch((err) => console.error("[whatsapp-webhook] bot-reply trigger failed:", err));
+        }
+      } catch (err) {
+        console.error("[whatsapp-webhook] bot trigger error:", err);
+      }
+    }
+
     return new Response(JSON.stringify({ ok: true }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
