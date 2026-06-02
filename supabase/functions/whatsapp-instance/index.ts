@@ -114,6 +114,7 @@ Deno.serve(async (req) => {
       await uaz("/webhook", {
         token: instance.instance_token,
         body: {
+          webhookURL: webhookUrl,
           url: webhookUrl,
           enabled: true,
           events: ["messages", "messages_update", "connection"],
