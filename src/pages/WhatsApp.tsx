@@ -192,11 +192,11 @@ export default function WhatsAppPage() {
             <TabsTrigger value="audiences" className="text-xs h-8 gap-1.5">
               <Users className="h-3.5 w-3.5" /> Audiências
             </TabsTrigger>
+            <TabsTrigger value="templates" className="text-xs h-8 gap-1.5">
+              <Layers className="h-3.5 w-3.5" /> Modelos de Mensagem
+            </TabsTrigger>
             <TabsTrigger value="campaigns" className="text-xs h-8 gap-1.5">
               <Send className="h-3.5 w-3.5" /> Campanhas
-            </TabsTrigger>
-            <TabsTrigger value="templates" className="text-xs h-8 gap-1.5">
-              <Layers className="h-3.5 w-3.5" /> Templates Aprovados
             </TabsTrigger>
             <TabsTrigger value="bot" className="text-xs h-8 gap-1.5">
               <Bot className="h-3.5 w-3.5" /> Robô IA
