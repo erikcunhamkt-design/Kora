@@ -183,16 +183,22 @@ export default function WhatsAppPage() {
     <div className="flex h-[calc(100vh-8rem)] -mx-6 -my-6 border-t border-border/40 bg-background flex-col">
       {/* Top navigation tabs */}
       <div className="flex items-center justify-between border-b border-border/40 px-6 py-2.5 bg-card/20 flex-shrink-0">
-        <Tabs value={activeMainTab} onValueChange={(v) => setActiveMainTab(v as "chat" | "campaigns" | "bot")}>
-          <TabsList className="bg-background/40 p-0.5">
+        <Tabs value={activeMainTab} onValueChange={(v) => setActiveMainTab(v as MainTab)}>
+          <TabsList className="bg-background/40 p-0.5 flex-wrap h-auto">
             <TabsTrigger value="chat" className="text-xs h-8 gap-1.5">
-              <MessageCircle className="h-3.5 w-3.5" /> Inbox de Atendimento
+              <MessageCircle className="h-3.5 w-3.5" /> Inbox
+            </TabsTrigger>
+            <TabsTrigger value="audiences" className="text-xs h-8 gap-1.5">
+              <Users className="h-3.5 w-3.5" /> Audiências
             </TabsTrigger>
             <TabsTrigger value="campaigns" className="text-xs h-8 gap-1.5">
-              <Send className="h-3.5 w-3.5" /> Disparos em Massa
+              <Send className="h-3.5 w-3.5" /> Campanhas
+            </TabsTrigger>
+            <TabsTrigger value="templates" className="text-xs h-8 gap-1.5">
+              <Layers className="h-3.5 w-3.5" /> Templates Aprovados
             </TabsTrigger>
             <TabsTrigger value="bot" className="text-xs h-8 gap-1.5">
-              <Bot className="h-3.5 w-3.5" /> Robô de IA (Gemini)
+              <Bot className="h-3.5 w-3.5" /> Robô IA
             </TabsTrigger>
           </TabsList>
         </Tabs>
