@@ -34,6 +34,7 @@ import { WhatsAppContactPanel } from "@/components/whatsapp/WhatsAppContactPanel
 import { WhatsAppEmptyState } from "@/components/whatsapp/WhatsAppEmptyState";
 import { WhatsAppCampaigns } from "@/components/whatsapp/WhatsAppCampaigns";
 import { WhatsAppBotConfig } from "@/components/whatsapp/WhatsAppBotConfig";
+import { BotRulesPanel } from "@/components/whatsapp/bot/BotRulesPanel";
 import { TemplatesLibrary } from "@/components/whatsapp/templates/TemplatesLibrary";
 import { AudiencesPanel } from "@/components/whatsapp/audiences/AudiencesPanel";
 
