@@ -30,6 +30,10 @@ export function WhatsAppSection() {
   const [sending, setSending] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importToken, setImportToken] = useState("");
+  const [importSubdomain, setImportSubdomain] = useState("free");
+  const [importing, setImporting] = useState(false);
 
   const status = instance?.status ?? "disconnected";
   const qrCode = instance?.qr_code ?? null;
