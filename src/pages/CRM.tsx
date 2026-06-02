@@ -1924,7 +1924,7 @@ const LeadDetailSheet = ({
               <div className="flex items-center gap-1.5">
                 <Select
                   value={editForm.temperature || "não definida"}
-                  onValueChange={(v) => handleFieldChange("temperature", v)}
+                  onValueChange={(v) => handleFieldChange("temperature", v as never)}
                 >
                   <SelectTrigger className="bg-muted/50 border-border h-7 text-[11px]"><SelectValue placeholder="Temperatura" /></SelectTrigger>
                   <SelectContent>
@@ -1936,7 +1936,7 @@ const LeadDetailSheet = ({
                 </Select>
                 <Select
                   value={editForm.priority || "média"}
-                  onValueChange={(v) => handleFieldChange("priority", v)}
+                  onValueChange={(v) => handleFieldChange("priority", v as never)}
                 >
                   <SelectTrigger className="bg-muted/50 border-border h-7 text-[11px]"><SelectValue placeholder="Prioridade" /></SelectTrigger>
                   <SelectContent>
