@@ -39,6 +39,7 @@ import AuthCallback from "./pages/AuthCallback";
 import PublicClientSignup from "./pages/PublicClientSignup";
 import Briefings from "./pages/Briefings";
 import BriefingPublicForm from "./components/briefings/BriefingPublicForm";
+import WhatsAppPage from "./pages/WhatsApp";
 
 const queryClient = new QueryClient();
 
