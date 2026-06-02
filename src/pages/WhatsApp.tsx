@@ -32,11 +32,11 @@ import { WhatsAppStatusBadge } from "@/components/whatsapp/WhatsAppStatusBadge";
 import { WhatsAppChatInput } from "@/components/whatsapp/WhatsAppChatInput";
 import { WhatsAppContactPanel } from "@/components/whatsapp/WhatsAppContactPanel";
 import { WhatsAppEmptyState } from "@/components/whatsapp/WhatsAppEmptyState";
-import { WhatsAppCampaigns } from "@/components/whatsapp/WhatsAppCampaigns";
 import { WhatsAppBotConfig } from "@/components/whatsapp/WhatsAppBotConfig";
 import { BotRulesPanel } from "@/components/whatsapp/bot/BotRulesPanel";
-import { TemplatesLibrary } from "@/components/whatsapp/templates/TemplatesLibrary";
-import { AudiencesPanel } from "@/components/whatsapp/audiences/AudiencesPanel";
+import { AudiencesBackendPage } from "@/components/whatsapp/audiences/AudiencesBackendPage";
+import { TemplatesBackendPage } from "@/components/whatsapp/templates/TemplatesBackendPage";
+import { CampaignsBackendPage } from "@/components/whatsapp/campaigns/CampaignsBackendPage";
 
 function initials(name: string | null, phone: string) {
   const base = (name ?? phone).trim();
