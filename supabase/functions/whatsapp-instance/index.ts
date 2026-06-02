@@ -398,6 +398,49 @@ Deno.serve(async (req) => {
       return json({ ok: true, total: chats.length, synced, errors: errors.slice(0, 5) });
     }
 
+    if (action === "refresh_avatars") {
+      if (!existing) return json({ error: "Instance not found" }, 404);
+      const { limit, force } = body as { limit?: number; force?: boolean };
+      const max = Math.min(Math.max(Number(limit ?? 200), 1), 500);
+      let query = admin
+        .from("whatsapp_conversations")
+        .select("id, contact_phone, contact_name, avatar_url")
+        .eq("instance_id", existing.id)
+        .eq("workspace_id", workspaceId)
+        .order("last_message_at", { ascending: false, nullsFirst: false })
+        .limit(max);
+      if (!force) query = query.is("avatar_url", null);
+      const { data: convs } = await query;
+      const list = convs ?? [];
+      let updated = 0;
+      const concurrency = 6;
+      let idx = 0;
+      const worker = async () => {
+        while (idx < list.length) {
+          const i = idx++;
+          const c = list[i];
+          try {
+            const pic = await uazForInstance(existing, "/chat/GetNameAndImageURL", {
+              body: { number: c.contact_phone },
+            });
+            const pd = (pic.data ?? {}) as Record<string, unknown>;
+            const url = (pd.image as string) || (pd.imageUrl as string) || (pd.profilePicUrl as string) || null;
+            const nm = (pd.name as string) || null;
+            const patch: Record<string, unknown> = {};
+            if (url) patch.avatar_url = url;
+            if (nm && !c.contact_name) patch.contact_name = nm;
+            if (Object.keys(patch).length > 0) {
+              await admin.from("whatsapp_conversations").update(patch).eq("id", c.id);
+              if (url) updated++;
+            }
+          } catch (_e) { /* ignore individual failures */ }
+        }
+      };
+      await Promise.all(Array.from({ length: concurrency }, () => worker()));
+      console.log("refresh_avatars:", { total: list.length, updated });
+      return json({ ok: true, total: list.length, updated });
+    }
+
     if (action === "load_messages") {
       if (!existing) return json({ error: "Instance not found" }, 404);
       const { conversationId, limit } = body as { conversationId?: string; limit?: number };

@@ -116,6 +116,15 @@ export default function WhatsAppPage() {
   }, [loadingInstance, loading, workspace, instance, status, conversations.length]);
 
 
+  const refreshAvatars = async (force = false) => {
+    if (!workspace) return;
+    try {
+      await supabase.functions.invoke("whatsapp-instance", {
+        body: { action: "refresh_avatars", workspaceId: workspace.id, limit: 300, force },
+      });
+    } catch { /* best-effort */ }
+  };
+
   const handleSync = async () => {
     if (!workspace) return;
     setSyncing(true);
@@ -126,12 +135,27 @@ export default function WhatsAppPage() {
       if (error) throw error;
       if ((data as { error?: string })?.error) throw new Error((data as { error: string }).error);
       toast.success(`Sincronizado: ${(data as { synced: number }).synced} conversas`);
+      // After sync, backfill missing profile pictures in background
+      void refreshAvatars(false);
     } catch (e) {
       toast.error("Falha ao sincronizar", { description: (e as Error).message });
     } finally {
       setSyncing(false);
     }
   };
+
+  // Backfill avatars for already-cached conversations once on mount
+  const avatarsRefreshedRef = useRef(false);
+  useEffect(() => {
+    if (avatarsRefreshedRef.current) return;
+    if (!workspace || status !== "connected") return;
+    if (conversations.length === 0) return;
+    const missing = conversations.some((c) => !c.avatar_url);
+    if (!missing) return;
+    avatarsRefreshedRef.current = true;
+    void refreshAvatars(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspace, status, conversations.length]);
 
   const handleSend = async (text: string) => {
     if (!text.trim() || !selectedId || !workspace) return;
