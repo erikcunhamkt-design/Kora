@@ -8,7 +8,16 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-const UAZ_BASE = `https://${SUBDOMAIN}.uazapi.com`;
+// Allow UAZAPI_SUBDOMAIN to be either a bare subdomain ("free") or a full URL
+// ("https://free.uazapi.com"). uazapi returns "host not mapped" when the
+// subdomain doesn't exist on their infra, so normalize defensively.
+const UAZ_BASE = (() => {
+  const raw = (SUBDOMAIN ?? "").trim().replace(/\/+$/, "");
+  if (!raw) return "https://free.uazapi.com";
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (raw.includes(".")) return `https://${raw}`;
+  return `https://${raw}.uazapi.com`;
+})();
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
