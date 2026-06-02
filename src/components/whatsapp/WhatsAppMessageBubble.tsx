@@ -49,7 +49,7 @@ export function WhatsAppMessageBubble({
     <div className={cn("flex w-full", outbound ? "justify-end" : "justify-start")}>
       <div
         className={cn(
-          "max-w-[78%] md:max-w-[60%] px-3 py-2 rounded-2xl text-sm shadow-sm space-y-1.5 transition-colors",
+          "max-w-[85%] sm:max-w-[78%] md:max-w-[65%] xl:max-w-[60%] px-3 py-2 rounded-2xl text-sm shadow-sm space-y-1.5 transition-colors",
           outbound
             ? "bg-primary/20 border border-primary/20 text-foreground rounded-br-md"
             : "bg-card-elevated border border-border/40 text-foreground rounded-bl-md",
