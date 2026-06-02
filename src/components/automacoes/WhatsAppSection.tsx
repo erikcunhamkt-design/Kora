@@ -274,6 +274,50 @@ export function WhatsAppSection() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={importOpen} onOpenChange={setImportOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Importar instância existente</DialogTitle>
+            <DialogDescription>
+              Cole o Instance Token de uma instância uazapi já criada (ex.: instância de teste). O webhook será reconfigurado para este workspace automaticamente.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="imp-subdomain" className="text-xs">Servidor / Subdomain</Label>
+              <Input
+                id="imp-subdomain"
+                value={importSubdomain}
+                onChange={(e) => setImportSubdomain(e.target.value)}
+                placeholder="free  ou  free.uazapi.com"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Use <code>free</code> para <code>https://free.uazapi.com</code>.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="imp-token" className="text-xs">Instance Token</Label>
+              <Input
+                id="imp-token"
+                value={importToken}
+                onChange={(e) => setImportToken(e.target.value)}
+                placeholder="ex.: e039ef2f-0efc-4676-8965-8d7752b4fd45"
+                autoComplete="off"
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setImportOpen(false)} disabled={importing}>
+                Cancelar
+              </Button>
+              <Button onClick={handleImport} disabled={importing || !importToken.trim()}>
+                {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                Importar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
