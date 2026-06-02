@@ -232,6 +232,12 @@ Deno.serve(async (req) => {
       const phone = (inst.owner as string | undefined) ?? (inst.phone as string | undefined) ?? null;
       const phoneName = (inst.profileName as string | undefined) ?? (inst.name as string | undefined) ?? null;
       const instanceName = (inst.name as string | undefined) ?? `imported-${importToken.slice(0, 8)}`;
+      // uazapi às vezes aceita o "id" da instância em /instance/status mas exige
+      // o token real (devolvido em instance.token) nas demais rotas. Preferir esse.
+      const resolvedToken =
+        ((inst.token as string | undefined) ??
+          (sd.token as string | undefined) ??
+          importToken).trim();
 
       // Remove instância existente (se houver) sem deletar do uazapi (token é compartilhado/externo)
       if (existing) {
@@ -242,7 +248,7 @@ Deno.serve(async (req) => {
         .from("whatsapp_instances")
         .insert({
           workspace_id: workspaceId,
-          instance_token: importToken,
+          instance_token: resolvedToken,
           instance_name: instanceName,
           subdomain: sub,
           status: remoteStatus,
@@ -260,7 +266,7 @@ Deno.serve(async (req) => {
       const webhookUrl = `${SUPABASE_URL}/functions/v1/whatsapp-webhook?secret=${encodeURIComponent(WEBHOOK_SECRET)}&workspace=${workspaceId}`;
       await fetch(`${baseUrl}/webhook`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", token: importToken },
+        headers: { "Content-Type": "application/json", token: resolvedToken },
         body: JSON.stringify({
           webhookURL: webhookUrl,
           url: webhookUrl,
@@ -273,7 +279,7 @@ Deno.serve(async (req) => {
       if (remoteStatus !== "connected") {
         const connectRes = await fetch(`${baseUrl}/instance/connect`, {
           method: "POST",
-          headers: { "Content-Type": "application/json", token: importToken },
+          headers: { "Content-Type": "application/json", token: resolvedToken },
           body: JSON.stringify({}),
         });
         const cText = await connectRes.text();
