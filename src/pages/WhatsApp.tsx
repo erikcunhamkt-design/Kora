@@ -32,6 +32,8 @@ import { WhatsAppStatusBadge } from "@/components/whatsapp/WhatsAppStatusBadge";
 import { WhatsAppChatInput } from "@/components/whatsapp/WhatsAppChatInput";
 import { WhatsAppContactPanel } from "@/components/whatsapp/WhatsAppContactPanel";
 import { WhatsAppEmptyState } from "@/components/whatsapp/WhatsAppEmptyState";
+import { WhatsAppCampaigns } from "@/components/whatsapp/WhatsAppCampaigns";
+import { WhatsAppBotConfig } from "@/components/whatsapp/WhatsAppBotConfig";
 
 function initials(name: string | null, phone: string) {
   const base = (name ?? phone).trim();
@@ -59,6 +61,7 @@ export default function WhatsAppPage() {
   const { conversations, messages, selectedId, setSelectedId, loading, markRead } =
     useWhatsAppConversations(workspace?.id, instance?.id);
 
+  const [activeMainTab, setActiveMainTab] = useState<"chat" | "campaigns" | "bot">("chat");
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [sending, setSending] = useState(false);
@@ -174,254 +177,293 @@ export default function WhatsAppPage() {
   const showChat = !!selected;   // mobile: hide chat when no conversation
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] -mx-6 -my-6 border-t border-border/40 bg-background">
-      {/* ============ Sidebar de conversas ============ */}
-      <aside
-        className={cn(
-          "flex-shrink-0 border-r border-border/40 bg-card/30 flex-col",
-          // widths
-          "w-full md:w-[280px] lg:w-[320px] xl:w-[340px]",
-          // mobile show/hide based on selection
-          showSidebar ? "flex" : "hidden md:flex",
-        )}
-      >
-        <div className="p-4 space-y-3 border-b border-border/40">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <h1 className="font-semibold text-base leading-tight">Inbox WhatsApp</h1>
-              <p className="text-[11px] text-muted-foreground truncate mt-0.5">
-                {status === "connected"
-                  ? instance.phone_name ?? instance.phone ?? "Conectado"
-                  : `Status: ${status}`}
-              </p>
-            </div>
-            <Button
-              size="icon"
-              variant="ghost"
-              onClick={handleSync}
-              disabled={syncing || status !== "connected"}
-              title="Sincronizar"
-              className="h-8 w-8 flex-shrink-0"
+    <div className="flex h-[calc(100vh-8rem)] -mx-6 -my-6 border-t border-border/40 bg-background flex-col">
+      {/* Top navigation tabs */}
+      <div className="flex items-center justify-between border-b border-border/40 px-6 py-2.5 bg-card/20 flex-shrink-0">
+        <Tabs value={activeMainTab} onValueChange={(v) => setActiveMainTab(v as "chat" | "campaigns" | "bot")}>
+          <TabsList className="bg-background/40 p-0.5">
+            <TabsTrigger value="chat" className="text-xs h-8 gap-1.5">
+              <MessageCircle className="h-3.5 w-3.5" /> Inbox de Atendimento
+            </TabsTrigger>
+            <TabsTrigger value="campaigns" className="text-xs h-8 gap-1.5">
+              <Send className="h-3.5 w-3.5" /> Disparos em Massa
+            </TabsTrigger>
+            <TabsTrigger value="bot" className="text-xs h-8 gap-1.5">
+              <Bot className="h-3.5 w-3.5" /> Robô de IA (Gemini)
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <span className="text-[11px] text-muted-foreground hidden sm:inline">
+          Workspace ativo · <strong>{workspace?.name}</strong>
+        </span>
+      </div>
+
+      {/* Main Tab content container */}
+      <div className="flex-1 flex overflow-hidden">
+        {activeMainTab === "chat" && (
+          <div className="flex flex-1 overflow-hidden w-full">
+            {/* ============ Sidebar de conversas ============ */}
+            <aside
+              className={cn(
+                "flex-shrink-0 border-r border-border/40 bg-card/30 flex-col",
+                // widths
+                "w-full md:w-[280px] lg:w-[320px] xl:w-[340px]",
+                // mobile show/hide based on selection
+                showSidebar ? "flex" : "hidden md:flex",
+              )}
             >
-              {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCw className="h-4 w-4" />}
-            </Button>
-          </div>
-
-          <div className="relative">
-            <Search className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Buscar conversa, telefone..."
-              className="pl-9 h-9 text-sm bg-background/60 border-border/50"
-            />
-          </div>
-
-          <Tabs value={filter} onValueChange={(v) => setFilter(v as Filter)}>
-            <TabsList className="grid grid-cols-4 h-8 bg-background/40 p-0.5">
-              <TabsTrigger value="all" className="text-[11px] h-7">Todas</TabsTrigger>
-              <TabsTrigger value="unread" className="text-[11px] h-7">
-                Não lidas{unreadCount > 0 && <span className="ml-1 text-primary">{unreadCount}</span>}
-              </TabsTrigger>
-              <TabsTrigger value="open" className="text-[11px] h-7">Abertas</TabsTrigger>
-              <TabsTrigger value="resolved" className="text-[11px] h-7">Resolvidas</TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
-
-        <div className="flex-1 overflow-y-auto">
-          {loading && (
-            <div className="p-4 text-xs text-muted-foreground flex items-center gap-2">
-              <Loader2 className="h-3 w-3 animate-spin" /> Carregando conversas...
-            </div>
-          )}
-          {!loading && filtered.length === 0 && (
-            <div className="p-8 text-center">
-              <MessageCircle className="h-8 w-8 mx-auto text-muted-foreground/40 mb-2" />
-              <p className="text-xs text-muted-foreground">
-                {conversations.length === 0
-                  ? "Nenhuma conversa ainda. Clique em sincronizar."
-                  : "Nenhum resultado para esses filtros."}
-              </p>
-            </div>
-          )}
-          <div className="py-1">
-            {filtered.map((c) => (
-              <WhatsAppConversationItem
-                key={c.id}
-                conversation={c}
-                active={selectedId === c.id}
-                onClick={() => setSelectedId(c.id)}
-              />
-            ))}
-          </div>
-        </div>
-      </aside>
-
-      {/* ============ Conversa central ============ */}
-      <section
-        className={cn(
-          "flex-1 flex-col min-w-0 bg-gradient-to-b from-background to-background/60",
-          showChat ? "flex" : "hidden md:flex",
-        )}
-      >
-        {selected ? (
-          <>
-            {/* Header */}
-            <header className="px-4 md:px-5 py-3 border-b border-border/40 flex items-center gap-2 md:gap-3 bg-card/30 backdrop-blur-sm">
-              {/* Back button (mobile only) */}
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-8 w-8 md:hidden flex-shrink-0"
-                onClick={() => setSelectedId(null)}
-                title="Voltar"
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-
-              <div className="h-9 w-9 md:h-10 md:w-10 rounded-full bg-gradient-to-br from-primary/25 to-primary/5 border border-border/40 text-primary flex items-center justify-center text-xs font-semibold overflow-hidden flex-shrink-0">
-                {selected.avatar_url ? (
-                  <img
-                    src={selected.avatar_url}
-                    alt={selected.contact_name ?? selected.contact_phone}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  initials(selected.contact_name, selected.contact_phone)
-                )}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <p className="font-semibold text-sm truncate">
-                    {selected.contact_name ?? selected.contact_phone}
-                  </p>
-                  <WhatsAppStatusBadge status={selected.status} size="xs" />
-                </div>
-                <p className="text-[11px] text-muted-foreground truncate">
-                  {selected.contact_phone}
-                  {selected.last_message_at && (
-                    <span className="hidden sm:inline"> · última atividade {new Date(selected.last_message_at).toLocaleString()}</span>
-                  )}
-                </p>
-              </div>
-              <div className="flex items-center gap-0.5 flex-shrink-0">
-                <Button size="icon" variant="ghost" className="h-8 w-8 hidden sm:inline-flex" title="Buscar na conversa" disabled>
-                  <Search className="h-4 w-4" />
-                </Button>
-                {/* Desktop toggle: inline panel */}
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-8 w-8 hidden xl:inline-flex"
-                  title={showContext ? "Ocultar painel" : "Mostrar painel"}
-                  onClick={() => setShowContext((s) => !s)}
-                >
-                  {showContext
-                    ? <PanelRightClose className="h-4 w-4" />
-                    : <PanelRightOpen className="h-4 w-4" />}
-                </Button>
-                {/* Tablet/mobile toggle: drawer */}
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-8 w-8 xl:hidden"
-                  title="Detalhes do contato"
-                  onClick={() => setContextSheetOpen(true)}
-                >
-                  <PanelRightOpen className="h-4 w-4" />
-                </Button>
-                <Button size="icon" variant="ghost" className="h-8 w-8" title="Mais" disabled>
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </div>
-            </header>
-
-            {/* Mensagens */}
-            <div className="flex-1 overflow-y-auto px-3 md:px-6 py-4 md:py-5 space-y-2.5">
-              {messages.length === 0 && (
-                <div className="flex h-full items-center justify-center">
-                  <WhatsAppEmptyState
-                    icon={MessageCircle}
-                    title="Sem mensagens ainda"
-                    description="Quando esta conversa receber ou enviar mensagens, elas aparecerão aqui."
-                  />
-                </div>
-              )}
-              {grouped.map((item, idx) =>
-                item.kind === "day" ? (
-                  <div key={`d-${idx}`} className="flex items-center justify-center my-3">
-                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground bg-card/60 border border-border/40 rounded-full px-2.5 py-0.5">
-                      {item.label}
-                    </span>
+              <div className="p-4 space-y-3 border-b border-border/40">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <h1 className="font-semibold text-base leading-tight">Inbox WhatsApp</h1>
+                    <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                      {status === "connected"
+                        ? instance.phone_name ?? instance.phone ?? "Conectado"
+                        : `Status: ${status}`}
+                    </p>
                   </div>
-                ) : (
-                  <WhatsAppMessageBubble
-                    key={item.msg.id}
-                    direction={item.msg.direction}
-                    type={item.msg.type}
-                    content={item.msg.content}
-                    mediaUrl={item.msg.media_url}
-                    createdAt={item.msg.created_at}
-                    status={item.msg.status}
-                    senderId={item.msg.sender_id}
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={handleSync}
+                    disabled={syncing || status !== "connected"}
+                    title="Sincronizar"
+                    className="h-8 w-8 flex-shrink-0"
+                  >
+                    {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCw className="h-4 w-4" />}
+                  </Button>
+                </div>
+
+                <div className="relative">
+                  <Search className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Buscar conversa, telefone..."
+                    className="pl-9 h-9 text-sm bg-background/60 border-border/50"
                   />
-                ),
+                </div>
+
+                <Tabs value={filter} onValueChange={(v) => setFilter(v as Filter)}>
+                  <TabsList className="grid grid-cols-4 h-8 bg-background/40 p-0.5">
+                    <TabsTrigger value="all" className="text-[11px] h-7">Todas</TabsTrigger>
+                    <TabsTrigger value="unread" className="text-[11px] h-7">
+                      Não lidas{unreadCount > 0 && <span className="ml-1 text-primary">{unreadCount}</span>}
+                    </TabsTrigger>
+                    <TabsTrigger value="open" className="text-[11px] h-7">Abertas</TabsTrigger>
+                    <TabsTrigger value="resolved" className="text-[11px] h-7">Resolvidas</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
+
+              <div className="flex-1 overflow-y-auto">
+                {loading && (
+                  <div className="p-4 text-xs text-muted-foreground flex items-center gap-2">
+                    <Loader2 className="h-3 w-3 animate-spin" /> Carregando conversas...
+                  </div>
+                )}
+                {!loading && filtered.length === 0 && (
+                  <div className="p-8 text-center">
+                    <MessageCircle className="h-8 w-8 mx-auto text-muted-foreground/40 mb-2" />
+                    <p className="text-xs text-muted-foreground">
+                      {conversations.length === 0
+                        ? "Nenhuma conversa ainda. Clique em sincronizar."
+                        : "Nenhum resultado para esses filtros."}
+                    </p>
+                  </div>
+                )}
+                <div className="py-1">
+                  {filtered.map((c) => (
+                    <WhatsAppConversationItem
+                      key={c.id}
+                      conversation={c}
+                      active={selectedId === c.id}
+                      onClick={() => setSelectedId(c.id)}
+                    />
+                  ))}
+                </div>
+              </div>
+            </aside>
+
+            {/* ============ Conversa central ============ */}
+            <section
+              className={cn(
+                "flex-1 flex-col min-w-0 bg-gradient-to-b from-background to-background/60",
+                showChat ? "flex" : "hidden md:flex",
               )}
-            </div>
+            >
+              {selected ? (
+                <>
+                  {/* Header */}
+                  <header className="px-4 md:px-5 py-3 border-b border-border/40 flex items-center gap-2 md:gap-3 bg-card/30 backdrop-blur-sm">
+                    {/* Back button (mobile only) */}
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8 md:hidden flex-shrink-0"
+                      onClick={() => setSelectedId(null)}
+                      title="Voltar"
+                    >
+                      <ArrowLeft className="h-4 w-4" />
+                    </Button>
 
-            {/* Input */}
-            <WhatsAppChatInput
-              disabled={status !== "connected"}
-              sending={sending}
-              onSend={handleSend}
-              placeholder={
-                status === "connected"
-                  ? `Mensagem para ${selected.contact_name ?? selected.contact_phone}...`
-                  : "Conecte o WhatsApp para enviar"
-              }
-            />
-          </>
-        ) : (
-          <WhatsAppEmptyState
-            icon={MessageCircle}
-            title="Selecione uma conversa"
-            description="Escolha um contato na lista à esquerda para visualizar o histórico e responder."
-          />
+                    <div className="h-9 w-9 md:h-10 md:w-10 rounded-full bg-gradient-to-br from-primary/25 to-primary/5 border border-border/40 text-primary flex items-center justify-center text-xs font-semibold overflow-hidden flex-shrink-0">
+                      {selected.avatar_url ? (
+                        <img
+                          src={selected.avatar_url}
+                          alt={selected.contact_name ?? selected.contact_phone}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        initials(selected.contact_name, selected.contact_phone)
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-sm truncate">
+                          {selected.contact_name ?? selected.contact_phone}
+                        </p>
+                        <WhatsAppStatusBadge status={selected.status} size="xs" />
+                      </div>
+                      <p className="text-[11px] text-muted-foreground truncate">
+                        {selected.contact_phone}
+                        {selected.last_message_at && (
+                          <span className="hidden sm:inline"> · última atividade {new Date(selected.last_message_at).toLocaleString()}</span>
+                        )}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-0.5 flex-shrink-0">
+                      <Button size="icon" variant="ghost" className="h-8 w-8 hidden sm:inline-flex" title="Buscar na conversa" disabled>
+                        <Search className="h-4 w-4" />
+                      </Button>
+                      {/* Desktop toggle: inline panel */}
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 hidden xl:inline-flex"
+                        title={showContext ? "Ocultar painel" : "Mostrar painel"}
+                        onClick={() => setShowContext((s) => !s)}
+                      >
+                        {showContext
+                          ? <PanelRightClose className="h-4 w-4" />
+                          : <PanelRightOpen className="h-4 w-4" />}
+                      </Button>
+                      {/* Tablet/mobile toggle: drawer */}
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 xl:hidden"
+                        title="Detalhes do contato"
+                        onClick={() => setContextSheetOpen(true)}
+                      >
+                        <PanelRightOpen className="h-4 w-4" />
+                      </Button>
+                      <Button size="icon" variant="ghost" className="h-8 w-8" title="Mais" disabled>
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </header>
+
+                  {/* Mensagens */}
+                  <div className="flex-1 overflow-y-auto px-3 md:px-6 py-4 md:py-5 space-y-2.5">
+                    {messages.length === 0 && (
+                      <div className="flex h-full items-center justify-center">
+                        <WhatsAppEmptyState
+                          icon={MessageCircle}
+                          title="Sem mensagens ainda"
+                          description="Quando esta conversa receber ou enviar mensagens, elas aparecerão aqui."
+                        />
+                      </div>
+                    )}
+                    {grouped.map((item, idx) =>
+                      item.kind === "day" ? (
+                        <div key={`d-${idx}`} className="flex items-center justify-center my-3">
+                          <span className="text-[10px] uppercase tracking-wider text-muted-foreground bg-card/60 border border-border/40 rounded-full px-2.5 py-0.5">
+                            {item.label}
+                          </span>
+                        </div>
+                      ) : (
+                        <WhatsAppMessageBubble
+                          key={item.msg.id}
+                          direction={item.msg.direction}
+                          type={item.msg.type}
+                          content={item.msg.content}
+                          mediaUrl={item.msg.media_url}
+                          createdAt={item.msg.created_at}
+                          status={item.msg.status}
+                          senderId={item.msg.sender_id}
+                        />
+                      ),
+                    )}
+                  </div>
+
+                  {/* Input */}
+                  <WhatsAppChatInput
+                    disabled={status !== "connected"}
+                    sending={sending}
+                    onSend={handleSend}
+                    placeholder={
+                      status === "connected"
+                        ? `Mensagem para ${selected.contact_name ?? selected.contact_phone}...`
+                        : "Conecte o WhatsApp para enviar"
+                    }
+                  />
+                </>
+              ) : (
+                <WhatsAppEmptyState
+                  icon={MessageCircle}
+                  title="Selecione uma conversa"
+                  description="Escolha um contato na lista à esquerda para visualizar o histórico e responder."
+                />
+              )}
+            </section>
+
+            {/* ============ Painel de contexto (desktop xl: inline) ============ */}
+            {selected && showContext && (
+              <div className="hidden xl:flex">
+                <WhatsAppContactPanel
+                  contactName={selected.contact_name}
+                  contactPhone={selected.contact_phone}
+                  status={selected.status}
+                  tags={selected.tags}
+                  avatarUrl={selected.avatar_url}
+                  lastActivity={selected.last_message_at}
+                  onClose={() => setShowContext(false)}
+                />
+              </div>
+            )}
+
+            {/* ============ Painel de contexto (tablet/mobile: drawer) ============ */}
+            <Sheet open={contextSheetOpen} onOpenChange={setContextSheetOpen}>
+              <SheetContent side="right" className="p-0 w-full sm:max-w-[340px] xl:hidden">
+                {selected && (
+                  <WhatsAppContactPanel
+                    contactName={selected.contact_name}
+                    contactPhone={selected.contact_phone}
+                    status={selected.status}
+                    tags={selected.tags}
+                    avatarUrl={selected.avatar_url}
+                    lastActivity={selected.last_message_at}
+                    onClose={() => setContextSheetOpen(false)}
+                  />
+                )}
+              </SheetContent>
+            </Sheet>
+          </div>
         )}
-      </section>
 
-      {/* ============ Painel de contexto (desktop xl: inline) ============ */}
-      {selected && showContext && (
-        <div className="hidden xl:flex">
-          <WhatsAppContactPanel
-            contactName={selected.contact_name}
-            contactPhone={selected.contact_phone}
-            status={selected.status}
-            tags={selected.tags}
-            avatarUrl={selected.avatar_url}
-            lastActivity={selected.last_message_at}
-            onClose={() => setShowContext(false)}
-          />
-        </div>
-      )}
+        {activeMainTab === "campaigns" && workspace && (
+          <div className="flex-1 overflow-hidden h-full">
+            <WhatsAppCampaigns workspaceId={workspace.id} />
+          </div>
+        )}
 
-      {/* ============ Painel de contexto (tablet/mobile: drawer) ============ */}
-      <Sheet open={contextSheetOpen} onOpenChange={setContextSheetOpen}>
-        <SheetContent side="right" className="p-0 w-full sm:max-w-[340px] xl:hidden">
-          {selected && (
-            <WhatsAppContactPanel
-              contactName={selected.contact_name}
-              contactPhone={selected.contact_phone}
-              status={selected.status}
-              tags={selected.tags}
-              avatarUrl={selected.avatar_url}
-              lastActivity={selected.last_message_at}
-              onClose={() => setContextSheetOpen(false)}
-            />
-          )}
-        </SheetContent>
-      </Sheet>
+        {activeMainTab === "bot" && workspace && (
+          <div className="flex-1 overflow-y-auto h-full bg-background/50">
+            <WhatsAppBotConfig workspaceId={workspace.id} />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
