@@ -212,17 +212,17 @@ export function SupabaseQuotesViewerCard() {
                         <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
                           Cliente: {quote.clientName} ({quote.clientEmail})
                         </p>
-                        {quote.validUntil && (
+                        {(quote as any).validUntil && (
                           <p className="text-[10px] text-muted-foreground/80 mt-0.5 truncate">
-                            Validade: {new Date(quote.validUntil).toLocaleDateString()}
+                            Validade: {new Date((quote as any).validUntil).toLocaleDateString()}
                           </p>
                         )}
-                        {quote.approvedAt && quote.status === "approved" && (
+                        {quote.approvedAt && (quote.status as string) === "approved" && (
                           <p className="text-[10px] text-emerald-400 mt-0.5 truncate font-medium">
                             Aprovado em: {new Date(quote.approvedAt).toLocaleString()}
                           </p>
                         )}
-                        {quote.rejectedAt && quote.status === "rejected" && (
+                        {quote.rejectedAt && (quote.status as string) === "rejected" && (
                           <p className="text-[10px] text-destructive mt-0.5 truncate font-medium">
                             Rejeitado em: {new Date(quote.rejectedAt).toLocaleString()}
                           </p>
@@ -233,8 +233,8 @@ export function SupabaseQuotesViewerCard() {
                           {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(quote.total)}
                         </span>
                         <Badge variant="outline" className={`text-[10px] uppercase py-0 px-1.5 capitalize ${
-                          quote.status === "approved" ? "border-emerald-500/30 text-emerald-400 bg-emerald-500/10" :
-                          quote.status === "rejected" ? "border-destructive/30 text-destructive bg-destructive/10" :
+                          (quote.status as string) === "approved" ? "border-emerald-500/30 text-emerald-400 bg-emerald-500/10" :
+                          (quote.status as string) === "rejected" ? "border-destructive/30 text-destructive bg-destructive/10" :
                           "bg-muted"
                         }`}>
                           {quote.status}
@@ -242,7 +242,7 @@ export function SupabaseQuotesViewerCard() {
                       </div>
                     </div>
 
-                    {quote.status === "draft" && (
+                    {(quote.status as string) === "draft" && (
                       <div className="flex items-center gap-1.5">
                         <Button
                           size="sm"
@@ -265,7 +265,7 @@ export function SupabaseQuotesViewerCard() {
                       </div>
                     )}
 
-                    {quote.status === "approved" && (
+                    {(quote.status as string) === "approved" && (
                       <div className="flex items-center gap-1.5">
                         <Button
                           size="sm"
