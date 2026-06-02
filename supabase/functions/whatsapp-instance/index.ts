@@ -62,6 +62,18 @@ Deno.serve(async (req) => {
     const { action, workspaceId } = body as { action?: string; workspaceId?: string };
     if (!workspaceId) return json({ error: "workspaceId is required" }, 400);
 
+    // Normaliza subdomain ("free" | "free.uazapi.com" | "https://free.uazapi.com") => "free"
+    const normalizeSubdomain = (input: string | undefined | null): string => {
+      const raw = (input ?? "").trim().replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+      if (!raw) return SUBDOMAIN || "free";
+      const host = raw.split("/")[0];
+      if (host.endsWith(".uazapi.com")) return host.replace(/\.uazapi\.com$/, "");
+      if (host.includes(".")) return host;
+      return host;
+    };
+    const baseForSubdomain = (sub: string) =>
+      /\./.test(sub) ? `https://${sub}` : `https://${sub}.uazapi.com`;
+
     // Verify membership
     const { data: member } = await userClient
       .from("workspace_members")
