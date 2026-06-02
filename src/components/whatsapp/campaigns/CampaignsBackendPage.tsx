@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Loader2, Send, Inbox, Trash2 } from "lucide-react";
+import { Plus, Loader2, Send, Inbox, Trash2, PlayCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import {
@@ -10,7 +11,9 @@ import {
   deleteCampaign,
   type WhatsAppCampaignV2,
 } from "@/lib/whatsapp/repositories/whatsappCampaignsRepository";
+import { isCampaignSenderEnabled } from "@/lib/whatsapp/featureFlags";
 import { CampaignWizard } from "./CampaignWizard";
+import { CampaignSendDialog } from "./CampaignSendDialog";
 
 export function CampaignsBackendPage() {
   const { workspace } = useCurrentWorkspace();
