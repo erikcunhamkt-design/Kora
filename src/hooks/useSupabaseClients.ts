@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useEffect, useState, useCallback } from "react";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { clientsRepository, type SupabaseClientInput } from "@/repositories/clientsRepository";

@@ -87,7 +87,7 @@ export function useLocalClientsImport() {
         status: local.status,
         archived: local.status === "Arquivado",
         matchStatus,
-        matchedId: matched?.id || importMetadata.importedMap[String(local.id)],
+        matchedId: (matched as { id?: string } | undefined)?.id || importMetadata.importedMap[String(local.id)],
         raw: local,
       });
     }

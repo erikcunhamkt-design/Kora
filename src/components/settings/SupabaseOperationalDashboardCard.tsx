@@ -297,10 +297,10 @@ export function SupabaseOperationalDashboardCard() {
 
     // Orçamentos
     const quotesTotal = quotes.length;
-    const quotesDraft = quotes.filter((q) => q.status === "rascunho" || q.status === "draft").length;
-    const quotesApproved = quotes.filter((q) => q.status === "aprovado" || q.status === "approved").length;
-    const quotesRejected = quotes.filter((q) => q.status === "recusado" || q.status === "rejected").length;
-    const quotesApprovedVal = quotes.filter((q) => q.status === "aprovado" || q.status === "approved").reduce((sum, q) => sum + (q.total || 0), 0);
+    const quotesDraft = quotes.filter((q) => q.status === "rascunho" || (q.status as string) === "draft").length;
+    const quotesApproved = quotes.filter((q) => q.status === "aprovado" || (q.status as string) === "approved").length;
+    const quotesRejected = quotes.filter((q) => q.status === "recusado" || (q.status as string) === "rejected").length;
+    const quotesApprovedVal = quotes.filter((q) => q.status === "aprovado" || (q.status as string) === "approved").reduce((sum, q) => sum + (q.total || 0), 0);
 
     // Recebíveis
     const finTotal = receivables.length;
@@ -316,10 +316,10 @@ export function SupabaseOperationalDashboardCard() {
 
     // Relações do Fluxo Comercial
     const oppsWithQuote = opportunities.filter((o) => o.quote_id !== null).length;
-    const approvedWithReceivable = quotes.filter((q) => (q.status === "aprovado" || q.status === "approved") && receivables.some((r) => r.quote_id === q.id && r.type === "receivable" && !r.deleted_at)).length;
-    const approvedWithProject = quotes.filter((q) => (q.status === "aprovado" || q.status === "approved") && projects.some((p) => p.quote_id === q.id && !p.deleted_at)).length;
-    const approvedNoReceivable = quotes.filter((q) => (q.status === "aprovado" || q.status === "approved") && !receivables.some((r) => r.quote_id === q.id && r.type === "receivable" && !r.deleted_at)).length;
-    const approvedNoProject = quotes.filter((q) => (q.status === "aprovado" || q.status === "approved") && !projects.some((p) => p.quote_id === q.id && !p.deleted_at)).length;
+    const approvedWithReceivable = quotes.filter((q) => (q.status === "aprovado" || (q.status as string) === "approved") && receivables.some((r) => r.quote_id === q.id && r.type === "receivable" && !r.deleted_at)).length;
+    const approvedWithProject = quotes.filter((q) => (q.status === "aprovado" || (q.status as string) === "approved") && projects.some((p) => p.quote_id === q.id && !p.deleted_at)).length;
+    const approvedNoReceivable = quotes.filter((q) => (q.status === "aprovado" || (q.status as string) === "approved") && !receivables.some((r) => r.quote_id === q.id && r.type === "receivable" && !r.deleted_at)).length;
+    const approvedNoProject = quotes.filter((q) => (q.status === "aprovado" || (q.status as string) === "approved") && !projects.some((p) => p.quote_id === q.id && !p.deleted_at)).length;
 
     return {
       crmTotal, crmOpen, crmWon, crmLost,

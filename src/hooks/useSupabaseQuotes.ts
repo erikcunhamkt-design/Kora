@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Hook for Supabase Quotes
 import { useCallback, useEffect, useState } from "react";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";

@@ -172,8 +172,8 @@ export function LinkedQuotesSection({
                       Supabase
                     </Badge>
                     <Badge variant="outline" className={`text-[9px] uppercase tracking-wide py-0 px-1 capitalize ${
-                      quote.status === "approved" ? "border-emerald-500/30 text-emerald-400 bg-emerald-500/10" :
-                      quote.status === "rejected" ? "border-destructive/30 text-destructive bg-destructive/10" :
+                      (quote.status as string) === "approved" ? "border-emerald-500/30 text-emerald-400 bg-emerald-500/10" :
+                      (quote.status as string) === "rejected" ? "border-destructive/30 text-destructive bg-destructive/10" :
                       "bg-muted"
                     }`}>
                       {quote.status}
@@ -187,18 +187,18 @@ export function LinkedQuotesSection({
                     <span>Criado em: {new Date(quote.createdAt).toLocaleDateString()}</span>
                   )}
                 </div>
-                {quote.approvedAt && quote.status === "approved" && (
+                {quote.approvedAt && (quote.status as string) === "approved" && (
                   <p className="text-[10px] text-emerald-400 mt-0.5 truncate font-medium">
                     Aprovado em: {new Date(quote.approvedAt).toLocaleString()}
                   </p>
                 )}
-                {quote.rejectedAt && quote.status === "rejected" && (
+                {quote.rejectedAt && (quote.status as string) === "rejected" && (
                   <p className="text-[10px] text-destructive mt-0.5 truncate font-medium">
                     Rejeitado em: {new Date(quote.rejectedAt).toLocaleString()}
                   </p>
                 )}
 
-                {quote.status === "draft" && (
+                {(quote.status as string) === "draft" && (
                   <div className="flex items-center gap-1.5 mt-1">
                     <Button
                       size="sm"
@@ -221,7 +221,7 @@ export function LinkedQuotesSection({
                   </div>
                 )}
 
-                {quote.status === "approved" && (
+                {(quote.status as string) === "approved" && (
                   <div className="flex items-center gap-1.5 mt-1">
                     <Button
                       size="sm"

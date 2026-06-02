@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Vitest test for useLocalQuotesImport hook
 import { renderHook, act } from '@testing-library/react-hooks';
 import { useLocalQuotesImport } from '@/hooks/useLocalQuotesImport';

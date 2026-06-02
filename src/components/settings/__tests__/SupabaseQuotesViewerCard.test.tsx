@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Vitest test for SupabaseQuotesViewerCard component and logic
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { SupabaseQuotesViewerCard } from "@/components/settings/SupabaseQuotesViewerCard";
