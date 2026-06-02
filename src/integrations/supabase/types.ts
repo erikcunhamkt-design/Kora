@@ -947,8 +947,78 @@ export type Database = {
           },
         ]
       }
+      whatsapp_bot_settings: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean | null
+          model_name: string | null
+          system_instruction: string | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          model_name?: string | null
+          system_instruction?: string | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          model_name?: string | null
+          system_instruction?: string | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      whatsapp_campaigns: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          failed_contacts: number
+          id: string
+          message_template: string
+          sent_contacts: number
+          status: string
+          title: string
+          total_contacts: number
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          failed_contacts?: number
+          id?: string
+          message_template: string
+          sent_contacts?: number
+          status?: string
+          title: string
+          total_contacts?: number
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          failed_contacts?: number
+          id?: string
+          message_template?: string
+          sent_contacts?: number
+          status?: string
+          title?: string
+          total_contacts?: number
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       whatsapp_conversations: {
         Row: {
+          assigned_to: string | null
           avatar_url: string | null
           client_id: string | null
           contact_name: string | null
@@ -966,6 +1036,7 @@ export type Database = {
           workspace_id: string
         }
         Insert: {
+          assigned_to?: string | null
           avatar_url?: string | null
           client_id?: string | null
           contact_name?: string | null
@@ -983,6 +1054,7 @@ export type Database = {
           workspace_id: string
         }
         Update: {
+          assigned_to?: string | null
           avatar_url?: string | null
           client_id?: string | null
           contact_name?: string | null
@@ -1125,6 +1197,7 @@ export type Database = {
           instance_id: string
           media_url: string | null
           raw_payload: Json | null
+          sender_id: string | null
           status: string
           timestamp: string | null
           type: string
@@ -1143,6 +1216,7 @@ export type Database = {
           instance_id: string
           media_url?: string | null
           raw_payload?: Json | null
+          sender_id?: string | null
           status?: string
           timestamp?: string | null
           type?: string
@@ -1161,6 +1235,7 @@ export type Database = {
           instance_id?: string
           media_url?: string | null
           raw_payload?: Json | null
+          sender_id?: string | null
           status?: string
           timestamp?: string | null
           type?: string
@@ -1168,6 +1243,56 @@ export type Database = {
           workspace_id?: string
         }
         Relationships: []
+      }
+      whatsapp_queue: {
+        Row: {
+          campaign_id: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          phone: string
+          recipient_name: string | null
+          scheduled_at: string
+          sent_at: string | null
+          status: string
+          variables: Json | null
+          workspace_id: string
+        }
+        Insert: {
+          campaign_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          phone: string
+          recipient_name?: string | null
+          scheduled_at?: string
+          sent_at?: string | null
+          status?: string
+          variables?: Json | null
+          workspace_id: string
+        }
+        Update: {
+          campaign_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          phone?: string
+          recipient_name?: string | null
+          scheduled_at?: string
+          sent_at?: string | null
+          status?: string
+          variables?: Json | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_queue_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       workspace_members: {
         Row: {
