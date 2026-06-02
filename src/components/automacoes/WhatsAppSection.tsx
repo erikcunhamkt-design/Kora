@@ -1,24 +1,49 @@
 import { useState } from "react";
-import { MessageCircle, QrCode, Plug, Send, Plus, Smartphone } from "lucide-react";
+import { MessageCircle, QrCode, Plug, Send, Plus, Smartphone, Loader2, RefreshCw } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { useWhatsAppMock } from "@/hooks/useWhatsAppMock";
+import { useWhatsAppInstance } from "@/hooks/useWhatsAppInstance";
 
 export function WhatsAppSection() {
-  const { connection, conversations, messages, simulateConnect, disconnect, sendMessage, createConversation } = useWhatsAppMock();
+  const { conversations, messages, sendMessage, createConversation } = useWhatsAppMock();
+  const { instance, loading, busy, connect, disconnect, refreshStatus } = useWhatsAppInstance();
   const [selectedId, setSelectedId] = useState<string | null>(conversations[0]?.id ?? null);
   const [input, setInput] = useState("");
   const [newOpen, setNewOpen] = useState(false);
+  const [qrOpen, setQrOpen] = useState(false);
   const [form, setForm] = useState({ contactName: "", phone: "", firstMessage: "" });
 
   const selected = conversations.find((c) => c.id === selectedId) ?? null;
   const thread = messages.filter((m) => m.conversationId === selectedId);
+
+  const status = instance?.status ?? "disconnected";
+  const qrCode = instance?.qr_code ?? null;
+
+  const handleConnect = async () => {
+    try {
+      await connect();
+      setQrOpen(true);
+      toast.success("Instância criada. Escaneie o QR Code.");
+    } catch (e) {
+      toast.error("Falha ao conectar", { description: (e as Error).message });
+    }
+  };
+
+  const handleDisconnect = async () => {
+    try {
+      await disconnect();
+      toast.success("WhatsApp desconectado");
+    } catch (e) {
+      toast.error("Falha ao desconectar", { description: (e as Error).message });
+    }
+  };
 
   const handleSend = () => {
     if (!input.trim() || !selectedId) return;
@@ -42,26 +67,35 @@ export function WhatsAppSection() {
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-lg bg-emerald-500/15 text-emerald-400 flex items-center justify-center"><Smartphone className="h-5 w-5" /></div>
             <div>
-              <h3 className="font-semibold">Conexão WhatsApp</h3>
+              <h3 className="font-semibold flex items-center gap-2">
+                Conexão WhatsApp
+                <Badge variant="outline" className="text-[10px]">uazapi</Badge>
+              </h3>
               <p className="text-xs text-muted-foreground">
-                {connection.status === "connected" && `Conectado: ${connection.phoneName}`}
-                {connection.status === "connecting" && "Conectando..."}
-                {connection.status === "disconnected" && "Desconectado"}
+                {status === "connected" && `Conectado: ${instance?.phone_name ?? instance?.phone ?? "WhatsApp"}`}
+                {status === "connecting" && "Aguardando leitura do QR Code..."}
+                {status === "disconnected" && "Desconectado"}
               </p>
             </div>
           </div>
-          {connection.status === "connected" ? (
-            <Button variant="outline" onClick={disconnect}>Desconectar</Button>
-          ) : (
-            <Button onClick={simulateConnect}><Plug className="h-4 w-4" /> Simular conexão</Button>
-          )}
-        </div>
-        {connection.status !== "connected" && (
-          <div className="mt-4 flex flex-col items-center gap-2 py-6 border border-dashed border-border/60 rounded-lg">
-            <div className="h-32 w-32 bg-muted/40 rounded-lg flex items-center justify-center"><QrCode className="h-16 w-16 text-muted-foreground" /></div>
-            <p className="text-xs text-muted-foreground">QR Code de exemplo — escaneie no app real (simulação)</p>
+          <div className="flex gap-2">
+            {status === "connected" ? (
+              <Button variant="outline" onClick={handleDisconnect} disabled={busy}>Desconectar</Button>
+            ) : (
+              <>
+                {instance && (
+                  <Button variant="outline" onClick={() => setQrOpen(true)} disabled={busy}>
+                    <QrCode className="h-4 w-4" /> Ver QR
+                  </Button>
+                )}
+                <Button onClick={handleConnect} disabled={busy || loading}>
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plug className="h-4 w-4" />}
+                  {instance ? "Reconectar" : "Conectar WhatsApp"}
+                </Button>
+              </>
+            )}
           </div>
-        )}
+        </div>
       </Card>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -114,6 +148,39 @@ export function WhatsAppSection() {
           )}
         </div>
       </Card>
+
+      <Dialog open={qrOpen} onOpenChange={setQrOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Conectar WhatsApp</DialogTitle>
+            <DialogDescription>
+              Abra o WhatsApp no celular → Configurações → Aparelhos conectados → Conectar um aparelho.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col items-center gap-3 py-2">
+            {qrCode ? (
+              <img
+                src={qrCode.startsWith("data:") ? qrCode : `data:image/png;base64,${qrCode}`}
+                alt="QR Code WhatsApp"
+                className="h-64 w-64 rounded-lg bg-white p-2"
+              />
+            ) : (
+              <div className="h-64 w-64 bg-muted/40 rounded-lg flex items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            )}
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Badge variant="secondary">{status}</Badge>
+              <Button size="sm" variant="ghost" onClick={() => refreshStatus()}>
+                <RefreshCw className="h-3 w-3" /> Atualizar
+              </Button>
+            </div>
+            {status === "connected" && (
+              <p className="text-xs text-emerald-400">Conectado com sucesso!</p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={newOpen} onOpenChange={setNewOpen}>
         <DialogContent>
