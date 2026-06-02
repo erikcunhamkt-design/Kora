@@ -102,3 +102,58 @@ UI do wizard só lista templates com `status='approved'`. Repositório de campan
 4. Unificar `whatsapp_campaigns` antigo no schema v2 e aposentar a tabela legada.
 5. Suporte a XLSX e a múltiplos países (não-BR).
 6. Métricas agregadas por campanha (entrega, leitura, resposta, conversão).
+
+---
+
+## QA Funcional — V1
+
+### Cenários testados
+
+**Tabelas/RLS (via schema introspection):**
+- 6 tabelas existem (`whatsapp_audiences`, `whatsapp_audience_contacts`, `whatsapp_templates`, `whatsapp_campaigns_v2`, `whatsapp_campaign_recipients`, `whatsapp_opt_outs`).
+- Todas com `workspace_id NOT NULL`.
+- RLS ativa em todas, 4 policies (select/insert/update/delete) por tabela, role `authenticated`, expressão `is_workspace_member(workspace_id)`.
+- GRANTs corretos para `authenticated` + `service_role`.
+
+**Telefone (`/tmp/phone-qa.mjs`, todos os cases pedidos):**
+| Input | Normalizado | Válido | Motivo |
+|---|---|---|---|
+| `(51) 99999-9999` | `5551999999999` | ✅ | — |
+| `51999999999` | `5551999999999` | ✅ | — |
+| `5551999999999` | `5551999999999` | ✅ | — |
+| `99999-9999` | `999999999` | ❌ | DDI não é Brasil |
+| `123` | `123` | ❌ | DDI não é Brasil |
+| `99999999999999999` | mantido | ❌ | Tamanho inválido |
+| `abc xyz!!!` | `""` | ❌ | Telefone vazio |
+| `+55 (11) 98765-4321` | `5511987654321` | ✅ | — |
+
+Conservador: não inventa 9º dígito, não corrige agressivamente, valida DDD oficial.
+
+**Repositories:**
+- `whatsappAudiencesRepository.importAudienceContacts` → normaliza, valida, marca duplicados internos, cruza com `clients`/`whatsapp_conversations`/`whatsapp_opt_outs`, insere em batch, atualiza contadores. Nunca insere em `clients`.
+- `whatsappTemplatesRepository` → CRUD + transições de status (`draft↔pending↔approved↔rejected↔paused`), preview tolera variáveis ausentes (mantém `{{var}}`).
+- `whatsappCampaignsRepository.createCampaign` → bloqueia se `template.status !== 'approved'` (throw explícito).
+- `prepareCampaignRecipients` → marca `skipped` com `skip_reason` para `opt_out`, `blocked`, `is_valid=false`, `is_duplicate=true`.
+
+**UI:**
+- `WhatsApp.tsx` renderiza `AudiencesBackendPage`, `TemplatesBackendPage`, `CampaignsBackendPage` nas abas correspondentes.
+- Inbox e Robô IA intocados.
+- Wizard de campanha não avança sem audiência + template aprovado.
+- Botão "Enviar agora" desabilitado com tooltip.
+
+### Bugs encontrados
+Nenhum no escopo desta V1.
+
+### Bugs corrigidos
+Nenhum (sem alteração de código nesta rodada de QA).
+
+### Limitações
+- Sem teste E2E em browser real (validação por leitura de código + unit test de telefone).
+- `whatsapp_campaigns` legado continua coexistindo.
+- Validação focada em BR.
+
+### Status do envio real
+**Bloqueado.** Nenhuma edge function nova, nenhum disparo, nenhuma chamada à API WhatsApp. Campanhas só em `draft`/`scheduled`.
+
+### Recomendação final
+**Aceitar V1.** Próxima fase deve focar em: edge function `whatsapp-campaign-v2-sender` com fila + rate limit + idempotência, webhook de delivery/read, e unificação do schema legado.
