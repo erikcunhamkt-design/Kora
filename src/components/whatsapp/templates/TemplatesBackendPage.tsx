@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Loader2, Edit3, Trash2, CheckCircle2, Clock, XCircle, Pause, FileText } from "lucide-react";
+import { Plus, Loader2, Edit3, Trash2, CheckCircle2, Clock, Pause, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -19,12 +19,14 @@ import {
 } from "@/lib/whatsapp/repositories/whatsappTemplatesRepository";
 import { TemplateFormDialog } from "./TemplateFormDialog";
 
+// UI labels: status conceitual "Rascunho / Ativo / Arquivado".
+// Mapeamento interno: draft/pending/rejected -> Rascunho, approved -> Ativo, paused -> Arquivado.
 const STATUS_META: Record<TemplateStatus, { label: string; className: string; icon: typeof Clock }> = {
   draft: { label: "Rascunho", className: "bg-muted text-muted-foreground", icon: FileText },
-  pending: { label: "Pendente", className: "bg-warning/15 text-warning border-warning/30", icon: Clock },
-  approved: { label: "Aprovado", className: "bg-success/15 text-success border-success/30", icon: CheckCircle2 },
-  rejected: { label: "Reprovado", className: "bg-destructive/15 text-destructive border-destructive/30", icon: XCircle },
-  paused: { label: "Pausado", className: "bg-muted text-muted-foreground", icon: Pause },
+  pending: { label: "Rascunho", className: "bg-muted text-muted-foreground", icon: FileText },
+  approved: { label: "Ativo", className: "bg-success/15 text-success border-success/30", icon: CheckCircle2 },
+  rejected: { label: "Rascunho", className: "bg-muted text-muted-foreground", icon: FileText },
+  paused: { label: "Arquivado", className: "bg-muted text-muted-foreground", icon: Pause },
 };
 
 export function TemplatesBackendPage() {
@@ -42,7 +44,7 @@ export function TemplatesBackendPage() {
         const list = await listTemplates(workspace.id);
         setTemplates(list);
       } catch (e) {
-        toast.error("Falha ao carregar templates", { description: (e as Error).message });
+        toast.error("Falha ao carregar modelos", { description: (e as Error).message });
       } finally {
         setLoading(false);
       }
@@ -63,7 +65,7 @@ export function TemplatesBackendPage() {
       else if (status === "rejected") await markTemplateRejected(workspace.id, tpl.id, "Reprovado manualmente");
       else if (status === "paused") await markTemplatePaused(workspace.id, tpl.id);
       else if (status === "draft") await markTemplateDraft(workspace.id, tpl.id);
-      toast.success(`Template marcado como ${STATUS_META[status].label.toLowerCase()}`);
+      toast.success(`Modelo marcado como ${STATUS_META[status].label.toLowerCase()}`);
       await load();
     } catch (e) {
       toast.error("Falha ao atualizar status", { description: (e as Error).message });
@@ -75,10 +77,11 @@ export function TemplatesBackendPage() {
       <div className="max-w-6xl mx-auto space-y-6">
         <header className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-xl font-semibold">Templates Aprovados</h2>
+            <h2 className="text-xl font-semibold">Modelos de Mensagem</h2>
             <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
-              Biblioteca de mensagens. Cada empresa precisa ter seus próprios templates aprovados
-              na conta/número conectado. Modelos do KORA são rascunhos base.
+              Biblioteca de mensagens sugeridas para usar em campanhas. Os modelos são sugestões de
+              copy — não são pré-aprovados por nenhuma plataforma. A responsabilidade pelo conteúdo,
+              pela lista de contatos e pelo envio é do usuário.
             </p>
           </div>
           <Button
@@ -88,7 +91,7 @@ export function TemplatesBackendPage() {
             }}
             className="gap-2"
           >
-            <Plus className="h-4 w-4" /> Novo template
+            <Plus className="h-4 w-4" /> Novo modelo
           </Button>
         </header>
 
@@ -100,9 +103,9 @@ export function TemplatesBackendPage() {
           <Card className="bg-card/40 border-dashed">
             <CardContent className="p-12 text-center">
               <FileText className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
-              <p className="text-sm font-medium">Nenhum template criado</p>
+              <p className="text-sm font-medium">Nenhum modelo criado</p>
               <p className="text-xs text-muted-foreground mt-1 mb-4">
-                Crie seu primeiro template para usar em campanhas.
+                Crie seu primeiro modelo de mensagem para usar em campanhas.
               </p>
               <Button
                 size="sm"
@@ -112,7 +115,7 @@ export function TemplatesBackendPage() {
                 }}
                 className="gap-2"
               >
-                <Plus className="h-4 w-4" /> Criar template
+                <Plus className="h-4 w-4" /> Criar modelo
               </Button>
             </CardContent>
           </Card>
@@ -157,35 +160,15 @@ export function TemplatesBackendPage() {
                       >
                         <Edit3 className="h-3 w-3" /> Editar
                       </Button>
-                      {tpl.status !== "pending" && tpl.status !== "approved" && (
+                      {tpl.status !== "approved" && tpl.status !== "paused" && (
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="text-xs h-7"
-                          onClick={() => changeStatus(tpl, "pending")}
+                          className="text-xs h-7 text-success hover:text-success"
+                          onClick={() => changeStatus(tpl, "approved")}
                         >
-                          Enviar para aprovação
+                          Ativar modelo
                         </Button>
-                      )}
-                      {tpl.status === "pending" && (
-                        <>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-xs h-7 text-success hover:text-success"
-                            onClick={() => changeStatus(tpl, "approved")}
-                          >
-                            Marcar aprovado
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-xs h-7 text-destructive hover:text-destructive"
-                            onClick={() => changeStatus(tpl, "rejected")}
-                          >
-                            Reprovar
-                          </Button>
-                        </>
                       )}
                       {tpl.status === "approved" && (
                         <Button
@@ -194,7 +177,17 @@ export function TemplatesBackendPage() {
                           className="text-xs h-7"
                           onClick={() => changeStatus(tpl, "paused")}
                         >
-                          Pausar
+                          Arquivar
+                        </Button>
+                      )}
+                      {tpl.status === "paused" && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-xs h-7"
+                          onClick={() => changeStatus(tpl, "approved")}
+                        >
+                          Reativar
                         </Button>
                       )}
                       <Button
@@ -202,9 +195,9 @@ export function TemplatesBackendPage() {
                         variant="ghost"
                         className="text-xs h-7 text-destructive hover:text-destructive ml-auto"
                         onClick={() => {
-                          if (!confirm(`Remover template "${tpl.name}"?`)) return;
+                          if (!confirm(`Remover modelo "${tpl.name}"?`)) return;
                           void deleteTemplate(workspace.id, tpl.id).then(() => {
-                            toast.success("Template removido");
+                            toast.success("Modelo removido");
                             void load();
                           });
                         }}

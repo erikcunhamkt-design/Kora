@@ -2,7 +2,7 @@
 // - Processes a single batch of recipients per invocation (MAX_BATCH_SIZE).
 // - Validates campaign + template + workspace authorization server-side.
 // - Idempotent: skips recipients already sent/delivered/read/replied or with provider_message_id.
-// - Never accepts free body text for audience sends. Uses approved template body only.
+// - Never accepts free body text for audience sends. Uses the linked message model body only.
 // - Token never leaves the server.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
@@ -136,13 +136,18 @@ Deno.serve(async (req) => {
 
     const { data: template } = await admin
       .from("whatsapp_templates")
-      .select("id, status, body, sample_values, workspace_id")
+      .select("id, status, body, sample_values, workspace_id, deleted_at")
       .eq("id", campaign.template_id)
       .eq("workspace_id", workspaceId)
       .maybeSingle();
     if (!template) return json({ error: "template_not_found" }, 404);
-    if (template.status !== "approved") {
-      return json({ error: "template_not_approved" }, 409);
+    // Removido: bloqueio por "template_not_approved".
+    // Aceita modelos ativos (approved) e rascunhos enviáveis (active). Bloqueia apenas:
+    // deletado, arquivado (paused) ou corpo vazio.
+    if (template.deleted_at) return json({ error: "template_deleted" }, 409);
+    if (template.status === "paused") return json({ error: "template_archived" }, 409);
+    if (!template.body || !String(template.body).trim()) {
+      return json({ error: "template_empty" }, 409);
     }
 
     // Ensure instance connected

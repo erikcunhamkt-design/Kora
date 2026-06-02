@@ -54,7 +54,7 @@ export function CampaignsBackendPage() {
               <Send className="h-5 w-5 text-primary" /> Campanhas
             </h2>
             <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
-              Disparos para audiências usando templates aprovados. Texto livre não é permitido
+              Disparos para audiências usando modelos de mensagem ativos. Texto livre não é permitido
               para listas — apenas para conversas ativas no inbox.
             </p>
           </div>
@@ -73,7 +73,7 @@ export function CampaignsBackendPage() {
               <Inbox className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
               <p className="text-sm font-medium">Nenhuma campanha criada</p>
               <p className="text-xs text-muted-foreground mt-1 mb-4">
-                Crie uma audiência e um template aprovado para começar.
+                Crie uma audiência e um modelo de mensagem ativo para começar.
               </p>
               <Button size="sm" onClick={() => setWizardOpen(true)} className="gap-2">
                 <Plus className="h-4 w-4" /> Criar campanha

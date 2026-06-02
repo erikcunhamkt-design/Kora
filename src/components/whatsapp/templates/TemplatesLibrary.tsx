@@ -42,8 +42,8 @@ const statusMeta: Record<
 > = {
   draft:     { label: "Rascunho",   className: "bg-muted/40 text-muted-foreground border-border/60" },
   submitted: { label: "Em aprovação", className: "bg-sky-500/10 text-sky-300 border-sky-500/30" },
-  approved:  { label: "Aprovado",   className: "bg-emerald-500/10 text-emerald-300 border-emerald-500/30" },
-  rejected:  { label: "Reprovado",  className: "bg-destructive/10 text-destructive border-destructive/30" },
+  approved:  { label: "Ativo",   className: "bg-emerald-500/10 text-emerald-300 border-emerald-500/30" },
+  rejected:  { label: "Rascunho",  className: "bg-destructive/10 text-destructive border-destructive/30" },
   paused:    { label: "Pausado",    className: "bg-amber-500/10 text-amber-300 border-amber-500/30" },
 };
 
@@ -97,10 +97,10 @@ export function TemplatesLibrary() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold flex items-center gap-2">
-            <Layers className="h-4 w-4 text-primary" /> Templates Aprovados
+            <Layers className="h-4 w-4 text-primary" /> Modelos de Mensagem
           </h2>
           <p className="text-[12px] text-muted-foreground mt-0.5 max-w-xl">
-            Biblioteca de mensagens aprovadas pela Meta. Use-as em campanhas para audiências —
+            Biblioteca de modelos de mensagem. Use-as em campanhas para audiências —
             mensagens livres só dentro da janela de 24h de atendimento.
           </p>
         </div>
@@ -112,7 +112,7 @@ export function TemplatesLibrary() {
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
         <StatCard label="Total" value={stats.total} />
-        <StatCard label="Aprovados" value={stats.approved} accent="text-emerald-300" />
+        <StatCard label="Ativos" value={stats.approved} accent="text-emerald-300" />
         <StatCard label="Em aprovação" value={stats.pending} accent="text-sky-300" />
         <StatCard label="Rascunhos" value={stats.draft} accent="text-muted-foreground" />
       </div>
@@ -153,7 +153,7 @@ export function TemplatesLibrary() {
         <EmptyState
           icon={FileText}
           title="Nenhum template encontrado"
-          description="Crie seu primeiro template aprovado para começar a disparar campanhas em massa com segurança."
+          description="Crie seu primeiro modelo de mensagem ativo para começar a disparar campanhas em massa com segurança."
           primaryAction={{ label: "Novo template", onClick: () => setDialogOpen(true) }}
         />
       ) : (

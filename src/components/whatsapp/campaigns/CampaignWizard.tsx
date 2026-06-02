@@ -64,12 +64,15 @@ export function CampaignWizard({ open, workspaceId, onClose, onCreated }: Props)
 
   const audience = useMemo(() => audiences.find((a) => a.id === audienceId) ?? null, [audiences, audienceId]);
   const template = useMemo(() => templates.find((t) => t.id === templateId) ?? null, [templates, templateId]);
-  const approvedTemplates = templates.filter((t) => t.status === "approved");
+  // Modelos enviáveis: "Ativo" (approved) — modelos não arquivados/deletados/vazios.
+  const activeTemplates = templates.filter(
+    (t) => t.status === "approved" && !t.deleted_at && (t.body ?? "").trim().length > 0,
+  );
 
   const canNext = (() => {
     if (step === 1) return name.trim().length > 0;
     if (step === 2) return Boolean(audienceId);
-    if (step === 3) return Boolean(templateId) && template?.status === "approved";
+    if (step === 3) return Boolean(templateId) && activeTemplates.some((t) => t.id === templateId);
     return true;
   })();
 
@@ -162,14 +165,14 @@ export function CampaignWizard({ open, workspaceId, onClose, onCreated }: Props)
             </div>
           ) : step === 3 ? (
             <div className="space-y-3">
-              <Label>Selecione um template aprovado*</Label>
-              {approvedTemplates.length === 0 ? (
+              <Label>Selecione um modelo de mensagem ativo*</Label>
+              {activeTemplates.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-8 text-center">
-                  Nenhum template aprovado. Crie e aprove um template na aba Templates.
+                  Nenhum modelo ativo. Crie um modelo na aba Modelos de Mensagem e ative-o.
                 </p>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-72 overflow-y-auto">
-                  {approvedTemplates.map((t) => (
+                  {activeTemplates.map((t) => (
                     <button
                       key={t.id}
                       type="button"
@@ -183,7 +186,7 @@ export function CampaignWizard({ open, workspaceId, onClose, onCreated }: Props)
                       <div className="flex items-center justify-between">
                         <span className="font-medium text-sm">{t.name}</span>
                         <Badge variant="outline" className="text-[10px] bg-success/15 text-success border-success/30">
-                          aprovado
+                          ativo
                         </Badge>
                       </div>
                       <p className="text-[11px] text-muted-foreground mt-2 line-clamp-3 whitespace-pre-wrap font-mono">
@@ -196,8 +199,8 @@ export function CampaignWizard({ open, workspaceId, onClose, onCreated }: Props)
               <div className="rounded-md bg-muted/30 border border-border/40 p-3 text-[11px] flex gap-2 text-muted-foreground">
                 <Lock className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
                 <p>
-                  Texto livre <strong>não é permitido</strong> em campanhas para audiências. Use apenas
-                  templates aprovados pela conta WhatsApp Business conectada.
+                  Texto livre <strong>não é permitido</strong> em campanhas para audiências. Selecione
+                  um modelo de mensagem ativo da biblioteca.
                 </p>
               </div>
             </div>
@@ -211,15 +214,24 @@ export function CampaignWizard({ open, workspaceId, onClose, onCreated }: Props)
                 <Row label="Total contatos" value={String(audience?.total_contacts ?? 0)} />
                 <Row label="Válidos esperados" value={String(audience?.valid_contacts ?? 0)} tone="success" />
                 <Row label="Serão ignorados" value={String((audience?.invalid_contacts ?? 0) + (audience?.duplicate_contacts ?? 0))} tone="warning" />
-                <Row label="Template" value={template?.name ?? "—"} />
+                <Row label="Modelo" value={template?.name ?? "—"} />
               </div>
 
               <div className="rounded-md bg-warning/10 border border-warning/30 p-3 text-xs flex gap-2">
                 <AlertTriangle className="h-4 w-4 text-warning flex-shrink-0 mt-0.5" />
-                <p className="text-muted-foreground">
-                  Contatos opt-out, inválidos e duplicados serão automaticamente marcados como
-                  <strong> skipped</strong>. Garanta opt-in dos demais antes de enviar.
-                </p>
+                <div className="text-muted-foreground space-y-1">
+                  <p>
+                    Contatos opt-out, inválidos e duplicados serão automaticamente marcados como
+                    <strong> skipped</strong>. Garanta opt-in dos demais antes de enviar.
+                  </p>
+                  <p>
+                    <strong>Atenção:</strong> o envio de mensagens em massa pelo WhatsApp pode gerar
+                    bloqueios, restrições ou banimento do número caso os contatos não tenham
+                    autorizado o recebimento ou denunciem a conversa. A KORA fornece a ferramenta
+                    de organização e envio, mas a responsabilidade pelo uso, pela lista de contatos,
+                    pelo consentimento e pelo conteúdo enviado é do usuário.
+                  </p>
+                </div>
               </div>
 
               {template && (

@@ -321,3 +321,83 @@ serão implementadas junto com a extensão do webhook.
 
 ### Recomendação final
 **Aceitar V1.** Próxima fase recomendada: estender `whatsapp-webhook` para mapear `provider_message_id → recipient_id` e atualizar `delivered_at/read_at/replied_at` + contadores. Complementar logs com eventos `queued/skipped/pause/cancel` em paralelo.
+
+---
+
+## Mudança de Direção: Modelos de Mensagem (substitui "Templates Aprovados")
+
+A partir desta iteração o conceito de **"Template Aprovado pela Meta"** foi descontinuado da UI e da lógica de bloqueio do disparador. A área de Atendimento/WhatsApp passa a operar com **Modelos de Mensagem** (também referidos como "Modelos Sugeridos").
+
+### Renomeações de UI
+
+- "Templates Aprovados" → **Modelos de Mensagem**
+- "Template aprovado" → **Modelo ativo**
+- "Pendente de aprovação" / "Reprovado" → tratados visualmente como **Rascunho** (sem destaque de aprovação)
+- "Enviar para aprovação" → **Ativar modelo**
+- Pausado → **Arquivado**
+
+Navegação final do Atendimento/WhatsApp: **Inbox · Audiências · Modelos de Mensagem · Campanhas · Robô IA**.
+
+### Mapeamento status interno → status visual
+
+Schema permanece igual (`whatsapp_templates.status` continua usando os valores legados). A UI aplica o seguinte mapeamento:
+
+| Banco       | UI         |
+|-------------|------------|
+| `approved`  | Ativo      |
+| `paused`    | Arquivado  |
+| `draft`     | Rascunho   |
+| `pending`   | Rascunho   |
+| `rejected`  | Rascunho   |
+
+Nenhuma migration foi criada para essa mudança — a estrutura existente é reaproveitada.
+
+### Sender (`whatsapp-campaign-v2-sender`)
+
+- Removido o erro `template_not_approved`.
+- Sender continua **server-side** com `service_role`, JWT do caller validado e `is_workspace_member` checado.
+- Novas validações de modelo:
+  - modelo precisa estar vinculado à campanha;
+  - modelo precisa pertencer ao mesmo `workspace_id`;
+  - modelo **não pode** estar `deleted_at` (erro `template_deleted`);
+  - modelo **não pode** estar `paused` / arquivado (erro `template_archived`);
+  - modelo precisa ter corpo não-vazio (erro `template_empty`);
+  - `status = approved` (Ativo) é aceito como enviável.
+
+### Repositório (`whatsappCampaignsRepository.createCampaign`)
+
+Substituído o bloqueio "Template não está aprovado" por validações equivalentes às do sender: modelo deve estar não arquivado, não deletado e com corpo não-vazio. Mensagem de erro padrão: **"Selecione um modelo de mensagem ativo para continuar."**
+
+### Aviso de responsabilidade
+
+Adicionado em dois pontos críticos do fluxo de campanha:
+
+1. **Revisão (passo 4 do wizard)** — bloco de aviso forte no card de revisão.
+2. **Modal de envio (`CampaignSendDialog`)** — bloco de aviso + checkbox obrigatório:
+   > "Declaro que tenho autorização para contatar esta lista e assumo a responsabilidade pelo envio."
+
+O botão "Confirmar envio" só fica habilitado quando o checkbox estiver marcado **e** o usuário digitar `ENVIAR` no campo de confirmação forte.
+
+### Proteções que continuam ativas
+
+- Opt-out bloqueado e respeitado em `prepareCampaignRecipients`.
+- Contatos inválidos, duplicados e `blocked` são marcados como `skipped`.
+- Rate limit de 10 destinatários por lote (`MAX_BATCH_SIZE = 10`).
+- Idempotência via lock `queued → sending` + filtro por `provider_message_id`.
+- Logs em `whatsapp_campaign_send_logs` (eventos `sent` / `failed`).
+- Status por recipient e contadores agregados.
+- Confirmação forte `ENVIAR` + checkbox de responsabilidade.
+- Sender exclusivamente server-side; token UAZAPI nunca exposto.
+- `service_role` nunca usado no frontend.
+
+### Modelos de Mensagem e Responsabilidade de Uso
+
+- Os modelos disponibilizados pelo KORA são **sugestões de copy**. Não são aprovados, validados ou homologados pela Meta, WhatsApp ou qualquer operadora.
+- **A KORA não garante** que o uso destes modelos evite bloqueio, restrição ou banimento do número conectado.
+- A responsabilidade pela **lista de contatos**, **consentimento (opt-in)**, **conteúdo enviado** e **frequência/cadência** é integralmente do usuário.
+- Boas práticas recomendadas:
+  - obter opt-in explícito antes de incluir contato em audiência;
+  - respeitar opt-outs (a plataforma os bloqueia automaticamente);
+  - manter cadência baixa (lotes pequenos, intervalos amplos);
+  - usar variáveis para personalizar a mensagem;
+  - evitar conteúdo promocional agressivo sem contexto prévio.

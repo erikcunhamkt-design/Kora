@@ -36,6 +36,7 @@ type Phase = "confirm" | "progress";
 export function CampaignSendDialog({ open, workspaceId, campaign, onClose, onUpdated }: Props) {
   const [phase, setPhase] = useState<Phase>("confirm");
   const [confirmText, setConfirmText] = useState("");
+  const [acceptedResponsibility, setAcceptedResponsibility] = useState(false);
   const [busy, setBusy] = useState(false);
   const [recipients, setRecipients] = useState<WhatsAppCampaignRecipient[]>([]);
   const [logs, setLogs] = useState<CampaignSendLog[]>([]);
@@ -45,6 +46,7 @@ export function CampaignSendDialog({ open, workspaceId, campaign, onClose, onUpd
     if (!open) {
       setPhase("confirm");
       setConfirmText("");
+      setAcceptedResponsibility(false);
       setRecipients([]);
       setLogs([]);
       return;
@@ -90,7 +92,8 @@ export function CampaignSendDialog({ open, workspaceId, campaign, onClose, onUpd
 
   if (!campaign) return null;
 
-  const canSend = senderEnabled && confirmText.trim().toUpperCase() === "ENVIAR" && !busy;
+  const canSend =
+    senderEnabled && acceptedResponsibility && confirmText.trim().toUpperCase() === "ENVIAR" && !busy;
   const progressPct = tally.total === 0 ? 0 : Math.round(((tally.sent + tally.failed + tally.skipped) / tally.total) * 100);
 
   async function handleAction(action: "send_batch" | "pause" | "cancel") {
@@ -126,15 +129,26 @@ export function CampaignSendDialog({ open, workspaceId, campaign, onClose, onUpd
                 <Send className="h-5 w-5 text-primary" /> Enviar campanha WhatsApp?
               </DialogTitle>
               <DialogDescription className="text-xs leading-relaxed pt-2">
-                Esta campanha usará um template <strong>aprovado</strong> e será enviada apenas
-                para contatos válidos, sem opt-out e sem bloqueio. O envio será feito em
-                <strong> lotes pequenos</strong> para reduzir risco operacional.
+                Esta campanha usará o <strong>modelo de mensagem ativo</strong> vinculado e será
+                enviada apenas para contatos válidos, sem opt-out e sem bloqueio. O envio será
+                feito em <strong>lotes pequenos</strong> para reduzir risco operacional.
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-3 py-2">
+              <div className="rounded-md border border-warning/40 bg-warning/10 p-3 text-xs flex gap-2 items-start">
+                <AlertTriangle className="h-4 w-4 text-warning shrink-0 mt-0.5" />
+                <p className="text-muted-foreground leading-relaxed">
+                  <strong>Atenção:</strong> o envio de mensagens em massa pelo WhatsApp pode gerar
+                  bloqueios, restrições ou banimento do número caso os contatos não tenham
+                  autorizado o recebimento ou denunciem a conversa. A KORA fornece a ferramenta de
+                  organização e envio, mas a responsabilidade pelo uso, pela lista de contatos,
+                  pelo consentimento e pelo conteúdo enviado é do usuário.
+                </p>
+              </div>
+
               <ul className="text-xs space-y-1 text-muted-foreground">
-                <li>✓ Template aprovado</li>
+                <li>✓ Modelo de mensagem ativo</li>
                 <li>✓ Audiência selecionada</li>
                 <li>✓ Apenas contatos válidos</li>
                 <li>✓ Opt-outs removidos</li>
@@ -153,6 +167,20 @@ export function CampaignSendDialog({ open, workspaceId, campaign, onClose, onUpd
                 </div>
               )}
 
+              <label className="flex gap-2 items-start text-xs cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={acceptedResponsibility}
+                  onChange={(e) => setAcceptedResponsibility(e.target.checked)}
+                  disabled={!senderEnabled || busy}
+                />
+                <span>
+                  Declaro que tenho autorização para contatar esta lista e assumo a
+                  responsabilidade pelo envio.
+                </span>
+              </label>
+
               <div>
                 <label className="text-xs font-medium">Digite <code>ENVIAR</code> para confirmar</label>
                 <Input
@@ -160,7 +188,7 @@ export function CampaignSendDialog({ open, workspaceId, campaign, onClose, onUpd
                   onChange={(e) => setConfirmText(e.target.value)}
                   placeholder="ENVIAR"
                   className="mt-1"
-                  disabled={!senderEnabled || busy}
+                  disabled={!senderEnabled || busy || !acceptedResponsibility}
                 />
               </div>
             </div>

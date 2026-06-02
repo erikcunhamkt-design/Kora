@@ -65,7 +65,7 @@ export function AudiencesBackendPage() {
           <CardContent className="p-4 flex gap-3 text-sm">
             <AlertCircle className="h-4 w-4 text-warning flex-shrink-0 mt-0.5" />
             <p className="text-muted-foreground leading-relaxed">
-              Campanhas para audiências exigem template aprovado e opt-in dos contatos. Texto livre
+              Campanhas para audiências exigem modelo de mensagem ativo e opt-in dos contatos. Texto livre
               só é permitido em conversas já abertas dentro da janela de atendimento.
             </p>
           </CardContent>
