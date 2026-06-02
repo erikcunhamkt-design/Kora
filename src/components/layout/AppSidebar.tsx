@@ -72,6 +72,7 @@ const navGroups: NavGroup[] = [
   {
     label: "Inteligência",
     items: [
+      { title: "WhatsApp Chat", url: "/whatsapp", icon: MessageCircle },
       { title: "Agentes de IA", url: "/automacoes?tab=ia", icon: Bot, badge: "beta" },
       { title: "Automações", url: "/automacoes?tab=automacoes", icon: Zap, badge: "beta" },
       { title: "Créditos de IA", event: "orbyt:open-credits", icon: Sparkles },
