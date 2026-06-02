@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { MessageCircle, QrCode, Plug, Send, Smartphone, Loader2, RefreshCw, RotateCw } from "lucide-react";
+import { MessageCircle, QrCode, Plug, Send, Smartphone, Loader2, RefreshCw, RotateCw, Download } from "lucide-react";
+import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,7 +21,7 @@ function formatTime(iso: string | null) {
 
 export function WhatsAppSection() {
   const { workspace } = useCurrentWorkspace();
-  const { instance, loading: loadingInstance, busy, connect, disconnect, refreshStatus } = useWhatsAppInstance();
+  const { instance, loading: loadingInstance, busy, connect, disconnect, refreshStatus, importInstance } = useWhatsAppInstance();
   const { conversations, messages, selectedId, setSelectedId, loading: loadingConv, markRead } = useWhatsAppConversations(
     workspace?.id,
     instance?.id,
@@ -29,6 +30,10 @@ export function WhatsAppSection() {
   const [sending, setSending] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importToken, setImportToken] = useState("");
+  const [importSubdomain, setImportSubdomain] = useState("free");
+  const [importing, setImporting] = useState(false);
 
   const status = instance?.status ?? "disconnected";
   const qrCode = instance?.qr_code ?? null;
@@ -52,6 +57,28 @@ export function WhatsAppSection() {
     try { await disconnect(); toast.success("WhatsApp desconectado"); }
     catch (e) { toast.error("Falha ao desconectar", { description: (e as Error).message }); }
   };
+
+  const handleImport = async () => {
+    if (!importToken.trim()) {
+      toast.error("Informe o Instance Token");
+      return;
+    }
+    setImporting(true);
+    try {
+      const inst = await importInstance(importToken.trim(), importSubdomain.trim() || "free");
+      toast.success("Instância importada", {
+        description: inst?.status === "connected" ? "Já está conectada." : "Escaneie o QR para conectar.",
+      });
+      setImportOpen(false);
+      setImportToken("");
+      if (inst && inst.status !== "connected") setQrOpen(true);
+    } catch (e) {
+      toast.error("Falha ao importar", { description: (e as Error).message });
+    } finally {
+      setImporting(false);
+    }
+  };
+
 
   const handleSync = async () => {
     if (!workspace) return;
@@ -119,6 +146,9 @@ export function WhatsAppSection() {
                     <QrCode className="h-4 w-4" /> Ver QR
                   </Button>
                 )}
+                <Button variant="outline" onClick={() => setImportOpen(true)} disabled={busy}>
+                  <Download className="h-4 w-4" /> Importar token
+                </Button>
                 <Button onClick={handleConnect} disabled={busy || loadingInstance}>
                   {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plug className="h-4 w-4" />}
                   {instance ? "Reconectar" : "Conectar WhatsApp"}
@@ -241,6 +271,50 @@ export function WhatsAppSection() {
             {status === "connected" && (
               <p className="text-xs text-emerald-400">Conectado com sucesso!</p>
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={importOpen} onOpenChange={setImportOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Importar instância existente</DialogTitle>
+            <DialogDescription>
+              Cole o Instance Token de uma instância uazapi já criada (ex.: instância de teste). O webhook será reconfigurado para este workspace automaticamente.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="imp-subdomain" className="text-xs">Servidor / Subdomain</Label>
+              <Input
+                id="imp-subdomain"
+                value={importSubdomain}
+                onChange={(e) => setImportSubdomain(e.target.value)}
+                placeholder="free  ou  free.uazapi.com"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Use <code>free</code> para <code>https://free.uazapi.com</code>.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="imp-token" className="text-xs">Instance Token</Label>
+              <Input
+                id="imp-token"
+                value={importToken}
+                onChange={(e) => setImportToken(e.target.value)}
+                placeholder="ex.: e039ef2f-0efc-4676-8965-8d7752b4fd45"
+                autoComplete="off"
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setImportOpen(false)} disabled={importing}>
+                Cancelar
+              </Button>
+              <Button onClick={handleImport} disabled={importing || !importToken.trim()}>
+                {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                Importar
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

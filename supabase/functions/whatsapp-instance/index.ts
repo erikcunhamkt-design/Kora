@@ -62,6 +62,18 @@ Deno.serve(async (req) => {
     const { action, workspaceId } = body as { action?: string; workspaceId?: string };
     if (!workspaceId) return json({ error: "workspaceId is required" }, 400);
 
+    // Normaliza subdomain ("free" | "free.uazapi.com" | "https://free.uazapi.com") => "free"
+    const normalizeSubdomain = (input: string | undefined | null): string => {
+      const raw = (input ?? "").trim().replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+      if (!raw) return SUBDOMAIN || "free";
+      const host = raw.split("/")[0];
+      if (host.endsWith(".uazapi.com")) return host.replace(/\.uazapi\.com$/, "");
+      if (host.includes(".")) return host;
+      return host;
+    };
+    const baseForSubdomain = (sub: string) =>
+      /\./.test(sub) ? `https://${sub}` : `https://${sub}.uazapi.com`;
+
     // Verify membership
     const { data: member } = await userClient
       .from("workspace_members")
@@ -191,6 +203,97 @@ Deno.serve(async (req) => {
       await admin.from("whatsapp_instances").delete().eq("id", existing.id);
       return json({ ok: true });
     }
+
+    if (action === "import") {
+      const { token: importToken, subdomain: importSubdomain } = body as {
+        token?: string;
+        subdomain?: string;
+      };
+      if (!importToken || importToken.trim().length < 8) {
+        return json({ error: "token é obrigatório" }, 400);
+      }
+      const sub = normalizeSubdomain(importSubdomain);
+      const baseUrl = baseForSubdomain(sub);
+
+      // Valida o token consultando /instance/status no servidor informado
+      const statusRes = await fetch(`${baseUrl}/instance/status`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json", token: importToken },
+      });
+      const statusText = await statusRes.text();
+      let statusData: unknown = statusText;
+      try { statusData = JSON.parse(statusText); } catch { /* keep */ }
+      if (!statusRes.ok) {
+        return json({ error: "uazapi /instance/status falhou", status: statusRes.status, detail: statusData }, 502);
+      }
+      const sd = (statusData ?? {}) as Record<string, unknown>;
+      const inst = (sd.instance ?? sd) as Record<string, unknown>;
+      const remoteStatus = (inst.status as string | undefined) ?? "disconnected";
+      const phone = (inst.owner as string | undefined) ?? (inst.phone as string | undefined) ?? null;
+      const phoneName = (inst.profileName as string | undefined) ?? (inst.name as string | undefined) ?? null;
+      const instanceName = (inst.name as string | undefined) ?? `imported-${importToken.slice(0, 8)}`;
+
+      // Remove instância existente (se houver) sem deletar do uazapi (token é compartilhado/externo)
+      if (existing) {
+        await admin.from("whatsapp_instances").delete().eq("id", existing.id);
+      }
+
+      const { data: inserted, error: insertErr } = await admin
+        .from("whatsapp_instances")
+        .insert({
+          workspace_id: workspaceId,
+          instance_token: importToken,
+          instance_name: instanceName,
+          subdomain: sub,
+          status: remoteStatus,
+          phone,
+          phone_name: phoneName,
+          connected_at: remoteStatus === "connected" ? new Date().toISOString() : null,
+          last_status_at: new Date().toISOString(),
+          created_by: userId,
+        })
+        .select()
+        .single();
+      if (insertErr) return json({ error: insertErr.message }, 500);
+
+      // Registra webhook apontando para o nosso endpoint
+      const webhookUrl = `${SUPABASE_URL}/functions/v1/whatsapp-webhook?secret=${encodeURIComponent(WEBHOOK_SECRET)}&workspace=${workspaceId}`;
+      await fetch(`${baseUrl}/webhook`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", token: importToken },
+        body: JSON.stringify({
+          webhookURL: webhookUrl,
+          url: webhookUrl,
+          enabled: true,
+          events: ["messages", "messages_update", "connection"],
+        }),
+      }).catch(() => null);
+
+      // Se desconectado, pede QR
+      if (remoteStatus !== "connected") {
+        const connectRes = await fetch(`${baseUrl}/instance/connect`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", token: importToken },
+          body: JSON.stringify({}),
+        });
+        const cText = await connectRes.text();
+        let cData: unknown = cText;
+        try { cData = JSON.parse(cText); } catch { /* keep */ }
+        const cdata = (cData ?? {}) as Record<string, unknown>;
+        const qr = (cdata.qrcode ?? cdata.qr ?? (cdata.instance as Record<string, unknown>)?.qrcode) as string | undefined;
+        const newStatus = ((cdata.status ?? (cdata.instance as Record<string, unknown>)?.status) as string | undefined) ?? "connecting";
+        const { data: updated } = await admin
+          .from("whatsapp_instances")
+          .update({ qr_code: qr ?? null, status: newStatus, last_status_at: new Date().toISOString() })
+          .eq("id", inserted.id)
+          .select()
+          .single();
+        return json({ instance: updated, imported: true });
+      }
+
+      return json({ instance: inserted, imported: true });
+    }
+
 
     if (action === "sync") {
       if (!existing) return json({ error: "Instance not found" }, 404);
