@@ -8,8 +8,10 @@ const KEYS = {
 } as const;
 
 export function isCampaignSenderEnabled(): boolean {
-  if (typeof window === "undefined") return false;
-  return window.localStorage.getItem(KEYS.campaignSender) === "true";
+  if (typeof window === "undefined") return true;
+  // Envio real habilitado por padrão. Permite desligar explicitamente via
+  // localStorage definindo a chave como "false".
+  return window.localStorage.getItem(KEYS.campaignSender) !== "false";
 }
 
 export function setCampaignSenderEnabled(enabled: boolean): void {
