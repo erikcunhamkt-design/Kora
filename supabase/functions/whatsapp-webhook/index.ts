@@ -9,7 +9,6 @@ type AnyRec = Record<string, unknown>;
 
 function pickPhone(chat: AnyRec, message: AnyRec): string {
   const raw = (chat.phone as string) || (chat.wa_chatid as string) || (chat.id as string) || (message.chatid as string) || "";
-  // strip @s.whatsapp.net / @g.us suffixes and any non-digits
   return String(raw).split("@")[0].replace(/\D/g, "");
 }
 
@@ -27,7 +26,157 @@ function pickName(chat: AnyRec, message: AnyRec): string | null {
 function pickText(message: AnyRec): string {
   if (typeof message.text === "string" && message.text) return message.text;
   if (typeof message.content === "string") return message.content;
+  if (typeof message.body === "string") return message.body;
+  if (typeof message.conversation === "string") return message.conversation;
   return "";
+}
+
+// Normalize uazapi/Baileys message type to internal kind
+function normalizeKind(messageType: string, mime: string | null): string {
+  const t = (messageType || "").toLowerCase();
+  if (t.includes("sticker")) return "sticker";
+  if (t.includes("image")) {
+    if (mime && mime.toLowerCase() === "image/webp") return "sticker";
+    return "image";
+  }
+  if (t.includes("video")) return "video";
+  if (t.includes("audio") || t === "ptt") return "audio";
+  if (t.includes("document")) return "document";
+  if (t.includes("reaction")) return "reaction";
+  if (t.includes("extendedtext") || t.includes("conversation") || t === "text") return "text";
+  return t || "text";
+}
+
+const MEDIA_KEYS = [
+  "imageMessage", "ImageMessage", "image",
+  "stickerMessage", "StickerMessage", "sticker",
+  "audioMessage", "AudioMessage", "audio",
+  "videoMessage", "VideoMessage", "video",
+  "documentMessage", "DocumentMessage", "document",
+  "media",
+];
+
+// Find a media-like sub-object inside the message payload
+function findMediaObject(message: AnyRec): AnyRec | null {
+  for (const key of MEDIA_KEYS) {
+    const v = message[key];
+    if (v && typeof v === "object") return v as AnyRec;
+  }
+  // Try nested message.message (Baileys-style)
+  const inner = message.message as AnyRec | undefined;
+  if (inner && typeof inner === "object") {
+    for (const key of MEDIA_KEYS) {
+      const v = inner[key];
+      if (v && typeof v === "object") return v as AnyRec;
+    }
+  }
+  return null;
+}
+
+interface NormalizedMedia {
+  media_id: string | null;
+  temporary_url: string | null;
+  mime_type: string | null;
+  file_name: string | null;
+  file_size: number | null;
+  sha256: string | null;
+  width: number | null;
+  height: number | null;
+}
+
+function pickStr(o: AnyRec, ...keys: string[]): string | null {
+  for (const k of keys) {
+    const v = o[k];
+    if (typeof v === "string" && v) return v;
+  }
+  return null;
+}
+
+function pickNum(o: AnyRec, ...keys: string[]): number | null {
+  for (const k of keys) {
+    const v = o[k];
+    if (typeof v === "number" && !isNaN(v)) return v;
+    if (typeof v === "string" && v && !isNaN(Number(v))) return Number(v);
+  }
+  return null;
+}
+
+function extractMediaFromUazapiMessage(
+  message: AnyRec,
+  messageType: string,
+): { kind: string; media: NormalizedMedia } | null {
+  const t = (messageType || "").toLowerCase();
+  const isMediaType =
+    t.includes("image") || t.includes("sticker") || t.includes("audio") ||
+    t.includes("video") || t.includes("document") || t === "ptt";
+
+  let mediaObj = findMediaObject(message);
+
+  // If type says media but no sub-object found, treat the message itself as the media holder
+  if (!mediaObj && isMediaType) {
+    mediaObj = message;
+  }
+
+  // Also: top-level message may have mediaUrl/mimetype directly
+  const topMediaUrl = pickStr(message, "mediaUrl", "fileURL", "url");
+  const topMime = pickStr(message, "mimetype", "mimeType", "mime_type");
+  if (!mediaObj && (topMediaUrl || topMime) && isMediaType) {
+    mediaObj = message;
+  }
+
+  if (!mediaObj) return null;
+
+  const mime =
+    pickStr(mediaObj, "mimetype", "mimeType", "mime_type") ||
+    topMime ||
+    null;
+
+  const url =
+    pickStr(mediaObj, "url", "URL", "mediaUrl", "fileURL", "directPath") ||
+    topMediaUrl ||
+    null;
+
+  const fileName = pickStr(mediaObj, "fileName", "filename", "name");
+  const fileSize = pickNum(mediaObj, "fileLength", "fileSize", "size");
+
+  const shaRaw = mediaObj.fileSha256 ?? mediaObj.sha256;
+  let sha: string | null = null;
+  if (typeof shaRaw === "string") sha = shaRaw;
+  else if (shaRaw && typeof shaRaw === "object") {
+    try {
+      const arr = new Uint8Array(shaRaw as ArrayBufferLike);
+      sha = btoa(String.fromCharCode(...arr));
+    } catch {
+      sha = null;
+    }
+  }
+
+  const mediaId =
+    pickStr(mediaObj, "mediaId", "media_id", "id", "directPath") || url || null;
+
+  const width = pickNum(mediaObj, "width");
+  const height = pickNum(mediaObj, "height");
+
+  const kind = normalizeKind(messageType, mime);
+
+  // Need at least some evidence of media
+  if (!mime && !url && !mediaId && !fileName && !fileSize) {
+    return null;
+  }
+
+  return {
+    kind,
+    media: {
+      media_id: mediaId,
+      temporary_url: url,
+      mime_type: mime,
+      file_name: fileName,
+      file_size: fileSize,
+      sha256: sha,
+      width,
+      height,
+    },
+  };
 }
 
 Deno.serve(async (req) => {
@@ -49,7 +198,6 @@ Deno.serve(async (req) => {
     const event = eventRaw.toLowerCase();
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 
-    // Resolve instance by token first, then fall back to workspace query
     const instanceToken = (payload.token as string) || "";
     let instance: AnyRec | null = null;
     if (instanceToken) {
@@ -75,7 +223,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Update instance status on connection events
     if (event.includes("connection") || event.includes("qrcode") || event === "status") {
       const patch: AnyRec = { last_status_at: new Date().toISOString() };
       const status = (payload.status as string) || (payload.state as string);
@@ -89,7 +236,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Only handle message events from here
     if (!event.includes("message")) {
       return new Response(JSON.stringify({ ok: true, ignored: event }), {
         status: 200,
@@ -110,7 +256,6 @@ Deno.serve(async (req) => {
     const workspaceId = String(instance.workspace_id);
     const instanceId = String(instance.id);
 
-    // Upsert conversation manually (lookup by instance+phone)
     const { data: existingConv } = await admin
       .from("whatsapp_conversations")
       .select("*")
@@ -126,24 +271,32 @@ Deno.serve(async (req) => {
       ? new Date(Number(message.messageTimestamp) * 1000).toISOString()
       : new Date().toISOString();
 
-    const mediaType = (message.mediaType as string) || "";
-    const type = mediaType && mediaType !== "" ? mediaType : (message.type as string) || "text";
-    const mediaUrl =
-      (message.mediaUrl as string) ||
-      (message.fileURL as string) ||
-      (message.url as string) ||
-      null;
+    // Determine message type from any available field
+    const rawType = String(
+      (message.mediaType as string) ||
+      (message.messageType as string) ||
+      (message.type as string) ||
+      "",
+    );
+
+    // Try extracting media early so we can use its mime for kind disambiguation
+    const extracted = extractMediaFromUazapiMessage(message, rawType);
+    const internalKind = normalizeKind(rawType, extracted?.media.mime_type ?? null);
+    const type = internalKind;
+
+    console.log("[whatsapp-webhook] messageType detected:", rawType, "->", internalKind);
+    console.log("[whatsapp-webhook] media detected:", !!extracted, "kind:", extracted?.kind ?? "-", "has temporary url:", !!extracted?.media.temporary_url);
+
+    const mediaUrl = extracted?.media.temporary_url ?? null;
 
     let previewText = text;
     if (!previewText) {
-      const lowerType = type.toLowerCase();
-      if (lowerType.includes("image") || lowerType === "imagemessage") previewText = "📷 Foto";
-      else if (lowerType.includes("video")) previewText = "🎥 Vídeo";
-      else if (lowerType.includes("audio") || lowerType === "ptt") previewText = "🎵 Áudio";
-      else if (lowerType.includes("sticker")) previewText = "🧩 Figurinha";
-      else if (lowerType.includes("document")) previewText = "📄 Documento";
-      else if (lowerType.includes("location")) previewText = "📍 Localização";
-      else if (lowerType.includes("contact")) previewText = "👤 Contato";
+      if (internalKind === "image") previewText = "📷 Foto";
+      else if (internalKind === "video") previewText = "🎥 Vídeo";
+      else if (internalKind === "audio") previewText = "🎵 Áudio";
+      else if (internalKind === "sticker") previewText = "🧩 Figurinha";
+      else if (internalKind === "document") previewText = "📄 Documento";
+      else if (internalKind === "reaction") previewText = "💬 Reação";
       else if (mediaUrl) previewText = "📎 Mídia";
     }
 
@@ -177,7 +330,6 @@ Deno.serve(async (req) => {
       conversationId = String(inserted.id);
     }
 
-    // Dedup by wa_message_id
     const waMessageId = (message.id as string) || (message.messageid as string) || null;
     if (waMessageId) {
       const { data: dup } = await admin
@@ -194,7 +346,6 @@ Deno.serve(async (req) => {
       }
     }
 
-
     const { data: dbMsg, error: dbMsgErr } = await admin.from("whatsapp_messages").insert({
       workspace_id: workspaceId,
       instance_id: instanceId,
@@ -207,45 +358,29 @@ Deno.serve(async (req) => {
       media_url: mediaUrl,
       status: "received",
       timestamp: ts,
-      raw_payload: payload
+      raw_payload: payload,
     }).select().single();
 
     if (dbMsgErr) throw dbMsgErr;
 
-    // Parse and persist media metadata if any
-    let mediaObj: AnyRec | null = null;
-    if (message.imageMessage) mediaObj = message.imageMessage as AnyRec;
-    else if (message.stickerMessage) mediaObj = message.stickerMessage as AnyRec;
-    else if (message.audioMessage) mediaObj = message.audioMessage as AnyRec;
-    else if (message.videoMessage) mediaObj = message.videoMessage as AnyRec;
-    else if (message.documentMessage) mediaObj = message.documentMessage as AnyRec;
-
-    if (mediaObj && dbMsg) {
-      const mime = (mediaObj.mimetype as string) || (mediaObj.mimeType as string) || null;
-      const sha = mediaObj.fileSha256
-        ? (typeof mediaObj.fileSha256 === "string"
-          ? mediaObj.fileSha256
-          : btoa(String.fromCharCode(...new Uint8Array(mediaObj.fileSha256 as ArrayBufferLike))))
-        : null;
-      const fSize = Number(mediaObj.fileLength ?? mediaObj.fileSize ?? 0) || null;
-      const fName = (mediaObj.fileName as string) || (mediaObj.filename as string) || null;
-      const mediaId = (mediaObj.directPath as string) || (mediaObj.mediaId as string) || (mediaObj.url as string) || null;
-
+    if (extracted && dbMsg) {
       const { error: mediaErr } = await admin
         .from("whatsapp_message_media")
         .insert({
           workspace_id: workspaceId,
           message_id: dbMsg.id,
-          media_id: mediaId,
-          mime_type: mime,
-          file_name: fName,
-          file_size: fSize,
-          sha256: sha,
-          temporary_url: mediaUrl
+          media_id: extracted.media.media_id,
+          mime_type: extracted.media.mime_type,
+          file_name: extracted.media.file_name,
+          file_size: extracted.media.file_size,
+          sha256: extracted.media.sha256,
+          temporary_url: extracted.media.temporary_url,
         });
 
       if (mediaErr) {
-        console.error("Error inserting whatsapp_message_media", mediaErr);
+        console.error("[whatsapp-webhook] insert whatsapp_message_media error:", mediaErr.message);
+      } else {
+        console.log("[whatsapp-webhook] insert whatsapp_message_media success");
       }
     }
 
