@@ -3,7 +3,7 @@ import {
   DollarSign, CheckSquare, FolderKanban, Image as ImageIcon,
   Settings, Crown, Zap, Globe, CalendarCheck, LifeBuoy,
   ClipboardList, BarChart3, Link as LinkIcon, Calendar, Sparkles,
-  Bot, Plug, CreditCard, Activity, ShieldCheck,
+  Bot, Plug, CreditCard, Activity, ShieldCheck, MessageCircle,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
