@@ -102,6 +102,20 @@ export default function WhatsAppPage() {
     if (selectedId) void markRead(selectedId);
   }, [selectedId, markRead]);
 
+  // Auto-sync once when instance is connected and we have zero conversations cached
+  const autoSyncedRef = useRef(false);
+  useEffect(() => {
+    if (autoSyncedRef.current) return;
+    if (loadingInstance || loading) return;
+    if (!workspace || !instance) return;
+    if (status !== "connected") return;
+    if (conversations.length > 0) return;
+    autoSyncedRef.current = true;
+    void handleSync();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadingInstance, loading, workspace, instance, status, conversations.length]);
+
+
   const handleSync = async () => {
     if (!workspace) return;
     setSyncing(true);
