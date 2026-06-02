@@ -483,6 +483,7 @@ export default function WhatsAppPage() {
         {activeMainTab === "bot" && workspace && (
           <div className="flex-1 overflow-y-auto h-full bg-background/50">
             <WhatsAppBotConfig workspaceId={workspace.id} />
+            <BotRulesPanel />
           </div>
         )}
       </div>
