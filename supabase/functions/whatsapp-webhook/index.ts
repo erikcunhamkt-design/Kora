@@ -236,6 +236,16 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ----- Campaign delivery/read status mapping (uazapi message ack/update) -----
+    const workspaceIdForStatus = String(instance.workspace_id);
+    const ackResult = await maybeHandleMessageAck(admin, payload, workspaceIdForStatus, event);
+    if (ackResult.handled) {
+      return new Response(JSON.stringify({ ok: true, ack: ackResult }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     if (!event.includes("message")) {
       return new Response(JSON.stringify({ ok: true, ignored: event }), {
         status: 200,
