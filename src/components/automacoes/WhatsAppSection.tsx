@@ -21,7 +21,7 @@ function formatTime(iso: string | null) {
 
 export function WhatsAppSection() {
   const { workspace } = useCurrentWorkspace();
-  const { instance, loading: loadingInstance, busy, connect, disconnect, refreshStatus } = useWhatsAppInstance();
+  const { instance, loading: loadingInstance, busy, connect, disconnect, refreshStatus, importInstance } = useWhatsAppInstance();
   const { conversations, messages, selectedId, setSelectedId, loading: loadingConv, markRead } = useWhatsAppConversations(
     workspace?.id,
     instance?.id,
