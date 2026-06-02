@@ -191,6 +191,99 @@ Deno.serve(async (req) => {
       return json({ ok: true });
     }
 
+    if (action === "sync") {
+      if (!existing) return json({ error: "Instance not found" }, 404);
+      // Fetch chat list from uazapi and upsert conversations
+      const list = await uaz("/chat/find", { token: existing.instance_token, body: {} });
+      const chats = Array.isArray(list.data)
+        ? (list.data as Record<string, unknown>[])
+        : Array.isArray((list.data as Record<string, unknown>)?.chats)
+          ? ((list.data as Record<string, unknown>).chats as Record<string, unknown>[])
+          : [];
+      let synced = 0;
+      for (const chat of chats) {
+        const rawPhone = (chat.phone as string) || (chat.wa_chatid as string) || (chat.id as string) || "";
+        const phone = String(rawPhone).split("@")[0].replace(/\D/g, "");
+        if (!phone) continue;
+        if ((chat.wa_isGroup as boolean) || (chat.isGroup as boolean)) continue; // skip groups for now
+        const name = (chat.wa_contactName as string) || (chat.name as string) || (chat.wa_name as string) || null;
+        const lastMessage = (chat.wa_lastMessageTextVote as string) || (chat.lastMessage as string) || null;
+        const lastTs = chat.wa_lastMsgTimestamp ? Number(chat.wa_lastMsgTimestamp) : Number(chat.lastMessageTimestamp ?? 0);
+        const lastAt = lastTs ? new Date(lastTs * 1000).toISOString() : null;
+        const unread = Number(chat.wa_unreadCount ?? chat.unreadCount ?? 0);
+
+        const { data: existingConv } = await admin
+          .from("whatsapp_conversations")
+          .select("id")
+          .eq("instance_id", existing.id)
+          .eq("contact_phone", phone)
+          .maybeSingle();
+
+        if (existingConv) {
+          await admin.from("whatsapp_conversations").update({
+            contact_name: name,
+            last_message: lastMessage,
+            last_message_at: lastAt,
+            unread_count: unread,
+            updated_at: new Date().toISOString(),
+          }).eq("id", existingConv.id);
+        } else {
+          await admin.from("whatsapp_conversations").insert({
+            workspace_id: workspaceId,
+            instance_id: existing.id,
+            contact_phone: phone,
+            contact_name: name,
+            last_message: lastMessage,
+            last_message_at: lastAt,
+            unread_count: unread,
+            status: "open",
+          });
+        }
+        synced++;
+      }
+      return json({ ok: true, synced });
+    }
+
+    if (action === "send") {
+      if (!existing) return json({ error: "Instance not found" }, 404);
+      const { conversationId, text } = body as { conversationId?: string; text?: string };
+      if (!conversationId || !text?.trim()) return json({ error: "conversationId and text are required" }, 400);
+      const { data: conv } = await admin
+        .from("whatsapp_conversations")
+        .select("*")
+        .eq("id", conversationId)
+        .eq("workspace_id", workspaceId)
+        .maybeSingle();
+      if (!conv) return json({ error: "Conversation not found" }, 404);
+
+      const send = await uaz("/send/text", {
+        token: existing.instance_token,
+        body: { number: conv.contact_phone, text },
+      });
+      const sd = (send.data ?? {}) as Record<string, unknown>;
+      const waMessageId = (sd.messageid as string) || (sd.id as string) || null;
+
+      const { data: inserted } = await admin.from("whatsapp_messages").insert({
+        workspace_id: workspaceId,
+        instance_id: existing.id,
+        conversation_id: conversationId,
+        wa_message_id: waMessageId,
+        direction: "outbound",
+        type: "text",
+        content: text,
+        status: send.ok ? "sent" : "error",
+        error: send.ok ? null : JSON.stringify(sd).slice(0, 500),
+      }).select().single();
+
+      await admin.from("whatsapp_conversations").update({
+        last_message: text,
+        last_message_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).eq("id", conversationId);
+
+      return json({ ok: send.ok, message: inserted });
+    }
+
     return json({ error: "Unknown action" }, 400);
   } catch (e) {
     console.error("whatsapp-instance error", e);
