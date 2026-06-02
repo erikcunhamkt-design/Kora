@@ -1052,6 +1052,66 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_message_media: {
+        Row: {
+          created_at: string
+          deleted_at: string | null
+          file_name: string | null
+          file_size: number | null
+          id: string
+          media_id: string | null
+          message_id: string
+          mime_type: string | null
+          sha256: string | null
+          storage_path: string | null
+          temporary_url: string | null
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          deleted_at?: string | null
+          file_name?: string | null
+          file_size?: number | null
+          id?: string
+          media_id?: string | null
+          message_id: string
+          mime_type?: string | null
+          sha256?: string | null
+          storage_path?: string | null
+          temporary_url?: string | null
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          deleted_at?: string | null
+          file_name?: string | null
+          file_size?: number | null
+          id?: string
+          media_id?: string | null
+          message_id?: string
+          mime_type?: string | null
+          sha256?: string | null
+          storage_path?: string | null
+          temporary_url?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_message_media_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_message_media_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_messages: {
         Row: {
           body: string | null
@@ -1105,51 +1165,6 @@ export type Database = {
           timestamp?: string | null
           type?: string
           wa_message_id?: string | null
-          workspace_id?: string
-        }
-        Relationships: []
-      }
-      whatsapp_message_media: {
-        Row: {
-          created_at: string
-          deleted_at: string | null
-          file_name: string | null
-          file_size: number | null
-          id: string
-          media_id: string | null
-          message_id: string
-          mime_type: string | null
-          sha256: string | null
-          storage_path: string | null
-          temporary_url: string | null
-          workspace_id: string
-        }
-        Insert: {
-          created_at?: string
-          deleted_at?: string | null
-          file_name?: string | null
-          file_size?: number | null
-          id?: string
-          media_id?: string | null
-          message_id: string
-          mime_type?: string | null
-          sha256?: string | null
-          storage_path?: string | null
-          temporary_url?: string | null
-          workspace_id: string
-        }
-        Update: {
-          created_at?: string
-          deleted_at?: string | null
-          file_name?: string | null
-          file_size?: number | null
-          id?: string
-          media_id?: string | null
-          message_id?: string
-          mime_type?: string | null
-          sha256?: string | null
-          storage_path?: string | null
-          temporary_url?: string | null
           workspace_id?: string
         }
         Relationships: []
