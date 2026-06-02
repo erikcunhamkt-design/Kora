@@ -157,3 +157,131 @@ Nenhum (sem alteração de código nesta rodada de QA).
 
 ### Recomendação final
 **Aceitar V1.** Próxima fase deve focar em: edge function `whatsapp-campaign-v2-sender` com fila + rate limit + idempotência, webhook de delivery/read, e unificação do schema legado.
+
+---
+
+## Campaign Sender V1
+
+### Feature flag
+
+`kora.whatsapp.campaignSender.enabled` (localStorage, default `false`). Enquanto `false`,
+botão "Enviar campanha" fica desabilitado com tooltip *"Envio real de campanhas ainda
+está desativado."* O servidor não confia na flag — ela é apenas controle visual.
+
+Para habilitar localmente:
+
+```js
+localStorage.setItem("kora.whatsapp.campaignSender.enabled", "true");
+```
+
+### Edge function
+
+`supabase/functions/whatsapp-campaign-v2-sender/index.ts`
+
+Recebe `{ campaignId, workspaceId, action }`. `action` ∈ `send_batch | pause | cancel`.
+
+Validações server-side (em ordem):
+
+1. Authorization Bearer + `auth.getUser` → usuário autenticado.
+2. Linha em `workspace_members` para o `workspace_id` → membership.
+3. Campanha existe + pertence ao workspace.
+4. Status ≠ `completed` / `cancelled`.
+5. Template existe + pertence ao workspace + `status='approved'`.
+6. Instância WhatsApp conectada (`whatsapp_instances.status='connected'`).
+7. Recipients válidos = só os com status `queued` e `provider_message_id IS NULL`.
+
+Sem essas condições retorna 4xx e nada é enviado.
+
+### Rate limit + fila
+
+- `MAX_BATCH_SIZE = 10` por chamada.
+- `CAMPAIGN_SEND_MODE = "manual_batch"` — usuário aciona "Processar próximo lote" pela UI.
+- Entre envios do mesmo lote: delay aleatório 30–90s (anti-ban).
+- Antes de cada envio: typing presence 1.5–4s.
+
+Não há worker contínuo nesta V1 — limitação documentada.
+
+### Idempotência
+
+Para cada recipient o servidor:
+
+1. Tenta `UPDATE ... SET status='sending' WHERE id=X AND status='queued'`.
+2. Se 0 linhas afetadas → já está em processamento ou já enviado → pula.
+3. Recipients com `provider_message_id` preenchido nunca são selecionados.
+4. Recipients `sent/delivered/read/replied/skipped/failed` são imutáveis pelo sender.
+
+### Status dos recipients
+
+`pending → queued → sending → sent | failed | skipped`
+
+Atualizações de `delivered/read/replied` virão do webhook (limitação atual — ver abaixo).
+
+A campanha:
+- vai para `sending` no primeiro lote;
+- volta para `completed` quando não há mais `queued/pending`;
+- pode ir para `paused` ou `cancelled` via ações do dialog.
+
+Contadores `sent_count` e `failed_count` são recomputados a partir da tabela de recipients
+ao final de cada lote (fonte de verdade = recipients, não incrementos).
+
+### Logs
+
+Tabela `whatsapp_campaign_send_logs` com `event ∈ {sent, failed, skipped, retry, queued}`,
+`phone`, `provider_message_id`, `error_message`. RLS por `is_workspace_member(workspace_id)`.
+Últimos 10 eventos exibidos no dialog de progresso.
+
+### Confirmação forte (UI)
+
+Dialog em `CampaignSendDialog.tsx`:
+
+- Título "Enviar campanha WhatsApp?"
+- Checklist de pré-requisitos.
+- Aviso amarelo se feature flag desligada.
+- Campo obrigatório: digitar `ENVIAR` para confirmar.
+- Botões: Cancelar / Confirmar envio.
+
+Após iniciar, dialog mostra: status, progress bar, contadores
+(total/queued/sent/failed/skipped/delivered), últimos eventos, e botões
+"Processar próximo lote", "Pausar", "Cancelar campanha".
+
+### Variáveis do template
+
+Mapeadas server-side: `{{nome}}`, `{{primeiro_nome}}`, `{{empresa}}`, `{{serviço}}`,
+`{{data}}`, `{{link}}`. `nome` e `primeiro_nome` usam o nome do recipient. Demais usam
+`sample_values` do template como fallback. Variável obrigatória ausente → recipient
+marcado como `failed` com `error_message=missing_variable:<keys>`.
+
+### Webhook delivery/read
+
+**Limitação V1**: o webhook atual `whatsapp-webhook` ainda não mapeia eventos do
+provedor (`messages.update`) para `whatsapp_campaign_recipients` via `provider_message_id`.
+Status `sent`/`failed` são finais para esta fase. Atualizações `delivered/read/replied`
+serão implementadas junto com a extensão do webhook.
+
+### Segurança
+
+- Sender só executa na edge function (token uazapi apenas em `UAZAPI_SUBDOMAIN`/instance secret).
+- Frontend nunca recebe nem envia token.
+- Service role só na edge function.
+- Texto livre para audiência **bloqueado**: edge function só lê `template.body` do registro
+  aprovado — não aceita `body` no payload.
+- Template não aprovado → 409 `template_not_approved`.
+- Opt-out / inválido / duplicate são marcados como `skipped` na materialização dos
+  recipients e nunca chegam ao status `queued`.
+
+### Limitações
+
+- Sem worker contínuo (manual batch).
+- Sem retry automático para `failed`.
+- Sem webhook de delivery/read mapeado para v2 ainda.
+- Sem agendamento real (`scheduled_at` é metadata).
+- Sem mídia (apenas texto).
+
+### Próximos passos
+
+1. Cron job (pg_cron + pg_net) para `whatsapp-campaign-v2-sender` rodar lotes automaticamente.
+2. Extensão do `whatsapp-webhook` para mapear `provider_message_id` → recipient e
+   atualizar `delivered/read/replied`.
+3. Retry policy explícita para `failed`.
+4. Suporte a mídia (image/document) no template.
+5. Unificação do schema legado `whatsapp_campaigns` em v2.

@@ -1234,6 +1234,45 @@ export type Database = {
           },
         ]
       }
+      whatsapp_campaign_send_logs: {
+        Row: {
+          campaign_id: string
+          created_at: string
+          error_message: string | null
+          event: string
+          id: string
+          message: string | null
+          phone: string | null
+          provider_message_id: string | null
+          recipient_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          campaign_id: string
+          created_at?: string
+          error_message?: string | null
+          event: string
+          id?: string
+          message?: string | null
+          phone?: string | null
+          provider_message_id?: string | null
+          recipient_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          campaign_id?: string
+          created_at?: string
+          error_message?: string | null
+          event?: string
+          id?: string
+          message?: string | null
+          phone?: string | null
+          provider_message_id?: string | null
+          recipient_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       whatsapp_campaigns: {
         Row: {
           created_at: string
