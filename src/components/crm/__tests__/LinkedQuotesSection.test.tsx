@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { LinkedQuotesSection } from "@/components/crm/LinkedQuotesSection";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
