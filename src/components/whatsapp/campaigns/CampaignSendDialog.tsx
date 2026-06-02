@@ -22,6 +22,7 @@ import {
   type WhatsAppCampaignRecipient,
 } from "@/lib/whatsapp/repositories/whatsappCampaignsRepository";
 import { isCampaignSenderEnabled } from "@/lib/whatsapp/featureFlags";
+import { formatPhoneBR } from "@/lib/whatsapp/phone";
 
 interface Props {
   open: boolean;
@@ -233,20 +234,30 @@ export function CampaignSendDialog({ open, workspaceId, campaign, onClose, onUpd
                 ) : (
                   <ul className="space-y-1">
                     {logs.map((l) => (
-                      <li key={l.id} className="flex justify-between gap-2 border-b border-border/30 pb-1 last:border-0">
-                        <span className="text-muted-foreground shrink-0">
+                      <li
+                        key={l.id}
+                        className="grid grid-cols-[auto_1fr_auto] items-center gap-2 border-b border-border/30 pb-1 last:border-0"
+                      >
+                        <span className="text-muted-foreground shrink-0 tabular-nums">
                           {new Date(l.created_at).toLocaleTimeString()}
                         </span>
-                        <span className={l.event === "failed" ? "text-destructive" : ""}>
-                          {l.event}{l.error_message ? `: ${l.error_message}` : ""}
+                        <span
+                          className={`truncate ${l.event === "failed" ? "text-destructive" : "text-foreground"}`}
+                          title={l.error_message ?? l.event}
+                        >
+                          {l.event}
+                          {l.error_message ? `: ${l.error_message}` : ""}
                         </span>
-                        <span className="text-muted-foreground truncate">{l.phone}</span>
+                        <span className="text-muted-foreground font-mono text-[10px] shrink-0">
+                          {formatPhoneBR(l.phone)}
+                        </span>
                       </li>
                     ))}
                   </ul>
                 )}
               </div>
             </div>
+
 
             <DialogFooter className="gap-2">
               <Button variant="ghost" onClick={onClose} disabled={busy}>Fechar</Button>
