@@ -96,6 +96,20 @@ export function useWhatsAppInstance() {
     } finally { setBusy(false); }
   }, [workspace, stopPolling]);
 
+  const removeInstance = useCallback(async () => {
+    if (!workspace) return;
+    setBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("whatsapp-instance", {
+        body: { action: "delete", workspaceId: workspace.id },
+      });
+      if (error) throw error;
+      if ((data as { error?: string })?.error) throw new Error((data as { error: string }).error);
+      setInstance(null);
+      stopPolling();
+    } finally { setBusy(false); }
+  }, [workspace, stopPolling]);
+
   const importInstance = useCallback(
     async (token: string, subdomain?: string) => {
       if (!workspace) return;
@@ -115,5 +129,5 @@ export function useWhatsAppInstance() {
     [workspace, startPolling],
   );
 
-  return { instance, loading, busy, connect, disconnect, refreshStatus, reload: load, importInstance };
+  return { instance, loading, busy, connect, disconnect, removeInstance, refreshStatus, reload: load, importInstance };
 }
