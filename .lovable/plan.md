@@ -1,80 +1,46 @@
-# KORA Hub — WhatsApp Campanhas Backend V1
+## Objetivo
+Trazer o chat do WhatsApp para paridade básica de mídia: figurinhas (com favoritos), áudio (ouvir + enviar áudio gravado), fotos (visualizar em tela cheia + enviar) e documentos.
 
-Escopo grande: migrations Supabase + repositories + UI funcional para Audiências, Templates e Campanhas. Sem envio real (bloqueado por enquanto).
+## 1. Backend — Edge Function `whatsapp-instance`
+Novas actions:
+- **`send_media`** — recebe `{ conversationId, kind: "image"|"video"|"audio"|"document"|"sticker", base64, mimeType, fileName?, caption? }`. Encaminha para uazapi `/send/media` (image/video/document) ou `/send/audio` (PTT) ou `/send/sticker`. Grava em `whatsapp_messages` com `type` correto, `media_url` (URL retornada pela uazapi quando disponível) e `content` (caption).
+- **`toggle_favorite_sticker`** — `{ stickerUrl, mimeType?, action: "add"|"remove" }`. Insere/remove em `whatsapp_favorite_stickers`.
+- **`list_favorite_stickers`** — retorna favoritos do workspace.
 
-## 1. Migrations Supabase (1 migration única)
+`load_messages` já extrai `stickerMessage.url`, então figurinhas recebidas aparecem assim que `refresh` rodar.
 
-Criar 6 tabelas novas, todas com `workspace_id`, RLS via `is_workspace_member(workspace_id)`, GRANTs para `authenticated` e `service_role`, triggers `update_updated_at_column`:
+## 2. Banco — nova tabela
+`whatsapp_favorite_stickers`:
+- `workspace_id`, `sticker_url` (unique por workspace), `mime_type`, `created_by`, `created_at`
+- RLS scoped por workspace (igual demais tabelas WA)
 
-- `whatsapp_audiences`
-- `whatsapp_audience_contacts` (índices em `workspace_id`, `audience_id`, `normalized_phone`)
-- `whatsapp_templates`
-- `whatsapp_campaigns_v2` — **nota:** já existe `whatsapp_campaigns` com schema diferente em uso. Para evitar quebrar `WhatsAppCampaigns.tsx` antigo, criamos a nova como `whatsapp_campaigns_v2`. (Alternativa: renomear a antiga e adotar o novo schema — mais arriscado nesta fase.)
-- `whatsapp_campaign_recipients`
-- `whatsapp_opt_outs`
+## 3. Frontend
 
-FKs `references public.clients(id)` e `public.whatsapp_conversations(id)` mantidas com `on delete set null`.
+### `WhatsAppMessageBubble.tsx`
+- Imagem: clique abre **lightbox** (Dialog full-screen) em vez de nova aba, com zoom e download.
+- Sticker: aumentar para 140px, hover mostra botão "⭐ Favoritar" (chama `toggle_favorite_sticker`).
+- Áudio: já funciona; melhorar estilo (player escuro consistente).
 
-## 2. Utilitários frontend
+### `WhatsAppChatInput.tsx`
+Substituir botões "em breve" por funcionais:
+- **Paperclip**: menu com "Foto/Vídeo", "Documento", "Figurinha" → abre `<input type=file>` filtrado. Lê em base64 e chama `send_media`.
+- **Mic**: grava áudio via `MediaRecorder` (segurar para gravar / clicar para parar). Envia como `audio` (PTT).
+- **Sticker picker**: popover lista figurinhas favoritas do workspace; clicar envia direto.
 
-- `src/lib/whatsapp/phone.ts` com `normalizeBrazilianPhone`, `isLikelyValidBrazilianPhone`, `formatPhoneBR`. Foco BR: remove não dígitos, adiciona 55 se ausente, valida DDD (11–99 conforme lista oficial), valida tamanho 12–13 dígitos (55 + DDD + 8/9).
-- `src/lib/whatsapp/csvParser.ts` — parser CSV simples (sem dependência nova), aceita cabeçalhos: nome, telefone, empresa, tag, origem, observacao, opt_in.
+### Hook `useWhatsAppConversations`
+Adicionar `sendMedia(conversationId, payload)` e `toggleFavoriteSticker`.
 
-## 3. Repositories (sem hooks novos, helpers async simples)
+## 4. Pontos técnicos
+- Tamanho máximo do upload: 10 MB (validar no frontend antes do base64).
+- `MediaRecorder` grava em `audio/webm;codecs=opus`; uazapi `/send/audio` aceita; converter para base64 puro (sem prefixo data URL).
+- Lightbox: usar `Dialog` do shadcn + `<img>` com `object-contain`, fechar com ESC.
+- Realtime já está ligado em `whatsapp_messages` (INSERT/UPDATE), então mensagens enviadas aparecem na hora.
 
-- `src/lib/whatsapp/repositories/whatsappAudiencesRepository.ts`
-- `src/lib/whatsapp/repositories/whatsappTemplatesRepository.ts`
-- `src/lib/whatsapp/repositories/whatsappCampaignsRepository.ts`
-
-Funções conforme spec. `importAudienceContacts` faz:
-1. normaliza telefone
-2. valida (marca `is_valid`, `validation_reason`)
-3. detecta duplicados dentro da lista
-4. consulta `clients.whatsapp/phone` e `whatsapp_conversations.contact_phone` por `normalized_phone` → preenche `matched_client_id`/`matched_conversation_id`
-5. consulta `whatsapp_opt_outs` por workspace+normalized_phone → marca `opt_out=true`
-6. insert em batch
-7. atualiza `total_contacts/valid/invalid/duplicate` em `whatsapp_audiences`
-
-Nunca insere em `clients` automaticamente.
-
-## 4. UI
-
-Reorganizar `src/pages/WhatsApp.tsx` em 5 abas: Inbox | Audiências | Templates | Campanhas | Robô IA. Substituir o `AudiencesPanel` mock atual e o `TemplatesLibrary` localStorage atual pelas versões backend.
-
-Novos componentes:
-- `src/components/whatsapp/audiences/AudiencesPage.tsx` — lista + botão "Nova audiência" + drawer detalhe
-- `src/components/whatsapp/audiences/ImportAudienceWizard.tsx` — paste/CSV/manual, download modelo CSV, preview validação, salvar
-- `src/components/whatsapp/audiences/AudienceContactsTable.tsx` — tabela + ações remover inválidos/duplicados
-- `src/components/whatsapp/templates/TemplatesPageBackend.tsx` — biblioteca + criar/editar + preview + transições de status manuais; bloqueia uso em campanha se ≠ approved
-- `src/components/whatsapp/campaigns/CampaignWizard.tsx` — 4 etapas (Dados → Público → Mensagem → Revisão), botão "Enviar agora" desabilitado com tooltip
-- `src/components/whatsapp/campaigns/CampaignsListBackend.tsx`
-
-Mensagens fixas:
-- "Contatos importados para campanha não viram clientes automaticamente."
-- "Cada empresa precisa ter seus próprios templates aprovados na conta/número conectado."
-- Tooltip envio: "Envio real entra na próxima fase."
-
-Botões "converter em cliente / criar oportunidade / vincular" presentes mas `disabled` (visuais).
-
-## 5. Bloqueios de segurança (UI + repositório)
-
-- Wizard não avança sem audiência selecionada
-- Wizard não avança sem template `approved`
-- Não há textarea livre para campanhas (apenas preview do template)
-- Recipients com `opt_out=true` ou `is_valid=false` recebem `status='skipped'` + `skip_reason`
-- Repositórios usam `supabase` (anon) — nunca service role no frontend
-
-## 6. Documentação
-
-`SUPABASE-WHATSAPP-CAMPAIGNS-V1.md` na raiz, conforme spec.
-
-## 7. Pontos de atenção / limitações
-
-- **`whatsapp_campaigns` antigo continua vivo** (usado por `WhatsAppCampaigns.tsx` + `useWhatsAppCampaigns.ts` + edge function `whatsapp-campaign-sender`). Novo módulo usa `whatsapp_campaigns_v2`. Migração/unificação fica para fase futura.
-- Envio real **desabilitado**. Status fica em `draft`/`scheduled`.
-- Sem XLSX (só CSV) para não adicionar dependência.
-- Sem novos erros TS no escopo; arquivos legacy não tocados.
-
-## Entregáveis no final
-
-Resposta numerada de 1 a 14 conforme spec.
+## Arquivos afetados
+- `supabase/functions/whatsapp-instance/index.ts` (3 novas actions)
+- nova migration `whatsapp_favorite_stickers`
+- `src/components/whatsapp/WhatsAppMessageBubble.tsx`
+- `src/components/whatsapp/WhatsAppChatInput.tsx`
+- `src/hooks/useWhatsAppConversations.ts`
+- novo `src/components/whatsapp/WhatsAppStickerPicker.tsx`
+- novo `src/components/whatsapp/WhatsAppImageLightbox.tsx`
