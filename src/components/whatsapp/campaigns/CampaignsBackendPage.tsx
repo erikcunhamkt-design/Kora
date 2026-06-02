@@ -109,7 +109,30 @@ export function CampaignsBackendPage() {
                     <td className="px-4 py-2 text-right text-xs text-muted-foreground">
                       {new Date(c.created_at).toLocaleDateString()}
                     </td>
-                    <td className="px-2">
+                    <td className="px-2 flex items-center gap-1 justify-end">
+                      <TooltipProvider delayDuration={150}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7"
+                                disabled={!senderEnabled && !["sending", "paused"].includes(c.status ?? "")}
+                                onClick={() => setSendDialog(c)}
+                                aria-label="Enviar campanha"
+                              >
+                                <PlayCircle className="h-3.5 w-3.5 text-primary" />
+                              </Button>
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="left" className="text-xs max-w-[220px]">
+                            {senderEnabled
+                              ? "Abrir confirmação e enviar em lotes"
+                              : "Envio real de campanhas ainda está desativado."}
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                       <Button
                         size="icon"
                         variant="ghost"
