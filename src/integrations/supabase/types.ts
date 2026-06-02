@@ -1457,6 +1457,33 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_favorite_stickers: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          mime_type: string | null
+          sticker_url: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          mime_type?: string | null
+          sticker_url: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          mime_type?: string | null
+          sticker_url?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       whatsapp_instances: {
         Row: {
           connected_at: string | null

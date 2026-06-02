@@ -180,6 +180,70 @@ export default function WhatsAppPage() {
     }
   };
 
+  const handleSendMedia = async (payload: {
+    kind: "image" | "video" | "audio" | "document" | "sticker";
+    base64: string;
+    mimeType: string;
+    fileName?: string;
+    caption?: string;
+  }) => {
+    if (!selectedId || !workspace) return;
+    setSending(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("whatsapp-instance", {
+        body: {
+          action: "send_media",
+          workspaceId: workspace.id,
+          conversationId: selectedId,
+          ...payload,
+        },
+      });
+      if (error) throw error;
+      if ((data as { error?: string })?.error) throw new Error((data as { error: string }).error);
+      toast.success("Enviado");
+    } catch (e) {
+      toast.error("Falha ao enviar mídia", { description: (e as Error).message });
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleSendStickerUrl = async (stickerUrl: string, mimeType?: string | null) => {
+    if (!selectedId || !workspace) return;
+    setSending(true);
+    try {
+      // Download sticker and re-send as base64 (uazapi /send/sticker expects file)
+      const res = await fetch(stickerUrl);
+      const blob = await res.blob();
+      const reader = new FileReader();
+      const base64: string = await new Promise((resolve, reject) => {
+        reader.onerror = () => reject(reader.error);
+        reader.onload = () => {
+          const r = String(reader.result ?? "");
+          const i = r.indexOf(",");
+          resolve(i >= 0 ? r.slice(i + 1) : r);
+        };
+        reader.readAsDataURL(blob);
+      });
+      const { data, error } = await supabase.functions.invoke("whatsapp-instance", {
+        body: {
+          action: "send_media",
+          workspaceId: workspace.id,
+          conversationId: selectedId,
+          kind: "sticker",
+          base64,
+          mimeType: mimeType ?? blob.type ?? "image/webp",
+        },
+      });
+      if (error) throw error;
+      if ((data as { error?: string })?.error) throw new Error((data as { error: string }).error);
+    } catch (e) {
+      toast.error("Falha ao enviar figurinha", { description: (e as Error).message });
+    } finally {
+      setSending(false);
+    }
+  };
+
   // Group messages by day for separators
   const grouped = useMemo(() => {
     const out: Array<{ kind: "day"; label: string } | { kind: "msg"; msg: typeof messages[number] }> = [];
@@ -461,6 +525,7 @@ export default function WhatsAppPage() {
                           createdAt={item.msg.created_at}
                           status={item.msg.status}
                           senderId={item.msg.sender_id}
+                          workspaceId={workspace?.id}
                         />
                       ),
                     )}
@@ -471,6 +536,9 @@ export default function WhatsAppPage() {
                     disabled={status !== "connected"}
                     sending={sending}
                     onSend={handleSend}
+                    onSendMedia={handleSendMedia}
+                    onSendStickerUrl={handleSendStickerUrl}
+                    workspaceId={workspace?.id}
                     placeholder={
                       status === "connected"
                         ? `Mensagem para ${selected.contact_name ?? selected.contact_phone}...`
