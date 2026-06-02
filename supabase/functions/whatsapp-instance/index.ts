@@ -638,6 +638,118 @@ Deno.serve(async (req) => {
       return json({ ok: send.ok, message: inserted });
     }
 
+    if (action === "send_media") {
+      if (!existing) return json({ error: "Instance not found" }, 404);
+      const { conversationId, kind, base64, mimeType, fileName, caption } = body as {
+        conversationId?: string;
+        kind?: string;
+        base64?: string;
+        mimeType?: string;
+        fileName?: string;
+        caption?: string;
+      };
+      if (!conversationId || !kind || !base64) {
+        return json({ error: "conversationId, kind and base64 are required" }, 400);
+      }
+      const validKinds = ["image", "video", "audio", "document", "sticker"];
+      if (!validKinds.includes(kind)) return json({ error: "invalid kind" }, 400);
+
+      const { data: conv } = await admin
+        .from("whatsapp_conversations")
+        .select("*")
+        .eq("id", conversationId)
+        .eq("workspace_id", workspaceId)
+        .maybeSingle();
+      if (!conv) return json({ error: "Conversation not found" }, 404);
+
+      // Strip data URL prefix if present
+      const pureB64 = base64.includes(",") ? base64.split(",")[1] : base64;
+      const dataUrl = mimeType ? `data:${mimeType};base64,${pureB64}` : pureB64;
+
+      // uazapi /send/media accepts: { number, type: "image"|"video"|"document"|"audio", file (URL or base64), text (caption), docName }
+      // Stickers go through /send/sticker
+      let path = "/send/media";
+      const payload: Record<string, unknown> = {
+        number: conv.contact_phone,
+        type: kind,
+        file: dataUrl,
+      };
+      if (caption) payload.text = caption;
+      if (fileName && kind === "document") payload.docName = fileName;
+
+      if (kind === "sticker") {
+        path = "/send/sticker";
+        delete payload.type;
+        delete payload.text;
+      } else if (kind === "audio") {
+        path = "/send/media";
+        payload.type = "audio";
+      }
+
+      const send = await uazForInstance(existing, path, { body: payload });
+      const sd = (send.data ?? {}) as Record<string, unknown>;
+      const waMessageId = (sd.messageid as string) || (sd.id as string) || null;
+      const returnedUrl = (sd.fileURL as string) || (sd.mediaUrl as string) || (sd.url as string) || null;
+
+      const dbType = kind;
+      const { data: inserted } = await admin.from("whatsapp_messages").insert({
+        workspace_id: workspaceId,
+        instance_id: existing.id,
+        conversation_id: conversationId,
+        wa_message_id: waMessageId,
+        direction: "outbound",
+        type: dbType,
+        content: caption ?? null,
+        media_url: returnedUrl,
+        status: send.ok ? "sent" : "error",
+        error: send.ok ? null : JSON.stringify(sd).slice(0, 500),
+      }).select().single();
+
+      await admin.from("whatsapp_conversations").update({
+        last_message: caption ?? `[${kind}]`,
+        last_message_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).eq("id", conversationId);
+
+      if (!send.ok) {
+        console.error("send_media failed", send.status, sd);
+        return json({ error: "uazapi send failed", detail: sd, status: send.status }, 502);
+      }
+      return json({ ok: true, message: inserted });
+    }
+
+    if (action === "list_favorite_stickers") {
+      const { data } = await admin
+        .from("whatsapp_favorite_stickers")
+        .select("*")
+        .eq("workspace_id", workspaceId)
+        .order("created_at", { ascending: false });
+      return json({ ok: true, stickers: data ?? [] });
+    }
+
+    if (action === "toggle_favorite_sticker") {
+      const { stickerUrl, mimeType, op } = body as { stickerUrl?: string; mimeType?: string; op?: string };
+      if (!stickerUrl) return json({ error: "stickerUrl is required" }, 400);
+      if (op === "remove") {
+        await admin
+          .from("whatsapp_favorite_stickers")
+          .delete()
+          .eq("workspace_id", workspaceId)
+          .eq("sticker_url", stickerUrl);
+        return json({ ok: true, removed: true });
+      }
+      const { error: insErr } = await admin.from("whatsapp_favorite_stickers").insert({
+        workspace_id: workspaceId,
+        sticker_url: stickerUrl,
+        mime_type: mimeType ?? null,
+        created_by: userId,
+      });
+      if (insErr && !insErr.message.includes("duplicate")) {
+        return json({ error: insErr.message }, 500);
+      }
+      return json({ ok: true, added: true });
+    }
+
     return json({ error: "Unknown action" }, 400);
   } catch (e) {
     console.error("whatsapp-instance error", e);
