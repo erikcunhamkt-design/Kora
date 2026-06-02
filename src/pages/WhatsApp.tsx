@@ -158,10 +158,21 @@ export default function WhatsAppPage() {
     );
   }
 
+  const showSidebar = !selected; // mobile: hide sidebar when conversation is open
+  const showChat = !!selected;   // mobile: hide chat when no conversation
+
   return (
     <div className="flex h-[calc(100vh-8rem)] -mx-6 -my-6 border-t border-border/40 bg-background">
       {/* ============ Sidebar de conversas ============ */}
-      <aside className="w-[340px] flex-shrink-0 border-r border-border/40 bg-card/30 flex flex-col">
+      <aside
+        className={cn(
+          "flex-shrink-0 border-r border-border/40 bg-card/30 flex-col",
+          // widths
+          "w-full md:w-[280px] lg:w-[320px] xl:w-[340px]",
+          // mobile show/hide based on selection
+          showSidebar ? "flex" : "hidden md:flex",
+        )}
+      >
         <div className="p-4 space-y-3 border-b border-border/40">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
@@ -236,12 +247,28 @@ export default function WhatsAppPage() {
       </aside>
 
       {/* ============ Conversa central ============ */}
-      <section className="flex-1 flex flex-col min-w-0 bg-gradient-to-b from-background to-background/60">
+      <section
+        className={cn(
+          "flex-1 flex-col min-w-0 bg-gradient-to-b from-background to-background/60",
+          showChat ? "flex" : "hidden md:flex",
+        )}
+      >
         {selected ? (
           <>
             {/* Header */}
-            <header className="px-5 py-3 border-b border-border/40 flex items-center gap-3 bg-card/30 backdrop-blur-sm">
-              <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary/25 to-primary/5 border border-border/40 text-primary flex items-center justify-center text-xs font-semibold overflow-hidden flex-shrink-0">
+            <header className="px-4 md:px-5 py-3 border-b border-border/40 flex items-center gap-2 md:gap-3 bg-card/30 backdrop-blur-sm">
+              {/* Back button (mobile only) */}
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8 md:hidden flex-shrink-0"
+                onClick={() => setSelectedId(null)}
+                title="Voltar"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+
+              <div className="h-9 w-9 md:h-10 md:w-10 rounded-full bg-gradient-to-br from-primary/25 to-primary/5 border border-border/40 text-primary flex items-center justify-center text-xs font-semibold overflow-hidden flex-shrink-0">
                 {selected.avatar_url ? (
                   <img
                     src={selected.avatar_url}
@@ -262,24 +289,35 @@ export default function WhatsAppPage() {
                 <p className="text-[11px] text-muted-foreground truncate">
                   {selected.contact_phone}
                   {selected.last_message_at && (
-                    <> · última atividade {new Date(selected.last_message_at).toLocaleString()}</>
+                    <span className="hidden sm:inline"> · última atividade {new Date(selected.last_message_at).toLocaleString()}</span>
                   )}
                 </p>
               </div>
               <div className="flex items-center gap-0.5 flex-shrink-0">
-                <Button size="icon" variant="ghost" className="h-8 w-8" title="Buscar na conversa" disabled>
+                <Button size="icon" variant="ghost" className="h-8 w-8 hidden sm:inline-flex" title="Buscar na conversa" disabled>
                   <Search className="h-4 w-4" />
                 </Button>
+                {/* Desktop toggle: inline panel */}
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="h-8 w-8"
+                  className="h-8 w-8 hidden xl:inline-flex"
                   title={showContext ? "Ocultar painel" : "Mostrar painel"}
                   onClick={() => setShowContext((s) => !s)}
                 >
                   {showContext
                     ? <PanelRightClose className="h-4 w-4" />
                     : <PanelRightOpen className="h-4 w-4" />}
+                </Button>
+                {/* Tablet/mobile toggle: drawer */}
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8 xl:hidden"
+                  title="Detalhes do contato"
+                  onClick={() => setContextSheetOpen(true)}
+                >
+                  <PanelRightOpen className="h-4 w-4" />
                 </Button>
                 <Button size="icon" variant="ghost" className="h-8 w-8" title="Mais" disabled>
                   <MoreVertical className="h-4 w-4" />
@@ -288,7 +326,7 @@ export default function WhatsAppPage() {
             </header>
 
             {/* Mensagens */}
-            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-2.5">
+            <div className="flex-1 overflow-y-auto px-3 md:px-6 py-4 md:py-5 space-y-2.5">
               {messages.length === 0 && (
                 <div className="flex h-full items-center justify-center">
                   <WhatsAppEmptyState
@@ -340,18 +378,37 @@ export default function WhatsAppPage() {
         )}
       </section>
 
-      {/* ============ Painel de contexto ============ */}
+      {/* ============ Painel de contexto (desktop xl: inline) ============ */}
       {selected && showContext && (
-        <WhatsAppContactPanel
-          contactName={selected.contact_name}
-          contactPhone={selected.contact_phone}
-          status={selected.status}
-          tags={selected.tags}
-          avatarUrl={selected.avatar_url}
-          lastActivity={selected.last_message_at}
-          onClose={() => setShowContext(false)}
-        />
+        <div className="hidden xl:flex">
+          <WhatsAppContactPanel
+            contactName={selected.contact_name}
+            contactPhone={selected.contact_phone}
+            status={selected.status}
+            tags={selected.tags}
+            avatarUrl={selected.avatar_url}
+            lastActivity={selected.last_message_at}
+            onClose={() => setShowContext(false)}
+          />
+        </div>
       )}
+
+      {/* ============ Painel de contexto (tablet/mobile: drawer) ============ */}
+      <Sheet open={contextSheetOpen} onOpenChange={setContextSheetOpen}>
+        <SheetContent side="right" className="p-0 w-full sm:max-w-[340px] xl:hidden">
+          {selected && (
+            <WhatsAppContactPanel
+              contactName={selected.contact_name}
+              contactPhone={selected.contact_phone}
+              status={selected.status}
+              tags={selected.tags}
+              avatarUrl={selected.avatar_url}
+              lastActivity={selected.last_message_at}
+              onClose={() => setContextSheetOpen(false)}
+            />
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
