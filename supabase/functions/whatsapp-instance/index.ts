@@ -232,6 +232,12 @@ Deno.serve(async (req) => {
       const phone = (inst.owner as string | undefined) ?? (inst.phone as string | undefined) ?? null;
       const phoneName = (inst.profileName as string | undefined) ?? (inst.name as string | undefined) ?? null;
       const instanceName = (inst.name as string | undefined) ?? `imported-${importToken.slice(0, 8)}`;
+      // uazapi às vezes aceita o "id" da instância em /instance/status mas exige
+      // o token real (devolvido em instance.token) nas demais rotas. Preferir esse.
+      const resolvedToken =
+        ((inst.token as string | undefined) ??
+          (sd.token as string | undefined) ??
+          importToken).trim();
 
       // Remove instância existente (se houver) sem deletar do uazapi (token é compartilhado/externo)
       if (existing) {
