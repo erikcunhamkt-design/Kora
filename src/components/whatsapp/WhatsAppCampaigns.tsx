@@ -21,6 +21,17 @@ export function WhatsAppCampaigns({ workspaceId }: { workspaceId: string }) {
   const [title, setTitle] = useState("");
   const [template, setTemplate] = useState("");
   const [contactsText, setContactsText] = useState(""); // List of phone numbers (comma, semicolon or line separated)
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
+
+  const { templates } = useWhatsAppTemplates();
+  const approvedTemplates = useMemo(() => templates.filter((t) => t.status === "approved"), [templates]);
+
+  const handleSelectTemplate = (id: string) => {
+    setSelectedTemplateId(id);
+    const t = approvedTemplates.find((x) => x.id === id);
+    if (t) setTemplate(t.body);
+  };
+
 
   const loadCampaigns = useCallback(async () => {
     setLoading(true);
