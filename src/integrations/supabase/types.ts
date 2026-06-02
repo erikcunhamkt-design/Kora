@@ -947,6 +947,153 @@ export type Database = {
           },
         ]
       }
+      whatsapp_conversations: {
+        Row: {
+          client_id: string | null
+          contact_name: string | null
+          contact_phone: string
+          created_at: string
+          id: string
+          instance_id: string
+          last_message: string | null
+          last_message_at: string | null
+          opportunity_id: string | null
+          status: string
+          tags: string[] | null
+          unread_count: number
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          client_id?: string | null
+          contact_name?: string | null
+          contact_phone: string
+          created_at?: string
+          id?: string
+          instance_id: string
+          last_message?: string | null
+          last_message_at?: string | null
+          opportunity_id?: string | null
+          status?: string
+          tags?: string[] | null
+          unread_count?: number
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          client_id?: string | null
+          contact_name?: string | null
+          contact_phone?: string
+          created_at?: string
+          id?: string
+          instance_id?: string
+          last_message?: string | null
+          last_message_at?: string | null
+          opportunity_id?: string | null
+          status?: string
+          tags?: string[] | null
+          unread_count?: number
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      whatsapp_instances: {
+        Row: {
+          connected_at: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          instance_name: string | null
+          instance_token: string
+          last_status_at: string | null
+          phone: string | null
+          phone_name: string | null
+          qr_code: string | null
+          status: string
+          subdomain: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          connected_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          instance_name?: string | null
+          instance_token: string
+          last_status_at?: string | null
+          phone?: string | null
+          phone_name?: string | null
+          qr_code?: string | null
+          status?: string
+          subdomain: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          connected_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          instance_name?: string | null
+          instance_token?: string
+          last_status_at?: string | null
+          phone?: string | null
+          phone_name?: string | null
+          qr_code?: string | null
+          status?: string
+          subdomain?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      whatsapp_messages: {
+        Row: {
+          content: string | null
+          conversation_id: string
+          created_at: string
+          direction: string
+          error: string | null
+          id: string
+          instance_id: string
+          media_url: string | null
+          status: string
+          type: string
+          wa_message_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          content?: string | null
+          conversation_id: string
+          created_at?: string
+          direction: string
+          error?: string | null
+          id?: string
+          instance_id: string
+          media_url?: string | null
+          status?: string
+          type?: string
+          wa_message_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          content?: string | null
+          conversation_id?: string
+          created_at?: string
+          direction?: string
+          error?: string | null
+          id?: string
+          instance_id?: string
+          media_url?: string | null
+          status?: string
+          type?: string
+          wa_message_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       workspace_members: {
         Row: {
           created_at: string
