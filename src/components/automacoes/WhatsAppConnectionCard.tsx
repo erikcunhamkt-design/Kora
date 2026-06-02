@@ -121,7 +121,6 @@ export function WhatsAppConnectionCard({
             <div>
               <h3 className="flex items-center gap-2 font-semibold">
                 Conexão WhatsApp
-                <Badge variant="outline" className="text-[10px]">uazapi</Badge>
               </h3>
               <p className="text-xs text-muted-foreground">
                 {status === "connected" && `Conectado: ${instance?.phone_name ?? instance?.phone ?? "WhatsApp"}`}
