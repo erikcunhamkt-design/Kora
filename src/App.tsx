@@ -85,6 +85,7 @@ const App = () => (
                     <Route path="/metas" element={<ProtectedRoute><OnboardingGate><MainLayout><Metas /></MainLayout></OnboardingGate></ProtectedRoute>} />
                     <Route path="/automacoes" element={<ProtectedRoute><OnboardingGate><MainLayout><Automacoes /></MainLayout></OnboardingGate></ProtectedRoute>} />
                     <Route path="/presenca" element={<ProtectedRoute><OnboardingGate><MainLayout><Presenca /></MainLayout></OnboardingGate></ProtectedRoute>} />
+                    <Route path="/whatsapp" element={<ProtectedRoute><OnboardingGate><MainLayout><WhatsAppPage /></MainLayout></OnboardingGate></ProtectedRoute>} />
                     <Route path="/configuracoes" element={<ProtectedRoute><OnboardingGate><MainLayout><Configuracoes /></MainLayout></OnboardingGate></ProtectedRoute>} />
                     <Route path="/upgrade" element={<ProtectedRoute><OnboardingGate><MainLayout><Upgrade /></MainLayout></OnboardingGate></ProtectedRoute>} />
 
