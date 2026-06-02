@@ -461,9 +461,21 @@ export default function WhatsAppPage() {
           </div>
         )}
 
+        {activeMainTab === "audiences" && (
+          <div className="flex-1 overflow-hidden h-full bg-background/50">
+            <AudiencesPanel />
+          </div>
+        )}
+
         {activeMainTab === "campaigns" && workspace && (
           <div className="flex-1 overflow-hidden h-full">
             <WhatsAppCampaigns workspaceId={workspace.id} />
+          </div>
+        )}
+
+        {activeMainTab === "templates" && (
+          <div className="flex-1 overflow-hidden h-full bg-background/50">
+            <TemplatesLibrary />
           </div>
         )}
 
