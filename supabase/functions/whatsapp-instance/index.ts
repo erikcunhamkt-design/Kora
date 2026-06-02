@@ -146,8 +146,7 @@ Deno.serve(async (req) => {
 
       // Always (re)register webhook on connect/create to keep URL + secret in sync
       const webhookUrl = `${SUPABASE_URL}/functions/v1/whatsapp-webhook?secret=${encodeURIComponent(WEBHOOK_SECRET)}&workspace=${workspaceId}`;
-      await uaz("/webhook", {
-        token: instance.instance_token,
+      await uazForInstance(instance, "/webhook", {
         body: {
           webhookURL: webhookUrl,
           url: webhookUrl,
@@ -157,7 +156,7 @@ Deno.serve(async (req) => {
       }).catch(() => null);
 
       // Request QR
-      const connect = await uaz("/instance/connect", { token: instance.instance_token, body: {} });
+      const connect = await uazForInstance(instance, "/instance/connect", { body: {} });
       const cdata = (connect.data ?? {}) as Record<string, unknown>;
       const qr = (cdata.qrcode ?? cdata.qr ?? (cdata.instance as Record<string, unknown>)?.qrcode) as string | undefined;
       const status = ((cdata.status ?? (cdata.instance as Record<string, unknown>)?.status) as string | undefined) ?? "connecting";
@@ -178,7 +177,7 @@ Deno.serve(async (req) => {
 
     if (action === "status") {
       if (!existing) return json({ instance: null });
-      const st = await uaz("/instance/status", { token: existing.instance_token, method: "GET" });
+      const st = await uazForInstance(existing, "/instance/status", { method: "GET" });
       const sd = (st.data ?? {}) as Record<string, unknown>;
       const inst = (sd.instance ?? sd) as Record<string, unknown>;
       const status = (inst.status as string | undefined) ?? existing.status;
@@ -210,7 +209,7 @@ Deno.serve(async (req) => {
 
     if (action === "disconnect") {
       if (!existing) return json({ instance: null });
-      await uaz("/instance/disconnect", { token: existing.instance_token, body: {} }).catch(() => null);
+      await uazForInstance(existing, "/instance/disconnect", { body: {} }).catch(() => null);
       const { data: updated } = await admin
         .from("whatsapp_instances")
         .update({ status: "disconnected", qr_code: null, last_status_at: new Date().toISOString() })
@@ -222,6 +221,7 @@ Deno.serve(async (req) => {
 
     if (action === "delete") {
       if (!existing) return json({ ok: true });
+      await uazForInstance(existing, "/instance/disconnect", { body: {} }).catch(() => null);
       await uaz("/instance/delete", { admin: true, body: { token: existing.instance_token } }).catch(() => null);
       await admin.from("whatsapp_instances").delete().eq("id", existing.id);
       return json({ ok: true });
