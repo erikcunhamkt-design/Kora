@@ -219,10 +219,19 @@ export function CampaignWizard({ open, workspaceId, onClose, onCreated }: Props)
 
               <div className="rounded-md bg-warning/10 border border-warning/30 p-3 text-xs flex gap-2">
                 <AlertTriangle className="h-4 w-4 text-warning flex-shrink-0 mt-0.5" />
-                <p className="text-muted-foreground">
-                  Contatos opt-out, inválidos e duplicados serão automaticamente marcados como
-                  <strong> skipped</strong>. Garanta opt-in dos demais antes de enviar.
-                </p>
+                <div className="text-muted-foreground space-y-1">
+                  <p>
+                    Contatos opt-out, inválidos e duplicados serão automaticamente marcados como
+                    <strong> skipped</strong>. Garanta opt-in dos demais antes de enviar.
+                  </p>
+                  <p>
+                    <strong>Atenção:</strong> o envio de mensagens em massa pelo WhatsApp pode gerar
+                    bloqueios, restrições ou banimento do número caso os contatos não tenham
+                    autorizado o recebimento ou denunciem a conversa. A KORA fornece a ferramenta
+                    de organização e envio, mas a responsabilidade pelo uso, pela lista de contatos,
+                    pelo consentimento e pelo conteúdo enviado é do usuário.
+                  </p>
+                </div>
               </div>
 
               {template && (
