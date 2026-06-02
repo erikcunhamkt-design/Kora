@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
+  Layers,
   Loader2,
   MessageCircle,
   MoreVertical,
@@ -11,7 +12,6 @@ import {
   RotateCw,
   Search,
   Send,
-  Settings,
   Smartphone,
   Users,
 } from "lucide-react";
@@ -34,6 +34,8 @@ import { WhatsAppContactPanel } from "@/components/whatsapp/WhatsAppContactPanel
 import { WhatsAppEmptyState } from "@/components/whatsapp/WhatsAppEmptyState";
 import { WhatsAppCampaigns } from "@/components/whatsapp/WhatsAppCampaigns";
 import { WhatsAppBotConfig } from "@/components/whatsapp/WhatsAppBotConfig";
+import { TemplatesLibrary } from "@/components/whatsapp/templates/TemplatesLibrary";
+import { AudiencesPanel } from "@/components/whatsapp/audiences/AudiencesPanel";
 
 function initials(name: string | null, phone: string) {
   const base = (name ?? phone).trim();
