@@ -327,8 +327,7 @@ Deno.serve(async (req) => {
     if (action === "sync") {
       if (!existing) return json({ error: "Instance not found" }, 404);
       // Fetch chat list from uazapi and upsert conversations
-      const list = await uaz("/chat/find", {
-        token: existing.instance_token,
+      const list = await uazForInstance(existing, "/chat/find", {
         body: { operator: "AND", sort: "-wa_lastMsgTimestamp" },
       });
       if (!list.ok) {
@@ -414,8 +413,7 @@ Deno.serve(async (req) => {
       const chatid = `${conv.contact_phone}@s.whatsapp.net`;
       // Try to fetch profile picture (best-effort)
       try {
-        const pic = await uaz("/chat/GetNameAndImageURL", {
-          token: existing.instance_token,
+        const pic = await uazForInstance(existing, "/chat/GetNameAndImageURL", {
           body: { number: conv.contact_phone },
         });
         const pd = (pic.data ?? {}) as Record<string, unknown>;
@@ -429,8 +427,7 @@ Deno.serve(async (req) => {
         }
       } catch (_e) { /* ignore */ }
 
-      const msgRes = await uaz("/message/find", {
-        token: existing.instance_token,
+      const msgRes = await uazForInstance(existing, "/message/find", {
         body: {
           operator: "AND",
           chatid,
@@ -513,8 +510,7 @@ Deno.serve(async (req) => {
         .maybeSingle();
       if (!conv) return json({ error: "Conversation not found" }, 404);
 
-      const send = await uaz("/send/text", {
-        token: existing.instance_token,
+      const send = await uazForInstance(existing, "/send/text", {
         body: { number: conv.contact_phone, text },
       });
       const sd = (send.data ?? {}) as Record<string, unknown>;
