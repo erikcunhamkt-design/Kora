@@ -146,6 +146,9 @@ export function WhatsAppSection() {
                     <QrCode className="h-4 w-4" /> Ver QR
                   </Button>
                 )}
+                <Button variant="outline" onClick={() => setImportOpen(true)} disabled={busy}>
+                  <Download className="h-4 w-4" /> Importar token
+                </Button>
                 <Button onClick={handleConnect} disabled={busy || loadingInstance}>
                   {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plug className="h-4 w-4" />}
                   {instance ? "Reconectar" : "Conectar WhatsApp"}
