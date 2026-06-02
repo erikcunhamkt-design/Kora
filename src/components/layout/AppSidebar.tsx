@@ -36,6 +36,7 @@ const navGroups: NavGroup[] = [
     items: [
       { title: "Dashboard", url: "/", icon: LayoutDashboard },
       { title: "Central do Dia", url: "/central-do-dia", icon: CalendarCheck },
+      { title: "Atendimento", url: "/whatsapp", icon: MessageCircle },
       { title: "Clientes", url: "/clientes", icon: Users },
       { title: "CRM", url: "/crm", icon: TrendingUp },
     ],
@@ -72,7 +73,6 @@ const navGroups: NavGroup[] = [
   {
     label: "Inteligência",
     items: [
-      { title: "WhatsApp Chat", url: "/whatsapp", icon: MessageCircle },
       { title: "Agentes de IA", url: "/automacoes?tab=ia", icon: Bot, badge: "beta" },
       { title: "Automações", url: "/automacoes?tab=automacoes", icon: Zap, badge: "beta" },
       { title: "Créditos de IA", event: "orbyt:open-credits", icon: Sparkles },
@@ -134,6 +134,7 @@ const itemKeys: Record<string, string> = {
   "Suporte": "sidebar.support",
   "Segurança": "sidebar.security",
   "Central do Dia": "sidebar.daycenter",
+  "Atendimento": "sidebar.whatsapp",
 };
 
 export function AppSidebar() {
