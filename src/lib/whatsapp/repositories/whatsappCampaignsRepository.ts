@@ -41,16 +41,22 @@ export async function createCampaign(
   workspaceId: string,
   input: CampaignInput,
 ): Promise<WhatsAppCampaignV2> {
-  // Valida template aprovado
+  // Valida modelo de mensagem (ativo/rascunho, não arquivado, com corpo).
   const { data: tpl, error: tplErr } = await supabase
     .from("whatsapp_templates")
-    .select("id, status")
+    .select("id, status, body, deleted_at")
     .eq("workspace_id", workspaceId)
     .eq("id", input.templateId)
     .single();
   if (tplErr) throw tplErr;
-  if (tpl.status !== "approved") {
-    throw new Error("Template não está aprovado. Não é possível criar a campanha.");
+  if (tpl.deleted_at) {
+    throw new Error("Selecione um modelo de mensagem ativo para continuar.");
+  }
+  if (tpl.status === "paused") {
+    throw new Error("Este modelo está arquivado. Selecione um modelo ativo.");
+  }
+  if (!tpl.body || !String(tpl.body).trim()) {
+    throw new Error("O modelo selecionado está vazio. Edite o conteúdo antes de usar.");
   }
 
   const { data, error } = await supabase
