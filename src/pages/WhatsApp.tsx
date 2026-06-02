@@ -63,7 +63,8 @@ export default function WhatsAppPage() {
   const { conversations, messages, selectedId, setSelectedId, loading, markRead } =
     useWhatsAppConversations(workspace?.id, instance?.id);
 
-  const [activeMainTab, setActiveMainTab] = useState<"chat" | "campaigns" | "bot">("chat");
+  type MainTab = "chat" | "audiences" | "campaigns" | "templates" | "bot";
+  const [activeMainTab, setActiveMainTab] = useState<MainTab>("chat");
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [sending, setSending] = useState(false);
