@@ -46,6 +46,7 @@ export function CampaignSendDialog({ open, workspaceId, campaign, onClose, onUpd
     if (!open) {
       setPhase("confirm");
       setConfirmText("");
+      setAcceptedResponsibility(false);
       setRecipients([]);
       setLogs([]);
       return;
