@@ -1,94 +1,80 @@
-## Escopo
+# KORA Hub — WhatsApp Campanhas Backend V1
 
-Construção 100% visual/UX (sem backend, sem migration, sem RLS, sem webhook). Tudo persiste em localStorage via os hooks existentes (`useCampaigns`, novo `useWhatsAppTemplates`).
+Escopo grande: migrations Supabase + repositories + UI funcional para Audiências, Templates e Campanhas. Sem envio real (bloqueado por enquanto).
 
-## Onde entra
+## 1. Migrations Supabase (1 migration única)
 
-Página **WhatsApp** (`src/pages/WhatsApp.tsx`) — adicionar abas internas:
-- Inbox de Atendimento (existente)
-- Audiências/Listas (nova aba leve, reaproveita `consents`/`segments` do `useCampaigns`)
-- Campanhas (refatorada — fluxo Tipo de envio)
-- **Templates Aprovados** (novo)
-- Robô IA (existente `WhatsAppBotConfig`)
+Criar 6 tabelas novas, todas com `workspace_id`, RLS via `is_workspace_member(workspace_id)`, GRANTs para `authenticated` e `service_role`, triggers `update_updated_at_column`:
 
-Se a página WhatsApp ainda não tiver tabs, envolver o conteúdo atual em `Tabs`.
+- `whatsapp_audiences`
+- `whatsapp_audience_contacts` (índices em `workspace_id`, `audience_id`, `normalized_phone`)
+- `whatsapp_templates`
+- `whatsapp_campaigns_v2` — **nota:** já existe `whatsapp_campaigns` com schema diferente em uso. Para evitar quebrar `WhatsAppCampaigns.tsx` antigo, criamos a nova como `whatsapp_campaigns_v2`. (Alternativa: renomear a antiga e adotar o novo schema — mais arriscado nesta fase.)
+- `whatsapp_campaign_recipients`
+- `whatsapp_opt_outs`
 
-## Arquivos novos
+FKs `references public.clients(id)` e `public.whatsapp_conversations(id)` mantidas com `on delete set null`.
 
-```text
-src/hooks/useWhatsAppTemplates.ts
-src/components/whatsapp/templates/TemplatesLibrary.tsx
-src/components/whatsapp/templates/TemplateCard.tsx
-src/components/whatsapp/templates/TemplatePreview.tsx
-src/components/whatsapp/templates/CreateTemplateDialog.tsx
-src/components/whatsapp/templates/VariableChips.tsx
-src/components/whatsapp/audiences/AudiencesPanel.tsx
-src/components/whatsapp/campaigns/CampaignFlow.tsx        (Tipo de envio + escolha template ou janela atendimento)
-src/components/whatsapp/campaigns/CampaignHistory.tsx
-src/components/whatsapp/campaigns/OptInNotice.tsx
-src/lib/whatsapp/templateVariables.ts                     (render preview com {{vars}})
-```
+## 2. Utilitários frontend
 
-## Arquivos editados
+- `src/lib/whatsapp/phone.ts` com `normalizeBrazilianPhone`, `isLikelyValidBrazilianPhone`, `formatPhoneBR`. Foco BR: remove não dígitos, adiciona 55 se ausente, valida DDD (11–99 conforme lista oficial), valida tamanho 12–13 dígitos (55 + DDD + 8/9).
+- `src/lib/whatsapp/csvParser.ts` — parser CSV simples (sem dependência nova), aceita cabeçalhos: nome, telefone, empresa, tag, origem, observacao, opt_in.
 
-- `src/pages/WhatsApp.tsx` — adicionar Tabs com 5 seções.
-- `src/components/whatsapp/WhatsAppCampaigns.tsx` — quebrar em CampaignFlow + History; bloquear textarea livre quando envio = audiência; banner opt-in.
+## 3. Repositories (sem hooks novos, helpers async simples)
 
-## Modelo do Template (localStorage `orbyt.whatsapp.templates.v1`)
+- `src/lib/whatsapp/repositories/whatsappAudiencesRepository.ts`
+- `src/lib/whatsapp/repositories/whatsappTemplatesRepository.ts`
+- `src/lib/whatsapp/repositories/whatsappCampaignsRepository.ts`
 
-```ts
-type TemplateCategory = "marketing" | "utility" | "authentication" | "service";
-type TemplateStatus   = "draft" | "submitted" | "approved" | "rejected" | "paused";
-interface WhatsAppTemplate {
-  id, name, category, status, language,
-  body, variables: string[], cta?: {label,url}, notes?,
-  lastUsedAt?, responseRate?, createdAt, isDemo
-}
-```
+Funções conforme spec. `importAudienceContacts` faz:
+1. normaliza telefone
+2. valida (marca `is_valid`, `validation_reason`)
+3. detecta duplicados dentro da lista
+4. consulta `clients.whatsapp/phone` e `whatsapp_conversations.contact_phone` por `normalized_phone` → preenche `matched_client_id`/`matched_conversation_id`
+5. consulta `whatsapp_opt_outs` por workspace+normalized_phone → marca `opt_out=true`
+6. insert em batch
+7. atualiza `total_contacts/valid/invalid/duplicate` em `whatsapp_audiences`
 
-Seeds: 4 templates demo cobrindo cada categoria, status variados.
+Nunca insere em `clients` automaticamente.
 
-## Variáveis
+## 4. UI
 
-`{{nome}} {{primeiro_nome}} {{empresa}} {{serviço}} {{data}} {{link}}` — chips clicáveis inserem no textarea (cursor position). Preview lateral renderiza com valores fake ("Erik", "Estúdio Orbyt", "Branding"…).
+Reorganizar `src/pages/WhatsApp.tsx` em 5 abas: Inbox | Audiências | Templates | Campanhas | Robô IA. Substituir o `AudiencesPanel` mock atual e o `TemplatesLibrary` localStorage atual pelas versões backend.
 
-## Fluxo Campanha (CampaignFlow)
+Novos componentes:
+- `src/components/whatsapp/audiences/AudiencesPage.tsx` — lista + botão "Nova audiência" + drawer detalhe
+- `src/components/whatsapp/audiences/ImportAudienceWizard.tsx` — paste/CSV/manual, download modelo CSV, preview validação, salvar
+- `src/components/whatsapp/audiences/AudienceContactsTable.tsx` — tabela + ações remover inválidos/duplicados
+- `src/components/whatsapp/templates/TemplatesPageBackend.tsx` — biblioteca + criar/editar + preview + transições de status manuais; bloqueia uso em campanha se ≠ approved
+- `src/components/whatsapp/campaigns/CampaignWizard.tsx` — 4 etapas (Dados → Público → Mensagem → Revisão), botão "Enviar agora" desabilitado com tooltip
+- `src/components/whatsapp/campaigns/CampaignsListBackend.tsx`
 
-Passo 1 RadioGroup:
-- **Mensagem livre — janela de atendimento** (badge âmbar 24h) → seleciona conversa ativa, textarea livre liberado.
-- **Campanha com template aprovado** → seleciona audiência (Select) + template (Select filtrado por `status==="approved"`). Textarea livre OCULTO. Banner opt-in vermelho/vinho fixo.
+Mensagens fixas:
+- "Contatos importados para campanha não viram clientes automaticamente."
+- "Cada empresa precisa ter seus próprios templates aprovados na conta/número conectado."
+- Tooltip envio: "Envio real entra na próxima fase."
 
-Botão "Enviar campanha" desabilitado se template não-approved com tooltip "Selecione um template aprovado".
+Botões "converter em cliente / criar oportunidade / vincular" presentes mas `disabled` (visuais).
 
-## Audiências (AudiencesPanel)
+## 5. Bloqueios de segurança (UI + repositório)
 
-Cards por segmento mostrando: total, válidos, inválidos, duplicados, já clientes, já conversaram, sem opt-in, opt-out. Valores derivados dos `consents` + mocks determinísticos. Alerta: "Contatos de campanha não viram clientes automaticamente."
+- Wizard não avança sem audiência selecionada
+- Wizard não avança sem template `approved`
+- Não há textarea livre para campanhas (apenas preview do template)
+- Recipients com `opt_out=true` ou `is_valid=false` recebem `status='skipped'` + `skip_reason`
+- Repositórios usam `supabase` (anon) — nunca service role no frontend
 
-## Histórico (CampaignHistory)
+## 6. Documentação
 
-Tabela: Template · Status · Total · Enviados · Falhas · Respostas · Bloqueios · Data · Origem.
+`SUPABASE-WHATSAPP-CAMPAIGNS-V1.md` na raiz, conforme spec.
 
-## CreateTemplateDialog
+## 7. Pontos de atenção / limitações
 
-Campos pedidos + alertas amarelos. Botões:
-- **Salvar rascunho** (ativo)
-- **Enviar para aprovação** (disabled + Tooltip "Integração oficial entra na próxima fase")
+- **`whatsapp_campaigns` antigo continua vivo** (usado por `WhatsAppCampaigns.tsx` + `useWhatsAppCampaigns.ts` + edge function `whatsapp-campaign-sender`). Novo módulo usa `whatsapp_campaigns_v2`. Migração/unificação fica para fase futura.
+- Envio real **desabilitado**. Status fica em `draft`/`scheduled`.
+- Sem XLSX (só CSV) para não adicionar dependência.
+- Sem novos erros TS no escopo; arquivos legacy não tocados.
 
-## Visual
+## Entregáveis no final
 
-Tokens existentes (dark, `primary` vinho/vermelho `#F81040`). Status badges:
-- approved → success
-- submitted → info
-- draft → muted
-- rejected → destructive
-- paused → warning
-
-Empty states elegantes com `EmptyState`. Tabela responsiva: desktop tabela, tablet cards, mobile stepper no CreateTemplateDialog.
-
-## Fora de escopo
-
-Nada de Edge Function, migration, alteração de webhook, envio real, alteração de RLS. `simulateSend` continua local.
-
-## Entrega
-
-Ao final reporto: localização, biblioteca, status/categorias, variáveis, fluxo de campanha, avisos opt-in, ações desabilitadas, ausência de mudanças no backend, status TypeScript/lint, próxima recomendação.
+Resposta numerada de 1 a 14 conforme spec.
