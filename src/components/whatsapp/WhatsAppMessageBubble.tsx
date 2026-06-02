@@ -63,20 +63,42 @@ export function WhatsAppMessageBubble({
             <img
               src={mediaUrl}
               alt={content ?? "imagem"}
-              className="rounded-lg max-h-72 w-full object-cover"
+              className="rounded-lg max-h-72 w-full object-cover bg-background/40"
               loading="lazy"
+              decoding="async"
+              referrerPolicy="no-referrer"
+              onError={(e) => {
+                const img = e.currentTarget;
+                img.style.display = "none";
+                const fb = img.nextElementSibling as HTMLElement | null;
+                if (fb) fb.style.display = "flex";
+              }}
             />
+            <div
+              style={{ display: "none" }}
+              className="items-center gap-2 rounded-lg bg-background/40 px-2.5 py-2 border border-border/40 text-xs italic text-muted-foreground"
+            >
+              <FileText className="h-3 w-3" /> Imagem indisponível
+            </div>
           </a>
         )}
         {mediaUrl && isVideo && (
-          <video src={mediaUrl} controls className="rounded-lg max-h-72 w-full" />
+          <video src={mediaUrl} controls preload="metadata" className="rounded-lg max-h-72 w-full" />
         )}
         {mediaUrl && isAudio && (
-          <audio src={mediaUrl} controls className="w-full" />
+          <audio src={mediaUrl} controls preload="none" className="w-full" />
         )}
         {mediaUrl && isSticker && (
-          <img src={mediaUrl} alt="sticker" className="h-28 w-28 object-contain" />
+          <img
+            src={mediaUrl}
+            alt="sticker"
+            className="h-28 w-28 object-contain"
+            loading="lazy"
+            decoding="async"
+            referrerPolicy="no-referrer"
+          />
         )}
+
         {mediaUrl && isDoc && (
           <a
             href={mediaUrl}
