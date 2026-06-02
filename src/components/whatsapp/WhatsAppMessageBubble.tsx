@@ -8,6 +8,7 @@ export interface WhatsAppMessageBubbleProps {
   mediaUrl?: string | null;
   createdAt: string;
   status?: string | null;
+  senderId?: string | null;
 }
 
 function formatTime(iso: string) {
@@ -33,6 +34,7 @@ export function WhatsAppMessageBubble({
   mediaUrl,
   createdAt,
   status,
+  senderId,
 }: WhatsAppMessageBubbleProps) {
   const outbound = direction === "outbound";
   const t = (type ?? "text").toLowerCase();
@@ -46,7 +48,7 @@ export function WhatsAppMessageBubble({
   const isUnknown = !isMedia && t !== "text" && !content;
 
   return (
-    <div className={cn("flex w-full", outbound ? "justify-end" : "justify-start")}>
+    <div className={cn("flex w-full flex-col", outbound ? "items-end" : "items-start")}>
       <div
         className={cn(
           "max-w-[85%] sm:max-w-[78%] md:max-w-[65%] xl:max-w-[60%] px-3 py-2 rounded-2xl text-sm shadow-sm space-y-1.5 transition-colors",
@@ -119,6 +121,11 @@ export function WhatsAppMessageBubble({
           {outbound && <StatusTick status={status} />}
         </div>
       </div>
+      {outbound && senderId && (
+        <span className="text-[9px] text-muted-foreground/60 mr-1 mt-0.5">
+          Enviado pelo atendente
+        </span>
+      )}
     </div>
   );
 }

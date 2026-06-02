@@ -6,10 +6,14 @@ import {
   MoreVertical,
   PanelRightClose,
   PanelRightOpen,
+  Bot,
   Plug,
   RotateCw,
   Search,
+  Send,
+  Settings,
   Smartphone,
+  Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -112,8 +116,15 @@ export default function WhatsAppPage() {
     if (!text.trim() || !selectedId || !workspace) return;
     setSending(true);
     try {
+      const { data: userData } = await supabase.auth.getUser();
       const { data, error } = await supabase.functions.invoke("whatsapp-instance", {
-        body: { action: "send", workspaceId: workspace.id, conversationId: selectedId, text },
+        body: { 
+          action: "send", 
+          workspaceId: workspace.id, 
+          conversationId: selectedId, 
+          text,
+          senderId: userData.user?.id 
+        },
       });
       if (error) throw error;
       if ((data as { error?: string })?.error) throw new Error((data as { error: string }).error);
@@ -353,6 +364,7 @@ export default function WhatsAppPage() {
                     mediaUrl={item.msg.media_url}
                     createdAt={item.msg.created_at}
                     status={item.msg.status}
+                    senderId={item.msg.sender_id}
                   />
                 ),
               )}
