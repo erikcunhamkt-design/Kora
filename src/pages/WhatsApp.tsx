@@ -525,6 +525,7 @@ export default function WhatsAppPage() {
                           createdAt={item.msg.created_at}
                           status={item.msg.status}
                           senderId={item.msg.sender_id}
+                          workspaceId={workspace?.id}
                         />
                       ),
                     )}
@@ -535,6 +536,9 @@ export default function WhatsAppPage() {
                     disabled={status !== "connected"}
                     sending={sending}
                     onSend={handleSend}
+                    onSendMedia={handleSendMedia}
+                    onSendStickerUrl={handleSendStickerUrl}
+                    workspaceId={workspace?.id}
                     placeholder={
                       status === "connected"
                         ? `Mensagem para ${selected.contact_name ?? selected.contact_phone}...`
