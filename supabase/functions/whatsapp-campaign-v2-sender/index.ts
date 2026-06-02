@@ -136,13 +136,18 @@ Deno.serve(async (req) => {
 
     const { data: template } = await admin
       .from("whatsapp_templates")
-      .select("id, status, body, sample_values, workspace_id")
+      .select("id, status, body, sample_values, workspace_id, deleted_at")
       .eq("id", campaign.template_id)
       .eq("workspace_id", workspaceId)
       .maybeSingle();
     if (!template) return json({ error: "template_not_found" }, 404);
-    if (template.status !== "approved") {
-      return json({ error: "template_not_approved" }, 409);
+    // Removido: bloqueio por "template_not_approved".
+    // Aceita modelos ativos (approved) e rascunhos enviáveis (active). Bloqueia apenas:
+    // deletado, arquivado (paused) ou corpo vazio.
+    if (template.deleted_at) return json({ error: "template_deleted" }, 409);
+    if (template.status === "paused") return json({ error: "template_archived" }, 409);
+    if (!template.body || !String(template.body).trim()) {
+      return json({ error: "template_empty" }, 409);
     }
 
     // Ensure instance connected
