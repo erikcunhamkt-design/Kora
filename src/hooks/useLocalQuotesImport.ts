@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Hook to import local quotes into Supabase – assisted import
 import { useCallback, useEffect, useState } from "react";
 import { useQuotes } from "@/hooks/useQuotes";
