@@ -194,54 +194,73 @@ Deno.serve(async (req) => {
     if (action === "sync") {
       if (!existing) return json({ error: "Instance not found" }, 404);
       // Fetch chat list from uazapi and upsert conversations
-      const list = await uaz("/chat/find", { token: existing.instance_token, body: {} });
+      const list = await uaz("/chat/find", {
+        token: existing.instance_token,
+        body: { operator: "AND", sort: "-wa_lastMsgTimestamp" },
+      });
+      if (!list.ok) {
+        console.error("sync /chat/find failed", list.status, list.data);
+        return json({ error: "uazapi /chat/find failed", status: list.status, detail: list.data }, 502);
+      }
       const chats = Array.isArray(list.data)
         ? (list.data as Record<string, unknown>[])
         : Array.isArray((list.data as Record<string, unknown>)?.chats)
           ? ((list.data as Record<string, unknown>).chats as Record<string, unknown>[])
           : [];
+      console.log("sync: received chats", chats.length);
       let synced = 0;
+      const errors: string[] = [];
       for (const chat of chats) {
-        const rawPhone = (chat.phone as string) || (chat.wa_chatid as string) || (chat.id as string) || "";
-        const phone = String(rawPhone).split("@")[0].replace(/\D/g, "");
-        if (!phone) continue;
-        if ((chat.wa_isGroup as boolean) || (chat.isGroup as boolean)) continue; // skip groups for now
-        const name = (chat.wa_contactName as string) || (chat.name as string) || (chat.wa_name as string) || null;
-        const lastMessage = (chat.wa_lastMessageTextVote as string) || (chat.lastMessage as string) || null;
-        const lastTs = chat.wa_lastMsgTimestamp ? Number(chat.wa_lastMsgTimestamp) : Number(chat.lastMessageTimestamp ?? 0);
-        const lastAt = lastTs ? new Date(lastTs * 1000).toISOString() : null;
-        const unread = Number(chat.wa_unreadCount ?? chat.unreadCount ?? 0);
+        try {
+          if ((chat.wa_isGroup as boolean) || (chat.isGroup as boolean)) continue;
+          const rawPhone = (chat.phone as string) || (chat.wa_chatid as string) || (chat.id as string) || "";
+          const phone = String(rawPhone).split("@")[0].replace(/\D/g, "");
+          if (!phone) continue;
+          const name = (chat.wa_contactName as string) || (chat.name as string) || (chat.wa_name as string) || null;
+          const lastMessage = (chat.wa_lastMessageTextVote as string) || (chat.lastMessage as string) || null;
+          const rawTs = Number(chat.wa_lastMsgTimestamp ?? chat.lastMessageTimestamp ?? 0);
+          // uazapi sometimes returns seconds, sometimes ms — normalize to ms
+          const tsMs = rawTs > 1e12 ? rawTs : rawTs * 1000;
+          const lastAt = tsMs ? new Date(tsMs).toISOString() : null;
+          const unread = Number(chat.wa_unreadCount ?? chat.unreadCount ?? 0);
 
-        const { data: existingConv } = await admin
-          .from("whatsapp_conversations")
-          .select("id")
-          .eq("instance_id", existing.id)
-          .eq("contact_phone", phone)
-          .maybeSingle();
+          const { data: existingConv } = await admin
+            .from("whatsapp_conversations")
+            .select("id")
+            .eq("instance_id", existing.id)
+            .eq("contact_phone", phone)
+            .maybeSingle();
 
-        if (existingConv) {
-          await admin.from("whatsapp_conversations").update({
-            contact_name: name,
-            last_message: lastMessage,
-            last_message_at: lastAt,
-            unread_count: unread,
-            updated_at: new Date().toISOString(),
-          }).eq("id", existingConv.id);
-        } else {
-          await admin.from("whatsapp_conversations").insert({
-            workspace_id: workspaceId,
-            instance_id: existing.id,
-            contact_phone: phone,
-            contact_name: name,
-            last_message: lastMessage,
-            last_message_at: lastAt,
-            unread_count: unread,
-            status: "open",
-          });
+          if (existingConv) {
+            const { error: updErr } = await admin.from("whatsapp_conversations").update({
+              contact_name: name,
+              last_message: lastMessage,
+              last_message_at: lastAt,
+              unread_count: unread,
+              updated_at: new Date().toISOString(),
+            }).eq("id", existingConv.id);
+            if (updErr) throw updErr;
+          } else {
+            const { error: insErr } = await admin.from("whatsapp_conversations").insert({
+              workspace_id: workspaceId,
+              instance_id: existing.id,
+              contact_phone: phone,
+              contact_name: name,
+              last_message: lastMessage,
+              last_message_at: lastAt,
+              unread_count: unread,
+              status: "open",
+            });
+            if (insErr) throw insErr;
+          }
+          synced++;
+        } catch (err) {
+          const msg = (err as Error).message ?? String(err);
+          console.error("sync chat error", msg, chat.wa_chatid ?? chat.id);
+          errors.push(msg);
         }
-        synced++;
       }
-      return json({ ok: true, synced });
+      return json({ ok: true, total: chats.length, synced, errors: errors.slice(0, 5) });
     }
 
     if (action === "send") {
