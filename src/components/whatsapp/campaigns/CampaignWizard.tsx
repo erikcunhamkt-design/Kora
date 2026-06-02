@@ -214,7 +214,7 @@ export function CampaignWizard({ open, workspaceId, onClose, onCreated }: Props)
                 <Row label="Total contatos" value={String(audience?.total_contacts ?? 0)} />
                 <Row label="Válidos esperados" value={String(audience?.valid_contacts ?? 0)} tone="success" />
                 <Row label="Serão ignorados" value={String((audience?.invalid_contacts ?? 0) + (audience?.duplicate_contacts ?? 0))} tone="warning" />
-                <Row label="Template" value={template?.name ?? "—"} />
+                <Row label="Modelo" value={template?.name ?? "—"} />
               </div>
 
               <div className="rounded-md bg-warning/10 border border-warning/30 p-3 text-xs flex gap-2">
