@@ -3,7 +3,9 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 
 export type WAConversation = Database["public"]["Tables"]["whatsapp_conversations"]["Row"];
-export type WAMessage = Database["public"]["Tables"]["whatsapp_messages"]["Row"];
+export type WAMessage = Database["public"]["Tables"]["whatsapp_messages"]["Row"] & {
+  whatsapp_message_media?: Database["public"]["Tables"]["whatsapp_message_media"]["Row"][] | null;
+};
 
 export function useWhatsAppConversations(workspaceId: string | undefined, instanceId: string | undefined) {
   const [conversations, setConversations] = useState<WAConversation[]>([]);
@@ -73,7 +75,7 @@ export function useWhatsAppConversations(workspaceId: string | undefined, instan
     (async () => {
       const { data } = await supabase
         .from("whatsapp_messages")
-        .select("*")
+        .select("*, whatsapp_message_media(*)")
         .eq("conversation_id", selectedId)
         .order("created_at", { ascending: true });
       if (cancelled) return;
@@ -88,7 +90,7 @@ export function useWhatsAppConversations(workspaceId: string | undefined, instan
           });
           const { data: after } = await supabase
             .from("whatsapp_messages")
-            .select("*")
+            .select("*, whatsapp_message_media(*)")
             .eq("conversation_id", selectedId)
             .order("created_at", { ascending: true });
           if (!cancelled) setMessages((after as WAMessage[]) ?? []);

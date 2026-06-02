@@ -126,11 +126,32 @@ Deno.serve(async (req) => {
       ? new Date(Number(message.messageTimestamp) * 1000).toISOString()
       : new Date().toISOString();
 
+    const mediaType = (message.mediaType as string) || "";
+    const type = mediaType && mediaType !== "" ? mediaType : (message.type as string) || "text";
+    const mediaUrl =
+      (message.mediaUrl as string) ||
+      (message.fileURL as string) ||
+      (message.url as string) ||
+      null;
+
+    let previewText = text;
+    if (!previewText) {
+      const lowerType = type.toLowerCase();
+      if (lowerType.includes("image") || lowerType === "imagemessage") previewText = "📷 Foto";
+      else if (lowerType.includes("video")) previewText = "🎥 Vídeo";
+      else if (lowerType.includes("audio") || lowerType === "ptt") previewText = "🎵 Áudio";
+      else if (lowerType.includes("sticker")) previewText = "🧩 Figurinha";
+      else if (lowerType.includes("document")) previewText = "📄 Documento";
+      else if (lowerType.includes("location")) previewText = "📍 Localização";
+      else if (lowerType.includes("contact")) previewText = "👤 Contato";
+      else if (mediaUrl) previewText = "📎 Mídia";
+    }
+
     let conversationId: string;
     if (existingConv) {
       conversationId = String(existingConv.id);
       const patch: AnyRec = {
-        last_message: text || existingConv.last_message,
+        last_message: previewText || existingConv.last_message,
         last_message_at: ts,
         updated_at: new Date().toISOString(),
       };
@@ -145,7 +166,7 @@ Deno.serve(async (req) => {
           instance_id: instanceId,
           contact_phone: phone,
           contact_name: contactName,
-          last_message: text,
+          last_message: previewText,
           last_message_at: ts,
           unread_count: fromMe ? 0 : 1,
           status: "open",
@@ -173,15 +194,8 @@ Deno.serve(async (req) => {
       }
     }
 
-    const mediaType = (message.mediaType as string) || "";
-    const type = mediaType && mediaType !== "" ? mediaType : (message.type as string) || "text";
-    const mediaUrl =
-      (message.mediaUrl as string) ||
-      (message.fileURL as string) ||
-      (message.url as string) ||
-      null;
 
-    await admin.from("whatsapp_messages").insert({
+    const { data: dbMsg, error: dbMsgErr } = await admin.from("whatsapp_messages").insert({
       workspace_id: workspaceId,
       instance_id: instanceId,
       conversation_id: conversationId,
@@ -189,9 +203,51 @@ Deno.serve(async (req) => {
       direction,
       type,
       content: text,
+      body: text,
       media_url: mediaUrl,
       status: "received",
-    });
+      timestamp: ts,
+      raw_payload: payload
+    }).select().single();
+
+    if (dbMsgErr) throw dbMsgErr;
+
+    // Parse and persist media metadata if any
+    let mediaObj: AnyRec | null = null;
+    if (message.imageMessage) mediaObj = message.imageMessage as AnyRec;
+    else if (message.stickerMessage) mediaObj = message.stickerMessage as AnyRec;
+    else if (message.audioMessage) mediaObj = message.audioMessage as AnyRec;
+    else if (message.videoMessage) mediaObj = message.videoMessage as AnyRec;
+    else if (message.documentMessage) mediaObj = message.documentMessage as AnyRec;
+
+    if (mediaObj && dbMsg) {
+      const mime = (mediaObj.mimetype as string) || (mediaObj.mimeType as string) || null;
+      const sha = mediaObj.fileSha256
+        ? (typeof mediaObj.fileSha256 === "string"
+          ? mediaObj.fileSha256
+          : btoa(String.fromCharCode(...new Uint8Array(mediaObj.fileSha256 as ArrayBufferLike))))
+        : null;
+      const fSize = Number(mediaObj.fileLength ?? mediaObj.fileSize ?? 0) || null;
+      const fName = (mediaObj.fileName as string) || (mediaObj.filename as string) || null;
+      const mediaId = (mediaObj.directPath as string) || (mediaObj.mediaId as string) || (mediaObj.url as string) || null;
+
+      const { error: mediaErr } = await admin
+        .from("whatsapp_message_media")
+        .insert({
+          workspace_id: workspaceId,
+          message_id: dbMsg.id,
+          media_id: mediaId,
+          mime_type: mime,
+          file_name: fName,
+          file_size: fSize,
+          sha256: sha,
+          temporary_url: mediaUrl
+        });
+
+      if (mediaErr) {
+        console.error("Error inserting whatsapp_message_media", mediaErr);
+      }
+    }
 
     return new Response(JSON.stringify({ ok: true }), {
       status: 200,
