@@ -44,7 +44,7 @@ export function TemplatesBackendPage() {
         const list = await listTemplates(workspace.id);
         setTemplates(list);
       } catch (e) {
-        toast.error("Falha ao carregar templates", { description: (e as Error).message });
+        toast.error("Falha ao carregar modelos", { description: (e as Error).message });
       } finally {
         setLoading(false);
       }
@@ -65,7 +65,7 @@ export function TemplatesBackendPage() {
       else if (status === "rejected") await markTemplateRejected(workspace.id, tpl.id, "Reprovado manualmente");
       else if (status === "paused") await markTemplatePaused(workspace.id, tpl.id);
       else if (status === "draft") await markTemplateDraft(workspace.id, tpl.id);
-      toast.success(`Template marcado como ${STATUS_META[status].label.toLowerCase()}`);
+      toast.success(`Modelo marcado como ${STATUS_META[status].label.toLowerCase()}`);
       await load();
     } catch (e) {
       toast.error("Falha ao atualizar status", { description: (e as Error).message });
@@ -103,9 +103,9 @@ export function TemplatesBackendPage() {
           <Card className="bg-card/40 border-dashed">
             <CardContent className="p-12 text-center">
               <FileText className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
-              <p className="text-sm font-medium">Nenhum template criado</p>
+              <p className="text-sm font-medium">Nenhum modelo criado</p>
               <p className="text-xs text-muted-foreground mt-1 mb-4">
-                Crie seu primeiro template para usar em campanhas.
+                Crie seu primeiro modelo de mensagem para usar em campanhas.
               </p>
               <Button
                 size="sm"
@@ -115,7 +115,7 @@ export function TemplatesBackendPage() {
                 }}
                 className="gap-2"
               >
-                <Plus className="h-4 w-4" /> Criar template
+                <Plus className="h-4 w-4" /> Criar modelo
               </Button>
             </CardContent>
           </Card>
@@ -195,9 +195,9 @@ export function TemplatesBackendPage() {
                         variant="ghost"
                         className="text-xs h-7 text-destructive hover:text-destructive ml-auto"
                         onClick={() => {
-                          if (!confirm(`Remover template "${tpl.name}"?`)) return;
+                          if (!confirm(`Remover modelo "${tpl.name}"?`)) return;
                           void deleteTemplate(workspace.id, tpl.id).then(() => {
-                            toast.success("Template removido");
+                            toast.success("Modelo removido");
                             void load();
                           });
                         }}
