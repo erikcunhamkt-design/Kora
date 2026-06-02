@@ -58,7 +58,8 @@ export default function WhatsAppPage() {
   const [filter, setFilter] = useState<Filter>("all");
   const [sending, setSending] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [showContext, setShowContext] = useState(true);
+  const [showContext, setShowContext] = useState(false);
+  const [contextSheetOpen, setContextSheetOpen] = useState(false);
 
   const status = instance?.status ?? "disconnected";
   const selected = useMemo(
