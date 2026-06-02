@@ -165,6 +165,14 @@ export function CampaignsBackendPage() {
           void load();
         }}
       />
+
+      <CampaignSendDialog
+        open={sendDialog !== null}
+        workspaceId={workspace.id}
+        campaign={sendDialog}
+        onClose={() => setSendDialog(null)}
+        onUpdated={() => void load()}
+      />
     </div>
   );
 }
