@@ -19,12 +19,14 @@ import {
 } from "@/lib/whatsapp/repositories/whatsappTemplatesRepository";
 import { TemplateFormDialog } from "./TemplateFormDialog";
 
+// UI labels: status conceitual "Rascunho / Ativo / Arquivado".
+// Mapeamento interno: draft/pending/rejected -> Rascunho, approved -> Ativo, paused -> Arquivado.
 const STATUS_META: Record<TemplateStatus, { label: string; className: string; icon: typeof Clock }> = {
   draft: { label: "Rascunho", className: "bg-muted text-muted-foreground", icon: FileText },
-  pending: { label: "Pendente", className: "bg-warning/15 text-warning border-warning/30", icon: Clock },
-  approved: { label: "Aprovado", className: "bg-success/15 text-success border-success/30", icon: CheckCircle2 },
-  rejected: { label: "Reprovado", className: "bg-destructive/15 text-destructive border-destructive/30", icon: XCircle },
-  paused: { label: "Pausado", className: "bg-muted text-muted-foreground", icon: Pause },
+  pending: { label: "Rascunho", className: "bg-muted text-muted-foreground", icon: FileText },
+  approved: { label: "Ativo", className: "bg-success/15 text-success border-success/30", icon: CheckCircle2 },
+  rejected: { label: "Rascunho", className: "bg-muted text-muted-foreground", icon: FileText },
+  paused: { label: "Arquivado", className: "bg-muted text-muted-foreground", icon: Pause },
 };
 
 export function TemplatesBackendPage() {
