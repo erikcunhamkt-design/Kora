@@ -55,7 +55,7 @@ export function AudiencesPanel() {
           <Users className="h-4 w-4 text-primary" /> Audiências / Listas
         </h2>
         <p className="text-[12px] text-muted-foreground mt-0.5 max-w-xl">
-          Listas importadas ou segmentadas. Sempre exigem template aprovado para disparo.
+          Listas importadas ou segmentadas. Sempre exigem modelo de mensagem ativo para disparo.
         </p>
       </div>
 
@@ -91,7 +91,7 @@ export function AudiencesPanel() {
 
             <div className="flex items-center gap-2 text-[11px] text-muted-foreground pt-2 border-t border-border/40">
               <ShieldCheck className="h-3.5 w-3.5 text-emerald-300" />
-              <span>Disparo requer template aprovado.</span>
+              <span>Disparo requer modelo de mensagem ativo.</span>
             </div>
           </article>
         ))}

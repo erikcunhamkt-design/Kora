@@ -159,7 +159,7 @@ export function BotRulesPanel() {
         <div className="bg-destructive/10 border border-destructive/30 rounded-xl p-3.5 flex gap-3">
           <ShieldAlert className="h-4 w-4 text-destructive flex-shrink-0 mt-0.5" />
           <p className="text-[11px] text-foreground/85 leading-relaxed">
-            <strong className="text-destructive">Sem conversas frias.</strong> O Robô IA não inicia conversas. Para campanhas e reativação fora da janela de atendimento, use <strong>Templates Aprovados</strong>.
+            <strong className="text-destructive">Sem conversas frias.</strong> O Robô IA não inicia conversas. Para campanhas e reativação fora da janela de atendimento, use <strong>Modelos de Mensagem</strong>.
           </p>
         </div>
         <div className="bg-primary/5 border border-primary/20 rounded-xl p-3.5 flex gap-3">
@@ -324,7 +324,7 @@ export function BotRulesPanel() {
               <strong className="text-foreground/90">Aviso:</strong> IA pausada por humano.
             </div>
             <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-[11px] text-amber-200/90">
-              <strong>Aviso:</strong> Fora da janela de atendimento — use template aprovado.
+              <strong>Aviso:</strong> Fora da janela de atendimento — use modelo de mensagem ativo.
             </div>
           </div>
           <p className="text-[10px] text-muted-foreground italic">

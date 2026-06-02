@@ -119,7 +119,7 @@ export function CreateTemplateDialog({ open, onOpenChange, onCreate }: Props) {
             <MessageSquare className="h-4 w-4 text-primary" /> Novo template do WhatsApp
           </DialogTitle>
           <DialogDescription>
-            Templates precisam ser aprovados pela Meta antes de serem usados em campanhas.
+            Templates precisam ser ativos antes de serem usados em campanhas.
           </DialogDescription>
         </DialogHeader>
 
@@ -250,7 +250,7 @@ export function CreateTemplateDialog({ open, onOpenChange, onCreate }: Props) {
                 <AlertTriangle className="h-3.5 w-3.5" /> Boas práticas
               </div>
               <ul className="text-[12px] text-muted-foreground space-y-1 leading-relaxed">
-                <li>• Templates precisam ser aprovados antes de campanhas.</li>
+                <li>• Templates precisam ser ativos antes de campanhas.</li>
                 <li>• Evite promessas agressivas, spam ou mensagens sem opt-in.</li>
                 <li>• Use apenas contatos que deram permissão para receber mensagens.</li>
               </ul>
@@ -272,7 +272,7 @@ export function CreateTemplateDialog({ open, onOpenChange, onCreate }: Props) {
               <TooltipTrigger asChild>
                 <span tabIndex={0}>
                   <Button variant="outline" disabled className="gap-1.5 opacity-60 cursor-not-allowed">
-                    <Lock className="h-3.5 w-3.5" /> Enviar para aprovação
+                    <Lock className="h-3.5 w-3.5" /> Ativar modelo
                   </Button>
                 </span>
               </TooltipTrigger>

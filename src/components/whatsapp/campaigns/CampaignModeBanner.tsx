@@ -17,7 +17,7 @@ export function CampaignModeBanner() {
           <Sparkles className="h-3.5 w-3.5 text-primary" /> Tipo de envio
         </h3>
         <p className="text-[11px] text-muted-foreground">
-          Defina se este disparo é para uma audiência (exige template aprovado) ou para conversas dentro
+          Defina se este disparo é para uma audiência (exige modelo de mensagem ativo) ou para conversas dentro
           da janela de 24h de atendimento.
         </p>
       </div>
@@ -27,7 +27,7 @@ export function CampaignModeBanner() {
           value="template"
           active={mode === "template"}
           icon={<ShieldAlert className="h-4 w-4 text-primary" />}
-          title="Campanha com template aprovado"
+          title="Campanha com modelo de mensagem ativo"
           description="Obrigatório para audiências, listas frias e contatos sem janela ativa de 24h."
           badge="Recomendado"
         />
@@ -46,7 +46,7 @@ export function CampaignModeBanner() {
         <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 flex items-start gap-2">
           <Lock className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
           <p className="text-[12px] text-foreground/85 leading-relaxed">
-            Texto livre <strong>está bloqueado</strong> neste modo. Selecione um template aprovado da biblioteca
+            Texto livre <strong>está bloqueado</strong> neste modo. Selecione um modelo de mensagem ativo da biblioteca
             e confirme que todos os contatos da audiência possuem <strong>opt-in válido</strong>.
           </p>
         </div>
@@ -55,7 +55,7 @@ export function CampaignModeBanner() {
           <Clock3 className="h-4 w-4 text-amber-300 mt-0.5 flex-shrink-0" />
           <p className="text-[12px] text-amber-200/90 leading-relaxed">
             Mensagens livres só podem ser enviadas dentro da janela de 24h de atendimento.
-            Fora dela, o WhatsApp <strong>exige template aprovado</strong>.
+            Fora dela, o WhatsApp <strong>exige modelo de mensagem ativo</strong>.
           </p>
         </div>
       )}

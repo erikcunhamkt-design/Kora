@@ -97,7 +97,7 @@ export function TemplatesLibrary() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold flex items-center gap-2">
-            <Layers className="h-4 w-4 text-primary" /> Templates Aprovados
+            <Layers className="h-4 w-4 text-primary" /> Modelos de Mensagem
           </h2>
           <p className="text-[12px] text-muted-foreground mt-0.5 max-w-xl">
             Biblioteca de mensagens aprovadas pela Meta. Use-as em campanhas para audiências —
@@ -153,7 +153,7 @@ export function TemplatesLibrary() {
         <EmptyState
           icon={FileText}
           title="Nenhum template encontrado"
-          description="Crie seu primeiro template aprovado para começar a disparar campanhas em massa com segurança."
+          description="Crie seu primeiro modelo de mensagem ativo para começar a disparar campanhas em massa com segurança."
           primaryAction={{ label: "Novo template", onClick: () => setDialogOpen(true) }}
         />
       ) : (

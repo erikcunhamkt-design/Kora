@@ -211,16 +211,16 @@ export function WhatsAppCampaigns({ workspaceId }: { workspaceId: string }) {
 
           <div className="space-y-1">
             <label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
-              Template Aprovado
+              Modelo Ativo
             </label>
             {approvedTemplates.length === 0 ? (
               <div className="text-[11px] text-muted-foreground rounded-md border border-dashed border-border/60 px-3 py-2">
-                Nenhum template aprovado. Crie um na aba <strong>Templates Aprovados</strong>.
+                Nenhum modelo de mensagem ativo. Crie um na aba <strong>Modelos de Mensagem</strong>.
               </div>
             ) : (
               <Select value={selectedTemplateId} onValueChange={handleSelectTemplate}>
                 <SelectTrigger className="h-9 text-sm bg-background/50 border-border/60">
-                  <SelectValue placeholder="Selecione um template aprovado" />
+                  <SelectValue placeholder="Selecione um modelo de mensagem ativo" />
                 </SelectTrigger>
                 <SelectContent>
                   {approvedTemplates.map((t) => (
@@ -238,7 +238,7 @@ export function WhatsAppCampaigns({ workspaceId }: { workspaceId: string }) {
             <Textarea
               value={template}
               onChange={(e) => setTemplate(e.target.value)}
-              placeholder="Selecione um template aprovado acima para preencher."
+              placeholder="Selecione um modelo de mensagem ativo acima para preencher."
               className="min-h-28 text-xs bg-background/50 border-border/60"
               required
               readOnly={!!selectedTemplateId}
