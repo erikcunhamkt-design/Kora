@@ -401,3 +401,76 @@ O botão "Confirmar envio" só fica habilitado quando o checkbox estiver marcado
   - manter cadência baixa (lotes pequenos, intervalos amplos);
   - usar variáveis para personalizar a mensagem;
   - evitar conteúdo promocional agressivo sem contexto prévio.
+
+---
+
+## QA Funcional — Modelos de Mensagem, Sender e Webhook de Status
+
+Rodada de QA estática sobre a integração após (a) remoção do bloqueio "approved" e (b) extensão do webhook para mapear `delivered/read/replied`.
+
+### 1. Modelos de Mensagem
+- Termo "Templates Aprovados" removido. Sidebar/abas/títulos usam "Modelos de Mensagem" (`src/pages/WhatsApp.tsx`, `TemplatesBackendPage.tsx`, `CampaignWizard.tsx`).
+- Status visual em `TemplatesBackendPage.tsx`: `approved → Ativo`, `paused → Arquivado`, `draft/pending/rejected → Rascunho`.
+- ⚠️ Pequena inconsistência: `TemplatesLibrary.tsx` (componente legado de fallback) ainda rotula `paused` como "Pausado" em vez de "Arquivado". Não bloqueia QA; alinhar em iteração posterior.
+- "Aprovado pela Meta" não aparece mais como requisito. `provider_template_id`/`rejection_reason` permanecem só como metadados opcionais.
+- Campanha exige modelo "Ativo" (`approved`, não deletado, body não vazio) — sem qualquer dependência de aprovação Meta.
+
+### 2. Sender — `whatsapp-campaign-v2-sender`
+- `template_not_approved` removido.
+- Bloqueios mantidos: `template_deleted` (deleted_at), `template_archived` (status=paused), `template_empty` (body vazio), `campaign_no_template`.
+- Opt-out, inválidos, duplicados e `skipped` continuam fora do envio (gerados em `prepareCampaignRecipients`; o sender lê apenas `status=queued`).
+- Idempotência: lock `UPDATE ... WHERE status='queued' RETURNING id`; `provider_message_id` evita duplicidade.
+- Rate limit: `MAX_BATCH_SIZE=10`, delay 30–90 s e digitação 1,5–4 s preservados.
+- Logs `sent`/`failed` gravados em `whatsapp_campaign_send_logs`.
+
+### 3. Aviso de Responsabilidade
+- `CampaignWizard.tsx` (Revisão): bloco com risco de bloqueio/banimento, exigência de consentimento e atribuição clara de responsabilidade ao usuário.
+- `CampaignSendDialog.tsx`: checkbox `acceptedResponsibility` + texto literal "ENVIAR" (case-insensitive trim). Botão "Confirmar envio" só habilita com flag de feature + checkbox + texto. Cancelar fecha sem enviar.
+
+### 4. Envio Real (lista pequena)
+- Não executado em ambiente live (requer instância UAZAPI conectada e número de teste). Caminho de código auditado: campanha → `sending`, recipient → `sending` (via lock) → `sent`, `provider_message_id` salvo, log `sent` criado, `sent_count` recomputado por agregação. Sem reenvio: `provider_message_id IS NULL` filtra recipients já processados.
+
+### 5. Delivery/Read
+- Webhook (`maybeHandleMessageAck`): aceita eventos `ack/status/update/messages` com `provider_message_id` em múltiplos campos (`message.id`, `key.id`, `messageid`, `id`).
+- `normalizeAckStatus` mapeia tanto numérico (1/2/3/4) quanto string (`sent/delivered/read/played`).
+- `delivered_at` preenchido em delivered; `read_at` preenchido em read; status promovido só para frente; counters recomputados por SELECT agregado em `whatsapp_campaigns_v2`.
+- Logs não-terminais `delivered`/`read` gravados em `whatsapp_campaign_send_logs` com `event` + `provider_message_id`.
+- ⚠️ Limitação: depende do uazapi enviar webhook de ack. Se não enviar, contadores ficam 0 sem inventar valores.
+
+### 6. Replied
+- `maybeMarkReply`: na mensagem inbound (`!fromMe`), busca recipient mais recente com mesmo `normalized_phone`, `sent_at` nos últimos 14 dias e `replied_at IS NULL` (índice `idx_wa_recip_reply_lookup`). Marca `replied_at`/`status=replied`, grava log `replied`, recomputa contadores.
+- Inbox continua intocada — a inserção em `whatsapp_messages`/`whatsapp_conversations` ocorre antes do mapping.
+- ⚠️ Limitação: matching probabilístico por telefone + janela. Resposta tardia (>14 dias) ou número compartilhado entre campanhas pode atribuir ao recipient errado. Documentado.
+
+### 7. Idempotência de Eventos
+- `delivered` duplicado: `delivered_at` só escreve se `IS NULL`; status só promove para frente; log adicional gravado (auditoria), mas sem mutação extra de contadores além do recompute idempotente.
+- `read` duplicado: idem.
+- `replied` duplicado: filtro `is('replied_at', null)` impede segunda marcação.
+- `provider_message_id` desconhecido: retorna `{ handled:true, reason:'no_recipient_match' }` sem erro 5xx.
+- `read` chegando antes de `delivered`: `read_at` preenchido + `delivered_at` também preenchido (read implica delivered); status promovido a `read`.
+- `delivered` chegando depois de `read`: não rebaixa status (`currentStatus === 'read'` mantém `read`).
+
+### 8. Segurança
+- UAZAPI token nunca sai do servidor (sender + instance functions).
+- `SUPABASE_SERVICE_ROLE_KEY` usado só nas edge functions. Frontend usa anon.
+- Webhook protegido por `UAZAPI_WEBHOOK_SECRET` (query param).
+- Sender rejeita texto livre — só usa `template.body` linkado.
+- Envio sempre requer confirmação forte (checkbox + ENVIAR + feature flag).
+
+### 9. Tabelas
+- `whatsapp_campaign_recipients`: índices presentes (`idx_wa_recip_provider_msg`, `idx_wa_recip_reply_lookup`, `idx_wa_recip_campaign`, `idx_wa_recip_workspace`); campos `delivered_at/read_at/replied_at/provider_message_id` ok.
+- `whatsapp_campaign_send_logs`: RLS `wa_camplog_select`/`wa_camplog_insert` por workspace; UPDATE/DELETE bloqueados (append-only). Eventos `sent/failed/delivered/read/replied` cobertos.
+- `whatsapp_campaigns_v2`: contadores recomputados após cada transição via `recomputeCampaignCounters`.
+
+### 10. TypeScript / Lint
+- `tsc --noEmit`: sem novos erros no escopo WhatsApp.
+- Lint: sem novos warnings no escopo WhatsApp; sem `any` novo nas funções adicionadas.
+
+### Limitações conhecidas
+1. Ack/read dependem do uazapi emitir o evento — sem cron próprio para polling.
+2. Reply matching é por telefone + janela de 14 dias (não usa `provider_message_id` da resposta, que normalmente é um id novo).
+3. `TemplatesLibrary.tsx` rotula `paused` como "Pausado" (alinhar com "Arquivado" em iteração futura).
+4. Envio real não validado live nesta rodada (precisa instância conectada).
+
+### Recomendação Final
+**Aceitar V1** do sender + webhook de status. Próximo passo recomendado: implementar a **biblioteca curada de Modelos Sugeridos** (lembrete, follow-up, agendamento, recuperação) e, separadamente, alinhar rótulo "Pausado → Arquivado" em `TemplatesLibrary.tsx`.
