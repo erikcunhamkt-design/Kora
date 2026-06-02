@@ -281,15 +281,28 @@ export default function WhatsAppPage() {
                   </div>
                 )}
                 {!loading && filtered.length === 0 && (
-                  <div className="p-8 text-center">
+                  <div className="p-8 text-center space-y-3">
                     <MessageCircle className="h-8 w-8 mx-auto text-muted-foreground/40 mb-2" />
                     <p className="text-xs text-muted-foreground">
                       {conversations.length === 0
-                        ? "Nenhuma conversa ainda. Clique em sincronizar."
+                        ? "Nenhuma conversa ainda. Sincronize para puxar as conversas existentes do seu WhatsApp."
                         : "Nenhum resultado para esses filtros."}
                     </p>
+                    {conversations.length === 0 && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handleSync}
+                        disabled={syncing || status !== "connected"}
+                        className="gap-2"
+                      >
+                        {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCw className="h-3.5 w-3.5" />}
+                        Sincronizar agora
+                      </Button>
+                    )}
                   </div>
                 )}
+
                 <div className="py-1">
                   {filtered.map((c) => (
                     <WhatsAppConversationItem
