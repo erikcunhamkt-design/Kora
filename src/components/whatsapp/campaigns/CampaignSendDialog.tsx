@@ -92,7 +92,8 @@ export function CampaignSendDialog({ open, workspaceId, campaign, onClose, onUpd
 
   if (!campaign) return null;
 
-  const canSend = senderEnabled && confirmText.trim().toUpperCase() === "ENVIAR" && !busy;
+  const canSend =
+    senderEnabled && acceptedResponsibility && confirmText.trim().toUpperCase() === "ENVIAR" && !busy;
   const progressPct = tally.total === 0 ? 0 : Math.round(((tally.sent + tally.failed + tally.skipped) / tally.total) * 100);
 
   async function handleAction(action: "send_batch" | "pause" | "cancel") {
