@@ -65,7 +65,7 @@ export function useWhatsAppConversations(workspaceId: string | undefined, instan
 
   // Load + subscribe to messages of selected conversation
   useEffect(() => {
-    if (!selectedId) {
+    if (!selectedId || !workspaceId) {
       setMessages([]);
       return;
     }
@@ -77,7 +77,23 @@ export function useWhatsAppConversations(workspaceId: string | undefined, instan
         .eq("conversation_id", selectedId)
         .order("created_at", { ascending: true });
       if (cancelled) return;
-      setMessages((data as WAMessage[]) ?? []);
+      const list = (data as WAMessage[]) ?? [];
+      setMessages(list);
+
+      // If no messages cached yet, fetch history from uazapi
+      if (list.length === 0) {
+        try {
+          await supabase.functions.invoke("whatsapp-instance", {
+            body: { action: "load_messages", workspaceId, conversationId: selectedId, limit: 50 },
+          });
+          const { data: after } = await supabase
+            .from("whatsapp_messages")
+            .select("*")
+            .eq("conversation_id", selectedId)
+            .order("created_at", { ascending: true });
+          if (!cancelled) setMessages((after as WAMessage[]) ?? []);
+        } catch (_e) { /* ignore */ }
+      }
     })();
 
     const channel = supabase
@@ -99,7 +115,7 @@ export function useWhatsAppConversations(workspaceId: string | undefined, instan
       cancelled = true;
       void supabase.removeChannel(channel);
     };
-  }, [selectedId]);
+  }, [selectedId, workspaceId]);
 
   const markRead = useCallback(async (conversationId: string) => {
     await supabase.from("whatsapp_conversations").update({ unread_count: 0 }).eq("id", conversationId);

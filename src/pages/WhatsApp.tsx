@@ -176,8 +176,12 @@ export default function WhatsAppPage() {
                   active ? "bg-card-elevated" : "hover:bg-muted/30"
                 }`}
               >
-                <div className="h-10 w-10 rounded-full bg-primary/15 text-primary flex items-center justify-center text-xs font-semibold flex-shrink-0">
-                  {initials(c.contact_name, c.contact_phone)}
+                <div className="h-10 w-10 rounded-full bg-primary/15 text-primary flex items-center justify-center text-xs font-semibold flex-shrink-0 overflow-hidden">
+                  {c.avatar_url ? (
+                    <img src={c.avatar_url} alt={c.contact_name ?? c.contact_phone} className="h-full w-full object-cover" />
+                  ) : (
+                    initials(c.contact_name, c.contact_phone)
+                  )}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2">
@@ -210,8 +214,12 @@ export default function WhatsAppPage() {
         {selected ? (
           <>
             <header className="px-5 py-3 border-b border-border/40 flex items-center gap-3 bg-card/20">
-              <div className="h-9 w-9 rounded-full bg-primary/15 text-primary flex items-center justify-center text-xs font-semibold">
-                {initials(selected.contact_name, selected.contact_phone)}
+              <div className="h-9 w-9 rounded-full bg-primary/15 text-primary flex items-center justify-center text-xs font-semibold overflow-hidden">
+                {selected.avatar_url ? (
+                  <img src={selected.avatar_url} alt={selected.contact_name ?? selected.contact_phone} className="h-full w-full object-cover" />
+                ) : (
+                  initials(selected.contact_name, selected.contact_phone)
+                )}
               </div>
               <div className="min-w-0">
                 <p className="font-semibold text-sm truncate">
