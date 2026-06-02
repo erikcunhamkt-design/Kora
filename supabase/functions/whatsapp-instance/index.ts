@@ -41,6 +41,29 @@ async function uaz(path: string, opts: { token?: string; admin?: boolean; method
   return { ok: res.ok, status: res.status, data };
 }
 
+function baseForStoredSubdomain(input: string | null | undefined) {
+  const raw = (input ?? SUBDOMAIN ?? "free").trim().replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+  const host = raw.split("/")[0] || "free";
+  if (host.includes(".")) return `https://${host}`;
+  return `https://${host}.uazapi.com`;
+}
+
+async function uazForInstance(instance: Record<string, unknown>, path: string, opts: { method?: string; body?: unknown } = {}) {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    token: String(instance.instance_token ?? ""),
+  };
+  const res = await fetch(`${baseForStoredSubdomain(instance.subdomain as string | null | undefined)}${path}`, {
+    method: opts.method ?? "POST",
+    headers,
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  const text = await res.text();
+  let data: unknown = text;
+  try { data = JSON.parse(text); } catch { /* keep text */ }
+  return { ok: res.ok, status: res.status, data };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -123,8 +146,7 @@ Deno.serve(async (req) => {
 
       // Always (re)register webhook on connect/create to keep URL + secret in sync
       const webhookUrl = `${SUPABASE_URL}/functions/v1/whatsapp-webhook?secret=${encodeURIComponent(WEBHOOK_SECRET)}&workspace=${workspaceId}`;
-      await uaz("/webhook", {
-        token: instance.instance_token,
+      await uazForInstance(instance, "/webhook", {
         body: {
           webhookURL: webhookUrl,
           url: webhookUrl,
@@ -134,7 +156,7 @@ Deno.serve(async (req) => {
       }).catch(() => null);
 
       // Request QR
-      const connect = await uaz("/instance/connect", { token: instance.instance_token, body: {} });
+      const connect = await uazForInstance(instance, "/instance/connect", { body: {} });
       const cdata = (connect.data ?? {}) as Record<string, unknown>;
       const qr = (cdata.qrcode ?? cdata.qr ?? (cdata.instance as Record<string, unknown>)?.qrcode) as string | undefined;
       const status = ((cdata.status ?? (cdata.instance as Record<string, unknown>)?.status) as string | undefined) ?? "connecting";
@@ -155,7 +177,7 @@ Deno.serve(async (req) => {
 
     if (action === "status") {
       if (!existing) return json({ instance: null });
-      const st = await uaz("/instance/status", { token: existing.instance_token, method: "GET" });
+      const st = await uazForInstance(existing, "/instance/status", { method: "GET" });
       const sd = (st.data ?? {}) as Record<string, unknown>;
       const inst = (sd.instance ?? sd) as Record<string, unknown>;
       const status = (inst.status as string | undefined) ?? existing.status;
@@ -187,7 +209,7 @@ Deno.serve(async (req) => {
 
     if (action === "disconnect") {
       if (!existing) return json({ instance: null });
-      await uaz("/instance/disconnect", { token: existing.instance_token, body: {} }).catch(() => null);
+      await uazForInstance(existing, "/instance/disconnect", { body: {} }).catch(() => null);
       const { data: updated } = await admin
         .from("whatsapp_instances")
         .update({ status: "disconnected", qr_code: null, last_status_at: new Date().toISOString() })
@@ -199,6 +221,7 @@ Deno.serve(async (req) => {
 
     if (action === "delete") {
       if (!existing) return json({ ok: true });
+      await uazForInstance(existing, "/instance/disconnect", { body: {} }).catch(() => null);
       await uaz("/instance/delete", { admin: true, body: { token: existing.instance_token } }).catch(() => null);
       await admin.from("whatsapp_instances").delete().eq("id", existing.id);
       return json({ ok: true });
@@ -304,8 +327,7 @@ Deno.serve(async (req) => {
     if (action === "sync") {
       if (!existing) return json({ error: "Instance not found" }, 404);
       // Fetch chat list from uazapi and upsert conversations
-      const list = await uaz("/chat/find", {
-        token: existing.instance_token,
+      const list = await uazForInstance(existing, "/chat/find", {
         body: { operator: "AND", sort: "-wa_lastMsgTimestamp" },
       });
       if (!list.ok) {
@@ -391,8 +413,7 @@ Deno.serve(async (req) => {
       const chatid = `${conv.contact_phone}@s.whatsapp.net`;
       // Try to fetch profile picture (best-effort)
       try {
-        const pic = await uaz("/chat/GetNameAndImageURL", {
-          token: existing.instance_token,
+        const pic = await uazForInstance(existing, "/chat/GetNameAndImageURL", {
           body: { number: conv.contact_phone },
         });
         const pd = (pic.data ?? {}) as Record<string, unknown>;
@@ -406,8 +427,7 @@ Deno.serve(async (req) => {
         }
       } catch (_e) { /* ignore */ }
 
-      const msgRes = await uaz("/message/find", {
-        token: existing.instance_token,
+      const msgRes = await uazForInstance(existing, "/message/find", {
         body: {
           operator: "AND",
           chatid,
@@ -490,8 +510,7 @@ Deno.serve(async (req) => {
         .maybeSingle();
       if (!conv) return json({ error: "Conversation not found" }, 404);
 
-      const send = await uaz("/send/text", {
-        token: existing.instance_token,
+      const send = await uazForInstance(existing, "/send/text", {
         body: { number: conv.contact_phone, text },
       });
       const sd = (send.data ?? {}) as Record<string, unknown>;

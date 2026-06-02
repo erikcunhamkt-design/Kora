@@ -1,16 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
-import { MessageCircle, QrCode, Plug, Send, Smartphone, Loader2, RefreshCw, RotateCw, Download } from "lucide-react";
-import { Label } from "@/components/ui/label";
+import { Loader2, MessageCircle, Send } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { useWhatsAppInstance } from "@/hooks/useWhatsAppInstance";
 import { useWhatsAppConversations } from "@/hooks/useWhatsAppConversations";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { supabase } from "@/integrations/supabase/client";
+import { WhatsAppConnectionCard } from "@/components/automacoes/WhatsAppConnectionCard";
 
 function formatTime(iso: string | null) {
   if (!iso) return "";
@@ -21,7 +20,7 @@ function formatTime(iso: string | null) {
 
 export function WhatsAppSection() {
   const { workspace } = useCurrentWorkspace();
-  const { instance, loading: loadingInstance, busy, connect, disconnect, refreshStatus, importInstance } = useWhatsAppInstance();
+  const { instance, loading: loadingInstance, busy, connect, disconnect, removeInstance, refreshStatus, importInstance } = useWhatsAppInstance();
   const { conversations, messages, selectedId, setSelectedId, loading: loadingConv, markRead } = useWhatsAppConversations(
     workspace?.id,
     instance?.id,
@@ -29,56 +28,13 @@ export function WhatsAppSection() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [qrOpen, setQrOpen] = useState(false);
-  const [importOpen, setImportOpen] = useState(false);
-  const [importToken, setImportToken] = useState("");
-  const [importSubdomain, setImportSubdomain] = useState("free");
-  const [importing, setImporting] = useState(false);
 
   const status = instance?.status ?? "disconnected";
-  const qrCode = instance?.qr_code ?? null;
   const selected = useMemo(() => conversations.find((c) => c.id === selectedId) ?? null, [conversations, selectedId]);
 
   useEffect(() => {
     if (selectedId) void markRead(selectedId);
   }, [selectedId, markRead]);
-
-  const handleConnect = async () => {
-    try {
-      await connect();
-      setQrOpen(true);
-      toast.success("Instância criada. Escaneie o QR Code.");
-    } catch (e) {
-      toast.error("Falha ao conectar", { description: (e as Error).message });
-    }
-  };
-
-  const handleDisconnect = async () => {
-    try { await disconnect(); toast.success("WhatsApp desconectado"); }
-    catch (e) { toast.error("Falha ao desconectar", { description: (e as Error).message }); }
-  };
-
-  const handleImport = async () => {
-    if (!importToken.trim()) {
-      toast.error("Informe o Instance Token");
-      return;
-    }
-    setImporting(true);
-    try {
-      const inst = await importInstance(importToken.trim(), importSubdomain.trim() || "free");
-      toast.success("Instância importada", {
-        description: inst?.status === "connected" ? "Já está conectada." : "Escaneie o QR para conectar.",
-      });
-      setImportOpen(false);
-      setImportToken("");
-      if (inst && inst.status !== "connected") setQrOpen(true);
-    } catch (e) {
-      toast.error("Falha ao importar", { description: (e as Error).message });
-    } finally {
-      setImporting(false);
-    }
-  };
-
 
   const handleSync = async () => {
     if (!workspace) return;
@@ -114,50 +70,19 @@ export function WhatsAppSection() {
 
   return (
     <div className="space-y-6">
-      <Card className="p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-emerald-500/15 text-emerald-400 flex items-center justify-center"><Smartphone className="h-5 w-5" /></div>
-            <div>
-              <h3 className="font-semibold flex items-center gap-2">
-                Conexão WhatsApp
-                <Badge variant="outline" className="text-[10px]">uazapi</Badge>
-              </h3>
-              <p className="text-xs text-muted-foreground">
-                {status === "connected" && `Conectado: ${instance?.phone_name ?? instance?.phone ?? "WhatsApp"}`}
-                {status === "connecting" && "Aguardando leitura do QR Code..."}
-                {status === "disconnected" && "Desconectado"}
-              </p>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            {status === "connected" && (
-              <Button variant="outline" onClick={handleSync} disabled={syncing}>
-                {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCw className="h-4 w-4" />}
-                Sincronizar conversas
-              </Button>
-            )}
-            {status === "connected" ? (
-              <Button variant="outline" onClick={handleDisconnect} disabled={busy}>Desconectar</Button>
-            ) : (
-              <>
-                {instance && (
-                  <Button variant="outline" onClick={() => setQrOpen(true)} disabled={busy}>
-                    <QrCode className="h-4 w-4" /> Ver QR
-                  </Button>
-                )}
-                <Button variant="outline" onClick={() => setImportOpen(true)} disabled={busy}>
-                  <Download className="h-4 w-4" /> Importar token
-                </Button>
-                <Button onClick={handleConnect} disabled={busy || loadingInstance}>
-                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plug className="h-4 w-4" />}
-                  {instance ? "Reconectar" : "Conectar WhatsApp"}
-                </Button>
-              </>
-            )}
-          </div>
-        </div>
-      </Card>
+      <WhatsAppConnectionCard
+        instance={instance}
+        loading={loadingInstance}
+        busy={busy}
+        syncing={syncing}
+        showSync
+        connect={connect}
+        disconnect={disconnect}
+        removeInstance={removeInstance}
+        refreshStatus={refreshStatus}
+        importInstance={importInstance}
+        onSync={handleSync}
+      />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold">Conversas</h2>
@@ -241,83 +166,6 @@ export function WhatsAppSection() {
           )}
         </div>
       </Card>
-
-      <Dialog open={qrOpen} onOpenChange={setQrOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Conectar WhatsApp</DialogTitle>
-            <DialogDescription>
-              Abra o WhatsApp no celular → Configurações → Aparelhos conectados → Conectar um aparelho.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col items-center gap-3 py-2">
-            {qrCode ? (
-              <img
-                src={qrCode.startsWith("data:") ? qrCode : `data:image/png;base64,${qrCode}`}
-                alt="QR Code WhatsApp"
-                className="h-64 w-64 rounded-lg bg-white p-2"
-              />
-            ) : (
-              <div className="h-64 w-64 bg-muted/40 rounded-lg flex items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              </div>
-            )}
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Badge variant="secondary">{status}</Badge>
-              <Button size="sm" variant="ghost" onClick={() => refreshStatus()}>
-                <RefreshCw className="h-3 w-3" /> Atualizar
-              </Button>
-            </div>
-            {status === "connected" && (
-              <p className="text-xs text-emerald-400">Conectado com sucesso!</p>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={importOpen} onOpenChange={setImportOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Importar instância existente</DialogTitle>
-            <DialogDescription>
-              Cole o Instance Token de uma instância uazapi já criada (ex.: instância de teste). O webhook será reconfigurado para este workspace automaticamente.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 py-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="imp-subdomain" className="text-xs">Servidor / Subdomain</Label>
-              <Input
-                id="imp-subdomain"
-                value={importSubdomain}
-                onChange={(e) => setImportSubdomain(e.target.value)}
-                placeholder="free  ou  free.uazapi.com"
-              />
-              <p className="text-[11px] text-muted-foreground">
-                Use <code>free</code> para <code>https://free.uazapi.com</code>.
-              </p>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="imp-token" className="text-xs">Instance Token</Label>
-              <Input
-                id="imp-token"
-                value={importToken}
-                onChange={(e) => setImportToken(e.target.value)}
-                placeholder="ex.: e039ef2f-0efc-4676-8965-8d7752b4fd45"
-                autoComplete="off"
-              />
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => setImportOpen(false)} disabled={importing}>
-                Cancelar
-              </Button>
-              <Button onClick={handleImport} disabled={importing || !importToken.trim()}>
-                {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                Importar
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
