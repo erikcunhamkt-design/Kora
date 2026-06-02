@@ -217,6 +217,7 @@ Deno.serve(async (req) => {
           const phone = String(rawPhone).split("@")[0].replace(/\D/g, "");
           if (!phone) continue;
           const name = (chat.wa_contactName as string) || (chat.name as string) || (chat.wa_name as string) || null;
+          const avatar = (chat.imagePreview as string) || (chat.image as string) || (chat.wa_profilePicUrl as string) || (chat.profilePicUrl as string) || null;
           const lastMessage = (chat.wa_lastMessageTextVote as string) || (chat.lastMessage as string) || null;
           const rawTs = Number(chat.wa_lastMsgTimestamp ?? chat.lastMessageTimestamp ?? 0);
           // uazapi sometimes returns seconds, sometimes ms — normalize to ms
@@ -234,6 +235,7 @@ Deno.serve(async (req) => {
           if (existingConv) {
             const { error: updErr } = await admin.from("whatsapp_conversations").update({
               contact_name: name,
+              avatar_url: avatar,
               last_message: lastMessage,
               last_message_at: lastAt,
               unread_count: unread,
@@ -246,6 +248,7 @@ Deno.serve(async (req) => {
               instance_id: existing.id,
               contact_phone: phone,
               contact_name: name,
+              avatar_url: avatar,
               last_message: lastMessage,
               last_message_at: lastAt,
               unread_count: unread,
@@ -261,6 +264,108 @@ Deno.serve(async (req) => {
         }
       }
       return json({ ok: true, total: chats.length, synced, errors: errors.slice(0, 5) });
+    }
+
+    if (action === "load_messages") {
+      if (!existing) return json({ error: "Instance not found" }, 404);
+      const { conversationId, limit } = body as { conversationId?: string; limit?: number };
+      if (!conversationId) return json({ error: "conversationId is required" }, 400);
+      const { data: conv } = await admin
+        .from("whatsapp_conversations")
+        .select("*")
+        .eq("id", conversationId)
+        .eq("workspace_id", workspaceId)
+        .maybeSingle();
+      if (!conv) return json({ error: "Conversation not found" }, 404);
+
+      const chatid = `${conv.contact_phone}@s.whatsapp.net`;
+      // Try to fetch profile picture (best-effort)
+      try {
+        const pic = await uaz("/chat/GetNameAndImageURL", {
+          token: existing.instance_token,
+          body: { number: conv.contact_phone },
+        });
+        const pd = (pic.data ?? {}) as Record<string, unknown>;
+        const url = (pd.image as string) || (pd.imageUrl as string) || (pd.profilePicUrl as string) || null;
+        const nm = (pd.name as string) || null;
+        if (url || nm) {
+          await admin.from("whatsapp_conversations").update({
+            ...(url ? { avatar_url: url } : {}),
+            ...(nm && !conv.contact_name ? { contact_name: nm } : {}),
+          }).eq("id", conversationId);
+        }
+      } catch (_e) { /* ignore */ }
+
+      const msgRes = await uaz("/message/find", {
+        token: existing.instance_token,
+        body: {
+          operator: "AND",
+          chatid,
+          limit: limit ?? 50,
+          sort: "-messageTimestamp",
+        },
+      });
+      if (!msgRes.ok) {
+        console.error("load_messages /message/find failed", msgRes.status, msgRes.data);
+        return json({ error: "uazapi /message/find failed", status: msgRes.status, detail: msgRes.data }, 502);
+      }
+      const rawList = Array.isArray(msgRes.data)
+        ? (msgRes.data as Record<string, unknown>[])
+        : Array.isArray((msgRes.data as Record<string, unknown>)?.messages)
+          ? ((msgRes.data as Record<string, unknown>).messages as Record<string, unknown>[])
+          : [];
+      console.log("load_messages: received", rawList.length);
+
+      let saved = 0;
+      const errors: string[] = [];
+      // Process oldest -> newest
+      const ordered = [...rawList].reverse();
+      for (const m of ordered) {
+        try {
+          const waId = (m.messageid as string) || (m.id as string) || (m.key_id as string) || null;
+          if (!waId) continue;
+          const { data: dup } = await admin
+            .from("whatsapp_messages")
+            .select("id")
+            .eq("conversation_id", conversationId)
+            .eq("wa_message_id", waId)
+            .maybeSingle();
+          if (dup) continue;
+
+          const fromMe = Boolean(m.fromMe ?? m.fromme ?? m.key_fromMe);
+          const direction = fromMe ? "outbound" : "inbound";
+          const type = (m.messageType as string) || (m.type as string) || "text";
+          const content = (m.text as string)
+            || (m.content as string)
+            || (m.body as string)
+            || (m.caption as string)
+            || null;
+          const mediaUrl = (m.mediaUrl as string) || (m.fileURL as string) || null;
+          const rawTs = Number(m.messageTimestamp ?? m.timestamp ?? 0);
+          const tsMs = rawTs > 1e12 ? rawTs : rawTs * 1000;
+          const createdAt = tsMs ? new Date(tsMs).toISOString() : new Date().toISOString();
+
+          const { error: insErr } = await admin.from("whatsapp_messages").insert({
+            workspace_id: workspaceId,
+            instance_id: existing.id,
+            conversation_id: conversationId,
+            wa_message_id: waId,
+            direction,
+            type,
+            content,
+            media_url: mediaUrl,
+            status: "sent",
+            created_at: createdAt,
+          });
+          if (insErr) throw insErr;
+          saved++;
+        } catch (err) {
+          const msg = (err as Error).message ?? String(err);
+          console.error("load_messages msg error", msg);
+          errors.push(msg);
+        }
+      }
+      return json({ ok: true, total: rawList.length, saved, errors: errors.slice(0, 5) });
     }
 
     if (action === "send") {
