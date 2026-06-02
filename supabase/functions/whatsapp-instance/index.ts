@@ -41,6 +41,29 @@ async function uaz(path: string, opts: { token?: string; admin?: boolean; method
   return { ok: res.ok, status: res.status, data };
 }
 
+function baseForStoredSubdomain(input: string | null | undefined) {
+  const raw = (input ?? SUBDOMAIN ?? "free").trim().replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+  const host = raw.split("/")[0] || "free";
+  if (host.includes(".")) return `https://${host}`;
+  return `https://${host}.uazapi.com`;
+}
+
+async function uazForInstance(instance: Record<string, unknown>, path: string, opts: { method?: string; body?: unknown } = {}) {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    token: String(instance.instance_token ?? ""),
+  };
+  const res = await fetch(`${baseForStoredSubdomain(instance.subdomain as string | null | undefined)}${path}`, {
+    method: opts.method ?? "POST",
+    headers,
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  const text = await res.text();
+  let data: unknown = text;
+  try { data = JSON.parse(text); } catch { /* keep text */ }
+  return { ok: res.ok, status: res.status, data };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
