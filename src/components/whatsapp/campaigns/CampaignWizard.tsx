@@ -64,12 +64,15 @@ export function CampaignWizard({ open, workspaceId, onClose, onCreated }: Props)
 
   const audience = useMemo(() => audiences.find((a) => a.id === audienceId) ?? null, [audiences, audienceId]);
   const template = useMemo(() => templates.find((t) => t.id === templateId) ?? null, [templates, templateId]);
-  const approvedTemplates = templates.filter((t) => t.status === "approved");
+  // Modelos enviáveis: "Ativo" (approved) — modelos não arquivados/deletados/vazios.
+  const activeTemplates = templates.filter(
+    (t) => t.status === "approved" && !t.deleted_at && (t.body ?? "").trim().length > 0,
+  );
 
   const canNext = (() => {
     if (step === 1) return name.trim().length > 0;
     if (step === 2) return Boolean(audienceId);
-    if (step === 3) return Boolean(templateId) && template?.status === "approved";
+    if (step === 3) return Boolean(templateId) && activeTemplates.some((t) => t.id === templateId);
     return true;
   })();
 
