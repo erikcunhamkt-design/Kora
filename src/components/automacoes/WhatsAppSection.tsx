@@ -1,16 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
-import { MessageCircle, QrCode, Plug, Send, Smartphone, Loader2, RefreshCw, RotateCw, Download } from "lucide-react";
-import { Label } from "@/components/ui/label";
+import { Loader2, MessageCircle, Send } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { useWhatsAppInstance } from "@/hooks/useWhatsAppInstance";
 import { useWhatsAppConversations } from "@/hooks/useWhatsAppConversations";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { supabase } from "@/integrations/supabase/client";
+import { WhatsAppConnectionCard } from "@/components/automacoes/WhatsAppConnectionCard";
 
 function formatTime(iso: string | null) {
   if (!iso) return "";
@@ -21,7 +20,7 @@ function formatTime(iso: string | null) {
 
 export function WhatsAppSection() {
   const { workspace } = useCurrentWorkspace();
-  const { instance, loading: loadingInstance, busy, connect, disconnect, refreshStatus, importInstance } = useWhatsAppInstance();
+  const { instance, loading: loadingInstance, busy, connect, disconnect, removeInstance, refreshStatus, importInstance } = useWhatsAppInstance();
   const { conversations, messages, selectedId, setSelectedId, loading: loadingConv, markRead } = useWhatsAppConversations(
     workspace?.id,
     instance?.id,
@@ -29,56 +28,13 @@ export function WhatsAppSection() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [qrOpen, setQrOpen] = useState(false);
-  const [importOpen, setImportOpen] = useState(false);
-  const [importToken, setImportToken] = useState("");
-  const [importSubdomain, setImportSubdomain] = useState("free");
-  const [importing, setImporting] = useState(false);
 
   const status = instance?.status ?? "disconnected";
-  const qrCode = instance?.qr_code ?? null;
   const selected = useMemo(() => conversations.find((c) => c.id === selectedId) ?? null, [conversations, selectedId]);
 
   useEffect(() => {
     if (selectedId) void markRead(selectedId);
   }, [selectedId, markRead]);
-
-  const handleConnect = async () => {
-    try {
-      await connect();
-      setQrOpen(true);
-      toast.success("Instância criada. Escaneie o QR Code.");
-    } catch (e) {
-      toast.error("Falha ao conectar", { description: (e as Error).message });
-    }
-  };
-
-  const handleDisconnect = async () => {
-    try { await disconnect(); toast.success("WhatsApp desconectado"); }
-    catch (e) { toast.error("Falha ao desconectar", { description: (e as Error).message }); }
-  };
-
-  const handleImport = async () => {
-    if (!importToken.trim()) {
-      toast.error("Informe o Instance Token");
-      return;
-    }
-    setImporting(true);
-    try {
-      const inst = await importInstance(importToken.trim(), importSubdomain.trim() || "free");
-      toast.success("Instância importada", {
-        description: inst?.status === "connected" ? "Já está conectada." : "Escaneie o QR para conectar.",
-      });
-      setImportOpen(false);
-      setImportToken("");
-      if (inst && inst.status !== "connected") setQrOpen(true);
-    } catch (e) {
-      toast.error("Falha ao importar", { description: (e as Error).message });
-    } finally {
-      setImporting(false);
-    }
-  };
-
 
   const handleSync = async () => {
     if (!workspace) return;
