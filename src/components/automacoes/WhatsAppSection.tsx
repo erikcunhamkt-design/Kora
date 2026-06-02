@@ -58,6 +58,28 @@ export function WhatsAppSection() {
     catch (e) { toast.error("Falha ao desconectar", { description: (e as Error).message }); }
   };
 
+  const handleImport = async () => {
+    if (!importToken.trim()) {
+      toast.error("Informe o Instance Token");
+      return;
+    }
+    setImporting(true);
+    try {
+      const inst = await importInstance(importToken.trim(), importSubdomain.trim() || "free");
+      toast.success("Instância importada", {
+        description: inst?.status === "connected" ? "Já está conectada." : "Escaneie o QR para conectar.",
+      });
+      setImportOpen(false);
+      setImportToken("");
+      if (inst && inst.status !== "connected") setQrOpen(true);
+    } catch (e) {
+      toast.error("Falha ao importar", { description: (e as Error).message });
+    } finally {
+      setImporting(false);
+    }
+  };
+
+
   const handleSync = async () => {
     if (!workspace) return;
     setSyncing(true);
