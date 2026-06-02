@@ -77,10 +77,11 @@ export function TemplatesBackendPage() {
       <div className="max-w-6xl mx-auto space-y-6">
         <header className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-xl font-semibold">Templates Aprovados</h2>
+            <h2 className="text-xl font-semibold">Modelos de Mensagem</h2>
             <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
-              Biblioteca de mensagens. Cada empresa precisa ter seus próprios templates aprovados
-              na conta/número conectado. Modelos do KORA são rascunhos base.
+              Biblioteca de mensagens sugeridas para usar em campanhas. Os modelos são sugestões de
+              copy — não são pré-aprovados por nenhuma plataforma. A responsabilidade pelo conteúdo,
+              pela lista de contatos e pelo envio é do usuário.
             </p>
           </div>
           <Button
@@ -90,7 +91,7 @@ export function TemplatesBackendPage() {
             }}
             className="gap-2"
           >
-            <Plus className="h-4 w-4" /> Novo template
+            <Plus className="h-4 w-4" /> Novo modelo
           </Button>
         </header>
 
