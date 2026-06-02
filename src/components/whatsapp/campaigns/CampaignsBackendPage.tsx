@@ -91,66 +91,101 @@ export function CampaignsBackendPage() {
                   <th className="text-right px-4 py-2 font-medium">Válidos</th>
                   <th className="text-right px-4 py-2 font-medium">Enviados</th>
                   <th className="text-right px-4 py-2 font-medium">Falhas</th>
+                  <th className="text-right px-4 py-2 font-medium">Sucesso</th>
                   <th className="text-right px-4 py-2 font-medium">Criada</th>
                   <th className="px-2" />
                 </tr>
               </thead>
               <tbody>
-                {campaigns.map((c) => (
-                  <tr key={c.id} className="border-t border-border/40 hover:bg-card/30">
-                    <td className="px-4 py-2 font-medium">{c.name}</td>
-                    <td className="px-4 py-2">
-                      <Badge variant="outline" className="text-[10px]">{c.status}</Badge>
-                    </td>
-                    <td className="px-4 py-2 text-right">{c.total_recipients ?? 0}</td>
-                    <td className="px-4 py-2 text-right text-success">{c.valid_recipients ?? 0}</td>
-                    <td className="px-4 py-2 text-right">{c.sent_count ?? 0}</td>
-                    <td className="px-4 py-2 text-right text-destructive">{c.failed_count ?? 0}</td>
-                    <td className="px-4 py-2 text-right text-xs text-muted-foreground">
-                      {new Date(c.created_at).toLocaleDateString()}
-                    </td>
-                    <td className="px-2 flex items-center gap-1 justify-end">
-                      <TooltipProvider delayDuration={150}>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-7 w-7"
-                                disabled={!senderEnabled && !["sending", "paused"].includes(c.status ?? "")}
-                                onClick={() => setSendDialog(c)}
-                                aria-label="Enviar campanha"
-                              >
-                                <PlayCircle className="h-3.5 w-3.5 text-primary" />
-                              </Button>
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent side="left" className="text-xs max-w-[220px]">
-                            {senderEnabled
-                              ? "Abrir confirmação e enviar em lotes"
-                              : "Envio real de campanhas ainda está desativado."}
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-7 w-7 text-destructive"
-                        onClick={() => {
-                          if (!confirm(`Remover campanha "${c.name}"?`)) return;
-                          void deleteCampaign(workspace.id, c.id).then(() => {
-                            toast.success("Campanha removida");
-                            void load();
-                          });
-                        }}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
+                {campaigns.map((c) => {
+                  const status = c.status ?? "draft";
+                  const isFinalized = status === "completed" || status === "cancelled";
+                  const base = c.valid_recipients ?? c.total_recipients ?? 0;
+                  const sent = c.sent_count ?? 0;
+                  const successPct = base > 0 ? Math.round((sent / base) * 100) : 0;
+                  const statusLabel =
+                    status === "completed"
+                      ? "concluída"
+                      : status === "cancelled"
+                        ? "cancelada"
+                        : status === "sending"
+                          ? "enviando"
+                          : status === "paused"
+                            ? "pausada"
+                            : status;
+                  const statusTone =
+                    status === "completed"
+                      ? "border-success/40 text-success"
+                      : status === "cancelled"
+                        ? "border-destructive/40 text-destructive"
+                        : status === "sending"
+                          ? "border-primary/40 text-primary"
+                          : "";
+                  return (
+                    <tr key={c.id} className="border-t border-border/40 hover:bg-card/30">
+                      <td className="px-4 py-2 font-medium">{c.name}</td>
+                      <td className="px-4 py-2">
+                        <Badge variant="outline" className={`text-[10px] ${statusTone}`}>{statusLabel}</Badge>
+                      </td>
+                      <td className="px-4 py-2 text-right">{c.total_recipients ?? 0}</td>
+                      <td className="px-4 py-2 text-right text-success">{c.valid_recipients ?? 0}</td>
+                      <td className="px-4 py-2 text-right">{sent}</td>
+                      <td className="px-4 py-2 text-right text-destructive">{c.failed_count ?? 0}</td>
+                      <td className="px-4 py-2 text-right tabular-nums">
+                        {base > 0 ? `${successPct}%` : "—"}
+                      </td>
+                      <td className="px-4 py-2 text-right text-xs text-muted-foreground">
+                        {new Date(c.created_at).toLocaleDateString()}
+                      </td>
+                      <td className="px-2 flex items-center gap-1 justify-end">
+                        <TooltipProvider delayDuration={150}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-7 w-7"
+                                  disabled={
+                                    isFinalized ||
+                                    (!senderEnabled && !["sending", "paused"].includes(status))
+                                  }
+                                  onClick={() => setSendDialog(c)}
+                                  aria-label={isFinalized ? "Campanha finalizada" : "Enviar campanha"}
+                                >
+                                  <PlayCircle className="h-3.5 w-3.5 text-primary" />
+                                </Button>
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="left" className="text-xs max-w-[220px]">
+                              {isFinalized
+                                ? `Campanha ${statusLabel}. Não é possível disparar novamente.`
+                                : senderEnabled
+                                  ? "Abrir confirmação e enviar em lotes"
+                                  : "Envio real de campanhas ainda está desativado."}
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7 text-destructive"
+                          onClick={() => {
+                            if (!confirm(`Remover campanha "${c.name}"?`)) return;
+                            void deleteCampaign(workspace.id, c.id).then(() => {
+                              toast.success("Campanha removida");
+                              void load();
+                            });
+                          }}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
+
             </table>
           </div>
         )}

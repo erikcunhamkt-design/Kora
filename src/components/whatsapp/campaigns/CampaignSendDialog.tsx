@@ -219,6 +219,15 @@ export function CampaignSendDialog({ open, workspaceId, campaign, onClose, onUpd
 
             <div className="space-y-4 py-2">
               <Progress value={progressPct} />
+              <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                <span>Progresso: {progressPct}%</span>
+                <span>
+                  Sucesso:{" "}
+                  <strong className="text-success">
+                    {tally.total > 0 ? Math.round((tally.sent / Math.max(1, tally.total - tally.skipped)) * 100) : 0}%
+                  </strong>
+                </span>
+              </div>
               <div className="grid grid-cols-3 gap-2 text-xs">
                 <Stat label="Total" value={tally.total} />
                 <Stat label="Queued" value={tally.queued + tally.pending + tally.sending} />
@@ -227,6 +236,7 @@ export function CampaignSendDialog({ open, workspaceId, campaign, onClose, onUpd
                 <Stat label="Skipped" value={tally.skipped} tone="muted" />
                 <Stat label="Delivered" value={campaign.delivered_count ?? 0} tone="muted" />
               </div>
+
 
               <div className="rounded-md border border-border/50 p-2 max-h-40 overflow-y-auto text-[11px]">
                 {logs.length === 0 ? (
@@ -279,9 +289,16 @@ export function CampaignSendDialog({ open, workspaceId, campaign, onClose, onUpd
               </Button>
               <Button
                 onClick={() => handleAction("send_batch")}
-                disabled={busy || !senderEnabled || tally.queued + tally.pending === 0 && campaign.status === "completed"}
+                disabled={
+                  busy ||
+                  !senderEnabled ||
+                  campaign.status === "completed" ||
+                  campaign.status === "cancelled" ||
+                  tally.queued + tally.pending === 0
+                }
                 className="gap-2"
               >
+
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
                 Processar próximo lote
               </Button>
