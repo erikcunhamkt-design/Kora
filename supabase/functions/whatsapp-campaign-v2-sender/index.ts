@@ -2,7 +2,7 @@
 // - Processes a single batch of recipients per invocation (MAX_BATCH_SIZE).
 // - Validates campaign + template + workspace authorization server-side.
 // - Idempotent: skips recipients already sent/delivered/read/replied or with provider_message_id.
-// - Never accepts free body text for audience sends. Uses approved template body only.
+// - Never accepts free body text for audience sends. Uses the linked message model body only.
 // - Token never leaves the server.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
