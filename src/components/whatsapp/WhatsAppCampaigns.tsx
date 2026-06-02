@@ -1,11 +1,14 @@
-import { useState, useEffect, useCallback } from "react";
-import { Send, Users, Play, Pause, AlertCircle, CheckCircle2, Loader2, Sparkles } from "lucide-react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { Send, Users, Play, Pause, AlertCircle, CheckCircle2, Loader2, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { CampaignModeBanner } from "@/components/whatsapp/campaigns/CampaignModeBanner";
+import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
 
 type Campaign = Database["public"]["Tables"]["whatsapp_campaigns"]["Row"];
 
