@@ -1,11 +1,14 @@
-import { useState, useEffect, useCallback } from "react";
-import { Send, Users, Play, Pause, AlertCircle, CheckCircle2, Loader2, Sparkles } from "lucide-react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { Send, Users, Play, Pause, AlertCircle, CheckCircle2, Loader2, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { CampaignModeBanner } from "@/components/whatsapp/campaigns/CampaignModeBanner";
+import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
 
 type Campaign = Database["public"]["Tables"]["whatsapp_campaigns"]["Row"];
 
@@ -18,6 +21,17 @@ export function WhatsAppCampaigns({ workspaceId }: { workspaceId: string }) {
   const [title, setTitle] = useState("");
   const [template, setTemplate] = useState("");
   const [contactsText, setContactsText] = useState(""); // List of phone numbers (comma, semicolon or line separated)
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
+
+  const { templates } = useWhatsAppTemplates();
+  const approvedTemplates = useMemo(() => templates.filter((t) => t.status === "approved"), [templates]);
+
+  const handleSelectTemplate = (id: string) => {
+    setSelectedTemplateId(id);
+    const t = approvedTemplates.find((x) => x.id === id);
+    if (t) setTemplate(t.body);
+  };
+
 
   const loadCampaigns = useCallback(async () => {
     setLoading(true);
@@ -155,6 +169,16 @@ export function WhatsAppCampaigns({ workspaceId }: { workspaceId: string }) {
           </p>
         </div>
 
+        <CampaignModeBanner />
+
+        <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 flex items-start gap-2">
+          <ShieldAlert className="h-3.5 w-3.5 text-primary mt-0.5 flex-shrink-0" />
+          <p className="text-[11px] text-foreground/80 leading-relaxed">
+            <strong>Opt-in obrigatório:</strong> envie apenas para contatos que autorizaram receber mensagens.
+            Contatos importados <em>não viram clientes automaticamente</em>.
+          </p>
+        </div>
+
         <form onSubmit={handleCreateCampaign} className="space-y-3.5">
           <div className="space-y-1">
             <label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
@@ -187,16 +211,43 @@ export function WhatsAppCampaigns({ workspaceId }: { workspaceId: string }) {
 
           <div className="space-y-1">
             <label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
-              Mensagem a Enviar
+              Template Aprovado
+            </label>
+            {approvedTemplates.length === 0 ? (
+              <div className="text-[11px] text-muted-foreground rounded-md border border-dashed border-border/60 px-3 py-2">
+                Nenhum template aprovado. Crie um na aba <strong>Templates Aprovados</strong>.
+              </div>
+            ) : (
+              <Select value={selectedTemplateId} onValueChange={handleSelectTemplate}>
+                <SelectTrigger className="h-9 text-sm bg-background/50 border-border/60">
+                  <SelectValue placeholder="Selecione um template aprovado" />
+                </SelectTrigger>
+                <SelectContent>
+                  {approvedTemplates.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
+              Mensagem (preview do template)
             </label>
             <Textarea
               value={template}
               onChange={(e) => setTemplate(e.target.value)}
-              placeholder="Olá! Conheça nosso portfólio de serviços no link..."
+              placeholder="Selecione um template aprovado acima para preencher."
               className="min-h-28 text-xs bg-background/50 border-border/60"
               required
+              readOnly={!!selectedTemplateId}
             />
+            <p className="text-[10px] text-muted-foreground/80">
+              Variáveis ({"{{nome}}"}, {"{{primeiro_nome}}"}…) são preenchidas no momento do envio.
+            </p>
           </div>
+
 
           <Button type="submit" disabled={creating} className="w-full h-9 text-sm gap-2">
             {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
+  Layers,
   Loader2,
   MessageCircle,
   MoreVertical,
@@ -11,7 +12,6 @@ import {
   RotateCw,
   Search,
   Send,
-  Settings,
   Smartphone,
   Users,
 } from "lucide-react";
@@ -34,6 +34,8 @@ import { WhatsAppContactPanel } from "@/components/whatsapp/WhatsAppContactPanel
 import { WhatsAppEmptyState } from "@/components/whatsapp/WhatsAppEmptyState";
 import { WhatsAppCampaigns } from "@/components/whatsapp/WhatsAppCampaigns";
 import { WhatsAppBotConfig } from "@/components/whatsapp/WhatsAppBotConfig";
+import { TemplatesLibrary } from "@/components/whatsapp/templates/TemplatesLibrary";
+import { AudiencesPanel } from "@/components/whatsapp/audiences/AudiencesPanel";
 
 function initials(name: string | null, phone: string) {
   const base = (name ?? phone).trim();
@@ -61,7 +63,8 @@ export default function WhatsAppPage() {
   const { conversations, messages, selectedId, setSelectedId, loading, markRead } =
     useWhatsAppConversations(workspace?.id, instance?.id);
 
-  const [activeMainTab, setActiveMainTab] = useState<"chat" | "campaigns" | "bot">("chat");
+  type MainTab = "chat" | "audiences" | "campaigns" | "templates" | "bot";
+  const [activeMainTab, setActiveMainTab] = useState<MainTab>("chat");
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [sending, setSending] = useState(false);
@@ -180,16 +183,22 @@ export default function WhatsAppPage() {
     <div className="flex h-[calc(100vh-8rem)] -mx-6 -my-6 border-t border-border/40 bg-background flex-col">
       {/* Top navigation tabs */}
       <div className="flex items-center justify-between border-b border-border/40 px-6 py-2.5 bg-card/20 flex-shrink-0">
-        <Tabs value={activeMainTab} onValueChange={(v) => setActiveMainTab(v as "chat" | "campaigns" | "bot")}>
-          <TabsList className="bg-background/40 p-0.5">
+        <Tabs value={activeMainTab} onValueChange={(v) => setActiveMainTab(v as MainTab)}>
+          <TabsList className="bg-background/40 p-0.5 flex-wrap h-auto">
             <TabsTrigger value="chat" className="text-xs h-8 gap-1.5">
-              <MessageCircle className="h-3.5 w-3.5" /> Inbox de Atendimento
+              <MessageCircle className="h-3.5 w-3.5" /> Inbox
+            </TabsTrigger>
+            <TabsTrigger value="audiences" className="text-xs h-8 gap-1.5">
+              <Users className="h-3.5 w-3.5" /> Audiências
             </TabsTrigger>
             <TabsTrigger value="campaigns" className="text-xs h-8 gap-1.5">
-              <Send className="h-3.5 w-3.5" /> Disparos em Massa
+              <Send className="h-3.5 w-3.5" /> Campanhas
+            </TabsTrigger>
+            <TabsTrigger value="templates" className="text-xs h-8 gap-1.5">
+              <Layers className="h-3.5 w-3.5" /> Templates Aprovados
             </TabsTrigger>
             <TabsTrigger value="bot" className="text-xs h-8 gap-1.5">
-              <Bot className="h-3.5 w-3.5" /> Robô de IA (Gemini)
+              <Bot className="h-3.5 w-3.5" /> Robô IA
             </TabsTrigger>
           </TabsList>
         </Tabs>
@@ -452,9 +461,21 @@ export default function WhatsAppPage() {
           </div>
         )}
 
+        {activeMainTab === "audiences" && (
+          <div className="flex-1 overflow-hidden h-full bg-background/50">
+            <AudiencesPanel />
+          </div>
+        )}
+
         {activeMainTab === "campaigns" && workspace && (
           <div className="flex-1 overflow-hidden h-full">
             <WhatsAppCampaigns workspaceId={workspace.id} />
+          </div>
+        )}
+
+        {activeMainTab === "templates" && (
+          <div className="flex-1 overflow-hidden h-full bg-background/50">
+            <TemplatesLibrary />
           </div>
         )}
 

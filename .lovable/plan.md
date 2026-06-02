@@ -1,93 +1,94 @@
+## Escopo
 
-# Plano: Integração WhatsApp via uazapi
+Construção 100% visual/UX (sem backend, sem migration, sem RLS, sem webhook). Tudo persiste em localStorage via os hooks existentes (`useCampaigns`, novo `useWhatsAppTemplates`).
 
-Hoje o app usa `useWhatsAppMock` (localStorage + dados demo) e a integração "WhatsApp Business" em `useIntegrations` é só um toggle. Vamos plugar o **uazapi** como provedor real, mantendo a UI atual de `WhatsAppSection`, `IntegrationsSection`, CRM e Central do Dia.
+## Onde entra
 
-## 1. Arquitetura
+Página **WhatsApp** (`src/pages/WhatsApp.tsx`) — adicionar abas internas:
+- Inbox de Atendimento (existente)
+- Audiências/Listas (nova aba leve, reaproveita `consents`/`segments` do `useCampaigns`)
+- Campanhas (refatorada — fluxo Tipo de envio)
+- **Templates Aprovados** (novo)
+- Robô IA (existente `WhatsAppBotConfig`)
+
+Se a página WhatsApp ainda não tiver tabs, envolver o conteúdo atual em `Tabs`.
+
+## Arquivos novos
 
 ```text
-Frontend (React)
-   │
-   │ supabase.functions.invoke()
-   ▼
-Edge Functions (Deno)
-   ├── whatsapp-instance      → cria/conecta/desconecta + QR code
-   ├── whatsapp-status        → consulta estado da instância
-   ├── whatsapp-send          → envia mensagem (texto, mídia, template)
-   ├── whatsapp-conversations → lista chats + mensagens (proxy uazapi)
-   └── whatsapp-webhook       → recebe eventos (mensagens, status) [verify_jwt=false]
-            │
-            ▼
-       Supabase DB
-   ├── whatsapp_instances (workspace_id, instance_token, subdomain, status, phone, qr_code)
-   ├── whatsapp_conversations (workspace_id, instance_id, contact_phone, contact_name, status, tags, last_message_at)
-   └── whatsapp_messages (conversation_id, direction, type, content, media_url, wa_message_id, status, created_at)
+src/hooks/useWhatsAppTemplates.ts
+src/components/whatsapp/templates/TemplatesLibrary.tsx
+src/components/whatsapp/templates/TemplateCard.tsx
+src/components/whatsapp/templates/TemplatePreview.tsx
+src/components/whatsapp/templates/CreateTemplateDialog.tsx
+src/components/whatsapp/templates/VariableChips.tsx
+src/components/whatsapp/audiences/AudiencesPanel.tsx
+src/components/whatsapp/campaigns/CampaignFlow.tsx        (Tipo de envio + escolha template ou janela atendimento)
+src/components/whatsapp/campaigns/CampaignHistory.tsx
+src/components/whatsapp/campaigns/OptInNotice.tsx
+src/lib/whatsapp/templateVariables.ts                     (render preview com {{vars}})
 ```
 
-Todas as tabelas com **RLS por `workspace_id`** via `is_workspace_member()` (padrão já usado no projeto).
+## Arquivos editados
 
-## 2. Secrets necessários (Lovable Cloud / Supabase)
+- `src/pages/WhatsApp.tsx` — adicionar Tabs com 5 seções.
+- `src/components/whatsapp/WhatsAppCampaigns.tsx` — quebrar em CampaignFlow + History; bloquear textarea livre quando envio = audiência; banner opt-in.
 
-- `UAZAPI_ADMIN_TOKEN` — token administrativo para criar instâncias
-- `UAZAPI_SUBDOMAIN` — subdomínio padrão da conta uazapi (ex.: `free`, `meucliente`)
-- `UAZAPI_WEBHOOK_SECRET` — segredo gerado por nós para validar webhooks
+## Modelo do Template (localStorage `orbyt.whatsapp.templates.v1`)
 
-O **token de cada instância** (gerado pela uazapi por workspace) fica salvo em `whatsapp_instances.instance_token` (criptografado idealmente, mas servirá texto por enquanto já que está atrás de RLS + service_role nas funções).
+```ts
+type TemplateCategory = "marketing" | "utility" | "authentication" | "service";
+type TemplateStatus   = "draft" | "submitted" | "approved" | "rejected" | "paused";
+interface WhatsAppTemplate {
+  id, name, category, status, language,
+  body, variables: string[], cta?: {label,url}, notes?,
+  lastUsedAt?, responseRate?, createdAt, isDemo
+}
+```
 
-## 3. Fluxo de conexão (UX)
+Seeds: 4 templates demo cobrindo cada categoria, status variados.
 
-1. Usuário entra em **Automações → WhatsApp** e clica **Conectar WhatsApp**.
-2. Frontend chama `whatsapp-instance` (action: `create`) → edge function chama `POST /instance/init` na uazapi com `admintoken`, recebe `token` da instância, salva em `whatsapp_instances` e retorna **QR code** (`/instance/connect`).
-3. Modal mostra o QR (atualiza a cada 5s via `whatsapp-status`).
-4. Quando estado vira `connected`, salvamos `phone`, `phoneName`, `connectedAt`.
-5. Botão **Desconectar** chama `/instance/disconnect`.
+## Variáveis
 
-## 4. Envio de mensagens
+`{{nome}} {{primeiro_nome}} {{empresa}} {{serviço}} {{data}} {{link}}` — chips clicáveis inserem no textarea (cursor position). Preview lateral renderiza com valores fake ("Erik", "Estúdio Orbyt", "Branding"…).
 
-`whatsapp-send` recebe `{ to, type, text|mediaUrl, conversationId? }`, chama `POST /send/text` ou `/send/media` da uazapi com o `token` da instância, grava em `whatsapp_messages` (direction=`outbound`, status=`sent`) e atualiza `last_message_at` da conversa.
+## Fluxo Campanha (CampaignFlow)
 
-Pontos de uso a substituir (hoje `wa.me` ou mock):
-- **CRM** (`LeadActionsMenu`, `CRM.tsx` "Auto-lead WhatsApp")
-- **Central do Dia** (lembrete de follow-up)
-- **Orçamentos** (`QuotesSection` botão "Enviar por WhatsApp")
-- **WhatsAppSection** (caixa de entrada real)
+Passo 1 RadioGroup:
+- **Mensagem livre — janela de atendimento** (badge âmbar 24h) → seleciona conversa ativa, textarea livre liberado.
+- **Campanha com template aprovado** → seleciona audiência (Select) + template (Select filtrado por `status==="approved"`). Textarea livre OCULTO. Banner opt-in vermelho/vinho fixo.
 
-Manter `wa.me` como **fallback** quando a instância não estiver conectada.
+Botão "Enviar campanha" desabilitado se template não-approved com tooltip "Selecione um template aprovado".
 
-## 5. Recebimento (webhook)
+## Audiências (AudiencesPanel)
 
-- `whatsapp-webhook` configurado como público (`verify_jwt = false`).
-- Na criação da instância, registramos a URL `https://<project>.functions.supabase.co/whatsapp-webhook?secret=...` via `POST /webhook` da uazapi.
-- A função valida o `secret`, faz upsert da conversa por `contact_phone + instance_id` e insere a mensagem (`direction=inbound`).
-- Realtime do Supabase já notifica o front (subscription em `whatsapp_messages` por workspace).
+Cards por segmento mostrando: total, válidos, inválidos, duplicados, já clientes, já conversaram, sem opt-in, opt-out. Valores derivados dos `consents` + mocks determinísticos. Alerta: "Contatos de campanha não viram clientes automaticamente."
 
-## 6. Migração de banco
+## Histórico (CampaignHistory)
 
-Criar 3 tabelas com GRANTs + RLS por workspace, índices em `(workspace_id, last_message_at)` e `(conversation_id, created_at)`. Sem FKs cruzadas (padrão do projeto).
+Tabela: Template · Status · Total · Enviados · Falhas · Respostas · Bloqueios · Data · Origem.
 
-## 7. Frontend — mudanças
+## CreateTemplateDialog
 
-- Novo hook `useWhatsApp()` (substitui gradualmente `useWhatsAppMock`) consumindo Supabase + Realtime.
-- `WhatsAppSection`: modal de QR, status real, lista de conversas vindas do banco.
-- `IntegrationsSection`: card "WhatsApp (uazapi)" passa a refletir status real da instância do workspace.
-- Feature flag `whatsappProvider: 'uazapi' | 'mock'` em `useAppSettings` para rollout seguro.
+Campos pedidos + alertas amarelos. Botões:
+- **Salvar rascunho** (ativo)
+- **Enviar para aprovação** (disabled + Tooltip "Integração oficial entra na próxima fase")
 
-## 8. Entregáveis por fase
+## Visual
 
-1. **Fase A — Fundação** (1 PR): migração das 3 tabelas + secrets + edge function `whatsapp-instance` e `whatsapp-status` + modal de QR funcionando.
-2. **Fase B — Envio** (1 PR): `whatsapp-send` + botão real no CRM e Orçamentos, mantendo `wa.me` como fallback.
-3. **Fase C — Recebimento** (1 PR): `whatsapp-webhook` + inbox real em `WhatsAppSection` com Realtime.
-4. **Fase D — Polimento**: templates rápidos, tags, vínculo automático conversa↔cliente/lead, métricas na Central do Dia.
+Tokens existentes (dark, `primary` vinho/vermelho `#F81040`). Status badges:
+- approved → success
+- submitted → info
+- draft → muted
+- rejected → destructive
+- paused → warning
 
-## 9. Riscos
+Empty states elegantes com `EmptyState`. Tabela responsiva: desktop tabela, tablet cards, mobile stepper no CreateTemplateDialog.
 
-- **Banimento de número**: uazapi usa WhatsApp não-oficial → recomendar número Business dedicado.
-- **Limite de instâncias** no plano uazapi (erro 429) → tratar e mostrar mensagem clara.
-- **Webhook público**: proteger com `secret` na query + validação de payload.
-- **Custo**: monitorar volume de mensagens; adicionar throttling na edge function.
+## Fora de escopo
 
-## 10. Próximo passo
+Nada de Edge Function, migration, alteração de webhook, envio real, alteração de RLS. `simulateSend` continua local.
 
-Se aprovar este plano eu começo pela **Fase A**: peço os 3 secrets (`UAZAPI_ADMIN_TOKEN`, `UAZAPI_SUBDOMAIN`, `UAZAPI_WEBHOOK_SECRET`), crio a migração das tabelas e a primeira edge function com o fluxo de QR code.
+## Entrega
 
-**Você já tem conta na uazapi e o `admintoken` em mãos, ou precisa que eu te oriente a criar primeiro?**
+Ao final reporto: localização, biblioteca, status/categorias, variáveis, fluxo de campanha, avisos opt-in, ações desabilitadas, ausência de mudanças no backend, status TypeScript/lint, próxima recomendação.
