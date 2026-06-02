@@ -36,6 +36,7 @@ type Phase = "confirm" | "progress";
 export function CampaignSendDialog({ open, workspaceId, campaign, onClose, onUpdated }: Props) {
   const [phase, setPhase] = useState<Phase>("confirm");
   const [confirmText, setConfirmText] = useState("");
+  const [acceptedResponsibility, setAcceptedResponsibility] = useState(false);
   const [busy, setBusy] = useState(false);
   const [recipients, setRecipients] = useState<WhatsAppCampaignRecipient[]>([]);
   const [logs, setLogs] = useState<CampaignSendLog[]>([]);
