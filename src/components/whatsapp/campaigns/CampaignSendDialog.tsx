@@ -22,6 +22,7 @@ import {
   type WhatsAppCampaignRecipient,
 } from "@/lib/whatsapp/repositories/whatsappCampaignsRepository";
 import { isCampaignSenderEnabled } from "@/lib/whatsapp/featureFlags";
+import { formatPhoneBR } from "@/lib/whatsapp/phone";
 
 interface Props {
   open: boolean;
