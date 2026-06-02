@@ -3,7 +3,7 @@ import {
   DollarSign, CheckSquare, FolderKanban, Image as ImageIcon,
   Settings, Crown, Zap, Globe, CalendarCheck, LifeBuoy,
   ClipboardList, BarChart3, Link as LinkIcon, Calendar, Sparkles,
-  Bot, Plug, CreditCard, Activity, ShieldCheck,
+  Bot, Plug, CreditCard, Activity, ShieldCheck, MessageCircle,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -72,6 +72,7 @@ const navGroups: NavGroup[] = [
   {
     label: "Inteligência",
     items: [
+      { title: "WhatsApp Chat", url: "/whatsapp", icon: MessageCircle },
       { title: "Agentes de IA", url: "/automacoes?tab=ia", icon: Bot, badge: "beta" },
       { title: "Automações", url: "/automacoes?tab=automacoes", icon: Zap, badge: "beta" },
       { title: "Créditos de IA", event: "orbyt:open-credits", icon: Sparkles },
