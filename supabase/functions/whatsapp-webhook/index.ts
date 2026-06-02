@@ -179,6 +179,182 @@ function extractMediaFromUazapiMessage(
   };
 }
 
+// ---------- Campaign status helpers ----------
+
+type SupaAdmin = ReturnType<typeof createClient>;
+
+// Normalize uazapi ack/status field into one of: sent | delivered | read
+function normalizeAckStatus(raw: unknown): "sent" | "delivered" | "read" | null {
+  if (raw == null) return null;
+  if (typeof raw === "number") {
+    if (raw >= 4) return "read"; // 4=PLAYED treated as read
+    if (raw === 3) return "read";
+    if (raw === 2) return "delivered";
+    if (raw === 1) return "sent";
+    return null;
+  }
+  const s = String(raw).toLowerCase();
+  if (s.includes("read") || s.includes("played") || s === "3" || s === "4") return "read";
+  if (s.includes("deliver") || s === "2" || s === "delivery_ack") return "delivered";
+  if (s.includes("sent") || s === "1" || s === "server_ack") return "sent";
+  return null;
+}
+
+function extractProviderMessageId(payload: AnyRec): string | null {
+  const message = (payload.message as AnyRec) ?? {};
+  const key = (message.key as AnyRec) ?? (payload.key as AnyRec) ?? {};
+  const id =
+    (message.id as string) ||
+    (message.messageid as string) ||
+    (message.messageId as string) ||
+    (key.id as string) ||
+    (payload.messageid as string) ||
+    (payload.messageId as string) ||
+    (payload.id as string) ||
+    null;
+  return id ? String(id) : null;
+}
+
+function extractAck(payload: AnyRec): unknown {
+  const message = (payload.message as AnyRec) ?? {};
+  return (
+    payload.ack ??
+    payload.status ??
+    message.ack ??
+    message.status ??
+    (payload.update as AnyRec)?.status ??
+    null
+  );
+}
+
+async function recomputeCampaignCounters(admin: SupaAdmin, campaignId: string) {
+  const { data: agg } = await admin
+    .from("whatsapp_campaign_recipients")
+    .select("status, delivered_at, read_at, replied_at")
+    .eq("campaign_id", campaignId);
+  if (!agg) return;
+  let sent = 0, failed = 0, delivered = 0, read = 0, replied = 0;
+  for (const r of agg as AnyRec[]) {
+    const st = String(r.status ?? "");
+    if (st === "sent" || st === "delivered" || st === "read" || st === "replied") sent++;
+    if (st === "failed") failed++;
+    if (r.delivered_at) delivered++;
+    if (r.read_at) read++;
+    if (r.replied_at) replied++;
+  }
+  await admin
+    .from("whatsapp_campaigns_v2")
+    .update({
+      sent_count: sent,
+      failed_count: failed,
+      delivered_count: delivered,
+      read_count: read,
+      replied_count: replied,
+    })
+    .eq("id", campaignId);
+}
+
+async function maybeHandleMessageAck(
+  admin: SupaAdmin,
+  payload: AnyRec,
+  workspaceId: string,
+  event: string,
+): Promise<{ handled: boolean; reason?: string; recipientId?: string; newStatus?: string }> {
+  // Only handle ack/status update style events. Inbound message events are processed elsewhere.
+  const looksLikeAck =
+    event.includes("ack") ||
+    event.includes("update") ||
+    event.includes("status") ||
+    event === "messages" ||
+    payload.ack != null ||
+    (payload.update as AnyRec)?.status != null;
+  if (!looksLikeAck) return { handled: false };
+
+  const providerId = extractProviderMessageId(payload);
+  if (!providerId) return { handled: false };
+
+  const ackStatus = normalizeAckStatus(extractAck(payload));
+  if (!ackStatus) return { handled: false };
+
+  const { data: recipient } = await admin
+    .from("whatsapp_campaign_recipients")
+    .select("id, campaign_id, status, delivered_at, read_at, replied_at, phone")
+    .eq("workspace_id", workspaceId)
+    .eq("provider_message_id", providerId)
+    .maybeSingle();
+
+  if (!recipient) return { handled: true, reason: "no_recipient_match" };
+
+  const now = new Date().toISOString();
+  const patch: AnyRec = {};
+  const terminal = ["replied"];
+  const currentStatus = String(recipient.status ?? "");
+
+  if (ackStatus === "delivered" && !recipient.delivered_at) patch.delivered_at = now;
+  if (ackStatus === "read") {
+    if (!recipient.read_at) patch.read_at = now;
+    if (!recipient.delivered_at) patch.delivered_at = now;
+  }
+
+  // Promote status only forward: sent -> delivered -> read (don't override replied/failed)
+  if (!terminal.includes(currentStatus) && currentStatus !== "failed") {
+    if (ackStatus === "delivered" && currentStatus !== "read") patch.status = "delivered";
+    if (ackStatus === "read") patch.status = "read";
+  }
+
+  if (Object.keys(patch).length > 0) {
+    await admin.from("whatsapp_campaign_recipients").update(patch).eq("id", recipient.id);
+    await admin.from("whatsapp_campaign_send_logs").insert({
+      workspace_id: workspaceId,
+      campaign_id: recipient.campaign_id,
+      recipient_id: recipient.id,
+      phone: recipient.phone,
+      provider_message_id: providerId,
+      event: ackStatus,
+      message: `webhook_ack:${ackStatus}`,
+    });
+    await recomputeCampaignCounters(admin, String(recipient.campaign_id));
+  }
+
+  return { handled: true, recipientId: String(recipient.id), newStatus: ackStatus };
+}
+
+async function maybeMarkReply(
+  admin: SupaAdmin,
+  workspaceId: string,
+  phone: string,
+) {
+  // Find most recent recipient for this phone that was sent and not yet replied, within 14 days.
+  const since = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
+  const { data: recip } = await admin
+    .from("whatsapp_campaign_recipients")
+    .select("id, campaign_id, replied_at, sent_at, phone")
+    .eq("workspace_id", workspaceId)
+    .eq("normalized_phone", phone)
+    .is("replied_at", null)
+    .not("sent_at", "is", null)
+    .gte("sent_at", since)
+    .order("sent_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!recip) return;
+
+  const now = new Date().toISOString();
+  await admin
+    .from("whatsapp_campaign_recipients")
+    .update({ replied_at: now, status: "replied" })
+    .eq("id", recip.id);
+  await admin.from("whatsapp_campaign_send_logs").insert({
+    workspace_id: workspaceId,
+    campaign_id: recip.campaign_id,
+    recipient_id: recip.id,
+    phone: recip.phone,
+    event: "replied",
+    message: "webhook_inbound_reply",
+  });
+  await recomputeCampaignCounters(admin, String(recip.campaign_id));
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
