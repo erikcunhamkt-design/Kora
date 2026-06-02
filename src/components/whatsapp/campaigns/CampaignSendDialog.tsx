@@ -289,9 +289,16 @@ export function CampaignSendDialog({ open, workspaceId, campaign, onClose, onUpd
               </Button>
               <Button
                 onClick={() => handleAction("send_batch")}
-                disabled={busy || !senderEnabled || tally.queued + tally.pending === 0 && campaign.status === "completed"}
+                disabled={
+                  busy ||
+                  !senderEnabled ||
+                  campaign.status === "completed" ||
+                  campaign.status === "cancelled" ||
+                  tally.queued + tally.pending === 0
+                }
                 className="gap-2"
               >
+
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
                 Processar próximo lote
               </Button>
