@@ -107,17 +107,18 @@ Deno.serve(async (req) => {
         if (insertErr) return json({ error: insertErr.message }, 500);
         instance = inserted;
 
-        // Register webhook
-        const webhookUrl = `${SUPABASE_URL}/functions/v1/whatsapp-webhook?secret=${encodeURIComponent(WEBHOOK_SECRET)}&workspace=${workspaceId}`;
-        await uaz("/webhook", {
-          token: instToken,
-          body: {
-            url: webhookUrl,
-            enabled: true,
-            events: ["messages", "messages_update", "connection"],
-          },
-        }).catch(() => null);
       }
+
+      // Always (re)register webhook on connect/create to keep URL + secret in sync
+      const webhookUrl = `${SUPABASE_URL}/functions/v1/whatsapp-webhook?secret=${encodeURIComponent(WEBHOOK_SECRET)}&workspace=${workspaceId}`;
+      await uaz("/webhook", {
+        token: instance.instance_token,
+        body: {
+          url: webhookUrl,
+          enabled: true,
+          events: ["messages", "messages_update", "connection"],
+        },
+      }).catch(() => null);
 
       // Request QR
       const connect = await uaz("/instance/connect", { token: instance.instance_token, body: {} });
