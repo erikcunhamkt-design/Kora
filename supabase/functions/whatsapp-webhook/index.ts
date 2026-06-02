@@ -175,6 +175,11 @@ Deno.serve(async (req) => {
 
     const mediaType = (message.mediaType as string) || "";
     const type = mediaType && mediaType !== "" ? mediaType : (message.type as string) || "text";
+    const mediaUrl =
+      (message.mediaUrl as string) ||
+      (message.fileURL as string) ||
+      (message.url as string) ||
+      null;
 
     await admin.from("whatsapp_messages").insert({
       workspace_id: workspaceId,
@@ -184,6 +189,7 @@ Deno.serve(async (req) => {
       direction,
       type,
       content: text,
+      media_url: mediaUrl,
       status: "received",
     });
 

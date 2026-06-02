@@ -9,6 +9,8 @@ import { useWhatsAppInstance } from "@/hooks/useWhatsAppInstance";
 import { useWhatsAppConversations } from "@/hooks/useWhatsAppConversations";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { supabase } from "@/integrations/supabase/client";
+import { WhatsAppMessageBubble } from "@/components/whatsapp/WhatsAppMessageBubble";
+import { formatMessagePreview } from "@/lib/whatsapp/formatMessagePreview";
 
 function formatTime(iso: string | null) {
   if (!iso) return "";
@@ -194,7 +196,7 @@ export default function WhatsAppPage() {
                   </div>
                   <div className="flex items-center justify-between gap-2 mt-0.5">
                     <p className="text-xs text-muted-foreground truncate flex-1">
-                      {c.last_message ?? "—"}
+                      {formatMessagePreview(c.last_message, null)}
                     </p>
                     {c.unread_count > 0 && (
                       <Badge variant="default" className="h-5 min-w-[20px] px-1.5 text-[10px] flex-shrink-0">
@@ -235,26 +237,16 @@ export default function WhatsAppPage() {
                   Nenhuma mensagem nesta conversa ainda.
                 </p>
               )}
-              {messages.map((m) => {
-                const outbound = m.direction === "outbound";
-                return (
-                  <div
-                    key={m.id}
-                    className={`max-w-[65%] px-3 py-2 rounded-2xl text-sm shadow-sm ${
-                      outbound
-                        ? "ml-auto bg-primary/20 text-foreground rounded-br-sm"
-                        : "bg-card-elevated text-foreground rounded-bl-sm"
-                    }`}
-                  >
-                    <div className="whitespace-pre-wrap break-words">
-                      {m.content ?? <span className="italic text-muted-foreground">[{m.type}]</span>}
-                    </div>
-                    <div className="text-[10px] opacity-60 mt-1 text-right">
-                      {formatTime(m.created_at)}
-                    </div>
-                  </div>
-                );
-              })}
+              {messages.map((m) => (
+                <WhatsAppMessageBubble
+                  key={m.id}
+                  direction={m.direction}
+                  type={m.type}
+                  content={m.content}
+                  mediaUrl={m.media_url}
+                  createdAt={m.created_at}
+                />
+              ))}
             </div>
 
             <div className="px-5 py-3 border-t border-border/40 bg-card/20 flex gap-2">
