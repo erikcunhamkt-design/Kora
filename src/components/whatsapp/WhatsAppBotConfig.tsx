@@ -20,11 +20,6 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
   const [instruction, setInstruction] = useState("");
   const [model, setModel] = useState("gemini-1.5-flash");
 
-  useEffect(() => {
-    if (!workspaceId) return;
-    loadSettings();
-  }, [workspaceId, loadSettings]);
-
   const loadSettings = useCallback(async () => {
     setLoading(true);
     try {
@@ -51,6 +46,11 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
       setLoading(false);
     }
   }, [workspaceId]);
+
+  useEffect(() => {
+    if (!workspaceId) return;
+    loadSettings();
+  }, [workspaceId, loadSettings]);
 
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();

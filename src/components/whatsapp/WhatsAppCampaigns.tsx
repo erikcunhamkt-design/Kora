@@ -19,11 +19,6 @@ export function WhatsAppCampaigns({ workspaceId }: { workspaceId: string }) {
   const [template, setTemplate] = useState("");
   const [contactsText, setContactsText] = useState(""); // List of phone numbers (comma, semicolon or line separated)
 
-  useEffect(() => {
-    if (!workspaceId) return;
-    loadCampaigns();
-  }, [workspaceId, loadCampaigns]);
-
   const loadCampaigns = useCallback(async () => {
     setLoading(true);
     try {
@@ -40,6 +35,11 @@ export function WhatsAppCampaigns({ workspaceId }: { workspaceId: string }) {
       setLoading(false);
     }
   }, [workspaceId]);
+
+  useEffect(() => {
+    if (!workspaceId) return;
+    loadCampaigns();
+  }, [workspaceId, loadCampaigns]);
 
   const handleCreateCampaign = async (e: React.FormEvent) => {
     e.preventDefault();
