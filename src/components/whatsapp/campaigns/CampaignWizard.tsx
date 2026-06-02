@@ -165,14 +165,14 @@ export function CampaignWizard({ open, workspaceId, onClose, onCreated }: Props)
             </div>
           ) : step === 3 ? (
             <div className="space-y-3">
-              <Label>Selecione um template aprovado*</Label>
-              {approvedTemplates.length === 0 ? (
+              <Label>Selecione um modelo de mensagem ativo*</Label>
+              {activeTemplates.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-8 text-center">
-                  Nenhum template aprovado. Crie e aprove um template na aba Templates.
+                  Nenhum modelo ativo. Crie um modelo na aba Modelos de Mensagem e ative-o.
                 </p>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-72 overflow-y-auto">
-                  {approvedTemplates.map((t) => (
+                  {activeTemplates.map((t) => (
                     <button
                       key={t.id}
                       type="button"
@@ -186,7 +186,7 @@ export function CampaignWizard({ open, workspaceId, onClose, onCreated }: Props)
                       <div className="flex items-center justify-between">
                         <span className="font-medium text-sm">{t.name}</span>
                         <Badge variant="outline" className="text-[10px] bg-success/15 text-success border-success/30">
-                          aprovado
+                          ativo
                         </Badge>
                       </div>
                       <p className="text-[11px] text-muted-foreground mt-2 line-clamp-3 whitespace-pre-wrap font-mono">
@@ -199,8 +199,8 @@ export function CampaignWizard({ open, workspaceId, onClose, onCreated }: Props)
               <div className="rounded-md bg-muted/30 border border-border/40 p-3 text-[11px] flex gap-2 text-muted-foreground">
                 <Lock className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
                 <p>
-                  Texto livre <strong>não é permitido</strong> em campanhas para audiências. Use apenas
-                  templates aprovados pela conta WhatsApp Business conectada.
+                  Texto livre <strong>não é permitido</strong> em campanhas para audiências. Selecione
+                  um modelo de mensagem ativo da biblioteca.
                 </p>
               </div>
             </div>
