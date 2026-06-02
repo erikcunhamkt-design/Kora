@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { MessageCircle, QrCode, Plug, Send, Smartphone, Loader2, RefreshCw, RotateCw } from "lucide-react";
+import { MessageCircle, QrCode, Plug, Send, Smartphone, Loader2, RefreshCw, RotateCw, Download } from "lucide-react";
+import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
