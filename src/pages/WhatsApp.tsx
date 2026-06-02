@@ -60,7 +60,7 @@ type Filter = "all" | "unread" | "open" | "resolved";
 
 export default function WhatsAppPage() {
   const { workspace } = useCurrentWorkspace();
-  const { instance } = useWhatsAppInstance();
+  const { instance, loading: loadingInstance } = useWhatsAppInstance();
   const { conversations, messages, selectedId, setSelectedId, loading, markRead } =
     useWhatsAppConversations(workspace?.id, instance?.id);
 
@@ -157,8 +157,16 @@ export default function WhatsAppPage() {
     return out;
   }, [messages]);
 
+  if (loadingInstance) {
+    return (
+      <div className="flex h-[calc(100vh-8rem)] items-center justify-center text-muted-foreground">
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Verificando conexão do WhatsApp...
+      </div>
+    );
+  }
+
   // ---- Sem instância conectada ----
-  if (!instance) {
+  if (!instance || status !== "connected") {
     return (
       <div className="flex h-[calc(100vh-8rem)] items-center justify-center">
         <WhatsAppEmptyState
