@@ -180,3 +180,61 @@ export async function deleteCampaign(
     .eq("id", campaignId);
   if (error) throw error;
 }
+
+export interface SenderBatchResult {
+  ok: boolean;
+  processed: number;
+  sent: number;
+  failed: number;
+  remaining: number;
+  status: string;
+  errors: string[];
+}
+
+/**
+ * Invoca a edge function whatsapp-campaign-v2-sender para processar UM lote.
+ * O servidor é a única fonte de verdade — valida workspace, template aprovado,
+ * idempotência e bloqueia opt-out/inválidos. Frontend nunca toca em tokens.
+ */
+export async function invokeCampaignSenderBatch(
+  workspaceId: string,
+  campaignId: string,
+  action: "send_batch" | "pause" | "cancel" = "send_batch",
+): Promise<SenderBatchResult> {
+  const { data, error } = await supabase.functions.invoke<SenderBatchResult>(
+    "whatsapp-campaign-v2-sender",
+    { body: { workspaceId, campaignId, action } },
+  );
+  if (error) throw error;
+  if (!data) throw new Error("Resposta vazia do sender.");
+  return data;
+}
+
+export interface CampaignSendLog {
+  id: string;
+  campaign_id: string;
+  recipient_id: string | null;
+  phone: string | null;
+  event: string;
+  message: string | null;
+  provider_message_id: string | null;
+  error_message: string | null;
+  created_at: string;
+}
+
+export async function listCampaignSendLogs(
+  workspaceId: string,
+  campaignId: string,
+  limit = 20,
+): Promise<CampaignSendLog[]> {
+  const { data, error } = await supabase
+    .from("whatsapp_campaign_send_logs")
+    .select("id, campaign_id, recipient_id, phone, event, message, provider_message_id, error_message, created_at")
+    .eq("workspace_id", workspaceId)
+    .eq("campaign_id", campaignId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? []) as CampaignSendLog[];
+}
+
