@@ -20,6 +20,8 @@ export function CampaignsBackendPage() {
   const [campaigns, setCampaigns] = useState<WhatsAppCampaignV2[]>([]);
   const [loading, setLoading] = useState(true);
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [sendDialog, setSendDialog] = useState<WhatsAppCampaignV2 | null>(null);
+  const senderEnabled = isCampaignSenderEnabled();
 
   const load = useMemo(
     () => async () => {
