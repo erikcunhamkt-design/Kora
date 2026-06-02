@@ -218,7 +218,7 @@ Deno.serve(async (req) => {
       // Valida o token consultando /instance/status no servidor informado
       const statusRes = await fetch(`${baseUrl}/instance/status`, {
         method: "GET",
-        headers: { "Content-Type": "application/json", token: importToken },
+        headers: { "Content-Type": "application/json", token: resolvedToken },
       });
       const statusText = await statusRes.text();
       let statusData: unknown = statusText;
@@ -248,7 +248,7 @@ Deno.serve(async (req) => {
         .from("whatsapp_instances")
         .insert({
           workspace_id: workspaceId,
-          instance_token: importToken,
+          instance_token: resolvedToken,
           instance_name: instanceName,
           subdomain: sub,
           status: remoteStatus,
@@ -266,7 +266,7 @@ Deno.serve(async (req) => {
       const webhookUrl = `${SUPABASE_URL}/functions/v1/whatsapp-webhook?secret=${encodeURIComponent(WEBHOOK_SECRET)}&workspace=${workspaceId}`;
       await fetch(`${baseUrl}/webhook`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", token: importToken },
+        headers: { "Content-Type": "application/json", token: resolvedToken },
         body: JSON.stringify({
           webhookURL: webhookUrl,
           url: webhookUrl,
@@ -279,7 +279,7 @@ Deno.serve(async (req) => {
       if (remoteStatus !== "connected") {
         const connectRes = await fetch(`${baseUrl}/instance/connect`, {
           method: "POST",
-          headers: { "Content-Type": "application/json", token: importToken },
+          headers: { "Content-Type": "application/json", token: resolvedToken },
           body: JSON.stringify({}),
         });
         const cText = await connectRes.text();
