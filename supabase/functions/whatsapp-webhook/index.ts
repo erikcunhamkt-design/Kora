@@ -570,6 +570,15 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Map inbound message back to an open campaign recipient as a reply
+    if (!fromMe) {
+      try {
+        await maybeMarkReply(admin, workspaceId, phone);
+      } catch (err) {
+        console.error("[whatsapp-webhook] maybeMarkReply error:", err);
+      }
+    }
+
     // Trigger Gemini bot reply for inbound text messages (fire-and-forget)
     if (!fromMe && (internalKind === "text" || text)) {
       try {
