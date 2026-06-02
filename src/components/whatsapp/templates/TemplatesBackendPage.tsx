@@ -160,35 +160,15 @@ export function TemplatesBackendPage() {
                       >
                         <Edit3 className="h-3 w-3" /> Editar
                       </Button>
-                      {tpl.status !== "pending" && tpl.status !== "approved" && (
+                      {tpl.status !== "approved" && tpl.status !== "paused" && (
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="text-xs h-7"
-                          onClick={() => changeStatus(tpl, "pending")}
+                          className="text-xs h-7 text-success hover:text-success"
+                          onClick={() => changeStatus(tpl, "approved")}
                         >
-                          Enviar para aprovação
+                          Ativar modelo
                         </Button>
-                      )}
-                      {tpl.status === "pending" && (
-                        <>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-xs h-7 text-success hover:text-success"
-                            onClick={() => changeStatus(tpl, "approved")}
-                          >
-                            Marcar aprovado
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-xs h-7 text-destructive hover:text-destructive"
-                            onClick={() => changeStatus(tpl, "rejected")}
-                          >
-                            Reprovar
-                          </Button>
-                        </>
                       )}
                       {tpl.status === "approved" && (
                         <Button
@@ -197,7 +177,17 @@ export function TemplatesBackendPage() {
                           className="text-xs h-7"
                           onClick={() => changeStatus(tpl, "paused")}
                         >
-                          Pausar
+                          Arquivar
+                        </Button>
+                      )}
+                      {tpl.status === "paused" && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-xs h-7"
+                          onClick={() => changeStatus(tpl, "approved")}
+                        >
+                          Reativar
                         </Button>
                       )}
                       <Button
