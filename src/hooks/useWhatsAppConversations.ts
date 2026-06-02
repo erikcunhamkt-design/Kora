@@ -72,29 +72,36 @@ export function useWhatsAppConversations(workspaceId: string | undefined, instan
       return;
     }
     let cancelled = false;
+
+    // 1) Render cached DB messages immediately (fast paint)
     (async () => {
       const { data } = await supabase
         .from("whatsapp_messages")
         .select("*, whatsapp_message_media(*)")
         .eq("conversation_id", selectedId)
-        .order("created_at", { ascending: true });
+        .order("created_at", { ascending: true })
+        .limit(200);
       if (cancelled) return;
-      const list = (data as WAMessage[]) ?? [];
-      setMessages(list);
+      setMessages((data as WAMessage[]) ?? []);
+    })();
 
-      // If no messages cached yet, fetch history from uazapi
-      if (list.length === 0) {
-        try {
-          await supabase.functions.invoke("whatsapp-instance", {
-            body: { action: "load_messages", workspaceId, conversationId: selectedId, limit: 50 },
-          });
-          const { data: after } = await supabase
-            .from("whatsapp_messages")
-            .select("*, whatsapp_message_media(*)")
-            .eq("conversation_id", selectedId)
-            .order("created_at", { ascending: true });
-          if (!cancelled) setMessages((after as WAMessage[]) ?? []);
-        } catch (_e) { /* ignore */ }
+    // 2) Always refresh from provider in background, then re-read DB once.
+    //    This catches missing media URLs and new messages without blocking the UI.
+    (async () => {
+      try {
+        await supabase.functions.invoke("whatsapp-instance", {
+          body: { action: "load_messages", workspaceId, conversationId: selectedId, limit: 50 },
+        });
+        if (cancelled) return;
+        const { data: after } = await supabase
+          .from("whatsapp_messages")
+          .select("*, whatsapp_message_media(*)")
+          .eq("conversation_id", selectedId)
+          .order("created_at", { ascending: true })
+          .limit(200);
+        if (!cancelled) setMessages((after as WAMessage[]) ?? []);
+      } catch (_e) {
+        /* ignore — cached view stays */
       }
     })();
 
@@ -111,6 +118,15 @@ export function useWhatsAppConversations(workspaceId: string | undefined, instan
           });
         },
       )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "whatsapp_messages", filter: `conversation_id=eq.${selectedId}` },
+        (payload) => {
+          setMessages((prev) =>
+            prev.map((m) => (m.id === (payload.new as WAMessage).id ? { ...m, ...(payload.new as WAMessage) } : m)),
+          );
+        },
+      )
       .subscribe();
 
     return () => {
@@ -118,6 +134,7 @@ export function useWhatsAppConversations(workspaceId: string | undefined, instan
       void supabase.removeChannel(channel);
     };
   }, [selectedId, workspaceId]);
+
 
   const markRead = useCallback(async (conversationId: string) => {
     await supabase.from("whatsapp_conversations").update({ unread_count: 0 }).eq("id", conversationId);

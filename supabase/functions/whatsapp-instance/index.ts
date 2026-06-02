@@ -446,57 +446,115 @@ Deno.serve(async (req) => {
           : [];
       console.log("load_messages: received", rawList.length);
 
-      let saved = 0;
-      const errors: string[] = [];
+      // Helper to extract a usable media URL from many shapes uazapi can return.
+      const extractMediaUrl = (m: Record<string, unknown>): string | null => {
+        const direct =
+          (m.mediaUrl as string) ||
+          (m.fileURL as string) ||
+          (m.file_url as string) ||
+          (m.url as string) ||
+          null;
+        if (direct) return direct;
+        const message = (m.message as Record<string, unknown>) || {};
+        const candidates = [
+          (message.imageMessage as Record<string, unknown>)?.url,
+          (message.videoMessage as Record<string, unknown>)?.url,
+          (message.audioMessage as Record<string, unknown>)?.url,
+          (message.documentMessage as Record<string, unknown>)?.url,
+          (message.stickerMessage as Record<string, unknown>)?.url,
+          (m.image as Record<string, unknown>)?.url,
+          (m.video as Record<string, unknown>)?.url,
+          (m.audio as Record<string, unknown>)?.url,
+          (m.document as Record<string, unknown>)?.url,
+        ];
+        for (const c of candidates) {
+          if (typeof c === "string" && c) return c;
+        }
+        return null;
+      };
+
       // Process oldest -> newest
       const ordered = [...rawList].reverse();
+
+      // Build candidate rows + collect ids for one batched dedupe query
+      type Row = {
+        workspace_id: string;
+        instance_id: string;
+        conversation_id: string;
+        wa_message_id: string;
+        direction: string;
+        type: string;
+        content: string | null;
+        media_url: string | null;
+        status: string;
+        created_at: string;
+      };
+      const candidates: Row[] = [];
       for (const m of ordered) {
-        try {
-          const waId = (m.messageid as string) || (m.id as string) || (m.key_id as string) || null;
-          if (!waId) continue;
-          const { data: dup } = await admin
-            .from("whatsapp_messages")
-            .select("id")
-            .eq("conversation_id", conversationId)
-            .eq("wa_message_id", waId)
-            .maybeSingle();
-          if (dup) continue;
+        const waId =
+          (m.messageid as string) ||
+          (m.id as string) ||
+          (m.key_id as string) ||
+          null;
+        if (!waId) continue;
+        const fromMe = Boolean(m.fromMe ?? m.fromme ?? m.key_fromMe);
+        const direction = fromMe ? "outbound" : "inbound";
+        const type = (m.messageType as string) || (m.type as string) || "text";
+        const content =
+          (m.text as string) ||
+          (m.content as string) ||
+          (m.body as string) ||
+          (m.caption as string) ||
+          null;
+        const mediaUrl = extractMediaUrl(m);
+        const rawTs = Number(m.messageTimestamp ?? m.timestamp ?? 0);
+        const tsMs = rawTs > 1e12 ? rawTs : rawTs * 1000;
+        const createdAt = tsMs ? new Date(tsMs).toISOString() : new Date().toISOString();
+        candidates.push({
+          workspace_id: workspaceId,
+          instance_id: existing.id,
+          conversation_id: conversationId,
+          wa_message_id: waId,
+          direction,
+          type,
+          content,
+          media_url: mediaUrl,
+          status: "sent",
+          created_at: createdAt,
+        });
+      }
 
-          const fromMe = Boolean(m.fromMe ?? m.fromme ?? m.key_fromMe);
-          const direction = fromMe ? "outbound" : "inbound";
-          const type = (m.messageType as string) || (m.type as string) || "text";
-          const content = (m.text as string)
-            || (m.content as string)
-            || (m.body as string)
-            || (m.caption as string)
-            || null;
-          const mediaUrl = (m.mediaUrl as string) || (m.fileURL as string) || null;
-          const rawTs = Number(m.messageTimestamp ?? m.timestamp ?? 0);
-          const tsMs = rawTs > 1e12 ? rawTs : rawTs * 1000;
-          const createdAt = tsMs ? new Date(tsMs).toISOString() : new Date().toISOString();
-
-          const { error: insErr } = await admin.from("whatsapp_messages").insert({
-            workspace_id: workspaceId,
-            instance_id: existing.id,
-            conversation_id: conversationId,
-            wa_message_id: waId,
-            direction,
-            type,
-            content,
-            media_url: mediaUrl,
-            status: "sent",
-            created_at: createdAt,
-          });
-          if (insErr) throw insErr;
-          saved++;
-        } catch (err) {
-          const msg = (err as Error).message ?? String(err);
-          console.error("load_messages msg error", msg);
-          errors.push(msg);
+      let saved = 0;
+      const errors: string[] = [];
+      if (candidates.length > 0) {
+        const ids = candidates.map((c) => c.wa_message_id);
+        const { data: dup } = await admin
+          .from("whatsapp_messages")
+          .select("wa_message_id")
+          .eq("conversation_id", conversationId)
+          .in("wa_message_id", ids);
+        const existingIds = new Set((dup ?? []).map((d: { wa_message_id: string }) => d.wa_message_id));
+        const toInsert = candidates.filter((c) => !existingIds.has(c.wa_message_id));
+        if (toInsert.length > 0) {
+          // Chunked bulk insert to avoid payload limits
+          const CHUNK = 200;
+          for (let i = 0; i < toInsert.length; i += CHUNK) {
+            const slice = toInsert.slice(i, i + CHUNK);
+            const { error: insErr, count } = await admin
+              .from("whatsapp_messages")
+              .insert(slice, { count: "exact" });
+            if (insErr) {
+              console.error("load_messages bulk insert error", insErr.message);
+              errors.push(insErr.message);
+            } else {
+              saved += count ?? slice.length;
+            }
+          }
         }
       }
       return json({ ok: true, total: rawList.length, saved, errors: errors.slice(0, 5) });
     }
+
 
     if (action === "send") {
       if (!existing) return json({ error: "Instance not found" }, 404);
