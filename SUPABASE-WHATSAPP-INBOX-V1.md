@@ -60,3 +60,26 @@ Na presente etapa, garantimos o suporte nativo e tratamento seguro das mensagens
 ## 5. Limitações Atuais e Próximos Passos
 * **Limitação de URLs Temporárias**: As URLs de mídias enviadas pela API do WhatsApp são temporárias e expiram após algumas horas.
 * **Próximo Passo Recomendado**: Implementar o **Supabase Media Storage V1**, que fará o download físico dessas mídias no Supabase Storage Bucket do cliente assim que o webhook for recebido, gerando um link permanente e seguro para a Inbox.
+
+---
+
+## 6. QA e Deploy — Stickers e Mídia Real V1
+
+### Status da Migração de Banco de Dados
+* **Segura**: Sim. Não contém comandos destrutivos como `DROP` ou `TRUNCATE`. Utiliza `ADD COLUMN IF NOT EXISTS` e `CREATE TABLE IF NOT EXISTS`.
+* **Aplicação Remota**: Pendente de execução manual pelo usuário ou automação via Lovable através do script `supabase/migrations/20260602030000_whatsapp_media.sql` no SQL Editor.
+* **Tabela no Remoto**: Criada assim que o script SQL for executado.
+
+### Status das Edge Functions
+* **whatsapp-webhook**: Atualizada e pronta localmente. Pendente de deploy remoto pelo comando `npx supabase functions deploy whatsapp-webhook`.
+* **whatsapp-instance**: Pronta localmente. Pendente de deploy remoto pelo comando `npx supabase functions deploy whatsapp-instance`.
+
+### Teste de Payloads e Mídias
+* **Tipos Normalizados**: `text`, `image`, `audio`, `video`, `document` e `sticker` (para figurinhas WebP).
+* **Tratamento de Erros e Expiração**: A UI foi protegida contra URLs ausentes ou expiradas, exibindo fallbacks visuais elegantes e seguros (ex: ícone de arquivo com nome ou descrição amigável de erro).
+* **JSON Bruto**: Totalmente eliminado da UI do chat e do preview lateral de conversas.
+* **Segurança**: Chaves e tokens da Meta/uazapi são confidenciais e nunca expostos no frontend; todas as consultas utilizam RLS associado ao ID do Workspace ativo.
+
+### Relatório de Compilação e Código
+* **Erros TypeScript**: 0 erros (`npx tsc --noEmit` executado com sucesso).
+* **Análise de Lint**: 37 erros / 25 warnings (estritamente de arquivos legados de outros módulos do projeto, sem qualquer regressão ou introdução de novos warnings no escopo do WhatsApp e sem uso de declarações `any` no novo código).
