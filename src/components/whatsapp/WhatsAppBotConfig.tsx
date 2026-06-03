@@ -107,11 +107,6 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
 
   const handleModelChange = (val: string) => {
     setModel(val);
-    if (val === "custom") {
-      setIsCustomModel(true);
-    } else {
-      setIsCustomModel(false);
-    }
   };
 
   const handleSaveSettings = async (e: React.FormEvent) => {
