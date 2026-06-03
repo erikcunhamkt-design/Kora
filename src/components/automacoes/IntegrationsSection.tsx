@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { useIntegrations } from "@/hooks/useIntegrations";
 import { useWhatsAppInstance } from "@/hooks/useWhatsAppInstance";
 import { WhatsAppConnectionCard } from "@/components/automacoes/WhatsAppConnectionCard";
+import { VertexAIConnectionCard } from "@/components/automacoes/VertexAIConnectionCard";
 
 export function IntegrationsSection() {
   const { items, toggleConnection } = useIntegrations();
