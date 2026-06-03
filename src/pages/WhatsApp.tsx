@@ -557,16 +557,10 @@ export default function WhatsAppPage() {
                         : `Status: ${status}`}
                     </p>
                   </div>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={handleSync}
-                    disabled={syncing || status !== "connected"}
-                    title="Sincronizar"
-                    className="h-8 w-8 flex-shrink-0"
-                  >
-                    {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCw className="h-4 w-4" />}
-                  </Button>
+                  <Badge variant="outline" className="h-7 px-2 text-[10px] gap-1 flex-shrink-0">
+                    {syncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCw className="h-3 w-3" />}
+                    Tempo real
+                  </Badge>
                 </div>
 
                 <div className="relative">
