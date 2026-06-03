@@ -46,14 +46,27 @@ function detectTypeIcon(text: string | null) {
   return null;
 }
 
+function formatWaiting(iso: string | null) {
+  if (!iso) return "";
+  const diffMin = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
+  if (diffMin < 1) return "agora";
+  if (diffMin < 60) return `${diffMin}min`;
+  const h = Math.floor(diffMin / 60);
+  if (h < 24) return `${h}h`;
+  const d = Math.floor(h / 24);
+  return `${d}d`;
+}
+
 export function WhatsAppConversationItem({
   conversation,
   active,
   onClick,
+  showWaitingTime = false,
 }: {
   conversation: WAConvLike;
   active: boolean;
   onClick: () => void;
+  showWaitingTime?: boolean;
 }) {
   const c = conversation;
   const preview = formatMessagePreview(c.last_message, null);
