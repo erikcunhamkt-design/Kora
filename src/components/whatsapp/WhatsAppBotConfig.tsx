@@ -181,7 +181,7 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
     setSimulating(true);
 
     try {
-      const activeModelName = isCustomModel ? customModelName : model;
+      const activeModelName = model;
       
       // Call the edge function in test mode
       const { data, error } = await supabase.functions.invoke("whatsapp-bot-reply", {
