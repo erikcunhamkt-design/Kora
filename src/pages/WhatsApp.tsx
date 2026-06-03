@@ -538,7 +538,16 @@ export default function WhatsAppPage() {
                       </p>
                     </div>
                     <div className="flex items-center gap-0.5 flex-shrink-0">
-                      <Button size="icon" variant="ghost" className="h-8 w-8 hidden sm:inline-flex" title="Buscar na conversa" disabled>
+                      <Button
+                        size="icon"
+                        variant={searchOpen ? "secondary" : "ghost"}
+                        className="h-8 w-8 hidden sm:inline-flex"
+                        title="Buscar na conversa"
+                        onClick={() => {
+                          setSearchOpen((s) => !s);
+                          if (searchOpen) setMsgQuery("");
+                        }}
+                      >
                         <Search className="h-4 w-4" />
                       </Button>
                       {/* Desktop toggle: inline panel */}
@@ -563,14 +572,75 @@ export default function WhatsAppPage() {
                       >
                         <PanelRightOpen className="h-4 w-4" />
                       </Button>
-                      <Button size="icon" variant="ghost" className="h-8 w-8" title="Mais" disabled>
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button size="icon" variant="ghost" className="h-8 w-8" title="Mais opções">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-52">
+                          <DropdownMenuLabel className="flex items-center gap-2 text-xs">
+                            <Rows3 className="h-3.5 w-3.5" /> Densidade das mensagens
+                          </DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          {(["compact", "normal", "comfortable"] as const).map((d) => (
+                            <DropdownMenuItem
+                              key={d}
+                              onClick={() => setDensity(d)}
+                              className="text-xs justify-between"
+                            >
+                              <span className="capitalize">
+                                {d === "compact" ? "Compacta" : d === "normal" ? "Normal" : "Confortável"}
+                              </span>
+                              {density === d && <Check className="h-3.5 w-3.5 text-primary" />}
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </header>
 
+                  {/* In-conversation search bar */}
+                  {searchOpen && (
+                    <div className="px-4 md:px-5 py-2 border-b border-border/40 bg-card/20 flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <Search className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                          autoFocus
+                          value={msgQuery}
+                          onChange={(e) => setMsgQuery(e.target.value)}
+                          placeholder="Buscar nesta conversa..."
+                          className="pl-9 h-8 text-sm bg-background/60 border-border/50"
+                          onKeyDown={(e) => {
+                            if (e.key === "Escape") {
+                              setSearchOpen(false);
+                              setMsgQuery("");
+                            }
+                          }}
+                        />
+                      </div>
+                      <span className="text-[11px] text-muted-foreground whitespace-nowrap">
+                        {msgQuery.trim()
+                          ? `${visibleMessages.length} resultado${visibleMessages.length === 1 ? "" : "s"}`
+                          : `${messages.length} msgs`}
+                      </span>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7"
+                        onClick={() => {
+                          setSearchOpen(false);
+                          setMsgQuery("");
+                        }}
+                        title="Fechar busca"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  )}
+
                   {/* Mensagens */}
-                  <div className="flex-1 overflow-y-auto px-3 md:px-6 py-4 md:py-5 space-y-2.5">
+                  <div className={cn("flex-1 overflow-y-auto", densityCfg.px, densityCfg.py, densityCfg.gap)}>
                     {messages.length === 0 && (
                       <div className="flex h-full items-center justify-center">
                         <WhatsAppEmptyState
@@ -578,6 +648,13 @@ export default function WhatsAppPage() {
                           title="Sem mensagens ainda"
                           description="Quando esta conversa receber ou enviar mensagens, elas aparecerão aqui."
                         />
+                      </div>
+                    )}
+                    {messages.length > 0 && grouped.length === 0 && msgQuery.trim() && (
+                      <div className="flex h-full items-center justify-center">
+                        <p className="text-xs text-muted-foreground">
+                          Nenhuma mensagem encontrada para "{msgQuery}".
+                        </p>
                       </div>
                     )}
                     {grouped.map((item, idx) =>
@@ -602,6 +679,8 @@ export default function WhatsAppPage() {
                       ),
                     )}
                   </div>
+
+
 
                   {/* Input */}
                   <WhatsAppChatInput
