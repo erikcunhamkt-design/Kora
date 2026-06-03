@@ -89,7 +89,7 @@ export function useVertexCredentials() {
         };
         const { error } = await supabase
           .from("workspace_ai_credentials")
-          .upsert(payload, { onConflict: "workspace_id,provider" });
+          .upsert([payload], { onConflict: "workspace_id,provider" });
         if (error) throw error;
         await refresh();
       } finally {
