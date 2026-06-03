@@ -151,7 +151,7 @@ Deno.serve(async (req) => {
           webhookURL: webhookUrl,
           url: webhookUrl,
           enabled: true,
-          events: ["messages", "messages_update", "connection"],
+          addUrlEvents: true, events: ["messages", "messages_update", "connection", "chats", "contacts", "presence"],
         },
       }).catch(() => null);
 
@@ -312,7 +312,7 @@ Deno.serve(async (req) => {
           webhookURL: webhookUrl,
           url: webhookUrl,
           enabled: true,
-          events: ["messages", "messages_update", "connection"],
+          addUrlEvents: true, events: ["messages", "messages_update", "connection", "chats", "contacts", "presence"],
         }),
       }).catch(() => null);
 
