@@ -56,14 +56,11 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
         setIsActive(data.is_active || false);
         setInstruction(data.system_instruction || "");
         
-        const dbModel = data.model_name || "gemini-1.5-flash";
-        if (["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash"].includes(dbModel)) {
+        const dbModel = data.model_name || "gemini-2.5-flash";
+        if (["gemini-2.5-flash", "gemini-2.5-pro"].includes(dbModel)) {
           setModel(dbModel);
-          setIsCustomModel(false);
         } else {
-          setModel("custom");
-          setIsCustomModel(true);
-          setCustomModelName(dbModel);
+          setModel("gemini-2.5-flash");
         }
 
         setProvider((data as any).provider || "lovable");
