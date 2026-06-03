@@ -117,7 +117,6 @@ Deno.serve(async (req) => {
     }
 
 
-    }
 
     const { data: history } = await admin
       .from("whatsapp_messages")
