@@ -358,6 +358,82 @@ export default function WhatsAppPage() {
     }
   };
 
+  // ---- Phase 4: conversation actions ----
+  const handleArchive = async (conversationId: string, archived: boolean) => {
+    if (!workspace) return;
+    try {
+      const { error } = await supabase.functions.invoke("whatsapp-instance", {
+        body: { action: "archive_conversation", workspaceId: workspace.id, conversationId, archived },
+      });
+      if (error) throw error;
+      toast.success(archived ? "Conversa arquivada" : "Conversa desarquivada");
+    } catch (e) {
+      toast.error("Falha", { description: (e as Error).message });
+    }
+  };
+
+  const handleMarkUnread = async (conversationId: string, unread: boolean) => {
+    if (!workspace) return;
+    try {
+      const { error } = await supabase.functions.invoke("whatsapp-instance", {
+        body: { action: "mark_unread", workspaceId: workspace.id, conversationId, unread },
+      });
+      if (error) throw error;
+    } catch (e) {
+      toast.error("Falha", { description: (e as Error).message });
+    }
+  };
+
+  const handleAssign = async (conversationId: string, userId: string | null) => {
+    if (!workspace) return;
+    try {
+      const { error } = await supabase.functions.invoke("whatsapp-instance", {
+        body: { action: "assign_conversation", workspaceId: workspace.id, conversationId, userId },
+      });
+      if (error) throw error;
+      toast.success(userId ? "Conversa atribuída" : "Atribuição removida");
+    } catch (e) {
+      toast.error("Falha", { description: (e as Error).message });
+    }
+  };
+
+  const handleUpdateTags = async (conversationId: string, tags: string[]) => {
+    if (!workspace) return;
+    try {
+      const { error } = await supabase.functions.invoke("whatsapp-instance", {
+        body: { action: "update_conversation_tags", workspaceId: workspace.id, conversationId, tags },
+      });
+      if (error) throw error;
+      toast.success("Tags atualizadas");
+    } catch (e) {
+      toast.error("Falha", { description: (e as Error).message });
+    }
+  };
+
+  const handleForward = async () => {
+    if (!forwardMessageId || !forwardTargetId || !workspace) return;
+    setForwarding(true);
+    try {
+      const { error } = await supabase.functions.invoke("whatsapp-instance", {
+        body: {
+          action: "forward_message",
+          workspaceId: workspace.id,
+          messageId: forwardMessageId,
+          targetConversationId: forwardTargetId,
+        },
+      });
+      if (error) throw error;
+      toast.success("Mensagem encaminhada");
+      setForwardOpen(false);
+      setForwardMessageId(null);
+      setForwardTargetId(null);
+    } catch (e) {
+      toast.error("Falha ao encaminhar", { description: (e as Error).message });
+    } finally {
+      setForwarding(false);
+    }
+  };
+
   // Group messages by day for separators (+ in-conversation search filter)
   const visibleMessages = useMemo(() => {
     const q = msgQuery.trim().toLowerCase();
