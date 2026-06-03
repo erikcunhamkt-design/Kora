@@ -19,6 +19,7 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
 
   // Form states
   const [isActive, setIsActive] = useState(false);
+  const [respondAll, setRespondAll] = useState(false);
   const [instruction, setInstruction] = useState("");
   const [model, setModel] = useState("gemini-1.5-flash");
 
