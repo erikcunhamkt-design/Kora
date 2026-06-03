@@ -296,7 +296,7 @@ Deno.serve(async (req) => {
         };
       }
 
-      const aiRes = await fetch(vertexUrl, {
+      let aiRes = await fetch(vertexUrl, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`,
@@ -307,12 +307,36 @@ Deno.serve(async (req) => {
 
       if (!aiRes.ok) {
         const detail = await aiRes.text();
-        console.error("[bot-reply] Vertex AI API error", aiRes.status, detail);
-        throw new Error(`Vertex AI API retornou status ${aiRes.status}: ${detail}`);
-      }
+        console.warn("[bot-reply] Vertex AI API failed, attempting fallback to Generative Language API...", aiRes.status, detail);
+        
+        // Clean the model name for AI Studio if it was mapped
+        let fallbackModel = rawModel;
+        if (fallbackModel.endsWith("-002") || fallbackModel.endsWith("-001")) {
+          fallbackModel = fallbackModel.substring(0, fallbackModel.length - 4);
+        }
 
-      const aiData = await aiRes.json();
-      reply = aiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
+        const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/${fallbackModel}:generateContent`;
+        const fallbackRes = await fetch(fallbackUrl, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(bodyPayload),
+        });
+
+        if (!fallbackRes.ok) {
+          const fallbackDetail = await fallbackRes.text();
+          console.error("[bot-reply] Fallback Generative Language API failed as well:", fallbackRes.status, fallbackDetail);
+          throw new Error(`Vertex AI falhou (${aiRes.status}: ${detail}) e Generative Language API falhou (${fallbackRes.status}: ${fallbackDetail})`);
+        }
+
+        const aiData = await fallbackRes.json();
+        reply = aiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
+      } else {
+        const aiData = await aiRes.json();
+        reply = aiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
+      }
     } else if (provider === "gemini_api_key" && GEMINI_API_KEY) {
       // 2. Google AI Studio (Gemini) Mode
       console.log(`[bot-reply] Using Gemini AI Studio mode with model: ${rawModel}`);
