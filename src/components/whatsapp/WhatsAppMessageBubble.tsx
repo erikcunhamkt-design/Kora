@@ -216,6 +216,16 @@ export function WhatsAppMessageBubble({
           <Reply className="h-3.5 w-3.5" />
         </button>
       )}
+      {onForward && (
+        <button
+          type="button"
+          onClick={() => onForward(id)}
+          className="h-6 w-6 rounded-full hover:bg-muted/50 flex items-center justify-center"
+          title="Encaminhar"
+        >
+          <Forward className="h-3.5 w-3.5" />
+        </button>
+      )}
       <button
         type="button"
         disabled={busy}
@@ -227,6 +237,35 @@ export function WhatsAppMessageBubble({
           ? <PinOff className="h-3.5 w-3.5 text-primary" />
           : <Pin className="h-3.5 w-3.5" />}
       </button>
+      {onDelete && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="h-6 w-6 rounded-full hover:bg-destructive/10 flex items-center justify-center text-muted-foreground hover:text-destructive"
+              title="Excluir"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side="top" align={outbound ? "end" : "start"}>
+            <DropdownMenuItem
+              onClick={() => onDelete(id)}
+              className="text-destructive focus:text-destructive focus:bg-destructive/10"
+            >
+              <Trash2 className="h-3.5 w-3.5 mr-2" /> Excluir para mim
+            </DropdownMenuItem>
+            {outbound && (
+              <DropdownMenuItem
+                onClick={() => onDelete(id)}
+                className="text-destructive focus:text-destructive focus:bg-destructive/10"
+              >
+                <Trash2 className="h-3.5 w-3.5 mr-2" /> Excluir para todos
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
     </div>
   );
 
