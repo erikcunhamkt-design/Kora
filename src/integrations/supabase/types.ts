@@ -1877,7 +1877,9 @@ export type Database = {
       workspace_ai_credentials: {
         Row: {
           created_at: string
+          credentials_client_email: string | null
           credentials_json: Json
+          credentials_project_id: string | null
           default_model: string
           id: string
           is_active: boolean
@@ -1888,7 +1890,9 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          credentials_client_email?: string | null
           credentials_json: Json
+          credentials_project_id?: string | null
           default_model?: string
           id?: string
           is_active?: boolean
@@ -1899,7 +1903,9 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          credentials_client_email?: string | null
           credentials_json?: Json
+          credentials_project_id?: string | null
           default_model?: string
           id?: string
           is_active?: boolean
@@ -1997,7 +2003,12 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      is_workspace_admin: { Args: { w_id: string }; Returns: boolean }
       is_workspace_member: { Args: { w_id: string }; Returns: boolean }
+      workspace_id_from_realtime_topic: {
+        Args: { topic: string }
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never
