@@ -314,9 +314,20 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="gemini-1.5-flash">Gemini 1.5 Flash (Recomendado)</SelectItem>
-                    <SelectItem value="gemini-1.5-pro">Gemini 1.5 Pro (Avançado)</SelectItem>
-                    <SelectItem value="gemini-2.0-flash">Gemini 2.0 Flash (Mais rápido)</SelectItem>
+                    {provider === "vertex_ai" ? (
+                      <>
+                        <SelectItem value="gemini-1.5-flash-002">Gemini 1.5 Flash (002)</SelectItem>
+                        <SelectItem value="gemini-1.5-pro-002">Gemini 1.5 Pro (002)</SelectItem>
+                        <SelectItem value="gemini-1.5-flash-001">Gemini 1.5 Flash (001)</SelectItem>
+                        <SelectItem value="gemini-1.5-pro-001">Gemini 1.5 Pro (001)</SelectItem>
+                      </>
+                    ) : (
+                      <>
+                        <SelectItem value="gemini-1.5-flash">Gemini 1.5 Flash (Recomendado)</SelectItem>
+                        <SelectItem value="gemini-1.5-pro">Gemini 1.5 Pro (Avançado)</SelectItem>
+                        <SelectItem value="gemini-2.0-flash">Gemini 2.0 Flash (Mais rápido)</SelectItem>
+                      </>
+                    )}
                     <SelectItem value="custom">Outro Modelo (Digitar ID)</SelectItem>
                   </SelectContent>
                 </Select>

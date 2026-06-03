@@ -274,7 +274,14 @@ Deno.serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY") || null;
 
     let reply = "";
-    const rawModel = modelName.replace(/^google\//i, "");
+    let rawModel = modelName.replace(/^google\//i, "");
+
+    // Auto-map model names for Vertex AI if standard AI Studio names are used
+    if (provider === "vertex_ai") {
+      if (rawModel === "gemini-1.5-flash") rawModel = "gemini-1.5-flash-002";
+      else if (rawModel === "gemini-1.5-pro") rawModel = "gemini-1.5-pro-002";
+      else if (rawModel === "gemini-2.0-flash") rawModel = "gemini-2.0-flash-001";
+    }
 
     if (provider === "vertex_ai" && GCP_SERVICE_ACCOUNT && GCP_PROJECT_ID) {
       // 1. Google Cloud Vertex AI Mode
