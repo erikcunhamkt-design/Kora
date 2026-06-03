@@ -62,7 +62,7 @@ export function GreetingHero() {
   } else if (settings.anxiety) {
     subtext = "O dia está correndo bem. Faça as suas atividades no seu ritmo, sem nenhuma pressão.";
   } else if (settings.autism) {
-    const totalCount = counts.critical + counts.high + counts.medium + counts.low;
+    const totalCount = counts.critical + counts.high + ((counts as { medium?: number }).medium ?? 0) + ((counts as { low?: number }).low ?? 0);
     subtext = `Você possui ${totalCount} ações cadastradas na sua central de atividades de hoje.`;
   } else if (counts.critical > 0) {
     subtext = "Existe uma prioridade crítica pedindo atenção agora.";

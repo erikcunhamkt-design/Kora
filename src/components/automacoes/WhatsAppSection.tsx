@@ -1,15 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
-import { MessageCircle, QrCode, Plug, Send, Smartphone, Loader2, RefreshCw, RotateCw } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Loader2, MessageCircle, Send } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { useWhatsAppInstance } from "@/hooks/useWhatsAppInstance";
 import { useWhatsAppConversations } from "@/hooks/useWhatsAppConversations";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { supabase } from "@/integrations/supabase/client";
+import { WhatsAppConnectionCard } from "@/components/automacoes/WhatsAppConnectionCard";
 
 function formatTime(iso: string | null) {
   if (!iso) return "";
@@ -20,7 +20,7 @@ function formatTime(iso: string | null) {
 
 export function WhatsAppSection() {
   const { workspace } = useCurrentWorkspace();
-  const { instance, loading: loadingInstance, busy, connect, disconnect, refreshStatus } = useWhatsAppInstance();
+  const { instance, loading: loadingInstance, busy, connect, disconnect, removeInstance, refreshStatus, importInstance } = useWhatsAppInstance();
   const { conversations, messages, selectedId, setSelectedId, loading: loadingConv, markRead } = useWhatsAppConversations(
     workspace?.id,
     instance?.id,
@@ -28,32 +28,15 @@ export function WhatsAppSection() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [qrOpen, setQrOpen] = useState(false);
 
   const status = instance?.status ?? "disconnected";
-  const qrCode = instance?.qr_code ?? null;
   const selected = useMemo(() => conversations.find((c) => c.id === selectedId) ?? null, [conversations, selectedId]);
 
   useEffect(() => {
     if (selectedId) void markRead(selectedId);
   }, [selectedId, markRead]);
 
-  const handleConnect = async () => {
-    try {
-      await connect();
-      setQrOpen(true);
-      toast.success("Instância criada. Escaneie o QR Code.");
-    } catch (e) {
-      toast.error("Falha ao conectar", { description: (e as Error).message });
-    }
-  };
-
-  const handleDisconnect = async () => {
-    try { await disconnect(); toast.success("WhatsApp desconectado"); }
-    catch (e) { toast.error("Falha ao desconectar", { description: (e as Error).message }); }
-  };
-
-  const handleSync = async () => {
+  const handleSync = async (silent = false) => {
     if (!workspace) return;
     setSyncing(true);
     try {
@@ -62,11 +45,35 @@ export function WhatsAppSection() {
       });
       if (error) throw error;
       if ((data as { error?: string })?.error) throw new Error((data as { error: string }).error);
-      toast.success(`Sincronizado: ${(data as { synced: number }).synced} conversas`);
+      if (!silent) toast.success(`Sincronizado: ${(data as { synced: number }).synced} conversas`);
     } catch (e) {
-      toast.error("Falha ao sincronizar", { description: (e as Error).message });
+      if (!silent) toast.error("Falha ao sincronizar", { description: (e as Error).message });
     } finally { setSyncing(false); }
   };
+
+  // Auto-sync every 30s while connected and tab visible (silent)
+  useEffect(() => {
+    if (!workspace || !instance || status !== "connected") return;
+    void handleSync(true);
+    const tick = () => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      void handleSync(true);
+    };
+    const id = window.setInterval(tick, 30000);
+    return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspace, instance, status]);
+
+  // Register uazapi webhook once when connected so the bot receives messages.
+  const webhookRegisteredRef = useRef(false);
+  useEffect(() => {
+    if (webhookRegisteredRef.current) return;
+    if (!workspace || !instance || status !== "connected") return;
+    webhookRegisteredRef.current = true;
+    void supabase.functions
+      .invoke("whatsapp-instance", { body: { action: "set_webhook", workspaceId: workspace.id } })
+      .catch(() => { webhookRegisteredRef.current = false; });
+  }, [workspace, instance, status]);
 
   const handleSend = async () => {
     if (!input.trim() || !selectedId || !workspace) return;
@@ -87,47 +94,16 @@ export function WhatsAppSection() {
 
   return (
     <div className="space-y-6">
-      <Card className="p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-emerald-500/15 text-emerald-400 flex items-center justify-center"><Smartphone className="h-5 w-5" /></div>
-            <div>
-              <h3 className="font-semibold flex items-center gap-2">
-                Conexão WhatsApp
-                <Badge variant="outline" className="text-[10px]">uazapi</Badge>
-              </h3>
-              <p className="text-xs text-muted-foreground">
-                {status === "connected" && `Conectado: ${instance?.phone_name ?? instance?.phone ?? "WhatsApp"}`}
-                {status === "connecting" && "Aguardando leitura do QR Code..."}
-                {status === "disconnected" && "Desconectado"}
-              </p>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            {status === "connected" && (
-              <Button variant="outline" onClick={handleSync} disabled={syncing}>
-                {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCw className="h-4 w-4" />}
-                Sincronizar conversas
-              </Button>
-            )}
-            {status === "connected" ? (
-              <Button variant="outline" onClick={handleDisconnect} disabled={busy}>Desconectar</Button>
-            ) : (
-              <>
-                {instance && (
-                  <Button variant="outline" onClick={() => setQrOpen(true)} disabled={busy}>
-                    <QrCode className="h-4 w-4" /> Ver QR
-                  </Button>
-                )}
-                <Button onClick={handleConnect} disabled={busy || loadingInstance}>
-                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plug className="h-4 w-4" />}
-                  {instance ? "Reconectar" : "Conectar WhatsApp"}
-                </Button>
-              </>
-            )}
-          </div>
-        </div>
-      </Card>
+      <WhatsAppConnectionCard
+        instance={instance}
+        loading={loadingInstance}
+        busy={busy}
+        connect={connect}
+        disconnect={disconnect}
+        removeInstance={removeInstance}
+        refreshStatus={refreshStatus}
+        importInstance={importInstance}
+      />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold">Conversas</h2>
@@ -146,7 +122,7 @@ export function WhatsAppSection() {
           {!loadingConv && conversations.length === 0 && (
             <div className="p-4 text-xs text-muted-foreground">
               {status === "connected"
-                ? "Nenhuma conversa ainda. Clique em 'Sincronizar conversas' ou envie/receba uma mensagem."
+                ? "Sincronizando automaticamente... Envie ou receba uma mensagem para começar."
                 : "Conecte o WhatsApp para ver as conversas."}
             </div>
           )}
@@ -211,39 +187,6 @@ export function WhatsAppSection() {
           )}
         </div>
       </Card>
-
-      <Dialog open={qrOpen} onOpenChange={setQrOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Conectar WhatsApp</DialogTitle>
-            <DialogDescription>
-              Abra o WhatsApp no celular → Configurações → Aparelhos conectados → Conectar um aparelho.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col items-center gap-3 py-2">
-            {qrCode ? (
-              <img
-                src={qrCode.startsWith("data:") ? qrCode : `data:image/png;base64,${qrCode}`}
-                alt="QR Code WhatsApp"
-                className="h-64 w-64 rounded-lg bg-white p-2"
-              />
-            ) : (
-              <div className="h-64 w-64 bg-muted/40 rounded-lg flex items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              </div>
-            )}
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Badge variant="secondary">{status}</Badge>
-              <Button size="sm" variant="ghost" onClick={() => refreshStatus()}>
-                <RefreshCw className="h-3 w-3" /> Atualizar
-              </Button>
-            </div>
-            {status === "connected" && (
-              <p className="text-xs text-emerald-400">Conectado com sucesso!</p>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

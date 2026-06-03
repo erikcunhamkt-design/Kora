@@ -4,9 +4,14 @@ import { Badge } from "@/components/ui/badge";
 import { Plug, Check, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { useIntegrations } from "@/hooks/useIntegrations";
+import { useWhatsAppInstance } from "@/hooks/useWhatsAppInstance";
+import { WhatsAppConnectionCard } from "@/components/automacoes/WhatsAppConnectionCard";
+import { VertexAIConnectionCard } from "@/components/automacoes/VertexAIConnectionCard";
 
 export function IntegrationsSection() {
   const { items, toggleConnection } = useIntegrations();
+  const { instance, loading, busy, connect, disconnect, removeInstance, refreshStatus, importInstance } = useWhatsAppInstance();
+  const visibleItems = items.filter((i) => i.id !== "whatsapp");
 
   const handle = (id: string, status: string) => {
     if (status === "coming_soon") return toast.info("Em breve");
@@ -16,16 +21,32 @@ export function IntegrationsSection() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-lg font-semibold">Integrações</h2>
+      <div>
+        <h2 className="text-lg font-semibold">Integrações</h2>
+        <p className="text-sm text-muted-foreground">
+          Conecte sua IA própria (Vertex AI), o WhatsApp do atendimento e demais ferramentas externas.
+        </p>
+      </div>
+      <VertexAIConnectionCard />
+      <WhatsAppConnectionCard
+        instance={instance}
+        loading={loading}
+        busy={busy}
+        connect={connect}
+        disconnect={disconnect}
+        removeInstance={removeInstance}
+        refreshStatus={refreshStatus}
+        importInstance={importInstance}
+      />
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {items.map((i) => (
+        {visibleItems.map((i) => (
           <Card key={i.id} className="p-5 space-y-3">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <h3 className="font-semibold truncate">{i.name}</h3>
                 <p className="text-xs text-muted-foreground">{i.category}</p>
               </div>
-              {i.status === "connected" && <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30"><Check className="h-3 w-3" /> Conectado</Badge>}
+              {i.status === "connected" && <Badge className="bg-success/15 text-success border-success/30"><Check className="h-3 w-3" /> Conectado</Badge>}
               {i.status === "disconnected" && <Badge variant="outline">Desconectado</Badge>}
               {i.status === "coming_soon" && <Badge variant="secondary"><Clock className="h-3 w-3" /> Em breve</Badge>}
             </div>

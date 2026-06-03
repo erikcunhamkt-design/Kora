@@ -38,7 +38,9 @@ export function useWhatsAppInstance() {
     setLoading(true);
     const { data } = await supabase
       .from("whatsapp_instances")
-      .select("*")
+      .select(
+        "id, workspace_id, status, phone, phone_name, qr_code, connected_at, last_status_at, created_at, updated_at",
+      )
       .eq("workspace_id", workspace.id)
       .maybeSingle();
     setInstance((data as WhatsAppInstance | null) ?? null);
@@ -96,5 +98,38 @@ export function useWhatsAppInstance() {
     } finally { setBusy(false); }
   }, [workspace, stopPolling]);
 
-  return { instance, loading, busy, connect, disconnect, refreshStatus, reload: load };
+  const removeInstance = useCallback(async () => {
+    if (!workspace) return;
+    setBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("whatsapp-instance", {
+        body: { action: "delete", workspaceId: workspace.id },
+      });
+      if (error) throw error;
+      if ((data as { error?: string })?.error) throw new Error((data as { error: string }).error);
+      setInstance(null);
+      stopPolling();
+    } finally { setBusy(false); }
+  }, [workspace, stopPolling]);
+
+  const importInstance = useCallback(
+    async (token: string, subdomain?: string) => {
+      if (!workspace) return;
+      setBusy(true);
+      try {
+        const { data, error } = await supabase.functions.invoke("whatsapp-instance", {
+          body: { action: "import", workspaceId: workspace.id, token, subdomain },
+        });
+        if (error) throw error;
+        if ((data as { error?: string })?.error) throw new Error((data as { error: string }).error);
+        const inst = (data as { instance: WhatsAppInstance | null }).instance;
+        setInstance(inst);
+        if (inst && inst.status !== "connected") startPolling();
+        return inst;
+      } finally { setBusy(false); }
+    },
+    [workspace, startPolling],
+  );
+
+  return { instance, loading, busy, connect, disconnect, removeInstance, refreshStatus, reload: load, importInstance };
 }

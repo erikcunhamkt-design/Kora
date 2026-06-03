@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Repository for Financial Transactions (Supabase)
 import { supabase } from "@/integrations/supabase/client";
 

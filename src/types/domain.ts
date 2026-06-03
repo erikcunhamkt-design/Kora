@@ -159,6 +159,7 @@ export interface Client {
   contacts?: ClientContact[];
   technicalSheet?: ClientTechnicalSheet;
   assets?: ClientAsset[];
+  archived?: boolean;
 }
 
 // Quotes

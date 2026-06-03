@@ -46,14 +46,27 @@ function detectTypeIcon(text: string | null) {
   return null;
 }
 
+function formatWaiting(iso: string | null) {
+  if (!iso) return "";
+  const diffMin = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
+  if (diffMin < 1) return "agora";
+  if (diffMin < 60) return `${diffMin}min`;
+  const h = Math.floor(diffMin / 60);
+  if (h < 24) return `${h}h`;
+  const d = Math.floor(h / 24);
+  return `${d}d`;
+}
+
 export function WhatsAppConversationItem({
   conversation,
   active,
   onClick,
+  showWaitingTime = false,
 }: {
   conversation: WAConvLike;
   active: boolean;
   onClick: () => void;
+  showWaitingTime?: boolean;
 }) {
   const c = conversation;
   const preview = formatMessagePreview(c.last_message, null);
@@ -103,9 +116,18 @@ export function WhatsAppConversationItem({
             "flex items-center gap-1 min-w-0 flex-1 text-xs",
             c.unread_count > 0 ? "text-foreground/85" : "text-muted-foreground",
           )}>
-            {Icon && <Icon className="h-3 w-3 flex-shrink-0 opacity-70" />}
+          {Icon && <Icon className="h-3 w-3 flex-shrink-0 opacity-70" />}
             <span className="truncate">{cleanPreview}</span>
           </div>
+          {showWaitingTime && c.unread_count > 0 && c.last_message_at && (
+            <Badge
+              variant="outline"
+              className="h-4 px-1.5 text-[9px] flex-shrink-0 border-destructive/40 text-destructive bg-destructive/10 rounded-full tabular-nums"
+              title="Tempo sem resposta"
+            >
+              {formatWaiting(c.last_message_at)}
+            </Badge>
+          )}
           {c.unread_count > 0 && (
             <Badge className="h-4 min-w-[16px] px-1 text-[9px] flex-shrink-0 bg-primary text-primary-foreground border-0 rounded-full">
               {c.unread_count > 99 ? "99+" : c.unread_count}

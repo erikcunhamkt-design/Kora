@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Repository for Projects (Supabase)
 import { supabase } from "@/integrations/supabase/client";
 

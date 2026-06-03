@@ -41,6 +41,29 @@ async function uaz(path: string, opts: { token?: string; admin?: boolean; method
   return { ok: res.ok, status: res.status, data };
 }
 
+function baseForStoredSubdomain(input: string | null | undefined) {
+  const raw = (input ?? SUBDOMAIN ?? "free").trim().replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+  const host = raw.split("/")[0] || "free";
+  if (host.includes(".")) return `https://${host}`;
+  return `https://${host}.uazapi.com`;
+}
+
+async function uazForInstance(instance: Record<string, unknown>, path: string, opts: { method?: string; body?: unknown } = {}) {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    token: String(instance.instance_token ?? ""),
+  };
+  const res = await fetch(`${baseForStoredSubdomain(instance.subdomain as string | null | undefined)}${path}`, {
+    method: opts.method ?? "POST",
+    headers,
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  const text = await res.text();
+  let data: unknown = text;
+  try { data = JSON.parse(text); } catch { /* keep text */ }
+  return { ok: res.ok, status: res.status, data };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -61,6 +84,18 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const { action, workspaceId } = body as { action?: string; workspaceId?: string };
     if (!workspaceId) return json({ error: "workspaceId is required" }, 400);
+
+    // Normaliza subdomain ("free" | "free.uazapi.com" | "https://free.uazapi.com") => "free"
+    const normalizeSubdomain = (input: string | undefined | null): string => {
+      const raw = (input ?? "").trim().replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+      if (!raw) return SUBDOMAIN || "free";
+      const host = raw.split("/")[0];
+      if (host.endsWith(".uazapi.com")) return host.replace(/\.uazapi\.com$/, "");
+      if (host.includes(".")) return host;
+      return host;
+    };
+    const baseForSubdomain = (sub: string) =>
+      /\./.test(sub) ? `https://${sub}` : `https://${sub}.uazapi.com`;
 
     // Verify membership
     const { data: member } = await userClient
@@ -111,18 +146,17 @@ Deno.serve(async (req) => {
 
       // Always (re)register webhook on connect/create to keep URL + secret in sync
       const webhookUrl = `${SUPABASE_URL}/functions/v1/whatsapp-webhook?secret=${encodeURIComponent(WEBHOOK_SECRET)}&workspace=${workspaceId}`;
-      await uaz("/webhook", {
-        token: instance.instance_token,
+      await uazForInstance(instance, "/webhook", {
         body: {
           webhookURL: webhookUrl,
           url: webhookUrl,
           enabled: true,
-          events: ["messages", "messages_update", "connection"],
+          addUrlEvents: true, events: ["messages", "messages_update", "connection", "chats", "contacts", "presence"],
         },
       }).catch(() => null);
 
       // Request QR
-      const connect = await uaz("/instance/connect", { token: instance.instance_token, body: {} });
+      const connect = await uazForInstance(instance, "/instance/connect", { body: {} });
       const cdata = (connect.data ?? {}) as Record<string, unknown>;
       const qr = (cdata.qrcode ?? cdata.qr ?? (cdata.instance as Record<string, unknown>)?.qrcode) as string | undefined;
       const status = ((cdata.status ?? (cdata.instance as Record<string, unknown>)?.status) as string | undefined) ?? "connecting";
@@ -143,7 +177,7 @@ Deno.serve(async (req) => {
 
     if (action === "status") {
       if (!existing) return json({ instance: null });
-      const st = await uaz("/instance/status", { token: existing.instance_token, method: "GET" });
+      const st = await uazForInstance(existing, "/instance/status", { method: "GET" });
       const sd = (st.data ?? {}) as Record<string, unknown>;
       const inst = (sd.instance ?? sd) as Record<string, unknown>;
       const status = (inst.status as string | undefined) ?? existing.status;
@@ -173,9 +207,27 @@ Deno.serve(async (req) => {
       return json({ instance: updated });
     }
 
+    if (action === "set_webhook") {
+      if (!existing) return json({ error: "Instance not found" }, 404);
+      const webhookUrl = `${SUPABASE_URL}/functions/v1/whatsapp-webhook?secret=${encodeURIComponent(WEBHOOK_SECRET)}&workspace=${workspaceId}`;
+      const events = ["messages", "messages_update", "connection", "chats", "contacts", "presence"];
+      const r = await uazForInstance(existing, "/webhook", {
+        body: {
+          webhookURL: webhookUrl,
+          url: webhookUrl,
+          enabled: true,
+          addUrlEvents: true,
+          events,
+        },
+      }).catch((e) => ({ ok: false, status: 0, data: String(e) }));
+      console.log("[set_webhook] result", r.status, JSON.stringify(r.data).slice(0, 300));
+      return json({ ok: r.ok, status: r.status, webhookUrl, events, detail: r.data });
+    }
+
+
     if (action === "disconnect") {
       if (!existing) return json({ instance: null });
-      await uaz("/instance/disconnect", { token: existing.instance_token, body: {} }).catch(() => null);
+      await uazForInstance(existing, "/instance/disconnect", { body: {} }).catch(() => null);
       const { data: updated } = await admin
         .from("whatsapp_instances")
         .update({ status: "disconnected", qr_code: null, last_status_at: new Date().toISOString() })
@@ -187,20 +239,125 @@ Deno.serve(async (req) => {
 
     if (action === "delete") {
       if (!existing) return json({ ok: true });
+      await uazForInstance(existing, "/instance/disconnect", { body: {} }).catch(() => null);
       await uaz("/instance/delete", { admin: true, body: { token: existing.instance_token } }).catch(() => null);
       await admin.from("whatsapp_instances").delete().eq("id", existing.id);
       return json({ ok: true });
     }
 
+    if (action === "import") {
+      const { token: importToken, subdomain: importSubdomain } = body as {
+        token?: string;
+        subdomain?: string;
+      };
+      if (!importToken || importToken.trim().length < 8) {
+        return json({ error: "token é obrigatório" }, 400);
+      }
+      const sub = normalizeSubdomain(importSubdomain);
+      const baseUrl = baseForSubdomain(sub);
+
+      // Valida o token consultando /instance/status no servidor informado
+      const statusRes = await fetch(`${baseUrl}/instance/status`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json", token: importToken },
+      });
+      const statusText = await statusRes.text();
+      let statusData: unknown = statusText;
+      try { statusData = JSON.parse(statusText); } catch { /* keep */ }
+      if (!statusRes.ok) {
+        return json({ error: "uazapi /instance/status falhou", status: statusRes.status, detail: statusData }, 502);
+      }
+      const sd = (statusData ?? {}) as Record<string, unknown>;
+      const inst = (sd.instance ?? sd) as Record<string, unknown>;
+      const remoteStatus = (inst.status as string | undefined) ?? "disconnected";
+      const phone = (inst.owner as string | undefined) ?? (inst.phone as string | undefined) ?? null;
+      const phoneName = (inst.profileName as string | undefined) ?? (inst.name as string | undefined) ?? null;
+      const instanceName = (inst.name as string | undefined) ?? `imported-${importToken.slice(0, 8)}`;
+      // uazapi às vezes aceita o "id" da instância em /instance/status mas exige
+      // o token real (devolvido em instance.token) nas demais rotas. Preferir esse.
+      const resolvedToken =
+        ((inst.token as string | undefined) ??
+          (sd.token as string | undefined) ??
+          importToken).trim();
+
+      // Remove instância existente (se houver) sem deletar do uazapi (token é compartilhado/externo)
+      if (existing) {
+        await admin.from("whatsapp_instances").delete().eq("id", existing.id);
+      }
+
+      const { data: inserted, error: insertErr } = await admin
+        .from("whatsapp_instances")
+        .insert({
+          workspace_id: workspaceId,
+          instance_token: resolvedToken,
+          instance_name: instanceName,
+          subdomain: sub,
+          status: remoteStatus,
+          phone,
+          phone_name: phoneName,
+          connected_at: remoteStatus === "connected" ? new Date().toISOString() : null,
+          last_status_at: new Date().toISOString(),
+          created_by: userId,
+        })
+        .select()
+        .single();
+      if (insertErr) return json({ error: insertErr.message }, 500);
+
+      // Registra webhook apontando para o nosso endpoint
+      const webhookUrl = `${SUPABASE_URL}/functions/v1/whatsapp-webhook?secret=${encodeURIComponent(WEBHOOK_SECRET)}&workspace=${workspaceId}`;
+      await fetch(`${baseUrl}/webhook`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", token: resolvedToken },
+        body: JSON.stringify({
+          webhookURL: webhookUrl,
+          url: webhookUrl,
+          enabled: true,
+          addUrlEvents: true, events: ["messages", "messages_update", "connection", "chats", "contacts", "presence"],
+        }),
+      }).catch(() => null);
+
+      // Se desconectado, pede QR
+      if (remoteStatus !== "connected") {
+        const connectRes = await fetch(`${baseUrl}/instance/connect`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", token: resolvedToken },
+          body: JSON.stringify({}),
+        });
+        const cText = await connectRes.text();
+        let cData: unknown = cText;
+        try { cData = JSON.parse(cText); } catch { /* keep */ }
+        const cdata = (cData ?? {}) as Record<string, unknown>;
+        const qr = (cdata.qrcode ?? cdata.qr ?? (cdata.instance as Record<string, unknown>)?.qrcode) as string | undefined;
+        const newStatus = ((cdata.status ?? (cdata.instance as Record<string, unknown>)?.status) as string | undefined) ?? "connecting";
+        const { data: updated } = await admin
+          .from("whatsapp_instances")
+          .update({ qr_code: qr ?? null, status: newStatus, last_status_at: new Date().toISOString() })
+          .eq("id", inserted.id)
+          .select()
+          .single();
+        return json({ instance: updated, imported: true });
+      }
+
+      return json({ instance: inserted, imported: true });
+    }
+
+
     if (action === "sync") {
       if (!existing) return json({ error: "Instance not found" }, 404);
       // Fetch chat list from uazapi and upsert conversations
-      const list = await uaz("/chat/find", {
-        token: existing.instance_token,
+      const list = await uazForInstance(existing, "/chat/find", {
         body: { operator: "AND", sort: "-wa_lastMsgTimestamp" },
       });
       if (!list.ok) {
         console.error("sync /chat/find failed", list.status, list.data);
+        if (list.status === 401) {
+          // Token uazapi inválido — marcar como desconectado para forçar reconexão
+          await admin
+            .from("whatsapp_instances")
+            .update({ status: "disconnected", last_status_at: new Date().toISOString() })
+            .eq("id", existing.id);
+          return json({ synced: 0, needs_reconnect: true, message: "Sessão WhatsApp expirou. Reconecte a instância." });
+        }
         return json({ error: "uazapi /chat/find failed", status: list.status, detail: list.data }, 502);
       }
       const chats = Array.isArray(list.data)
@@ -267,6 +424,49 @@ Deno.serve(async (req) => {
       return json({ ok: true, total: chats.length, synced, errors: errors.slice(0, 5) });
     }
 
+    if (action === "refresh_avatars") {
+      if (!existing) return json({ error: "Instance not found" }, 404);
+      const { limit, force } = body as { limit?: number; force?: boolean };
+      const max = Math.min(Math.max(Number(limit ?? 200), 1), 500);
+      let query = admin
+        .from("whatsapp_conversations")
+        .select("id, contact_phone, contact_name, avatar_url")
+        .eq("instance_id", existing.id)
+        .eq("workspace_id", workspaceId)
+        .order("last_message_at", { ascending: false, nullsFirst: false })
+        .limit(max);
+      if (!force) query = query.is("avatar_url", null);
+      const { data: convs } = await query;
+      const list = convs ?? [];
+      let updated = 0;
+      const concurrency = 6;
+      let idx = 0;
+      const worker = async () => {
+        while (idx < list.length) {
+          const i = idx++;
+          const c = list[i];
+          try {
+            const pic = await uazForInstance(existing, "/chat/GetNameAndImageURL", {
+              body: { number: c.contact_phone },
+            });
+            const pd = (pic.data ?? {}) as Record<string, unknown>;
+            const url = (pd.image as string) || (pd.imageUrl as string) || (pd.profilePicUrl as string) || null;
+            const nm = (pd.name as string) || null;
+            const patch: Record<string, unknown> = {};
+            if (url) patch.avatar_url = url;
+            if (nm && !c.contact_name) patch.contact_name = nm;
+            if (Object.keys(patch).length > 0) {
+              await admin.from("whatsapp_conversations").update(patch).eq("id", c.id);
+              if (url) updated++;
+            }
+          } catch (_e) { /* ignore individual failures */ }
+        }
+      };
+      await Promise.all(Array.from({ length: concurrency }, () => worker()));
+      console.log("refresh_avatars:", { total: list.length, updated });
+      return json({ ok: true, total: list.length, updated });
+    }
+
     if (action === "load_messages") {
       if (!existing) return json({ error: "Instance not found" }, 404);
       const { conversationId, limit } = body as { conversationId?: string; limit?: number };
@@ -282,8 +482,7 @@ Deno.serve(async (req) => {
       const chatid = `${conv.contact_phone}@s.whatsapp.net`;
       // Try to fetch profile picture (best-effort)
       try {
-        const pic = await uaz("/chat/GetNameAndImageURL", {
-          token: existing.instance_token,
+        const pic = await uazForInstance(existing, "/chat/GetNameAndImageURL", {
           body: { number: conv.contact_phone },
         });
         const pd = (pic.data ?? {}) as Record<string, unknown>;
@@ -297,8 +496,7 @@ Deno.serve(async (req) => {
         }
       } catch (_e) { /* ignore */ }
 
-      const msgRes = await uaz("/message/find", {
-        token: existing.instance_token,
+      const msgRes = await uazForInstance(existing, "/message/find", {
         body: {
           operator: "AND",
           chatid,
@@ -317,61 +515,123 @@ Deno.serve(async (req) => {
           : [];
       console.log("load_messages: received", rawList.length);
 
-      let saved = 0;
-      const errors: string[] = [];
+      // Helper to extract a usable media URL from many shapes uazapi can return.
+      const extractMediaUrl = (m: Record<string, unknown>): string | null => {
+        const direct =
+          (m.mediaUrl as string) ||
+          (m.fileURL as string) ||
+          (m.file_url as string) ||
+          (m.url as string) ||
+          null;
+        if (direct) return direct;
+        const message = (m.message as Record<string, unknown>) || {};
+        const candidates = [
+          (message.imageMessage as Record<string, unknown>)?.url,
+          (message.videoMessage as Record<string, unknown>)?.url,
+          (message.audioMessage as Record<string, unknown>)?.url,
+          (message.documentMessage as Record<string, unknown>)?.url,
+          (message.stickerMessage as Record<string, unknown>)?.url,
+          (m.image as Record<string, unknown>)?.url,
+          (m.video as Record<string, unknown>)?.url,
+          (m.audio as Record<string, unknown>)?.url,
+          (m.document as Record<string, unknown>)?.url,
+        ];
+        for (const c of candidates) {
+          if (typeof c === "string" && c) return c;
+        }
+        return null;
+      };
+
       // Process oldest -> newest
       const ordered = [...rawList].reverse();
+
+      // Build candidate rows + collect ids for one batched dedupe query
+      type Row = {
+        workspace_id: string;
+        instance_id: string;
+        conversation_id: string;
+        wa_message_id: string;
+        direction: string;
+        type: string;
+        content: string | null;
+        media_url: string | null;
+        status: string;
+        created_at: string;
+      };
+      const candidates: Row[] = [];
       for (const m of ordered) {
-        try {
-          const waId = (m.messageid as string) || (m.id as string) || (m.key_id as string) || null;
-          if (!waId) continue;
-          const { data: dup } = await admin
-            .from("whatsapp_messages")
-            .select("id")
-            .eq("conversation_id", conversationId)
-            .eq("wa_message_id", waId)
-            .maybeSingle();
-          if (dup) continue;
+        const waId =
+          (m.messageid as string) ||
+          (m.id as string) ||
+          (m.key_id as string) ||
+          null;
+        if (!waId) continue;
+        const fromMe = Boolean(m.fromMe ?? m.fromme ?? m.key_fromMe);
+        const direction = fromMe ? "outbound" : "inbound";
+        const type = (m.messageType as string) || (m.type as string) || "text";
+        const content =
+          (m.text as string) ||
+          (m.content as string) ||
+          (m.body as string) ||
+          (m.caption as string) ||
+          null;
+        const mediaUrl = extractMediaUrl(m);
+        const rawTs = Number(m.messageTimestamp ?? m.timestamp ?? 0);
+        const tsMs = rawTs > 1e12 ? rawTs : rawTs * 1000;
+        const createdAt = tsMs ? new Date(tsMs).toISOString() : new Date().toISOString();
+        candidates.push({
+          workspace_id: workspaceId,
+          instance_id: existing.id,
+          conversation_id: conversationId,
+          wa_message_id: waId,
+          direction,
+          type,
+          content,
+          media_url: mediaUrl,
+          status: "sent",
+          created_at: createdAt,
+        });
+      }
 
-          const fromMe = Boolean(m.fromMe ?? m.fromme ?? m.key_fromMe);
-          const direction = fromMe ? "outbound" : "inbound";
-          const type = (m.messageType as string) || (m.type as string) || "text";
-          const content = (m.text as string)
-            || (m.content as string)
-            || (m.body as string)
-            || (m.caption as string)
-            || null;
-          const mediaUrl = (m.mediaUrl as string) || (m.fileURL as string) || null;
-          const rawTs = Number(m.messageTimestamp ?? m.timestamp ?? 0);
-          const tsMs = rawTs > 1e12 ? rawTs : rawTs * 1000;
-          const createdAt = tsMs ? new Date(tsMs).toISOString() : new Date().toISOString();
-
-          const { error: insErr } = await admin.from("whatsapp_messages").insert({
-            workspace_id: workspaceId,
-            instance_id: existing.id,
-            conversation_id: conversationId,
-            wa_message_id: waId,
-            direction,
-            type,
-            content,
-            media_url: mediaUrl,
-            status: "sent",
-            created_at: createdAt,
-          });
-          if (insErr) throw insErr;
-          saved++;
-        } catch (err) {
-          const msg = (err as Error).message ?? String(err);
-          console.error("load_messages msg error", msg);
-          errors.push(msg);
+      let saved = 0;
+      const errors: string[] = [];
+      if (candidates.length > 0) {
+        const ids = candidates.map((c) => c.wa_message_id);
+        const { data: dup } = await admin
+          .from("whatsapp_messages")
+          .select("wa_message_id")
+          .eq("conversation_id", conversationId)
+          .in("wa_message_id", ids);
+        const existingIds = new Set((dup ?? []).map((d: { wa_message_id: string }) => d.wa_message_id));
+        const toInsert = candidates.filter((c) => !existingIds.has(c.wa_message_id));
+        if (toInsert.length > 0) {
+          // Chunked bulk insert to avoid payload limits
+          const CHUNK = 200;
+          for (let i = 0; i < toInsert.length; i += CHUNK) {
+            const slice = toInsert.slice(i, i + CHUNK);
+            const { error: insErr, count } = await admin
+              .from("whatsapp_messages")
+              .insert(slice, { count: "exact" });
+            if (insErr) {
+              console.error("load_messages bulk insert error", insErr.message);
+              errors.push(insErr.message);
+            } else {
+              saved += count ?? slice.length;
+            }
+          }
         }
       }
       return json({ ok: true, total: rawList.length, saved, errors: errors.slice(0, 5) });
     }
 
+
     if (action === "send") {
       if (!existing) return json({ error: "Instance not found" }, 404);
-      const { conversationId, text } = body as { conversationId?: string; text?: string };
+      const { conversationId, text, replyMessageId } = body as {
+        conversationId?: string;
+        text?: string;
+        replyMessageId?: string | null;
+      };
       if (!conversationId || !text?.trim()) return json({ error: "conversationId and text are required" }, 400);
       const { data: conv } = await admin
         .from("whatsapp_conversations")
@@ -381,10 +641,20 @@ Deno.serve(async (req) => {
         .maybeSingle();
       if (!conv) return json({ error: "Conversation not found" }, 404);
 
-      const send = await uaz("/send/text", {
-        token: existing.instance_token,
-        body: { number: conv.contact_phone, text },
-      });
+      let replyWaId: string | null = null;
+      if (replyMessageId) {
+        const { data: rep } = await admin
+          .from("whatsapp_messages")
+          .select("wa_message_id")
+          .eq("id", replyMessageId)
+          .eq("workspace_id", workspaceId)
+          .maybeSingle();
+        replyWaId = (rep?.wa_message_id as string | null) ?? null;
+      }
+
+      const sendPayload: Record<string, unknown> = { number: conv.contact_phone, text };
+      if (replyWaId) sendPayload.replyid = replyWaId;
+      const send = await uazForInstance(existing, "/send/text", { body: sendPayload });
       const sd = (send.data ?? {}) as Record<string, unknown>;
       const waMessageId = (sd.messageid as string) || (sd.id as string) || null;
 
@@ -398,6 +668,7 @@ Deno.serve(async (req) => {
         content: text,
         status: send.ok ? "sent" : "error",
         error: send.ok ? null : JSON.stringify(sd).slice(0, 500),
+        reply_to_message_id: replyMessageId ?? null,
       }).select().single();
 
       await admin.from("whatsapp_conversations").update({
@@ -407,6 +678,425 @@ Deno.serve(async (req) => {
       }).eq("id", conversationId);
 
       return json({ ok: send.ok, message: inserted });
+    }
+
+    if (action === "react_message") {
+      if (!existing) return json({ error: "Instance not found" }, 404);
+      const { messageId, emoji } = body as { messageId?: string; emoji?: string | null };
+      if (!messageId) return json({ error: "messageId is required" }, 400);
+      const { data: msg } = await admin
+        .from("whatsapp_messages")
+        .select("*")
+        .eq("id", messageId)
+        .eq("workspace_id", workspaceId)
+        .maybeSingle();
+      if (!msg) return json({ error: "Message not found" }, 404);
+      const { data: conv } = await admin
+        .from("whatsapp_conversations")
+        .select("contact_phone")
+        .eq("id", msg.conversation_id)
+        .maybeSingle();
+      if (msg.wa_message_id && conv?.contact_phone) {
+        try {
+          await uazForInstance(existing, "/message/react", {
+            body: { number: conv.contact_phone, id: msg.wa_message_id, text: emoji ?? "" },
+          });
+        } catch (_e) { /* swallow */ }
+      }
+      const reactions = (msg.reactions ?? {}) as Record<string, string>;
+      if (emoji) reactions[userId] = emoji;
+      else delete reactions[userId];
+      await admin.from("whatsapp_messages").update({ reactions }).eq("id", messageId);
+      return json({ ok: true, reactions });
+    }
+
+    if (action === "pin_message") {
+      const { messageId, pinned } = body as { messageId?: string; pinned?: boolean };
+      if (!messageId) return json({ error: "messageId is required" }, 400);
+      await admin
+        .from("whatsapp_messages")
+        .update({ pinned_at: pinned ? new Date().toISOString() : null })
+        .eq("id", messageId)
+        .eq("workspace_id", workspaceId);
+      return json({ ok: true });
+    }
+
+    if (action === "delete_message") {
+      const { messageId, forEveryone } = body as { messageId?: string; forEveryone?: boolean };
+      if (!messageId) return json({ error: "messageId is required" }, 400);
+      const { data: msg } = await admin
+        .from("whatsapp_messages")
+        .select("*, conversation:conversation_id(contact_phone)")
+        .eq("id", messageId)
+        .eq("workspace_id", workspaceId)
+        .maybeSingle();
+      if (!msg) return json({ error: "Message not found" }, 404);
+
+      // Try to revoke on WhatsApp if outbound and forEveryone
+      if (forEveryone && msg.direction === "outbound" && msg.wa_message_id && msg.conversation?.contact_phone && existing) {
+        try {
+          await uazForInstance(existing, "/message/delete", {
+            body: { number: msg.conversation.contact_phone, id: msg.wa_message_id },
+          });
+        } catch (_e) { /* swallow */ }
+      }
+
+      await admin
+        .from("whatsapp_messages")
+        .update({ deleted_at: new Date().toISOString() })
+        .eq("id", messageId)
+        .eq("workspace_id", workspaceId);
+      return json({ ok: true });
+    }
+
+    if (action === "forward_message") {
+      if (!existing) return json({ error: "Instance not found" }, 404);
+      const { messageId, targetConversationId } = body as { messageId?: string; targetConversationId?: string };
+      if (!messageId || !targetConversationId) {
+        return json({ error: "messageId and targetConversationId are required" }, 400);
+      }
+      const { data: msg } = await admin
+        .from("whatsapp_messages")
+        .select("*")
+        .eq("id", messageId)
+        .eq("workspace_id", workspaceId)
+        .maybeSingle();
+      if (!msg) return json({ error: "Message not found" }, 404);
+      const { data: targetConv } = await admin
+        .from("whatsapp_conversations")
+        .select("contact_phone")
+        .eq("id", targetConversationId)
+        .eq("workspace_id", workspaceId)
+        .maybeSingle();
+      if (!targetConv) return json({ error: "Target conversation not found" }, 404);
+
+      // Forward text via uazapi
+      if (msg.content) {
+        const fwdText = msg.content;
+        const send = await uazForInstance(existing, "/send/text", {
+          body: { number: targetConv.contact_phone, text: fwdText },
+        });
+        const sd = (send.data ?? {}) as Record<string, unknown>;
+        const waMessageId = (sd.messageid as string) || (sd.id as string) || null;
+        await admin.from("whatsapp_messages").insert({
+          workspace_id: workspaceId,
+          instance_id: existing.id,
+          conversation_id: targetConversationId,
+          wa_message_id: waMessageId,
+          direction: "outbound",
+          type: "text",
+          content: fwdText,
+          status: send.ok ? "sent" : "error",
+          error: send.ok ? null : JSON.stringify(sd).slice(0, 500),
+          raw_payload: { forwarded_from_message_id: messageId },
+        });
+        await admin.from("whatsapp_conversations").update({
+          last_message: fwdText,
+          last_message_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }).eq("id", targetConversationId);
+      }
+
+      // Forward media via uazapi (best-effort)
+      if (msg.media_url && msg.type && msg.type !== "text") {
+        const send = await uazForInstance(existing, "/send/media", {
+          body: { number: targetConv.contact_phone, type: msg.type, file: msg.media_url },
+        });
+        const sd = (send.data ?? {}) as Record<string, unknown>;
+        const waMessageId = (sd.messageid as string) || (sd.id as string) || null;
+        await admin.from("whatsapp_messages").insert({
+          workspace_id: workspaceId,
+          instance_id: existing.id,
+          conversation_id: targetConversationId,
+          wa_message_id: waMessageId,
+          direction: "outbound",
+          type: msg.type,
+          content: msg.content ?? null,
+          media_url: msg.media_url,
+          status: send.ok ? "sent" : "error",
+          error: send.ok ? null : JSON.stringify(sd).slice(0, 500),
+          raw_payload: { forwarded_from_message_id: messageId },
+        });
+        await admin.from("whatsapp_conversations").update({
+          last_message: msg.content ?? `[${msg.type}]`,
+          last_message_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }).eq("id", targetConversationId);
+      }
+
+      return json({ ok: true });
+    }
+
+    if (action === "archive_conversation") {
+      const { conversationId, archived } = body as { conversationId?: string; archived?: boolean };
+      if (!conversationId) return json({ error: "conversationId is required" }, 400);
+      await admin
+        .from("whatsapp_conversations")
+        .update({ status: archived ? "archived" : "open", updated_at: new Date().toISOString() })
+        .eq("id", conversationId)
+        .eq("workspace_id", workspaceId);
+      return json({ ok: true });
+    }
+
+    if (action === "mark_unread") {
+      const { conversationId, unread } = body as { conversationId?: string; unread?: boolean };
+      if (!conversationId) return json({ error: "conversationId is required" }, 400);
+      await admin
+        .from("whatsapp_conversations")
+        .update({
+          unread_count: unread ? 1 : 0,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", conversationId)
+        .eq("workspace_id", workspaceId);
+      return json({ ok: true });
+    }
+
+    if (action === "assign_conversation") {
+      const { conversationId, userId: assignUserId } = body as { conversationId?: string; userId?: string | null };
+      if (!conversationId) return json({ error: "conversationId is required" }, 400);
+      await admin
+        .from("whatsapp_conversations")
+        .update({ assigned_to: assignUserId ?? null, updated_at: new Date().toISOString() })
+        .eq("id", conversationId)
+        .eq("workspace_id", workspaceId);
+      return json({ ok: true });
+    }
+
+    if (action === "update_conversation_tags") {
+      const { conversationId, tags } = body as { conversationId?: string; tags?: string[] };
+      if (!conversationId) return json({ error: "conversationId is required" }, 400);
+      await admin
+        .from("whatsapp_conversations")
+        .update({ tags: tags ?? [], updated_at: new Date().toISOString() })
+        .eq("id", conversationId)
+        .eq("workspace_id", workspaceId);
+      return json({ ok: true });
+    }
+
+    if (action === "send_media") {
+      if (!existing) return json({ error: "Instance not found" }, 404);
+      const { conversationId, kind, base64, mimeType, fileName, caption } = body as {
+        conversationId?: string;
+        kind?: string;
+        base64?: string;
+        mimeType?: string;
+        fileName?: string;
+        caption?: string;
+      };
+      if (!conversationId || !kind || !base64) {
+        return json({ error: "conversationId, kind and base64 are required" }, 400);
+      }
+      const validKinds = ["image", "video", "audio", "document", "sticker"];
+      if (!validKinds.includes(kind)) return json({ error: "invalid kind" }, 400);
+
+      const { data: conv } = await admin
+        .from("whatsapp_conversations")
+        .select("*")
+        .eq("id", conversationId)
+        .eq("workspace_id", workspaceId)
+        .maybeSingle();
+      if (!conv) return json({ error: "Conversation not found" }, 404);
+
+      // Strip data URL prefix if present
+      const pureB64 = base64.includes(",") ? base64.split(",")[1] : base64;
+      const dataUrl = mimeType ? `data:${mimeType};base64,${pureB64}` : pureB64;
+
+      // uazapi /send/media accepts: { number, type: "image"|"video"|"document"|"audio", file (URL or base64), text (caption), docName }
+      // Stickers go through /send/sticker
+      let path = "/send/media";
+      const payload: Record<string, unknown> = {
+        number: conv.contact_phone,
+        type: kind,
+        file: dataUrl,
+      };
+      if (caption) payload.text = caption;
+      if (fileName && kind === "document") payload.docName = fileName;
+
+      if (kind === "sticker") {
+        path = "/send/sticker";
+        delete payload.type;
+        delete payload.text;
+      } else if (kind === "audio") {
+        path = "/send/media";
+        payload.type = "audio";
+      }
+
+      const send = await uazForInstance(existing, path, { body: payload });
+      const sd = (send.data ?? {}) as Record<string, unknown>;
+      const waMessageId = (sd.messageid as string) || (sd.id as string) || null;
+      const returnedUrl = (sd.fileURL as string) || (sd.mediaUrl as string) || (sd.url as string) || null;
+
+      const dbType = kind;
+      const { data: inserted } = await admin.from("whatsapp_messages").insert({
+        workspace_id: workspaceId,
+        instance_id: existing.id,
+        conversation_id: conversationId,
+        wa_message_id: waMessageId,
+        direction: "outbound",
+        type: dbType,
+        content: caption ?? null,
+        media_url: returnedUrl,
+        status: send.ok ? "sent" : "error",
+        error: send.ok ? null : JSON.stringify(sd).slice(0, 500),
+      }).select().single();
+
+      await admin.from("whatsapp_conversations").update({
+        last_message: caption ?? `[${kind}]`,
+        last_message_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).eq("id", conversationId);
+
+      if (!send.ok) {
+        console.error("send_media failed", send.status, sd);
+        return json({ error: "uazapi send failed", detail: sd, status: send.status }, 502);
+      }
+      return json({ ok: true, message: inserted });
+    }
+
+    if (action === "list_favorite_stickers") {
+      const { data } = await admin
+        .from("whatsapp_favorite_stickers")
+        .select("*")
+        .eq("workspace_id", workspaceId)
+        .order("created_at", { ascending: false });
+      return json({ ok: true, stickers: data ?? [] });
+    }
+
+    if (action === "toggle_favorite_sticker") {
+      const { stickerUrl, mimeType, op } = body as { stickerUrl?: string; mimeType?: string; op?: string };
+      if (!stickerUrl) return json({ error: "stickerUrl is required" }, 400);
+      if (op === "remove") {
+        await admin
+          .from("whatsapp_favorite_stickers")
+          .delete()
+          .eq("workspace_id", workspaceId)
+          .eq("sticker_url", stickerUrl);
+        return json({ ok: true, removed: true });
+      }
+      const { error: insErr } = await admin.from("whatsapp_favorite_stickers").insert({
+        workspace_id: workspaceId,
+        sticker_url: stickerUrl,
+        mime_type: mimeType ?? null,
+        created_by: userId,
+      });
+      if (insErr && !insErr.message.includes("duplicate")) {
+        return json({ error: insErr.message }, 500);
+      }
+      return json({ ok: true, added: true });
+    }
+
+    if (action === "download_media") {
+      if (!existing) return json({ error: "Instance not found" }, 404);
+      const { messageId } = body as { messageId?: string };
+      if (!messageId) return json({ error: "messageId is required" }, 400);
+
+      const { data: msg } = await admin
+        .from("whatsapp_messages")
+        .select("id, wa_message_id, media_url, type, workspace_id")
+        .eq("id", messageId)
+        .eq("workspace_id", workspaceId)
+        .maybeSingle();
+      if (!msg) return json({ error: "Message not found" }, 404);
+
+      // If already has a usable URL (not encrypted whatsapp host), reuse
+      const currentUrl = (msg.media_url as string | null) ?? null;
+      const isEncryptedHost = (u: string | null) =>
+        !u || u.includes("mmg.whatsapp.net") || u.includes("media.whatsapp.net") || u.includes("a.whatsapp.net");
+      if (currentUrl && !isEncryptedHost(currentUrl)) {
+        return json({ ok: true, url: currentUrl, cached: true });
+      }
+
+      if (!msg.wa_message_id) return json({ error: "Message has no wa_message_id" }, 400);
+
+      // Try UAZAPI /message/download (returns either fileURL or base64)
+      const dl = await uazForInstance(existing, "/message/download", {
+        body: { id: msg.wa_message_id },
+      });
+      if (!dl.ok) {
+        console.error("download_media uazapi failed", dl.status, dl.data);
+        return json({ error: "uazapi download failed", status: dl.status, detail: dl.data }, 502);
+      }
+      const dd = (dl.data ?? {}) as Record<string, unknown>;
+      let returnedUrl =
+        (dd.fileURL as string) ||
+        (dd.mediaUrl as string) ||
+        (dd.url as string) ||
+        (dd.FileURL as string) ||
+        null;
+      const b64 =
+        (dd.base64 as string) ||
+        (dd.fileBase64 as string) ||
+        (dd.data as string) ||
+        null;
+      const mime =
+        (dd.mimetype as string) ||
+        (dd.mimeType as string) ||
+        (dd.contentType as string) ||
+        "application/octet-stream";
+
+      // If we got a usable URL (and not whatsapp encrypted host), persist and return
+      if (returnedUrl && !isEncryptedHost(returnedUrl)) {
+        await admin.from("whatsapp_messages").update({ media_url: returnedUrl }).eq("id", messageId);
+        return json({ ok: true, url: returnedUrl, mime });
+      }
+
+      // Otherwise, must have base64 — upload to storage bucket
+      if (!b64) {
+        console.error("download_media: no usable url or base64", Object.keys(dd));
+        return json({ error: "No usable media payload returned by uazapi", detail: dd }, 502);
+      }
+
+      const BUCKET = "whatsapp-media";
+      // Ensure bucket exists (idempotent)
+      try {
+        const { error: bErr } = await admin.storage.createBucket(BUCKET, { public: true });
+        if (bErr && !String(bErr.message).toLowerCase().includes("already exists")) {
+          console.warn("createBucket error", bErr.message);
+        }
+      } catch (_e) { /* ignore */ }
+
+      // Decode base64
+      const pureB64 = b64.includes(",") ? b64.split(",")[1] : b64;
+      let bytes: Uint8Array;
+      try {
+        const bin = atob(pureB64);
+        bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      } catch (e) {
+        return json({ error: "Invalid base64 payload", detail: (e as Error).message }, 502);
+      }
+
+      const ext = (() => {
+        const m = mime.toLowerCase();
+        if (m.includes("webp")) return "webp";
+        if (m.includes("jpeg") || m.includes("jpg")) return "jpg";
+        if (m.includes("png")) return "png";
+        if (m.includes("gif")) return "gif";
+        if (m.includes("mp4")) return "mp4";
+        if (m.includes("webm")) return "webm";
+        if (m.includes("mp3") || m.includes("mpeg")) return "mp3";
+        if (m.includes("ogg")) return "ogg";
+        if (m.includes("opus")) return "opus";
+        if (m.includes("wav")) return "wav";
+        if (m.includes("pdf")) return "pdf";
+        return "bin";
+      })();
+      const path = `${workspaceId}/${messageId}.${ext}`;
+      const { error: upErr } = await admin.storage.from(BUCKET).upload(path, bytes, {
+        contentType: mime,
+        upsert: true,
+      });
+      if (upErr) {
+        console.error("storage upload failed", upErr.message);
+        return json({ error: "storage upload failed", detail: upErr.message }, 500);
+      }
+      const { data: pub } = admin.storage.from(BUCKET).getPublicUrl(path);
+      const publicUrl = pub?.publicUrl ?? null;
+      if (!publicUrl) return json({ error: "could not resolve public url" }, 500);
+
+      await admin.from("whatsapp_messages").update({ media_url: publicUrl }).eq("id", messageId);
+      return json({ ok: true, url: publicUrl, mime });
     }
 
     return json({ error: "Unknown action" }, 400);
