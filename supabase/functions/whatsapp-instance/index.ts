@@ -703,8 +703,159 @@ Deno.serve(async (req) => {
       return json({ ok: true });
     }
 
+    if (action === "delete_message") {
+      const { messageId, forEveryone } = body as { messageId?: string; forEveryone?: boolean };
+      if (!messageId) return json({ error: "messageId is required" }, 400);
+      const { data: msg } = await admin
+        .from("whatsapp_messages")
+        .select("*, conversation:conversation_id(contact_phone)")
+        .eq("id", messageId)
+        .eq("workspace_id", workspaceId)
+        .maybeSingle();
+      if (!msg) return json({ error: "Message not found" }, 404);
 
-    if (action === "send_media") {
+      // Try to revoke on WhatsApp if outbound and forEveryone
+      if (forEveryone && msg.direction === "outbound" && msg.wa_message_id && msg.conversation?.contact_phone && existing) {
+        try {
+          await uazForInstance(existing, "/message/delete", {
+            body: { number: msg.conversation.contact_phone, id: msg.wa_message_id },
+          });
+        } catch (_e) { /* swallow */ }
+      }
+
+      await admin
+        .from("whatsapp_messages")
+        .update({ deleted_at: new Date().toISOString() })
+        .eq("id", messageId)
+        .eq("workspace_id", workspaceId);
+      return json({ ok: true });
+    }
+
+    if (action === "forward_message") {
+      if (!existing) return json({ error: "Instance not found" }, 404);
+      const { messageId, targetConversationId } = body as { messageId?: string; targetConversationId?: string };
+      if (!messageId || !targetConversationId) {
+        return json({ error: "messageId and targetConversationId are required" }, 400);
+      }
+      const { data: msg } = await admin
+        .from("whatsapp_messages")
+        .select("*")
+        .eq("id", messageId)
+        .eq("workspace_id", workspaceId)
+        .maybeSingle();
+      if (!msg) return json({ error: "Message not found" }, 404);
+      const { data: targetConv } = await admin
+        .from("whatsapp_conversations")
+        .select("contact_phone")
+        .eq("id", targetConversationId)
+        .eq("workspace_id", workspaceId)
+        .maybeSingle();
+      if (!targetConv) return json({ error: "Target conversation not found" }, 404);
+
+      // Forward text via uazapi
+      if (msg.content) {
+        const fwdText = msg.content;
+        const send = await uazForInstance(existing, "/send/text", {
+          body: { number: targetConv.contact_phone, text: fwdText },
+        });
+        const sd = (send.data ?? {}) as Record<string, unknown>;
+        const waMessageId = (sd.messageid as string) || (sd.id as string) || null;
+        await admin.from("whatsapp_messages").insert({
+          workspace_id: workspaceId,
+          instance_id: existing.id,
+          conversation_id: targetConversationId,
+          wa_message_id: waMessageId,
+          direction: "outbound",
+          type: "text",
+          content: fwdText,
+          status: send.ok ? "sent" : "error",
+          error: send.ok ? null : JSON.stringify(sd).slice(0, 500),
+          raw_payload: { forwarded_from_message_id: messageId },
+        });
+        await admin.from("whatsapp_conversations").update({
+          last_message: fwdText,
+          last_message_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }).eq("id", targetConversationId);
+      }
+
+      // Forward media via uazapi (best-effort)
+      if (msg.media_url && msg.type && msg.type !== "text") {
+        const send = await uazForInstance(existing, "/send/media", {
+          body: { number: targetConv.contact_phone, type: msg.type, file: msg.media_url },
+        });
+        const sd = (send.data ?? {}) as Record<string, unknown>;
+        const waMessageId = (sd.messageid as string) || (sd.id as string) || null;
+        await admin.from("whatsapp_messages").insert({
+          workspace_id: workspaceId,
+          instance_id: existing.id,
+          conversation_id: targetConversationId,
+          wa_message_id: waMessageId,
+          direction: "outbound",
+          type: msg.type,
+          content: msg.content ?? null,
+          media_url: msg.media_url,
+          status: send.ok ? "sent" : "error",
+          error: send.ok ? null : JSON.stringify(sd).slice(0, 500),
+          raw_payload: { forwarded_from_message_id: messageId },
+        });
+        await admin.from("whatsapp_conversations").update({
+          last_message: msg.content ?? `[${msg.type}]`,
+          last_message_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }).eq("id", targetConversationId);
+      }
+
+      return json({ ok: true });
+    }
+
+    if (action === "archive_conversation") {
+      const { conversationId, archived } = body as { conversationId?: string; archived?: boolean };
+      if (!conversationId) return json({ error: "conversationId is required" }, 400);
+      await admin
+        .from("whatsapp_conversations")
+        .update({ status: archived ? "archived" : "open", updated_at: new Date().toISOString() })
+        .eq("id", conversationId)
+        .eq("workspace_id", workspaceId);
+      return json({ ok: true });
+    }
+
+    if (action === "mark_unread") {
+      const { conversationId, unread } = body as { conversationId?: string; unread?: boolean };
+      if (!conversationId) return json({ error: "conversationId is required" }, 400);
+      await admin
+        .from("whatsapp_conversations")
+        .update({
+          unread_count: unread ? 1 : 0,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", conversationId)
+        .eq("workspace_id", workspaceId);
+      return json({ ok: true });
+    }
+
+    if (action === "assign_conversation") {
+      const { conversationId, userId: assignUserId } = body as { conversationId?: string; userId?: string | null };
+      if (!conversationId) return json({ error: "conversationId is required" }, 400);
+      await admin
+        .from("whatsapp_conversations")
+        .update({ assigned_to: assignUserId ?? null, updated_at: new Date().toISOString() })
+        .eq("id", conversationId)
+        .eq("workspace_id", workspaceId);
+      return json({ ok: true });
+    }
+
+    if (action === "update_conversation_tags") {
+      const { conversationId, tags } = body as { conversationId?: string; tags?: string[] };
+      if (!conversationId) return json({ error: "conversationId is required" }, 400);
+      await admin
+        .from("whatsapp_conversations")
+        .update({ tags: tags ?? [], updated_at: new Date().toISOString() })
+        .eq("id", conversationId)
+        .eq("workspace_id", workspaceId);
+      return json({ ok: true });
+    }
+
       if (!existing) return json({ error: "Instance not found" }, 404);
       const { conversationId, kind, base64, mimeType, fileName, caption } = body as {
         conversationId?: string;
