@@ -55,7 +55,6 @@ import { WhatsAppChatInput } from "@/components/whatsapp/WhatsAppChatInput";
 import { WhatsAppContactPanel } from "@/components/whatsapp/WhatsAppContactPanel";
 import { WhatsAppEmptyState } from "@/components/whatsapp/WhatsAppEmptyState";
 import { WhatsAppBotConfig } from "@/components/whatsapp/WhatsAppBotConfig";
-import { BotRulesPanel } from "@/components/whatsapp/bot/BotRulesPanel";
 import { AudiencesBackendPage } from "@/components/whatsapp/audiences/AudiencesBackendPage";
 import { TemplatesBackendPage } from "@/components/whatsapp/templates/TemplatesBackendPage";
 import { CampaignsBackendPage } from "@/components/whatsapp/campaigns/CampaignsBackendPage";
@@ -1010,7 +1009,6 @@ export default function WhatsAppPage() {
         {activeMainTab === "bot" && workspace && (
           <div className="flex-1 overflow-y-auto h-full bg-background/50">
             <WhatsAppBotConfig workspaceId={workspace.id} />
-            <BotRulesPanel />
           </div>
         )}
 

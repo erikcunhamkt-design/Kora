@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { 
   Bot, Save, AlertCircle, Loader2, Server, Key, BrainCircuit, 
   Sparkles, MessageSquareCode, Settings2, HelpCircle, Send, 
-  Trash2, RefreshCw, CheckCircle2, ShieldAlert
+  Trash2, RefreshCw, CheckCircle2, ShieldAlert, UserCog
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -24,13 +24,16 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
   // Form states
   const [isActive, setIsActive] = useState(false);
   const [instruction, setInstruction] = useState("");
-  const [model, setModel] = useState("gemini-2.5-flash");
+  const [model, setModel] = useState("gemini-1.5-flash");
   const [provider, setProvider] = useState<"lovable" | "gemini_api_key" | "vertex_ai">("lovable");
   const [geminiApiKey, setGeminiApiKey] = useState("");
   const [gcpProjectId, setGcpProjectId] = useState("");
   const [gcpRegion, setGcpRegion] = useState("us-central1");
   const [gcpServiceAccount, setGcpServiceAccount] = useState("");
   const [respondAll, setRespondAll] = useState(true);
+  const [customModelName, setCustomModelName] = useState("");
+
+  const isCustomModel = model === "custom";
 
   // Simulator states
   const [simMessages, setSimMessages] = useState<Array<{ role: "user" | "model"; text: string }>>([
@@ -56,11 +59,22 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
         setIsActive(data.is_active || false);
         setInstruction(data.system_instruction || "");
         
-        const dbModel = data.model_name || "gemini-2.5-flash";
-        if (["gemini-2.5-flash", "gemini-2.5-pro"].includes(dbModel)) {
+        const dbModel = data.model_name || "gemini-1.5-flash";
+        const knownModels = [
+          "gemini-1.5-flash",
+          "gemini-1.5-pro",
+          "gemini-2.0-flash",
+          "gemini-1.5-flash-002",
+          "gemini-1.5-pro-002",
+          "gemini-1.5-flash-001",
+          "gemini-1.5-pro-001"
+        ];
+        if (knownModels.includes(dbModel)) {
           setModel(dbModel);
+          setCustomModelName("");
         } else {
-          setModel("gemini-2.5-flash");
+          setModel("custom");
+          setCustomModelName(dbModel);
         }
 
         setProvider((data as any).provider || "lovable");
@@ -86,7 +100,8 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
         setInstruction("Você é o atendente virtual do KORA Hub. Seja prestativo, educado e conciso.");
         setIsActive(false);
         setProvider("lovable");
-        setModel("gemini-2.5-flash");
+        setModel("gemini-1.5-flash");
+        setCustomModelName("");
         setRespondAll(true);
       }
     } catch (e) {
@@ -125,7 +140,7 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
       }
     }
 
-    const modelName = model;
+    const modelName = model === "custom" ? customModelName : model;
 
     try {
       const payload: any = {
@@ -181,7 +196,7 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
     setSimulating(true);
 
     try {
-      const activeModelName = model;
+      const activeModelName = model === "custom" ? customModelName : model;
       
       // Call the edge function in test mode
       const { data, error } = await supabase.functions.invoke("whatsapp-bot-reply", {
@@ -318,48 +333,112 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
               />
             </div>
 
-            {/* Model & RespondAll Toggle */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Model Selection */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">
+                Modelo de IA
+              </label>
+              <Select value={model} onValueChange={handleModelChange}>
+                <SelectTrigger className="bg-background/30 border-border/60 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {provider === "vertex_ai" ? (
+                    <>
+                      <SelectItem value="gemini-1.5-flash-002">Gemini 1.5 Flash (002)</SelectItem>
+                      <SelectItem value="gemini-1.5-pro-002">Gemini 1.5 Pro (002)</SelectItem>
+                      <SelectItem value="gemini-1.5-flash-001">Gemini 1.5 Flash (001)</SelectItem>
+                      <SelectItem value="gemini-1.5-pro-001">Gemini 1.5 Pro (001)</SelectItem>
+                    </>
+                  ) : (
+                    <>
+                      <SelectItem value="gemini-1.5-flash">Gemini 1.5 Flash (Recomendado)</SelectItem>
+                      <SelectItem value="gemini-1.5-pro">Gemini 1.5 Pro (Avançado)</SelectItem>
+                      <SelectItem value="gemini-2.0-flash">Gemini 2.0 Flash (Mais rápido)</SelectItem>
+                    </>
+                  )}
+                  <SelectItem value="custom">Outro Modelo (Digitar ID)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {isCustomModel && (
               <div className="space-y-2">
-                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                  Modelo de IA
+                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">
+                  ID do Modelo Customizado *
                 </label>
-                <Select value={model} onValueChange={handleModelChange}>
-                  <SelectTrigger className="bg-background/30 border-border/60 text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash (Recomendado)</SelectItem>
-                    <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro (Avançado)</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Input
+                  value={customModelName}
+                  onChange={(e) => setCustomModelName(e.target.value)}
+                  placeholder="ex: gemini-2.5-pro"
+                  className="h-9 text-sm bg-background/30 border-border/60 focus:border-violet-500"
+                  required
+                />
+                <p className="text-[10px] text-muted-foreground">Insira o ID oficial do modelo de IA do Google (ex: gemini-1.5-flash-latest).</p>
               </div>
+            )}
 
-              <div className="space-y-2 flex flex-col justify-end">
-                <div className="flex items-center justify-between bg-background/25 border border-border/50 p-2.5 rounded-lg h-[40px]">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-semibold text-foreground">Responder a todos</span>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button type="button" className="text-muted-foreground/60 hover:text-violet-400">
-                            <HelpCircle className="h-3.5 w-3.5" />
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent className="max-w-xs text-xs">
-                          Se ativado, a IA responde a todos os contatos. Se desativado, o robô deixará de responder se a conversa for associada a um atendente humano.
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+            {/* Modo de Atendimento / Escopo do Robô */}
+            <div className="space-y-2 pt-1">
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block flex items-center gap-1.5">
+                Modo de Atendimento / Escopo do Robô *
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button type="button" className="text-muted-foreground/60 hover:text-violet-400">
+                        <HelpCircle className="h-4 w-4" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs text-xs">
+                      Escolha se a IA deve responder a qualquer cliente ou apenas realizar a triagem inicial de novos atendimentos.
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </label>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                
+                {/* Option 1: Respond to any conversation */}
+                <div 
+                  onClick={() => setRespondAll(true)}
+                  className={`rounded-xl border p-4 cursor-pointer transition-all duration-200 hover:border-violet-500 flex flex-col justify-between space-y-2 ${
+                    respondAll 
+                      ? "border-violet-500 bg-violet-500/5 shadow-md shadow-violet-500/5" 
+                      : "border-border/60 bg-background/20"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                      <Sparkles className="h-4 w-4 text-violet-400" /> Qualquer Conversa (Irrestrito)
+                    </span>
+                    {respondAll && <CheckCircle2 className="h-4 w-4 text-violet-500" />}
                   </div>
-                  <Switch 
-                    checked={respondAll} 
-                    onCheckedChange={setRespondAll} 
-                    className="scale-90 data-[state=checked]:bg-violet-500" 
-                  />
+                  <p className="text-[10px] text-muted-foreground leading-relaxed">
+                    O robô responderá a todas as mensagens de qualquer cliente, incluindo conversas que já estão em andamento ou antigas.
+                  </p>
                 </div>
-              </div>
 
+                {/* Option 2: Respond only to new conversations */}
+                <div 
+                  onClick={() => setRespondAll(false)}
+                  className={`rounded-xl border p-4 cursor-pointer transition-all duration-200 hover:border-violet-500 flex flex-col justify-between space-y-2 ${
+                    !respondAll 
+                      ? "border-violet-500 bg-violet-500/5 shadow-md shadow-violet-500/5" 
+                      : "border-border/60 bg-background/20"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                      <UserCog className="h-4 w-4 text-violet-400" /> Apenas Conversas Novas (Triagem)
+                    </span>
+                    {!respondAll && <CheckCircle2 className="h-4 w-4 text-violet-500" />}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground leading-relaxed">
+                    O robô responderá somente a contatos novos sem atendente atribuído. Se um atendente humano intervir, a IA pausará automaticamente.
+                  </p>
+                </div>
+
+              </div>
             </div>
           </div>
 

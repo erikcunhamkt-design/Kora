@@ -14,24 +14,16 @@ const UAZ_BASE = (() => {
   return `https://${SUBDOMAIN}.uazapi.com`;
 })();
 
-const DEFAULT_MODEL = "gemini-2.5-flash";
-const LOVABLE_DEFAULT_MODEL = "google/gemini-3-flash-preview";
+const DEFAULT_MODEL = "gemini-1.5-flash";
+const LOVABLE_DEFAULT_MODEL = "google/gemini-1.5-flash";
 const MAX_HISTORY = 12;
 
-function normalizeGoogleModel(modelName: string): string {
-  const raw = (modelName || DEFAULT_MODEL).trim().replace(/^google\//i, "");
-  const deprecatedModels = new Set([
-    "gemini-1.5-flash",
-    "gemini-1.5-flash-001",
-    "gemini-1.5-flash-002",
-    "gemini-1.5-pro",
-    "gemini-1.5-pro-001",
-    "gemini-1.5-pro-002",
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-001",
-  ]);
-
-  return deprecatedModels.has(raw) ? DEFAULT_MODEL : raw;
+function normalizeGoogleModel(modelName: string, provider: string): string {
+  const raw = (modelName || "").trim().replace(/^google\//i, "");
+  if (!raw || raw === "custom" || raw === "gemini-2.5-flash" || raw === "gemini-2.5-pro") {
+    return provider === "vertex_ai" ? "gemini-1.5-flash-002" : DEFAULT_MODEL;
+  }
+  return raw;
 }
 
 function json(b: unknown, s = 200) {
@@ -291,7 +283,7 @@ Deno.serve(async (req) => {
 
     let reply = "";
     // Auto-map removed Google models to a currently supported Gemini model.
-    let rawModel = normalizeGoogleModel(modelName);
+    let rawModel = normalizeGoogleModel(modelName, provider);
 
     if (provider === "vertex_ai" && GCP_SERVICE_ACCOUNT && GCP_PROJECT_ID) {
       // 1. Google Cloud Vertex AI Mode
@@ -372,7 +364,7 @@ Deno.serve(async (req) => {
       reply = aiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
     } else if (provider === "lovable" && LOVABLE_API_KEY) {
       // 3. Lovable AI Gateway Mode
-      let modelToUse = normalizeGoogleModel(modelName);
+      let modelToUse = normalizeGoogleModel(modelName, provider);
       // Auto-prefix gemini models for Lovable AI gateway if they don't have a prefix
       if (modelToUse.startsWith("gemini-") && !modelToUse.includes("/")) {
         modelToUse = `google/${modelToUse}`;
