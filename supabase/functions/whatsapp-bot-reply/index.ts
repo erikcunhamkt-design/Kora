@@ -188,15 +188,21 @@ Deno.serve(async (req) => {
     if (!reply) return json({ ok: true, skipped: "empty reply" });
 
     // Send via uazapi
+    console.log("[bot-reply] sending reply", { provider, to: (conv as { contact_phone: string }).contact_phone, len: reply.length });
     const sendRes = await fetch(`${UAZ_BASE}/send/text`, {
       method: "POST",
       headers: { "Content-Type": "application/json", token: instance.instance_token },
-      body: JSON.stringify({ number: conv.contact_phone, text: reply }),
+      body: JSON.stringify({ number: (conv as { contact_phone: string }).contact_phone, text: reply }),
     });
     const sendText = await sendRes.text();
     let sendData: Record<string, unknown> = {};
     try { sendData = JSON.parse(sendText); } catch { /* keep */ }
     const waMessageId = (sendData.messageid as string) || (sendData.id as string) || null;
+    if (!sendRes.ok) {
+      console.error("[bot-reply] uazapi send failed", { status: sendRes.status, body: sendText.slice(0, 500) });
+    } else {
+      console.log("[bot-reply] uazapi send ok", { waMessageId });
+    }
 
     await admin.from("whatsapp_messages").insert({
       workspace_id: workspaceId,
