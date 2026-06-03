@@ -20,10 +20,20 @@ const MAX_HISTORY = 12;
 
 function normalizeGoogleModel(modelName: string, provider: string): string {
   const raw = (modelName || "").trim().replace(/^google\//i, "");
-  if (!raw || raw === "custom") {
-    return provider === "vertex_ai" ? "gemini-2.5-flash-001" : DEFAULT_MODEL;
-  }
-  return raw;
+  const model = !raw || raw === "custom" ? DEFAULT_MODEL : raw;
+  const supportedAliases: Record<string, string> = {
+    "gemini-1.5-flash": DEFAULT_MODEL,
+    "gemini-1.5-flash-001": DEFAULT_MODEL,
+    "gemini-1.5-flash-002": DEFAULT_MODEL,
+    "gemini-1.5-pro": "gemini-2.5-pro",
+    "gemini-1.5-pro-001": "gemini-2.5-pro",
+    "gemini-1.5-pro-002": "gemini-2.5-pro",
+    "gemini-2.0-flash": DEFAULT_MODEL,
+    "gemini-2.0-flash-001": DEFAULT_MODEL,
+    "gemini-2.5-flash-001": DEFAULT_MODEL,
+    "gemini-2.5-pro-001": "gemini-2.5-pro",
+  };
+  return supportedAliases[model] || model;
 }
 
 function json(b: unknown, s = 200) {

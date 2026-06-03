@@ -29,18 +29,15 @@ import {
 import { useVertexCredentials } from "@/hooks/useVertexCredentials";
 
 const MODELS = [
-  { value: "gemini-2.0-flash-001", label: "Gemini 2.0 Flash — rápido e barato (recomendado)" },
-  { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash — balanceado" },
+  { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash — balanceado (recomendado)" },
   { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro — máxima qualidade" },
-  { value: "gemini-1.5-flash-002", label: "Gemini 1.5 Flash — legado" },
-  { value: "gemini-1.5-pro-002", label: "Gemini 1.5 Pro — legado" },
 ];
 
 export function VertexAIConnectionCard() {
   const { status, loading, busy, save, toggleActive, remove } = useVertexCredentials();
   const [jsonText, setJsonText] = useState("");
   const [location, setLocation] = useState("us-central1");
-  const [model, setModel] = useState("gemini-2.0-flash-001");
+  const [model, setModel] = useState("gemini-2.5-flash");
   const [showForm, setShowForm] = useState(false);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {

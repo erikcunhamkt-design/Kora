@@ -31,9 +31,6 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
   const [gcpRegion, setGcpRegion] = useState("us-central1");
   const [gcpServiceAccount, setGcpServiceAccount] = useState("");
   const [respondAll, setRespondAll] = useState(true);
-  const [customModelName, setCustomModelName] = useState("");
-
-  const isCustomModel = model === "custom";
 
   // Simulator states
   const [simMessages, setSimMessages] = useState<Array<{ role: "user" | "model"; text: string }>>([
@@ -60,22 +57,19 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
         setInstruction(data.system_instruction || "");
         
         const dbModel = data.model_name || "gemini-2.5-flash";
-        const knownModels = [
-          "gemini-2.5-flash",
-          "gemini-2.5-pro",
-          "gemini-2.0-flash",
-          "gemini-2.5-flash-001",
-          "gemini-2.5-pro-001",
-          "gemini-1.5-flash",
-          "gemini-1.5-pro"
-        ];
-        if (knownModels.includes(dbModel)) {
-          setModel(dbModel);
-          setCustomModelName("");
-        } else {
-          setModel("custom");
-          setCustomModelName(dbModel);
-        }
+        const modelAliases: Record<string, string> = {
+          "gemini-1.5-flash": "gemini-2.5-flash",
+          "gemini-1.5-flash-001": "gemini-2.5-flash",
+          "gemini-1.5-flash-002": "gemini-2.5-flash",
+          "gemini-1.5-pro": "gemini-2.5-pro",
+          "gemini-1.5-pro-001": "gemini-2.5-pro",
+          "gemini-1.5-pro-002": "gemini-2.5-pro",
+          "gemini-2.0-flash": "gemini-2.5-flash",
+          "gemini-2.0-flash-001": "gemini-2.5-flash",
+          "gemini-2.5-flash-001": "gemini-2.5-flash",
+          "gemini-2.5-pro-001": "gemini-2.5-pro",
+        };
+        setModel(["gemini-2.5-flash", "gemini-2.5-pro"].includes(dbModel) ? dbModel : modelAliases[dbModel] || "gemini-2.5-flash");
 
         setProvider((data as any).provider || "lovable");
         setGeminiApiKey((data as any).gemini_api_key || "");
@@ -101,7 +95,6 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
         setIsActive(false);
         setProvider("lovable");
         setModel("gemini-2.5-flash");
-        setCustomModelName("");
         setRespondAll(true);
       }
     } catch (e) {
@@ -140,14 +133,12 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
       }
     }
 
-    const modelName = model === "custom" ? customModelName : model;
-
     try {
       const payload: any = {
         workspace_id: workspaceId,
         is_active: isActive,
         system_instruction: instruction,
-        model_name: modelName,
+        model_name: model,
         provider,
         gemini_api_key: geminiApiKey || null,
         gcp_project_id: activeGcpProjectId || null,
@@ -196,15 +187,13 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
     setSimulating(true);
 
     try {
-      const activeModelName = model === "custom" ? customModelName : model;
-      
       // Call the edge function in test mode
       const { data, error } = await supabase.functions.invoke("whatsapp-bot-reply", {
         body: {
           isTest: true,
           systemInstruction: instruction,
           provider,
-          modelName: activeModelName,
+          modelName: model,
           geminiApiKey: provider === "gemini_api_key" ? geminiApiKey : null,
           gcpProjectId: provider === "vertex_ai" ? gcpProjectId : null,
           gcpRegion: provider === "vertex_ai" ? gcpRegion : "us-central1",
@@ -343,38 +332,11 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {provider === "vertex_ai" ? (
-                    <>
-                      <SelectItem value="gemini-2.5-flash-001">Gemini 2.5 Flash (001)</SelectItem>
-                      <SelectItem value="gemini-2.5-pro-001">Gemini 2.5 Pro (001)</SelectItem>
-                    </>
-                  ) : (
-                    <>
-                      <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash (Recomendado)</SelectItem>
-                      <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro (Avançado)</SelectItem>
-                      <SelectItem value="gemini-2.0-flash">Gemini 2.0 Flash (Mais rápido)</SelectItem>
-                    </>
-                  )}
-                  <SelectItem value="custom">Outro Modelo (Digitar ID)</SelectItem>
+                  <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash (Recomendado)</SelectItem>
+                  <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro (Avançado)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-
-            {isCustomModel && (
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">
-                  ID do Modelo Customizado *
-                </label>
-                <Input
-                  value={customModelName}
-                  onChange={(e) => setCustomModelName(e.target.value)}
-                  placeholder="ex: gemini-2.5-pro"
-                  className="h-9 text-sm bg-background/30 border-border/60 focus:border-violet-500"
-                  required
-                />
-                <p className="text-[10px] text-muted-foreground">Insira o ID oficial do modelo de IA do Google (ex: gemini-1.5-flash-latest).</p>
-              </div>
-            )}
 
             {/* Modo de Atendimento / Escopo do Robô */}
             <div className="space-y-2 pt-1">
