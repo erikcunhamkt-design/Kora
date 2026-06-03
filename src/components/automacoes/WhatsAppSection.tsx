@@ -64,6 +64,17 @@ export function WhatsAppSection() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspace, instance, status]);
 
+  // Register uazapi webhook once when connected so the bot receives messages.
+  const webhookRegisteredRef = useRef(false);
+  useEffect(() => {
+    if (webhookRegisteredRef.current) return;
+    if (!workspace || !instance || status !== "connected") return;
+    webhookRegisteredRef.current = true;
+    void supabase.functions
+      .invoke("whatsapp-instance", { body: { action: "set_webhook", workspaceId: workspace.id } })
+      .catch(() => { webhookRegisteredRef.current = false; });
+  }, [workspace, instance, status]);
+
   const handleSend = async () => {
     if (!input.trim() || !selectedId || !workspace) return;
     setSending(true);
