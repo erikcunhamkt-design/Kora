@@ -35,7 +35,9 @@ export function useVertexCredentials() {
     setLoading(true);
     const { data, error } = await supabase
       .from("workspace_ai_credentials")
-      .select("id, is_active, location, default_model, credentials_json, updated_at")
+      .select(
+        "id, is_active, location, default_model, credentials_project_id, credentials_client_email, updated_at",
+      )
       .eq("workspace_id", workspace.id)
       .eq("provider", "vertex")
       .maybeSingle();
@@ -45,15 +47,14 @@ export function useVertexCredentials() {
     } else if (!data) {
       setStatus(empty);
     } else {
-      const creds = (data.credentials_json ?? {}) as Record<string, unknown>;
       setStatus({
         id: data.id,
         hasCredentials: true,
         isActive: !!data.is_active,
         location: data.location || "us-central1",
         defaultModel: data.default_model || "gemini-2.0-flash-001",
-        projectId: (creds.project_id as string) ?? null,
-        clientEmail: (creds.client_email as string) ?? null,
+        projectId: (data as { credentials_project_id: string | null }).credentials_project_id ?? null,
+        clientEmail: (data as { credentials_client_email: string | null }).credentials_client_email ?? null,
         updatedAt: data.updated_at,
       });
     }
