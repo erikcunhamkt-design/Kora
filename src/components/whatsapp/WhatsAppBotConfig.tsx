@@ -535,7 +535,19 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
                     </label>
                     <Textarea
                       value={gcpServiceAccount}
-                      onChange={(e) => setGcpServiceAccount(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setGcpServiceAccount(val);
+                        try {
+                          const parsed = JSON.parse(val);
+                          if (parsed.project_id) {
+                            setGcpProjectId(parsed.project_id);
+                            toast.success("Project ID extraído do JSON automaticamente!");
+                          }
+                        } catch {
+                          // ignore parser error as they type
+                        }
+                      }}
                       placeholder='{"type": "service_account", "project_id": "...", "private_key": "...", ...}'
                       className="min-h-[140px] text-xs bg-background/40 border-border/60 font-mono focus:border-violet-500 leading-relaxed"
                       required

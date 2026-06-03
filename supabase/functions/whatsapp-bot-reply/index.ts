@@ -146,6 +146,16 @@ Deno.serve(async (req) => {
       gcpRegion = body.gcpRegion || "us-central1";
       gcpServiceAccount = body.gcpServiceAccount || null;
       
+      // Auto-extract project_id from Service Account JSON if available
+      if (gcpServiceAccount) {
+        try {
+          const parsed = JSON.parse(gcpServiceAccount);
+          gcpProjectId = parsed.project_id || gcpProjectId;
+        } catch {
+          // ignore
+        }
+      }
+      
       // Build test contents
       const testHistory = body.history || [];
       if (testHistory.length > 0) {
@@ -229,6 +239,24 @@ Deno.serve(async (req) => {
       gcpProjectId = bot.gcp_project_id || null;
       gcpRegion = bot.gcp_region || gcpRegion;
       gcpServiceAccount = bot.gcp_service_account || null;
+
+      // Apply database-level custom keys if configured
+      if (provider === "gemini_api_key" && bot.gemini_api_key) {
+        geminiApiKey = bot.gemini_api_key;
+        gcpServiceAccount = null;
+        gcpProjectId = null;
+      } else if (provider === "vertex_ai" && bot.gcp_service_account) {
+        gcpServiceAccount = bot.gcp_service_account;
+        // Extract project ID from Service Account JSON if available
+        try {
+          const parsed = JSON.parse(gcpServiceAccount);
+          gcpProjectId = parsed.project_id || bot.gcp_project_id || gcpProjectId;
+        } catch {
+          gcpProjectId = bot.gcp_project_id || gcpProjectId;
+        }
+        gcpRegion = bot.gcp_region || gcpRegion;
+        geminiApiKey = null;
+      }
 
       contents = ordered
         .map((m) => ({
