@@ -85,21 +85,28 @@ export function useWhatsAppConversations(workspaceId: string | undefined, instan
       setMessages((data as WAMessage[]) ?? []);
     })();
 
-    // 2) Always refresh from provider in background, then re-read DB once.
-    //    This catches missing media URLs and new messages without blocking the UI.
+    // 2) Refresh from provider in background only if we have zero messages cached
+    //    This catches new messages without spamming uazapi on every click.
     (async () => {
       try {
-        await supabase.functions.invoke("whatsapp-instance", {
-          body: { action: "load_messages", workspaceId, conversationId: selectedId, limit: 50 },
-        });
-        if (cancelled) return;
-        const { data: after } = await supabase
+        const { count } = await supabase
           .from("whatsapp_messages")
-          .select("*, whatsapp_message_media(*)")
-          .eq("conversation_id", selectedId)
-          .order("created_at", { ascending: true })
-          .limit(200);
-        if (!cancelled) setMessages((after as WAMessage[]) ?? []);
+          .select("id", { count: "exact", head: true })
+          .eq("conversation_id", selectedId);
+
+        if (count === 0) {
+          await supabase.functions.invoke("whatsapp-instance", {
+            body: { action: "load_messages", workspaceId, conversationId: selectedId, limit: 50 },
+          });
+          if (cancelled) return;
+          const { data: after } = await supabase
+            .from("whatsapp_messages")
+            .select("*, whatsapp_message_media(*)")
+            .eq("conversation_id", selectedId)
+            .order("created_at", { ascending: true })
+            .limit(200);
+          if (!cancelled) setMessages((after as WAMessage[]) ?? []);
+        }
       } catch (_e) {
         /* ignore — cached view stays */
       }

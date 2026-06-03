@@ -14,6 +14,13 @@ const UAZ_BASE = (() => {
   return `https://${SUBDOMAIN}.uazapi.com`;
 })();
 
+function baseForStoredSubdomain(input: string | null | undefined): string {
+  const raw = (input ?? SUBDOMAIN ?? "free").trim().replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+  const host = raw.split("/")[0] || "free";
+  if (host.includes(".")) return `https://${host}`;
+  return `https://${host}.uazapi.com`;
+}
+
 const DEFAULT_MODEL = "gemini-2.5-flash";
 const LOVABLE_DEFAULT_MODEL = "google/gemini-2.5-flash";
 const MAX_HISTORY = 12;
@@ -228,7 +235,7 @@ Deno.serve(async (req) => {
       // Instance
       const { data: instData, error: instErr } = await adminClient
         .from("whatsapp_instances")
-        .select("instance_token, status")
+        .select("instance_token, status, subdomain")
         .eq("id", conv.instance_id)
         .maybeSingle();
 
@@ -421,8 +428,9 @@ Deno.serve(async (req) => {
     }
 
     // Send via uazapi
-    console.log(`[bot-reply] Sending reply to ${conv.contact_phone} using uazapi...`);
-    const sendRes = await fetch(`${UAZ_BASE}/send/text`, {
+    const activeUazBase = baseForStoredSubdomain(instance.subdomain);
+    console.log(`[bot-reply] Sending reply to ${conv.contact_phone} using uazapi at ${activeUazBase}...`);
+    const sendRes = await fetch(`${activeUazBase}/send/text`, {
       method: "POST",
       headers: { "Content-Type": "application/json", token: instance.instance_token },
       body: JSON.stringify({ number: conv.contact_phone, text: reply }),
