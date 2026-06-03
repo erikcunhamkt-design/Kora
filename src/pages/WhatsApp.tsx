@@ -391,13 +391,17 @@ export default function WhatsAppPage() {
                 </div>
 
                 <Tabs value={filter} onValueChange={(v) => setFilter(v as Filter)}>
-                  <TabsList className="grid grid-cols-4 h-8 bg-background/40 p-0.5">
+                  <TabsList className="grid grid-cols-5 h-8 bg-background/40 p-0.5">
                     <TabsTrigger value="all" className="text-[11px] h-7">Todas</TabsTrigger>
                     <TabsTrigger value="unread" className="text-[11px] h-7">
                       Não lidas{unreadCount > 0 && <span className="ml-1 text-primary">{unreadCount}</span>}
                     </TabsTrigger>
+                    <TabsTrigger value="awaiting" className="text-[11px] h-7" title={`Aguardando há mais de ${SLA_MINUTES} min`}>
+                      SLA{awaitingCount > 0 && <span className="ml-1 text-destructive">{awaitingCount}</span>}
+                    </TabsTrigger>
                     <TabsTrigger value="open" className="text-[11px] h-7">Abertas</TabsTrigger>
                     <TabsTrigger value="resolved" className="text-[11px] h-7">Resolvidas</TabsTrigger>
+
                   </TabsList>
                 </Tabs>
               </div>
