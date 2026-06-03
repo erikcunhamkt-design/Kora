@@ -131,6 +131,13 @@ export default function WhatsAppPage() {
     setForwardMessageId(null);
   }, [selectedId]);
 
+  // Scroll to bottom when opening a chat or when messages change
+  useEffect(() => {
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+    }
+  }, [selectedId, messages.length]);
+
   // ---- Phase 4: forward message ----
   const [forwardOpen, setForwardOpen] = useState(false);
   const [forwardMessageId, setForwardMessageId] = useState<string | null>(null);
