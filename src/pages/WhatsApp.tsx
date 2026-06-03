@@ -803,7 +803,7 @@ export default function WhatsAppPage() {
                   )}
 
                   {/* Mensagens */}
-                  <div className={cn("flex-1 overflow-y-auto", densityCfg.px, densityCfg.py, densityCfg.gap)}>
+                  <div ref={messagesContainerRef} className={cn("flex-1 overflow-y-auto", densityCfg.px, densityCfg.py, densityCfg.gap)}>
                     {messages.length === 0 && (
                       <div className="flex h-full items-center justify-center">
                         <WhatsAppEmptyState
