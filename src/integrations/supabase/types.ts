@@ -1122,6 +1122,7 @@ export type Database = {
       whatsapp_bot_settings: {
         Row: {
           created_at: string
+          flow_data: Json | null
           gcp_project_id: string | null
           gcp_region: string | null
           gcp_service_account: string | null
@@ -1137,6 +1138,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          flow_data?: Json | null
           gcp_project_id?: string | null
           gcp_region?: string | null
           gcp_service_account?: string | null
@@ -1152,6 +1154,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          flow_data?: Json | null
           gcp_project_id?: string | null
           gcp_region?: string | null
           gcp_service_account?: string | null
