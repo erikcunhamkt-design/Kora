@@ -38,7 +38,9 @@ export function useWhatsAppInstance() {
     setLoading(true);
     const { data } = await supabase
       .from("whatsapp_instances")
-      .select("*")
+      .select(
+        "id, workspace_id, status, phone, phone_name, qr_code, connected_at, last_status_at, created_at, updated_at",
+      )
       .eq("workspace_id", workspace.id)
       .maybeSingle();
     setInstance((data as WhatsAppInstance | null) ?? null);
