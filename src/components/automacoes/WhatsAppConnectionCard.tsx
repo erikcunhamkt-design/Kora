@@ -57,6 +57,17 @@ export function WhatsAppConnectionCard({
   const status = instance?.status ?? "disconnected";
   const qrCode = instance?.qr_code ?? null;
 
+  // Auto-close QR dialog when connection succeeds
+  useEffect(() => {
+    if (status === "connected" && qrOpen) {
+      const t = setTimeout(() => {
+        setQrOpen(false);
+        toast.success("WhatsApp conectado com sucesso!");
+      }, 1200);
+      return () => clearTimeout(t);
+    }
+  }, [status, qrOpen]);
+
   const handleConnect = async () => {
     try {
       await connect();
