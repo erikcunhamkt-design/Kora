@@ -24,9 +24,10 @@ export function IntegrationsSection() {
       <div>
         <h2 className="text-lg font-semibold">Integrações</h2>
         <p className="text-sm text-muted-foreground">
-          Conecte o WhatsApp do atendimento e gerencie as demais ferramentas externas.
+          Conecte sua IA própria (Vertex AI), o WhatsApp do atendimento e demais ferramentas externas.
         </p>
       </div>
+      <VertexAIConnectionCard />
       <WhatsAppConnectionCard
         instance={instance}
         loading={loading}
