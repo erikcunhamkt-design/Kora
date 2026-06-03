@@ -418,11 +418,11 @@ export function WhatsAppMessageBubble({
         )}
 
         {/* Image */}
-        {mediaUrl && isImage && (
+        {isImage && effectiveMediaUrl && (
           <>
             <button type="button" onClick={() => setLightboxOpen(true)} className="block w-full">
               <img
-                src={mediaUrl}
+                src={effectiveMediaUrl}
                 alt={content ?? "imagem"}
                 className="rounded-lg max-h-72 w-full object-cover bg-background/40 cursor-zoom-in hover:opacity-95 transition"
                 loading="lazy"
@@ -443,7 +443,7 @@ export function WhatsAppMessageBubble({
               </div>
             </button>
             <WhatsAppImageLightbox
-              src={mediaUrl}
+              src={effectiveMediaUrl}
               alt={content ?? "imagem"}
               open={lightboxOpen}
               onOpenChange={setLightboxOpen}
@@ -451,17 +451,17 @@ export function WhatsAppMessageBubble({
           </>
         )}
 
-        {mediaUrl && isVideo && (
-          <video src={mediaUrl} controls preload="metadata" className="rounded-lg max-h-72 w-full" />
+        {isVideo && effectiveMediaUrl && (
+          <video src={effectiveMediaUrl} controls preload="metadata" className="rounded-lg max-h-72 w-full" />
         )}
 
-        {mediaUrl && isAudio && (
-          <audio src={mediaUrl} controls preload="none" className="w-full min-w-[220px]" />
+        {isAudio && effectiveMediaUrl && (
+          <audio src={effectiveMediaUrl} controls preload="none" className="w-full min-w-[220px]" />
         )}
 
-        {mediaUrl && isDoc && (
+        {isDoc && effectiveMediaUrl && (
           <a
-            href={mediaUrl}
+            href={effectiveMediaUrl}
             target="_blank"
             rel="noreferrer"
             className="flex items-center gap-2 rounded-lg bg-background/40 px-2.5 py-2 border border-border/40 hover:border-primary/40 transition"
@@ -476,11 +476,24 @@ export function WhatsAppMessageBubble({
           </a>
         )}
 
-        {!mediaUrl && isMedia && (
-          <div className="flex items-center gap-2 italic text-muted-foreground text-xs">
-            <FileText className="h-3 w-3" /> {t} sem preview
+        {isMedia && !effectiveMediaUrl && (
+          <div className="flex items-center gap-2 italic text-muted-foreground text-xs rounded-lg bg-background/40 px-2.5 py-2 border border-border/40 min-w-[200px]">
+            {downloading ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Baixando mídia…
+              </>
+            ) : downloadError ? (
+              <>
+                <AlertCircle className="h-3.5 w-3.5 text-destructive" /> {downloadError}
+              </>
+            ) : (
+              <>
+                <FileText className="h-3 w-3" /> {isImage ? "Imagem" : isVideo ? "Vídeo" : isAudio ? "Áudio" : isDoc ? "Documento" : "Mídia"} sem preview
+              </>
+            )}
           </div>
         )}
+
 
         {isUnknown && (
           <div className="text-[11px] italic text-muted-foreground">
