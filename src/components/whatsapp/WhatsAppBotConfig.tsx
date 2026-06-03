@@ -19,6 +19,7 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
 
   // Form states
   const [isActive, setIsActive] = useState(false);
+  const [respondAll, setRespondAll] = useState(false);
   const [instruction, setInstruction] = useState("");
   const [model, setModel] = useState("gemini-1.5-flash");
 
@@ -36,6 +37,7 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
       if (data) {
         setSettings(data);
         setIsActive(data.is_active || false);
+        setRespondAll(((data as unknown) as { respond_all?: boolean }).respond_all === true);
         setInstruction(data.system_instruction || "");
         setModel(data.model_name || "gemini-1.5-flash");
       } else {
@@ -65,10 +67,11 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
           .from("whatsapp_bot_settings")
           .update({
             is_active: isActive,
+            respond_all: respondAll,
             system_instruction: instruction,
             model_name: model,
             updated_at: new Date().toISOString(),
-          })
+          } as never)
           .eq("id", settings.id);
 
         if (error) throw error;
@@ -80,9 +83,10 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
           .insert({
             workspace_id: workspaceId,
             is_active: isActive,
+            respond_all: respondAll,
             system_instruction: instruction,
             model_name: model,
-          })
+          } as never)
           .select()
           .single();
 
@@ -132,6 +136,18 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
               Quando ativado, o robô responderá de forma autônoma a novas conversas ou sempre que o cliente enviar mensagem e o atendimento não estiver atribuído a um atendente humano.
             </p>
           </div>
+        </div>
+
+        <div className="flex items-start justify-between gap-4 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+          <div className="flex-1 space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-foreground">Domínio total (responder qualquer mensagem)</span>
+            </div>
+            <p className="text-xs text-muted-foreground/90 leading-relaxed">
+              Quando ativado, o bot responde a <strong>qualquer contato</strong> e <strong>qualquer mensagem</strong>, mesmo em conversas já assumidas por um humano, em opt-out, ou logo após outra resposta. Use com cuidado.
+            </p>
+          </div>
+          <Switch checked={respondAll} onCheckedChange={setRespondAll} />
         </div>
 
         {vertex.hasCredentials && vertex.isActive ? (
