@@ -985,6 +985,58 @@ export default function WhatsAppPage() {
             <BotRulesPanel />
           </div>
         )}
+
+        {/* Forward Dialog */}
+        <Dialog open={forwardOpen} onOpenChange={setForwardOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-sm">Encaminhar mensagem</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 py-2">
+              <p className="text-xs text-muted-foreground">Selecione a conversa de destino:</p>
+              <div className="max-h-64 overflow-y-auto space-y-1 border border-border/40 rounded-lg p-1">
+                {conversations
+                  .filter((c) => c.id !== selectedId)
+                  .map((c) => (
+                    <button
+                      key={c.id}
+                      onClick={() => setForwardTargetId(c.id)}
+                      className={cn(
+                        "w-full text-left px-3 py-2 rounded-md text-xs flex items-center gap-2 transition",
+                        forwardTargetId === c.id
+                          ? "bg-primary/10 text-primary"
+                          : "hover:bg-muted/50",
+                      )}
+                    >
+                      <div className="h-7 w-7 rounded-full bg-gradient-to-br from-primary/25 to-primary/5 border border-border/40 text-primary flex items-center justify-center text-[10px] font-semibold flex-shrink-0 overflow-hidden">
+                        {c.avatar_url ? (
+                          <img src={c.avatar_url} alt={c.contact_name ?? c.contact_phone} className="h-full w-full object-cover" />
+                        ) : (
+                          (c.contact_name ?? c.contact_phone).slice(0, 2).toUpperCase()
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-medium truncate">{c.contact_name ?? c.contact_phone}</p>
+                        <p className="text-[10px] text-muted-foreground">{c.contact_phone}</p>
+                      </div>
+                    </button>
+                  ))}
+                {conversations.filter((c) => c.id !== selectedId).length === 0 && (
+                  <p className="text-xs text-muted-foreground text-center py-4">Nenhuma outra conversa disponível.</p>
+                )}
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" size="sm" onClick={() => { setForwardOpen(false); setForwardMessageId(null); setForwardTargetId(null); }}>
+                Cancelar
+              </Button>
+              <Button size="sm" disabled={!forwardTargetId || forwarding} onClick={handleForward}>
+                {forwarding ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Send className="h-3.5 w-3.5 mr-1" />}
+                Encaminhar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
