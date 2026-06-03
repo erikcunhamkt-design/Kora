@@ -44,23 +44,72 @@ Deno.serve(async (req) => {
 
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 
-    const { data: bot } = await admin
+    const { data: bot, error: botErr } = await admin
       .from("whatsapp_bot_settings")
       .select("*")
       .eq("workspace_id", workspaceId)
       .maybeSingle();
-    if (!bot || !bot.is_active) return json({ ok: true, skipped: "bot inactive" });
+    if (botErr) console.error("[bot-reply] bot settings query error", botErr);
+    if (!bot || !bot.is_active) {
+      console.log("[bot-reply] skip: bot inactive", { workspaceId, hasRow: !!bot });
+      return json({ ok: true, skipped: "bot inactive" });
+    }
 
-    const { data: conv } = await admin
+    const { data: conv, error: convErr } = await admin
       .from("whatsapp_conversations")
-      .select("*, whatsapp_instances!inner(instance_token, status)")
+      .select("id, workspace_id, instance_id, contact_phone, assigned_to")
       .eq("id", conversationId)
       .maybeSingle();
-    if (!conv) return json({ error: "conversation not found" }, 404);
-    if (conv.assigned_to) return json({ ok: true, skipped: "assigned" });
+    if (convErr) console.error("[bot-reply] conv query error", convErr);
+    if (!conv) {
+      console.log("[bot-reply] skip: conversation not found", { conversationId });
+      return json({ error: "conversation not found" }, 404);
+    }
+    if (conv.assigned_to) {
+      console.log("[bot-reply] skip: assigned to human", { conversationId, assigned_to: conv.assigned_to });
+      return json({ ok: true, skipped: "assigned" });
+    }
 
-    const instance = (conv as { whatsapp_instances: { instance_token: string; status: string } }).whatsapp_instances;
-    if (!instance || instance.status !== "connected") return json({ ok: true, skipped: "instance not connected" });
+    const { data: instance, error: instErr } = await admin
+      .from("whatsapp_instances")
+      .select("id, instance_token, status")
+      .eq("id", (conv as { instance_id: string }).instance_id)
+      .maybeSingle();
+    if (instErr) console.error("[bot-reply] instance query error", instErr);
+    if (!instance) {
+      console.log("[bot-reply] skip: instance not found", { instance_id: (conv as { instance_id: string }).instance_id });
+      return json({ ok: true, skipped: "instance not found" });
+    }
+    if (instance.status !== "connected") {
+      console.log("[bot-reply] skip: instance not connected", { status: instance.status });
+      return json({ ok: true, skipped: "instance not connected" });
+    }
+
+    // Opt-out check
+    const { data: optOut } = await admin
+      .from("whatsapp_opt_outs")
+      .select("id")
+      .eq("workspace_id", workspaceId)
+      .eq("normalized_phone", (conv as { contact_phone: string }).contact_phone)
+      .maybeSingle();
+    if (optOut) {
+      console.log("[bot-reply] skip: contact opted out");
+      return json({ ok: true, skipped: "opt-out" });
+    }
+
+    // Debounce: don't reply if we already sent something in the last 4 seconds
+    const { data: lastOut } = await admin
+      .from("whatsapp_messages")
+      .select("created_at")
+      .eq("conversation_id", conversationId)
+      .eq("direction", "outbound")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (lastOut && Date.now() - new Date(lastOut.created_at as string).getTime() < 4000) {
+      console.log("[bot-reply] skip: debounce (recent outbound)");
+      return json({ ok: true, skipped: "debounce" });
+    }
 
     const { data: history } = await admin
       .from("whatsapp_messages")
@@ -139,15 +188,21 @@ Deno.serve(async (req) => {
     if (!reply) return json({ ok: true, skipped: "empty reply" });
 
     // Send via uazapi
+    console.log("[bot-reply] sending reply", { provider, to: (conv as { contact_phone: string }).contact_phone, len: reply.length });
     const sendRes = await fetch(`${UAZ_BASE}/send/text`, {
       method: "POST",
       headers: { "Content-Type": "application/json", token: instance.instance_token },
-      body: JSON.stringify({ number: conv.contact_phone, text: reply }),
+      body: JSON.stringify({ number: (conv as { contact_phone: string }).contact_phone, text: reply }),
     });
     const sendText = await sendRes.text();
     let sendData: Record<string, unknown> = {};
     try { sendData = JSON.parse(sendText); } catch { /* keep */ }
     const waMessageId = (sendData.messageid as string) || (sendData.id as string) || null;
+    if (!sendRes.ok) {
+      console.error("[bot-reply] uazapi send failed", { status: sendRes.status, body: sendText.slice(0, 500) });
+    } else {
+      console.log("[bot-reply] uazapi send ok", { waMessageId });
+    }
 
     await admin.from("whatsapp_messages").insert({
       workspace_id: workspaceId,
