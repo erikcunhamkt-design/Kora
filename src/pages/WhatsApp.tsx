@@ -116,7 +116,13 @@ export default function WhatsAppPage() {
     setSearchOpen(false);
     setMsgQuery("");
     setReplyTo(null);
+    setForwardOpen(false);
+    setForwardMessageId(null);
   }, [selectedId]);
+
+  // ---- Phase 4: forward message ----
+  const [forwardOpen, setForwardOpen] = useState(false);
+  const [forwardMessageId, setForwardMessageId] = useState<string | null>(null);
 
 
   const status = instance?.status ?? "disconnected";
