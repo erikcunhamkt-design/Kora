@@ -372,7 +372,7 @@ Deno.serve(async (req) => {
       reply = aiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
     } else if (provider === "lovable" && LOVABLE_API_KEY) {
       // 3. Lovable AI Gateway Mode
-      let modelToUse = modelName;
+      let modelToUse = normalizeGoogleModel(modelName);
       // Auto-prefix gemini models for Lovable AI gateway if they don't have a prefix
       if (modelToUse.startsWith("gemini-") && !modelToUse.includes("/")) {
         modelToUse = `google/${modelToUse}`;
