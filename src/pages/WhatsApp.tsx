@@ -133,6 +133,32 @@ export default function WhatsAppPage() {
   // ---- Phase 4: forward message ----
   const [forwardOpen, setForwardOpen] = useState(false);
   const [forwardMessageId, setForwardMessageId] = useState<string | null>(null);
+  const [forwardTargetId, setForwardTargetId] = useState<string | null>(null);
+  const [forwarding, setForwarding] = useState(false);
+
+  // ---- Phase 4: sound notifications ----
+  const [soundEnabled, setSoundEnabled] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return localStorage.getItem("wa:sound") !== "false";
+  });
+  useEffect(() => {
+    if (typeof window !== "undefined") localStorage.setItem("wa:sound", String(soundEnabled));
+  }, [soundEnabled]);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Play notification sound on new inbound messages
+  useEffect(() => {
+    if (!soundEnabled) return;
+    if (messages.length === 0) return;
+    const last = messages[messages.length - 1];
+    if (last.direction === "inbound") {
+      if (!audioRef.current) {
+        audioRef.current = new Audio("/notification.mp3");
+      }
+      audioRef.current.currentTime = 0;
+      audioRef.current.play().catch(() => { /* ignore autoplay policy */ });
+    }
+  }, [messages, soundEnabled]);
 
 
   const status = instance?.status ?? "disconnected";
