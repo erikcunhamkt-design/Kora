@@ -1,13 +1,16 @@
 import { useState } from "react";
 import {
   Check, CheckCheck, Clock, FileText, AlertCircle, Star,
-  Reply, Pin, Smile, PinOff, CornerUpLeft,
+  Reply, Pin, Smile, PinOff, CornerUpLeft, Trash2, Forward,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { WhatsAppImageLightbox } from "./WhatsAppImageLightbox";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export interface ReplyPreviewData {
   id: string;
