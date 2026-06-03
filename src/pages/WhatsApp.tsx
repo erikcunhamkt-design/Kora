@@ -85,6 +85,15 @@ export default function WhatsAppPage() {
   const filtered = useMemo(() => {
     let list = conversations;
     if (filter === "unread")   list = list.filter((c) => c.unread_count > 0);
+    if (filter === "awaiting") {
+      const cutoff = Date.now() - SLA_MINUTES * 60_000;
+      list = list.filter(
+        (c) =>
+          c.unread_count > 0 &&
+          c.last_message_at != null &&
+          new Date(c.last_message_at).getTime() < cutoff,
+      );
+    }
     if (filter === "open")     list = list.filter((c) => (c.status ?? "open") !== "resolved");
     if (filter === "resolved") list = list.filter((c) => c.status === "resolved");
     if (query.trim()) {
@@ -100,6 +109,16 @@ export default function WhatsAppPage() {
   }, [conversations, query, filter]);
 
   const unreadCount = conversations.reduce((acc, c) => acc + (c.unread_count > 0 ? 1 : 0), 0);
+  const awaitingCount = useMemo(() => {
+    const cutoff = Date.now() - SLA_MINUTES * 60_000;
+    return conversations.filter(
+      (c) =>
+        c.unread_count > 0 &&
+        c.last_message_at != null &&
+        new Date(c.last_message_at).getTime() < cutoff,
+    ).length;
+  }, [conversations]);
+
 
   useEffect(() => {
     if (selectedId) void markRead(selectedId);
