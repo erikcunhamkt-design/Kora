@@ -579,8 +579,8 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Trigger Gemini bot reply for inbound text messages (fire-and-forget)
-    if (!fromMe && (internalKind === "text" || text)) {
+    // Trigger Gemini bot reply for inbound messages (except reactions)
+    if (!fromMe && internalKind !== "reaction") {
       try {
         const { data: bot } = await admin
           .from("whatsapp_bot_settings")
