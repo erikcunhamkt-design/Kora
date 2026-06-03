@@ -84,6 +84,8 @@ export function useVertexCredentials() {
           workspace_id: workspace.id,
           provider: "vertex",
           credentials_json: parsed as never,
+          credentials_project_id: (parsed.project_id as string) ?? null,
+          credentials_client_email: (parsed.client_email as string) ?? null,
           location: opts?.location || "us-central1",
           default_model: opts?.defaultModel || "gemini-2.0-flash-001",
           is_active: true,
