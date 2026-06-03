@@ -14,9 +14,25 @@ const UAZ_BASE = (() => {
   return `https://${SUBDOMAIN}.uazapi.com`;
 })();
 
-const DEFAULT_MODEL = "gemini-1.5-flash";
+const DEFAULT_MODEL = "gemini-2.5-flash";
 const LOVABLE_DEFAULT_MODEL = "google/gemini-3-flash-preview";
 const MAX_HISTORY = 12;
+
+function normalizeGoogleModel(modelName: string): string {
+  const raw = (modelName || DEFAULT_MODEL).trim().replace(/^google\//i, "");
+  const deprecatedModels = new Set([
+    "gemini-1.5-flash",
+    "gemini-1.5-flash-001",
+    "gemini-1.5-flash-002",
+    "gemini-1.5-pro",
+    "gemini-1.5-pro-001",
+    "gemini-1.5-pro-002",
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-001",
+  ]);
+
+  return deprecatedModels.has(raw) ? DEFAULT_MODEL : raw;
+}
 
 function json(b: unknown, s = 200) {
   return new Response(JSON.stringify(b), {
@@ -274,23 +290,8 @@ Deno.serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY") || null;
 
     let reply = "";
-    let rawModel = modelName.replace(/^google\//i, "");
-
-    // Auto-map model names for Vertex AI - migrate deprecated models to currently available ones
-    if (provider === "vertex_ai") {
-      // gemini-1.5-* models were deprecated/removed from Vertex in 2025. Upgrade to 2.0.
-      if (rawModel === "gemini-1.5-flash" || rawModel === "gemini-1.5-flash-002" || rawModel === "gemini-1.5-flash-001") {
-        rawModel = "gemini-2.0-flash-001";
-      } else if (rawModel === "gemini-1.5-pro" || rawModel === "gemini-1.5-pro-002" || rawModel === "gemini-1.5-pro-001") {
-        rawModel = "gemini-2.0-flash-001";
-      } else if (rawModel === "gemini-2.0-flash") {
-        rawModel = "gemini-2.0-flash-001";
-      } else if (rawModel === "gemini-2.5-flash") {
-        rawModel = "gemini-2.5-flash";
-      } else if (rawModel === "gemini-2.5-pro") {
-        rawModel = "gemini-2.5-pro";
-      }
-    }
+    // Auto-map removed Google models to a currently supported Gemini model.
+    let rawModel = normalizeGoogleModel(modelName);
 
     if (provider === "vertex_ai" && GCP_SERVICE_ACCOUNT && GCP_PROJECT_ID) {
       // 1. Google Cloud Vertex AI Mode
