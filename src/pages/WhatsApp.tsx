@@ -17,6 +17,13 @@ import {
   Smartphone,
   Users,
   X,
+  Archive,
+  ArchiveRestore,
+  MailOpen,
+  UserCheck,
+  Tag,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -30,6 +37,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 import { useWhatsAppInstance } from "@/hooks/useWhatsAppInstance";
@@ -116,7 +126,39 @@ export default function WhatsAppPage() {
     setSearchOpen(false);
     setMsgQuery("");
     setReplyTo(null);
+    setForwardOpen(false);
+    setForwardMessageId(null);
   }, [selectedId]);
+
+  // ---- Phase 4: forward message ----
+  const [forwardOpen, setForwardOpen] = useState(false);
+  const [forwardMessageId, setForwardMessageId] = useState<string | null>(null);
+  const [forwardTargetId, setForwardTargetId] = useState<string | null>(null);
+  const [forwarding, setForwarding] = useState(false);
+
+  // ---- Phase 4: sound notifications ----
+  const [soundEnabled, setSoundEnabled] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return localStorage.getItem("wa:sound") !== "false";
+  });
+  useEffect(() => {
+    if (typeof window !== "undefined") localStorage.setItem("wa:sound", String(soundEnabled));
+  }, [soundEnabled]);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Play notification sound on new inbound messages
+  useEffect(() => {
+    if (!soundEnabled) return;
+    if (messages.length === 0) return;
+    const last = messages[messages.length - 1];
+    if (last.direction === "inbound") {
+      if (!audioRef.current) {
+        audioRef.current = new Audio("/notification.mp3");
+      }
+      audioRef.current.currentTime = 0;
+      audioRef.current.play().catch(() => { /* ignore autoplay policy */ });
+    }
+  }, [messages, soundEnabled]);
 
 
   const status = instance?.status ?? "disconnected";
@@ -313,6 +355,82 @@ export default function WhatsAppPage() {
       toast.error("Falha ao enviar figurinha", { description: (e as Error).message });
     } finally {
       setSending(false);
+    }
+  };
+
+  // ---- Phase 4: conversation actions ----
+  const handleArchive = async (conversationId: string, archived: boolean) => {
+    if (!workspace) return;
+    try {
+      const { error } = await supabase.functions.invoke("whatsapp-instance", {
+        body: { action: "archive_conversation", workspaceId: workspace.id, conversationId, archived },
+      });
+      if (error) throw error;
+      toast.success(archived ? "Conversa arquivada" : "Conversa desarquivada");
+    } catch (e) {
+      toast.error("Falha", { description: (e as Error).message });
+    }
+  };
+
+  const handleMarkUnread = async (conversationId: string, unread: boolean) => {
+    if (!workspace) return;
+    try {
+      const { error } = await supabase.functions.invoke("whatsapp-instance", {
+        body: { action: "mark_unread", workspaceId: workspace.id, conversationId, unread },
+      });
+      if (error) throw error;
+    } catch (e) {
+      toast.error("Falha", { description: (e as Error).message });
+    }
+  };
+
+  const handleAssign = async (conversationId: string, userId: string | null) => {
+    if (!workspace) return;
+    try {
+      const { error } = await supabase.functions.invoke("whatsapp-instance", {
+        body: { action: "assign_conversation", workspaceId: workspace.id, conversationId, userId },
+      });
+      if (error) throw error;
+      toast.success(userId ? "Conversa atribuída" : "Atribuição removida");
+    } catch (e) {
+      toast.error("Falha", { description: (e as Error).message });
+    }
+  };
+
+  const handleUpdateTags = async (conversationId: string, tags: string[]) => {
+    if (!workspace) return;
+    try {
+      const { error } = await supabase.functions.invoke("whatsapp-instance", {
+        body: { action: "update_conversation_tags", workspaceId: workspace.id, conversationId, tags },
+      });
+      if (error) throw error;
+      toast.success("Tags atualizadas");
+    } catch (e) {
+      toast.error("Falha", { description: (e as Error).message });
+    }
+  };
+
+  const handleForward = async () => {
+    if (!forwardMessageId || !forwardTargetId || !workspace) return;
+    setForwarding(true);
+    try {
+      const { error } = await supabase.functions.invoke("whatsapp-instance", {
+        body: {
+          action: "forward_message",
+          workspaceId: workspace.id,
+          messageId: forwardMessageId,
+          targetConversationId: forwardTargetId,
+        },
+      });
+      if (error) throw error;
+      toast.success("Mensagem encaminhada");
+      setForwardOpen(false);
+      setForwardMessageId(null);
+      setForwardTargetId(null);
+    } catch (e) {
+      toast.error("Falha ao encaminhar", { description: (e as Error).message });
+    } finally {
+      setForwarding(false);
     }
   };
 
@@ -588,11 +706,10 @@ export default function WhatsAppPage() {
                             <MoreVertical className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-52">
+                        <DropdownMenuContent align="end" className="w-56">
                           <DropdownMenuLabel className="flex items-center gap-2 text-xs">
                             <Rows3 className="h-3.5 w-3.5" /> Densidade das mensagens
                           </DropdownMenuLabel>
-                          <DropdownMenuSeparator />
                           {(["compact", "normal", "comfortable"] as const).map((d) => (
                             <DropdownMenuItem
                               key={d}
@@ -605,6 +722,33 @@ export default function WhatsAppPage() {
                               {density === d && <Check className="h-3.5 w-3.5 text-primary" />}
                             </DropdownMenuItem>
                           ))}
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => handleArchive(selected.id, selected.status !== "archived")}
+                            className="text-xs gap-2"
+                          >
+                            {selected.status === "archived" ? (
+                              <><ArchiveRestore className="h-3.5 w-3.5" /> Desarquivar</>
+                            ) : (
+                              <><Archive className="h-3.5 w-3.5" /> Arquivar conversa</>
+                            )}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleMarkUnread(selected.id, true)}
+                            className="text-xs gap-2"
+                          >
+                            <MailOpen className="h-3.5 w-3.5" /> Marcar como não lida
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => setSoundEnabled((s) => !s)}
+                            className="text-xs gap-2 justify-between"
+                          >
+                            <span className="flex items-center gap-2">
+                              {soundEnabled ? <Volume2 className="h-3.5 w-3.5" /> : <VolumeX className="h-3.5 w-3.5" />}
+                              Som de notificação
+                            </span>
+                            {soundEnabled && <Check className="h-3.5 w-3.5 text-primary" />}
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
@@ -688,6 +832,7 @@ export default function WhatsAppPage() {
                           workspaceId={workspace?.id}
                           reactions={(item.msg as any).reactions ?? null}
                           pinnedAt={(item.msg as any).pinned_at ?? null}
+                          deletedAt={(item.msg as any).deleted_at ?? null}
                           replyTo={(() => {
                             const rId = (item.msg as any).reply_to_message_id as string | null;
                             if (!rId) return null;
@@ -698,6 +843,21 @@ export default function WhatsAppPage() {
                           onJumpTo={(mid) => {
                             const el = document.getElementById(`wa-msg-${mid}`);
                             el?.scrollIntoView({ behavior: "smooth", block: "center" });
+                          }}
+                          onDelete={async (msgId) => {
+                            try {
+                              const { error } = await supabase.functions.invoke("whatsapp-instance", {
+                                body: { action: "delete_message", workspaceId: workspace?.id, messageId: msgId },
+                              });
+                              if (error) throw error;
+                              toast.success("Mensagem excluída");
+                            } catch (e) {
+                              toast.error("Falha ao excluir", { description: (e as Error).message });
+                            }
+                          }}
+                          onForward={(msgId) => {
+                            setForwardMessageId(msgId);
+                            setForwardOpen(true);
                           }}
                         />
                         </div>
@@ -770,10 +930,13 @@ export default function WhatsAppPage() {
                   contactPhone={selected.contact_phone}
                   status={selected.status}
                   tags={selected.tags}
+                  assignedTo={(selected as any).assigned_to ?? null}
                   avatarUrl={selected.avatar_url}
                   lastActivity={selected.last_message_at}
                   clientId={(selected as any).client_id ?? null}
                   onClose={() => setShowContext(false)}
+                  onAssign={(userId) => handleAssign(selected.id, userId)}
+                  onUpdateTags={(tags) => handleUpdateTags(selected.id, tags)}
                 />
               </div>
             )}
@@ -789,10 +952,13 @@ export default function WhatsAppPage() {
                     contactPhone={selected.contact_phone}
                     status={selected.status}
                     tags={selected.tags}
+                    assignedTo={(selected as any).assigned_to ?? null}
                     avatarUrl={selected.avatar_url}
                     lastActivity={selected.last_message_at}
                     clientId={(selected as any).client_id ?? null}
                     onClose={() => setContextSheetOpen(false)}
+                    onAssign={(userId) => handleAssign(selected.id, userId)}
+                    onUpdateTags={(tags) => handleUpdateTags(selected.id, tags)}
                   />
                 )}
               </SheetContent>
@@ -825,6 +991,58 @@ export default function WhatsAppPage() {
             <BotRulesPanel />
           </div>
         )}
+
+        {/* Forward Dialog */}
+        <Dialog open={forwardOpen} onOpenChange={setForwardOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-sm">Encaminhar mensagem</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 py-2">
+              <p className="text-xs text-muted-foreground">Selecione a conversa de destino:</p>
+              <div className="max-h-64 overflow-y-auto space-y-1 border border-border/40 rounded-lg p-1">
+                {conversations
+                  .filter((c) => c.id !== selectedId)
+                  .map((c) => (
+                    <button
+                      key={c.id}
+                      onClick={() => setForwardTargetId(c.id)}
+                      className={cn(
+                        "w-full text-left px-3 py-2 rounded-md text-xs flex items-center gap-2 transition",
+                        forwardTargetId === c.id
+                          ? "bg-primary/10 text-primary"
+                          : "hover:bg-muted/50",
+                      )}
+                    >
+                      <div className="h-7 w-7 rounded-full bg-gradient-to-br from-primary/25 to-primary/5 border border-border/40 text-primary flex items-center justify-center text-[10px] font-semibold flex-shrink-0 overflow-hidden">
+                        {c.avatar_url ? (
+                          <img src={c.avatar_url} alt={c.contact_name ?? c.contact_phone} className="h-full w-full object-cover" />
+                        ) : (
+                          (c.contact_name ?? c.contact_phone).slice(0, 2).toUpperCase()
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-medium truncate">{c.contact_name ?? c.contact_phone}</p>
+                        <p className="text-[10px] text-muted-foreground">{c.contact_phone}</p>
+                      </div>
+                    </button>
+                  ))}
+                {conversations.filter((c) => c.id !== selectedId).length === 0 && (
+                  <p className="text-xs text-muted-foreground text-center py-4">Nenhuma outra conversa disponível.</p>
+                )}
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" size="sm" onClick={() => { setForwardOpen(false); setForwardMessageId(null); setForwardTargetId(null); }}>
+                Cancelar
+              </Button>
+              <Button size="sm" disabled={!forwardTargetId || forwarding} onClick={handleForward}>
+                {forwarding ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Send className="h-3.5 w-3.5 mr-1" />}
+                Encaminhar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

@@ -38,11 +38,14 @@ export interface WhatsAppContactPanelProps {
   contactPhone: string;
   status?: string | null;
   tags?: string[] | null;
+  assignedTo?: string | null;
   avatarUrl?: string | null;
   lastActivity?: string | null;
   clientId?: string | null;
   onClose?: () => void;
   onClientLinked?: (clientId: string | null) => void;
+  onAssign?: (userId: string | null) => void;
+  onUpdateTags?: (tags: string[]) => void;
 }
 
 interface Note {
@@ -129,12 +132,15 @@ export function WhatsAppContactPanel({
   contactName,
   contactPhone,
   status,
-  tags,
+  tags: initialTags,
+  assignedTo: initialAssignedTo,
   avatarUrl,
   lastActivity,
   clientId: initialClientId,
   onClose,
   onClientLinked,
+  onAssign,
+  onUpdateTags,
 }: WhatsAppContactPanelProps) {
   const [clientId, setClientId] = useState<string | null>(initialClientId ?? null);
   const [client, setClient] = useState<ClientLite | null>(null);
@@ -148,6 +154,30 @@ export function WhatsAppContactPanel({
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState<ClientLite[]>([]);
   const [creatingOpportunity, setCreatingOpportunity] = useState(false);
+  const [panelTags, setPanelTags] = useState<string[]>(initialTags ?? []);
+  const [newTag, setNewTag] = useState("");
+  const [members, setMembers] = useState<{ id: string; name: string | null; email: string | null }[]>([]);
+  const [assigned, setAssigned] = useState<string | null>(initialAssignedTo ?? null);
+
+  // Load workspace members for assignment
+  useEffect(() => {
+    if (!workspaceId) return;
+    let active = true;
+    supabase
+      .from("workspace_members")
+      .select("user_id, role, users:user_id(email, raw_user_meta_data)")
+      .eq("workspace_id", workspaceId)
+      .then(({ data }) => {
+        if (!active || !data) return;
+        const list = (data as any[]).map((d) => ({
+          id: d.user_id as string,
+          name: (d.users?.raw_user_meta_data?.name ?? d.users?.email ?? "") as string | null,
+          email: (d.users?.email ?? "") as string | null,
+        }));
+        setMembers(list);
+      });
+    return () => { active = false; };
+  }, [workspaceId]);
 
   useEffect(() => {
     setClientId(initialClientId ?? null);
@@ -489,18 +519,58 @@ export function WhatsAppContactPanel({
           )}
         </Section>
 
-        {/* Tags */}
         <Section title="Tags" icon={Tag}>
           <div className="flex flex-wrap gap-1.5">
-            {tags && tags.length > 0 ? (
-              tags.map((t) => (
-                <Badge key={t} variant="outline" className="text-[10px] h-5 border-border/60">
-                  {t}
+            {panelTags.length > 0 ? (
+              panelTags.map((t) => (
+                <Badge key={t} variant="outline" className="text-[10px] h-5 border-border/60 cursor-pointer hover:border-destructive hover:text-destructive"
+                  onClick={() => {
+                    const next = panelTags.filter((x) => x !== t);
+                    setPanelTags(next);
+                    onUpdateTags?.(next);
+                  }}
+                >
+                  {t} ×
                 </Badge>
               ))
             ) : (
               <span className="text-[11px] text-muted-foreground italic">Sem tags</span>
             )}
+          </div>
+          <div className="flex items-center gap-1.5 mt-2">
+            <Input
+              value={newTag}
+              onChange={(e) => setNewTag(e.target.value)}
+              placeholder="Nova tag..."
+              className="h-7 text-xs bg-background/60"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  const v = newTag.trim();
+                  if (v && !panelTags.includes(v)) {
+                    const next = [...panelTags, v];
+                    setPanelTags(next);
+                    onUpdateTags?.(next);
+                    setNewTag("");
+                  }
+                }
+              }}
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 px-2 text-xs"
+              onClick={() => {
+                const v = newTag.trim();
+                if (v && !panelTags.includes(v)) {
+                  const next = [...panelTags, v];
+                  setPanelTags(next);
+                  onUpdateTags?.(next);
+                  setNewTag("");
+                }
+              }}
+            >
+              <Plus className="h-3 w-3" />
+            </Button>
           </div>
         </Section>
 

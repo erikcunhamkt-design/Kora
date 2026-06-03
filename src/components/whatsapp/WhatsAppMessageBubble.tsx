@@ -1,13 +1,16 @@
 import { useState } from "react";
 import {
   Check, CheckCheck, Clock, FileText, AlertCircle, Star,
-  Reply, Pin, Smile, PinOff, CornerUpLeft,
+  Reply, Pin, Smile, PinOff, CornerUpLeft, Trash2, Forward,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { WhatsAppImageLightbox } from "./WhatsAppImageLightbox";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export interface ReplyPreviewData {
   id: string;
@@ -28,9 +31,12 @@ export interface WhatsAppMessageBubbleProps {
   workspaceId?: string;
   reactions?: Record<string, string> | null;
   pinnedAt?: string | null;
+  deletedAt?: string | null;
   replyTo?: ReplyPreviewData | null;
   onReply?: (msg: { id: string; content: string | null; direction: string; type: string | null }) => void;
   onJumpTo?: (messageId: string) => void;
+  onDelete?: (messageId: string) => void;
+  onForward?: (messageId: string) => void;
 }
 
 const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏", "🔥", "👏"];
@@ -92,9 +98,12 @@ export function WhatsAppMessageBubble({
   workspaceId,
   reactions,
   pinnedAt,
+  deletedAt,
   replyTo,
   onReply,
   onJumpTo,
+  onDelete,
+  onForward,
 }: WhatsAppMessageBubbleProps) {
   const outbound = direction === "outbound";
   const t = (type ?? "text").toLowerCase();
@@ -111,6 +120,29 @@ export function WhatsAppMessageBubble({
   const isMedia   = isImage || isVideo || isAudio || isDoc || isSticker;
   const isUnknown = !isMedia && t !== "text" && !content;
   const reactionsObj = reactions ?? {};
+
+  if (deletedAt) {
+    return (
+      <div className={cn("flex w-full flex-col", outbound ? "items-end" : "items-start")}>
+        <div
+          className={cn(
+            "relative max-w-[85%] sm:max-w-[78%] md:max-w-[65%] xl:max-w-[60%] px-3 py-2 rounded-2xl text-sm",
+            outbound
+              ? "bg-primary/10 border border-primary/10 text-muted-foreground rounded-br-md italic"
+              : "bg-muted/30 border border-border/30 text-muted-foreground rounded-bl-md italic",
+          )}
+        >
+          Mensagem excluída
+          <div className={cn(
+            "flex items-center gap-1 text-[10px] opacity-70 mt-1",
+            outbound ? "justify-end" : "justify-start",
+          )}>
+            <span>{formatTime(createdAt)}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const react = async (emoji: string | null) => {
     if (!workspaceId) return;
@@ -207,6 +239,16 @@ export function WhatsAppMessageBubble({
           <Reply className="h-3.5 w-3.5" />
         </button>
       )}
+      {onForward && (
+        <button
+          type="button"
+          onClick={() => onForward(id)}
+          className="h-6 w-6 rounded-full hover:bg-muted/50 flex items-center justify-center"
+          title="Encaminhar"
+        >
+          <Forward className="h-3.5 w-3.5" />
+        </button>
+      )}
       <button
         type="button"
         disabled={busy}
@@ -218,6 +260,35 @@ export function WhatsAppMessageBubble({
           ? <PinOff className="h-3.5 w-3.5 text-primary" />
           : <Pin className="h-3.5 w-3.5" />}
       </button>
+      {onDelete && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="h-6 w-6 rounded-full hover:bg-destructive/10 flex items-center justify-center text-muted-foreground hover:text-destructive"
+              title="Excluir"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side="top" align={outbound ? "end" : "start"}>
+            <DropdownMenuItem
+              onClick={() => onDelete(id)}
+              className="text-destructive focus:text-destructive focus:bg-destructive/10"
+            >
+              <Trash2 className="h-3.5 w-3.5 mr-2" /> Excluir para mim
+            </DropdownMenuItem>
+            {outbound && (
+              <DropdownMenuItem
+                onClick={() => onDelete(id)}
+                className="text-destructive focus:text-destructive focus:bg-destructive/10"
+              >
+                <Trash2 className="h-3.5 w-3.5 mr-2" /> Excluir para todos
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
     </div>
   );
 
