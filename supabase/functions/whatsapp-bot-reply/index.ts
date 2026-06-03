@@ -316,7 +316,7 @@ Deno.serve(async (req) => {
         }
 
         const fallbackToken = await getGCPToken(GCP_SERVICE_ACCOUNT, "https://www.googleapis.com/auth/generative-language");
-        const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/${fallbackModel}:generateContent`;
+        const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/projects/${GCP_PROJECT_ID}/models/${fallbackModel}:generateContent`;
         const fallbackRes = await fetch(fallbackUrl, {
           method: "POST",
           headers: {

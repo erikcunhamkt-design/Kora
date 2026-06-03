@@ -525,32 +525,6 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
 
               {provider === "vertex_ai" && (
                 <div className="space-y-4 bg-background/20 border border-border/40 p-4 rounded-xl">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                        GCP Project ID
-                      </label>
-                      <Input
-                        value={gcpProjectId}
-                        onChange={(e) => setGcpProjectId(e.target.value)}
-                        placeholder="Autodetectado do JSON..."
-                        className="h-9 text-sm bg-background/40 border-border/60 focus:border-violet-500"
-                      />
-                    </div>
-                    
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                        GCP Region *
-                      </label>
-                      <Input
-                        value={gcpRegion}
-                        onChange={(e) => setGcpRegion(e.target.value)}
-                        placeholder="us-central1"
-                        className="h-9 text-sm bg-background/40 border-border/60 focus:border-violet-500"
-                        required
-                      />
-                    </div>
-                  </div>
 
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
