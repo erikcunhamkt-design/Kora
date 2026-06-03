@@ -134,6 +134,28 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
           </div>
         </div>
 
+        {vertex.hasCredentials && vertex.isActive ? (
+          <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-4 flex gap-3">
+            <Sparkles className="h-5 w-5 text-emerald-500 flex-shrink-0 mt-0.5" />
+            <div className="text-xs text-muted-foreground/90 leading-relaxed space-y-1">
+              <span className="font-semibold text-foreground">Vertex AI conectado</span>
+              <p>
+                As respostas usarão sua própria chave do Google Vertex AI (modelo <strong>{vertex.defaultModel}</strong> em <strong>{vertex.location}</strong>) — sem consumir créditos do Orbyt. Para trocar o modelo, vá em Integrações → Vertex AI.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-muted/30 border border-border/40 rounded-xl p-4 flex gap-3">
+            <Key className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-0.5" />
+            <div className="text-xs text-muted-foreground/90 leading-relaxed space-y-1">
+              <span className="font-semibold text-foreground">Usando créditos do Orbyt</span>
+              <p>
+                Conecte sua própria chave do Google Vertex AI em <strong>Integrações</strong> para usar seus créditos da GCP em vez dos créditos da plataforma.
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="space-y-1.5">
           <label className="text-xs uppercase font-bold text-muted-foreground tracking-wider">
             Instrução do Sistema / Roteiro do Bot
