@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Download, Loader2, Plug, QrCode, RefreshCw, RotateCw, Smartphone, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -56,6 +56,17 @@ export function WhatsAppConnectionCard({
 
   const status = instance?.status ?? "disconnected";
   const qrCode = instance?.qr_code ?? null;
+
+  // Auto-close QR dialog when connection succeeds
+  useEffect(() => {
+    if (status === "connected" && qrOpen) {
+      const t = setTimeout(() => {
+        setQrOpen(false);
+        toast.success("WhatsApp conectado com sucesso!");
+      }, 1200);
+      return () => clearTimeout(t);
+    }
+  }, [status, qrOpen]);
 
   const handleConnect = async () => {
     try {
