@@ -111,7 +111,7 @@ export function WhatsAppSection() {
           {!loadingConv && conversations.length === 0 && (
             <div className="p-4 text-xs text-muted-foreground">
               {status === "connected"
-                ? "Nenhuma conversa ainda. Clique em 'Sincronizar conversas' ou envie/receba uma mensagem."
+                ? "Sincronizando automaticamente... Envie ou receba uma mensagem para começar."
                 : "Conecte o WhatsApp para ver as conversas."}
             </div>
           )}
