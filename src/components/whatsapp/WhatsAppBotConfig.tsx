@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
-import { Bot, Save, AlertCircle, Play, Pause, Loader2, Key } from "lucide-react";
+import { Bot, Save, AlertCircle, Play, Pause, Loader2, Key, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useVertexCredentials } from "@/hooks/useVertexCredentials";
 import type { Database } from "@/integrations/supabase/types";
 
 type BotSettings = Database["public"]["Tables"]["whatsapp_bot_settings"]["Row"];
