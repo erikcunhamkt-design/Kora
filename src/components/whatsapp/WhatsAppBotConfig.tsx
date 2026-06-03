@@ -67,10 +67,11 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
           .from("whatsapp_bot_settings")
           .update({
             is_active: isActive,
+            respond_all: respondAll,
             system_instruction: instruction,
             model_name: model,
             updated_at: new Date().toISOString(),
-          })
+          } as never)
           .eq("id", settings.id);
 
         if (error) throw error;
@@ -82,9 +83,10 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
           .insert({
             workspace_id: workspaceId,
             is_active: isActive,
+            respond_all: respondAll,
             system_instruction: instruction,
             model_name: model,
-          })
+          } as never)
           .select()
           .single();
 
