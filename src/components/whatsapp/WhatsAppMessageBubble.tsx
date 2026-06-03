@@ -502,9 +502,14 @@ export function WhatsAppMessageBubble({
           </div>
         )}
 
-        {content && !isDoc && (
-          <div className="whitespace-pre-wrap break-words leading-relaxed">{content}</div>
-        )}
+        {(() => {
+          if (!content || isDoc) return null;
+          const trimmed = content.trim();
+          // Hide caption when it's just a URL (often the media URL itself)
+          const isUrl = /^https?:\/\/\S+$/i.test(trimmed);
+          if (isMedia && (isUrl || trimmed === mediaUrl || trimmed === effectiveMediaUrl)) return null;
+          return <div className="whitespace-pre-wrap break-words leading-relaxed">{content}</div>;
+        })()}
 
         <div className={cn(
           "flex items-center gap-1 text-[10px] opacity-70",
