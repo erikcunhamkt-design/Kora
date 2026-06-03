@@ -240,7 +240,7 @@ export default function WhatsAppPage() {
     } catch { /* best-effort */ }
   };
 
-  const handleSync = async () => {
+  const handleSync = async (silent = false) => {
     if (!workspace) return;
     setSyncing(true);
     try {
@@ -250,18 +250,29 @@ export default function WhatsAppPage() {
       if (error) throw error;
       if ((data as { error?: string })?.error) throw new Error((data as { error: string }).error);
       if ((data as { needs_reconnect?: boolean })?.needs_reconnect) {
-        toast.warning("Sessão WhatsApp expirou", { description: "Reconecte a instância para continuar." });
+        if (!silent) toast.warning("Sessão WhatsApp expirou", { description: "Reconecte a instância para continuar." });
         return;
       }
-      toast.success(`Sincronizado: ${(data as { synced: number }).synced} conversas`);
-      // After sync, backfill missing profile pictures in background
+      if (!silent) toast.success(`Sincronizado: ${(data as { synced: number }).synced} conversas`);
       void refreshAvatars(false);
     } catch (e) {
-      toast.error("Falha ao sincronizar", { description: (e as Error).message });
+      if (!silent) toast.error("Falha ao sincronizar", { description: (e as Error).message });
     } finally {
       setSyncing(false);
     }
   };
+
+  // Background auto-sync every 30s while connected and tab visible (silent)
+  useEffect(() => {
+    if (!workspace || !instance || status !== "connected") return;
+    const tick = () => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      void handleSync(true);
+    };
+    const id = window.setInterval(tick, 30000);
+    return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspace, instance, status]);
 
   // Backfill avatars for already-cached conversations once on mount
   const avatarsRefreshedRef = useRef(false);
