@@ -569,6 +569,9 @@ export default function WhatsAppPage() {
                     onSendMedia={handleSendMedia}
                     onSendStickerUrl={handleSendStickerUrl}
                     workspaceId={workspace?.id}
+                    contactName={selected.contact_name}
+                    contactPhone={selected.contact_phone}
+
                     placeholder={
                       status === "connected"
                         ? `Mensagem para ${selected.contact_name ?? selected.contact_phone}...`
