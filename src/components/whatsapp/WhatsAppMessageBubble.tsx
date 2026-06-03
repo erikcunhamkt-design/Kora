@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Check, CheckCheck, Clock, FileText, AlertCircle, Star,
-  Reply, Pin, Smile, PinOff, CornerUpLeft, Trash2, Forward,
+  Reply, Pin, Smile, PinOff, CornerUpLeft, Trash2, Forward, Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { WhatsAppImageLightbox } from "./WhatsAppImageLightbox";
@@ -121,6 +121,44 @@ export function WhatsAppMessageBubble({
   const isUnknown = !isMedia && t !== "text" && !content;
   const reactionsObj = reactions ?? {};
 
+  // Encrypted WhatsApp media URLs cannot be opened by the browser — must decrypt via UAZAPI
+  const isEncryptedHost = (u?: string | null) =>
+    !!u && (u.includes("mmg.whatsapp.net") || u.includes("media.whatsapp.net") || u.includes("a.whatsapp.net"));
+  const needsDownload = isMedia && (!mediaUrl || isEncryptedHost(mediaUrl));
+  const [resolvedUrl, setResolvedUrl] = useState<string | null>(
+    mediaUrl && !isEncryptedHost(mediaUrl) ? mediaUrl : null,
+  );
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!needsDownload || resolvedUrl || downloading || !workspaceId) return;
+    setDownloading(true);
+    setDownloadError(null);
+    (async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke("whatsapp-instance", {
+          body: { action: "download_media", workspaceId, messageId: id },
+        });
+        if (error) throw error;
+        const url = (data as { url?: string } | null)?.url ?? null;
+        if (!cancelled) {
+          if (url) setResolvedUrl(url);
+          else setDownloadError("Sem mídia");
+        }
+      } catch (e) {
+        if (!cancelled) setDownloadError((e as Error).message || "Falha ao baixar mídia");
+      } finally {
+        if (!cancelled) setDownloading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [needsDownload, resolvedUrl, downloading, workspaceId, id]);
+
+  const effectiveMediaUrl = resolvedUrl ?? (mediaUrl && !isEncryptedHost(mediaUrl) ? mediaUrl : null);
+
+
   if (deletedAt) {
     return (
       <div className={cn("flex w-full flex-col", outbound ? "items-end" : "items-start")}>
@@ -172,14 +210,15 @@ export function WhatsAppMessageBubble({
   };
 
   const handleFavoriteSticker = async () => {
-    if (!mediaUrl || !workspaceId) return;
+    const urlToSave = resolvedUrl ?? (mediaUrl && !isEncryptedHost(mediaUrl) ? mediaUrl : null);
+    if (!urlToSave || !workspaceId) return;
     setFavoriting(true);
     try {
       const { error } = await supabase.functions.invoke("whatsapp-instance", {
         body: {
           action: "toggle_favorite_sticker",
           workspaceId,
-          stickerUrl: mediaUrl,
+          stickerUrl: urlToSave,
           mimeType: "image/webp",
           op: favorited ? "remove" : "add",
         },
@@ -293,33 +332,41 @@ export function WhatsAppMessageBubble({
   );
 
   // Sticker has no chat-bubble background
-  if (isSticker && mediaUrl) {
+  if (isSticker) {
     return (
       <div className={cn("flex w-full flex-col group", outbound ? "items-end" : "items-start")}>
         <div className="relative">
           {HoverToolbar}
-          <img
-            src={mediaUrl}
-            alt="sticker"
-            className="h-36 w-36 object-contain"
-            loading="lazy"
-            decoding="async"
-            referrerPolicy="no-referrer"
-          />
-          <button
-            type="button"
-            onClick={handleFavoriteSticker}
-            disabled={favoriting}
-            className={cn(
-              "absolute top-1 right-1 h-7 w-7 rounded-full bg-background/80 backdrop-blur border border-border/60 flex items-center justify-center transition",
-              "opacity-0 group-hover:opacity-100",
-              favorited && "opacity-100 text-warning",
-            )}
-            aria-label={favorited ? "Remover dos favoritos" : "Favoritar figurinha"}
-            title={favorited ? "Remover dos favoritos" : "Favoritar figurinha"}
-          >
-            <Star className={cn("h-3.5 w-3.5", favorited && "fill-current")} />
-          </button>
+          {effectiveMediaUrl ? (
+            <img
+              src={effectiveMediaUrl}
+              alt="sticker"
+              className="h-36 w-36 object-contain"
+              loading="lazy"
+              decoding="async"
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <div className="h-36 w-36 rounded-lg border border-border/40 bg-card flex items-center justify-center text-muted-foreground text-xs">
+              {downloading ? <Loader2 className="h-5 w-5 animate-spin" /> : (downloadError ?? "🧩")}
+            </div>
+          )}
+          {effectiveMediaUrl && (
+            <button
+              type="button"
+              onClick={handleFavoriteSticker}
+              disabled={favoriting}
+              className={cn(
+                "absolute top-1 right-1 h-7 w-7 rounded-full bg-background/80 backdrop-blur border border-border/60 flex items-center justify-center transition",
+                "opacity-0 group-hover:opacity-100",
+                favorited && "opacity-100 text-warning",
+              )}
+              aria-label={favorited ? "Remover dos favoritos" : "Favoritar figurinha"}
+              title={favorited ? "Remover dos favoritos" : "Favoritar figurinha"}
+            >
+              <Star className={cn("h-3.5 w-3.5", favorited && "fill-current")} />
+            </button>
+          )}
         </div>
         <div className={cn(
           "flex items-center gap-1 text-[10px] opacity-70 mt-0.5",
@@ -335,6 +382,7 @@ export function WhatsAppMessageBubble({
       </div>
     );
   }
+
 
   return (
     <div className={cn("flex w-full flex-col group", outbound ? "items-end" : "items-start")}>
@@ -371,11 +419,11 @@ export function WhatsAppMessageBubble({
         )}
 
         {/* Image */}
-        {mediaUrl && isImage && (
+        {isImage && effectiveMediaUrl && (
           <>
             <button type="button" onClick={() => setLightboxOpen(true)} className="block w-full">
               <img
-                src={mediaUrl}
+                src={effectiveMediaUrl}
                 alt={content ?? "imagem"}
                 className="rounded-lg max-h-72 w-full object-cover bg-background/40 cursor-zoom-in hover:opacity-95 transition"
                 loading="lazy"
@@ -396,7 +444,7 @@ export function WhatsAppMessageBubble({
               </div>
             </button>
             <WhatsAppImageLightbox
-              src={mediaUrl}
+              src={effectiveMediaUrl}
               alt={content ?? "imagem"}
               open={lightboxOpen}
               onOpenChange={setLightboxOpen}
@@ -404,17 +452,17 @@ export function WhatsAppMessageBubble({
           </>
         )}
 
-        {mediaUrl && isVideo && (
-          <video src={mediaUrl} controls preload="metadata" className="rounded-lg max-h-72 w-full" />
+        {isVideo && effectiveMediaUrl && (
+          <video src={effectiveMediaUrl} controls preload="metadata" className="rounded-lg max-h-72 w-full" />
         )}
 
-        {mediaUrl && isAudio && (
-          <audio src={mediaUrl} controls preload="none" className="w-full min-w-[220px]" />
+        {isAudio && effectiveMediaUrl && (
+          <audio src={effectiveMediaUrl} controls preload="none" className="w-full min-w-[220px]" />
         )}
 
-        {mediaUrl && isDoc && (
+        {isDoc && effectiveMediaUrl && (
           <a
-            href={mediaUrl}
+            href={effectiveMediaUrl}
             target="_blank"
             rel="noreferrer"
             className="flex items-center gap-2 rounded-lg bg-background/40 px-2.5 py-2 border border-border/40 hover:border-primary/40 transition"
@@ -429,11 +477,24 @@ export function WhatsAppMessageBubble({
           </a>
         )}
 
-        {!mediaUrl && isMedia && (
-          <div className="flex items-center gap-2 italic text-muted-foreground text-xs">
-            <FileText className="h-3 w-3" /> {t} sem preview
+        {isMedia && !effectiveMediaUrl && (
+          <div className="flex items-center gap-2 italic text-muted-foreground text-xs rounded-lg bg-background/40 px-2.5 py-2 border border-border/40 min-w-[200px]">
+            {downloading ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Baixando mídia…
+              </>
+            ) : downloadError ? (
+              <>
+                <AlertCircle className="h-3.5 w-3.5 text-destructive" /> {downloadError}
+              </>
+            ) : (
+              <>
+                <FileText className="h-3 w-3" /> {isImage ? "Imagem" : isVideo ? "Vídeo" : isAudio ? "Áudio" : isDoc ? "Documento" : "Mídia"} sem preview
+              </>
+            )}
           </div>
         )}
+
 
         {isUnknown && (
           <div className="text-[11px] italic text-muted-foreground">

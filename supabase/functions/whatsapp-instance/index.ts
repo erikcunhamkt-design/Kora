@@ -856,6 +856,7 @@ Deno.serve(async (req) => {
       return json({ ok: true });
     }
 
+    if (action === "send_media") {
       if (!existing) return json({ error: "Instance not found" }, 404);
       const { conversationId, kind, base64, mimeType, fileName, caption } = body as {
         conversationId?: string;
@@ -965,6 +966,119 @@ Deno.serve(async (req) => {
         return json({ error: insErr.message }, 500);
       }
       return json({ ok: true, added: true });
+    }
+
+    if (action === "download_media") {
+      if (!existing) return json({ error: "Instance not found" }, 404);
+      const { messageId } = body as { messageId?: string };
+      if (!messageId) return json({ error: "messageId is required" }, 400);
+
+      const { data: msg } = await admin
+        .from("whatsapp_messages")
+        .select("id, wa_message_id, media_url, type, workspace_id")
+        .eq("id", messageId)
+        .eq("workspace_id", workspaceId)
+        .maybeSingle();
+      if (!msg) return json({ error: "Message not found" }, 404);
+
+      // If already has a usable URL (not encrypted whatsapp host), reuse
+      const currentUrl = (msg.media_url as string | null) ?? null;
+      const isEncryptedHost = (u: string | null) =>
+        !u || u.includes("mmg.whatsapp.net") || u.includes("media.whatsapp.net") || u.includes("a.whatsapp.net");
+      if (currentUrl && !isEncryptedHost(currentUrl)) {
+        return json({ ok: true, url: currentUrl, cached: true });
+      }
+
+      if (!msg.wa_message_id) return json({ error: "Message has no wa_message_id" }, 400);
+
+      // Try UAZAPI /message/download (returns either fileURL or base64)
+      const dl = await uazForInstance(existing, "/message/download", {
+        body: { id: msg.wa_message_id },
+      });
+      if (!dl.ok) {
+        console.error("download_media uazapi failed", dl.status, dl.data);
+        return json({ error: "uazapi download failed", status: dl.status, detail: dl.data }, 502);
+      }
+      const dd = (dl.data ?? {}) as Record<string, unknown>;
+      let returnedUrl =
+        (dd.fileURL as string) ||
+        (dd.mediaUrl as string) ||
+        (dd.url as string) ||
+        (dd.FileURL as string) ||
+        null;
+      const b64 =
+        (dd.base64 as string) ||
+        (dd.fileBase64 as string) ||
+        (dd.data as string) ||
+        null;
+      const mime =
+        (dd.mimetype as string) ||
+        (dd.mimeType as string) ||
+        (dd.contentType as string) ||
+        "application/octet-stream";
+
+      // If we got a usable URL (and not whatsapp encrypted host), persist and return
+      if (returnedUrl && !isEncryptedHost(returnedUrl)) {
+        await admin.from("whatsapp_messages").update({ media_url: returnedUrl }).eq("id", messageId);
+        return json({ ok: true, url: returnedUrl, mime });
+      }
+
+      // Otherwise, must have base64 — upload to storage bucket
+      if (!b64) {
+        console.error("download_media: no usable url or base64", Object.keys(dd));
+        return json({ error: "No usable media payload returned by uazapi", detail: dd }, 502);
+      }
+
+      const BUCKET = "whatsapp-media";
+      // Ensure bucket exists (idempotent)
+      try {
+        const { error: bErr } = await admin.storage.createBucket(BUCKET, { public: true });
+        if (bErr && !String(bErr.message).toLowerCase().includes("already exists")) {
+          console.warn("createBucket error", bErr.message);
+        }
+      } catch (_e) { /* ignore */ }
+
+      // Decode base64
+      const pureB64 = b64.includes(",") ? b64.split(",")[1] : b64;
+      let bytes: Uint8Array;
+      try {
+        const bin = atob(pureB64);
+        bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      } catch (e) {
+        return json({ error: "Invalid base64 payload", detail: (e as Error).message }, 502);
+      }
+
+      const ext = (() => {
+        const m = mime.toLowerCase();
+        if (m.includes("webp")) return "webp";
+        if (m.includes("jpeg") || m.includes("jpg")) return "jpg";
+        if (m.includes("png")) return "png";
+        if (m.includes("gif")) return "gif";
+        if (m.includes("mp4")) return "mp4";
+        if (m.includes("webm")) return "webm";
+        if (m.includes("mp3") || m.includes("mpeg")) return "mp3";
+        if (m.includes("ogg")) return "ogg";
+        if (m.includes("opus")) return "opus";
+        if (m.includes("wav")) return "wav";
+        if (m.includes("pdf")) return "pdf";
+        return "bin";
+      })();
+      const path = `${workspaceId}/${messageId}.${ext}`;
+      const { error: upErr } = await admin.storage.from(BUCKET).upload(path, bytes, {
+        contentType: mime,
+        upsert: true,
+      });
+      if (upErr) {
+        console.error("storage upload failed", upErr.message);
+        return json({ error: "storage upload failed", detail: upErr.message }, 500);
+      }
+      const { data: pub } = admin.storage.from(BUCKET).getPublicUrl(path);
+      const publicUrl = pub?.publicUrl ?? null;
+      if (!publicUrl) return json({ error: "could not resolve public url" }, 500);
+
+      await admin.from("whatsapp_messages").update({ media_url: publicUrl }).eq("id", messageId);
+      return json({ ok: true, url: publicUrl, mime });
     }
 
     return json({ error: "Unknown action" }, 400);
