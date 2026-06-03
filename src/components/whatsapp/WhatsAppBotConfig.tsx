@@ -332,38 +332,11 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {provider === "vertex_ai" ? (
-                    <>
-                      <SelectItem value="gemini-2.5-flash-001">Gemini 2.5 Flash (001)</SelectItem>
-                      <SelectItem value="gemini-2.5-pro-001">Gemini 2.5 Pro (001)</SelectItem>
-                    </>
-                  ) : (
-                    <>
-                      <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash (Recomendado)</SelectItem>
-                      <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro (Avançado)</SelectItem>
-                      <SelectItem value="gemini-2.0-flash">Gemini 2.0 Flash (Mais rápido)</SelectItem>
-                    </>
-                  )}
-                  <SelectItem value="custom">Outro Modelo (Digitar ID)</SelectItem>
+                  <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash (Recomendado)</SelectItem>
+                  <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro (Avançado)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-
-            {isCustomModel && (
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">
-                  ID do Modelo Customizado *
-                </label>
-                <Input
-                  value={customModelName}
-                  onChange={(e) => setCustomModelName(e.target.value)}
-                  placeholder="ex: gemini-2.5-pro"
-                  className="h-9 text-sm bg-background/30 border-border/60 focus:border-violet-500"
-                  required
-                />
-                <p className="text-[10px] text-muted-foreground">Insira o ID oficial do modelo de IA do Google (ex: gemini-1.5-flash-latest).</p>
-              </div>
-            )}
 
             {/* Modo de Atendimento / Escopo do Robô */}
             <div className="space-y-2 pt-1">
