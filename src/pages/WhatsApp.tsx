@@ -677,6 +677,7 @@ export default function WhatsAppPage() {
                       ) : (
                         <WhatsAppMessageBubble
                           key={item.msg.id}
+                          id={item.msg.id}
                           direction={item.msg.direction}
                           type={item.msg.type}
                           content={item.msg.content}
@@ -685,12 +686,48 @@ export default function WhatsAppPage() {
                           status={item.msg.status}
                           senderId={item.msg.sender_id}
                           workspaceId={workspace?.id}
+                          reactions={(item.msg as any).reactions ?? null}
+                          pinnedAt={(item.msg as any).pinned_at ?? null}
+                          replyTo={(() => {
+                            const rId = (item.msg as any).reply_to_message_id as string | null;
+                            if (!rId) return null;
+                            const r = messages.find((x) => x.id === rId);
+                            return r ? { id: r.id, content: r.content, direction: r.direction, type: r.type } : null;
+                          })()}
+                          onReply={(m) => setReplyTo(m)}
+                          onJumpTo={(mid) => {
+                            const el = document.getElementById(`wa-msg-${mid}`);
+                            el?.scrollIntoView({ behavior: "smooth", block: "center" });
+                          }}
                         />
                       ),
                     )}
                   </div>
 
 
+
+                  {/* Reply preview */}
+                  {replyTo && (
+                    <div className="px-4 md:px-5 py-2 border-t border-border/40 bg-card/30 flex items-start gap-2">
+                      <div className="flex-1 min-w-0 border-l-2 border-primary pl-2">
+                        <p className="text-[10px] font-semibold text-primary">
+                          Respondendo a {replyTo.direction === "outbound" ? "você" : (selected.contact_name ?? "contato")}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {replyTo.content || `[${replyTo.type ?? "mídia"}]`}
+                        </p>
+                      </div>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6 flex-shrink-0"
+                        onClick={() => setReplyTo(null)}
+                        title="Cancelar resposta"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  )}
 
                   {/* Input */}
                   <WhatsAppChatInput
@@ -702,13 +739,15 @@ export default function WhatsAppPage() {
                     workspaceId={workspace?.id}
                     contactName={selected.contact_name}
                     contactPhone={selected.contact_phone}
-
                     placeholder={
                       status === "connected"
-                        ? `Mensagem para ${selected.contact_name ?? selected.contact_phone}...`
+                        ? replyTo
+                          ? "Escreva sua resposta..."
+                          : `Mensagem para ${selected.contact_name ?? selected.contact_phone}...`
                         : "Conecte o WhatsApp para enviar"
                     }
                   />
+
                 </>
               ) : (
                 <WhatsAppEmptyState
