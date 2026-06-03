@@ -86,7 +86,7 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
         setInstruction("Você é o atendente virtual do KORA Hub. Seja prestativo, educado e conciso.");
         setIsActive(false);
         setProvider("lovable");
-        setModel("gemini-1.5-flash");
+        setModel("gemini-2.5-flash");
         setRespondAll(true);
       }
     } catch (e) {
