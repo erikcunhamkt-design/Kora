@@ -675,8 +675,8 @@ export default function WhatsAppPage() {
                           </span>
                         </div>
                       ) : (
+                        <div key={item.msg.id} id={`wa-msg-${item.msg.id}`}>
                         <WhatsAppMessageBubble
-                          key={item.msg.id}
                           id={item.msg.id}
                           direction={item.msg.direction}
                           type={item.msg.type}
@@ -700,6 +700,8 @@ export default function WhatsAppPage() {
                             el?.scrollIntoView({ behavior: "smooth", block: "center" });
                           }}
                         />
+                        </div>
+
                       ),
                     )}
                   </div>
