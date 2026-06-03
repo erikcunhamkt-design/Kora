@@ -68,7 +68,7 @@ async function signRS256(pem: string, payload: Record<string, unknown>): Promise
 }
 
 // Generate GCP Access Token using Service Account credentials
-async function getGCPToken(serviceAccountJson: string): Promise<string> {
+async function getGCPToken(serviceAccountJson: string, scope = "https://www.googleapis.com/auth/cloud-platform"): Promise<string> {
   const creds = JSON.parse(serviceAccountJson) as {
     client_email: string;
     private_key: string;
@@ -77,7 +77,7 @@ async function getGCPToken(serviceAccountJson: string): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
   const claims = {
     iss: creds.client_email,
-    scope: "https://www.googleapis.com/auth/cloud-platform",
+    scope: scope,
     aud: "https://oauth2.googleapis.com/token",
     exp: now + 3600,
     iat: now,
@@ -315,11 +315,12 @@ Deno.serve(async (req) => {
           fallbackModel = fallbackModel.substring(0, fallbackModel.length - 4);
         }
 
+        const fallbackToken = await getGCPToken(GCP_SERVICE_ACCOUNT, "https://www.googleapis.com/auth/generative-language");
         const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/${fallbackModel}:generateContent`;
         const fallbackRes = await fetch(fallbackUrl, {
           method: "POST",
           headers: {
-            "Authorization": `Bearer ${token}`,
+            "Authorization": `Bearer ${fallbackToken}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify(bodyPayload),
