@@ -157,6 +157,27 @@ export function WhatsAppContactPanel({
   const [panelTags, setPanelTags] = useState<string[]>(initialTags ?? []);
   const [newTag, setNewTag] = useState("");
   const [members, setMembers] = useState<{ id: string; name: string | null; email: string | null }[]>([]);
+  const [assigned, setAssigned] = useState<string | null>(initialAssignedTo ?? null);
+
+  // Load workspace members for assignment
+  useEffect(() => {
+    if (!workspaceId) return;
+    let active = true;
+    supabase
+      .from("workspace_members")
+      .select("user_id, role, users:user_id(email, raw_user_meta_data)")
+      .eq("workspace_id", workspaceId)
+      .then(({ data }) => {
+        if (!active || !data) return;
+        const list = (data as any[]).map((d) => ({
+          id: d.user_id as string,
+          name: (d.users?.raw_user_meta_data?.name ?? d.users?.email ?? "") as string | null,
+          email: (d.users?.email ?? "") as string | null,
+        }));
+        setMembers(list);
+      });
+    return () => { active = false; };
+  }, [workspaceId]);
 
   useEffect(() => {
     setClientId(initialClientId ?? null);
