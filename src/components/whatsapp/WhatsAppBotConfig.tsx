@@ -24,9 +24,7 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
   // Form states
   const [isActive, setIsActive] = useState(false);
   const [instruction, setInstruction] = useState("");
-  const [model, setModel] = useState("gemini-1.5-flash");
-  const [isCustomModel, setIsCustomModel] = useState(false);
-  const [customModelName, setCustomModelName] = useState("");
+  const [model, setModel] = useState("gemini-2.5-flash");
   const [provider, setProvider] = useState<"lovable" | "gemini_api_key" | "vertex_ai">("lovable");
   const [geminiApiKey, setGeminiApiKey] = useState("");
   const [gcpProjectId, setGcpProjectId] = useState("");
