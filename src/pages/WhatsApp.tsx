@@ -96,6 +96,7 @@ export default function WhatsAppPage() {
   const [syncing, setSyncing] = useState(false);
   const [showContext, setShowContext] = useState(false);
   const [contextSheetOpen, setContextSheetOpen] = useState(false);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   // ---- Phase 3: in-conversation search ----
   const [searchOpen, setSearchOpen] = useState(false);
