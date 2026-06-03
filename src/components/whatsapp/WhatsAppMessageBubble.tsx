@@ -31,9 +31,12 @@ export interface WhatsAppMessageBubbleProps {
   workspaceId?: string;
   reactions?: Record<string, string> | null;
   pinnedAt?: string | null;
+  deletedAt?: string | null;
   replyTo?: ReplyPreviewData | null;
   onReply?: (msg: { id: string; content: string | null; direction: string; type: string | null }) => void;
   onJumpTo?: (messageId: string) => void;
+  onDelete?: (messageId: string) => void;
+  onForward?: (messageId: string) => void;
 }
 
 const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏", "🔥", "👏"];
