@@ -121,6 +121,44 @@ export function WhatsAppMessageBubble({
   const isUnknown = !isMedia && t !== "text" && !content;
   const reactionsObj = reactions ?? {};
 
+  // Encrypted WhatsApp media URLs cannot be opened by the browser — must decrypt via UAZAPI
+  const isEncryptedHost = (u?: string | null) =>
+    !!u && (u.includes("mmg.whatsapp.net") || u.includes("media.whatsapp.net") || u.includes("a.whatsapp.net"));
+  const needsDownload = isMedia && (!mediaUrl || isEncryptedHost(mediaUrl));
+  const [resolvedUrl, setResolvedUrl] = useState<string | null>(
+    mediaUrl && !isEncryptedHost(mediaUrl) ? mediaUrl : null,
+  );
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!needsDownload || resolvedUrl || downloading || !workspaceId) return;
+    setDownloading(true);
+    setDownloadError(null);
+    (async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke("whatsapp-instance", {
+          body: { action: "download_media", workspaceId, messageId: id },
+        });
+        if (error) throw error;
+        const url = (data as { url?: string } | null)?.url ?? null;
+        if (!cancelled) {
+          if (url) setResolvedUrl(url);
+          else setDownloadError("Sem mídia");
+        }
+      } catch (e) {
+        if (!cancelled) setDownloadError((e as Error).message || "Falha ao baixar mídia");
+      } finally {
+        if (!cancelled) setDownloading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [needsDownload, resolvedUrl, downloading, workspaceId, id]);
+
+  const effectiveMediaUrl = resolvedUrl ?? (mediaUrl && !isEncryptedHost(mediaUrl) ? mediaUrl : null);
+
+
   if (deletedAt) {
     return (
       <div className={cn("flex w-full flex-col", outbound ? "items-end" : "items-start")}>
