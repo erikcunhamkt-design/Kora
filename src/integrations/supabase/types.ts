@@ -1122,9 +1122,14 @@ export type Database = {
       whatsapp_bot_settings: {
         Row: {
           created_at: string
+          gcp_project_id: string | null
+          gcp_region: string | null
+          gcp_service_account: string | null
+          gemini_api_key: string | null
           id: string
           is_active: boolean | null
           model_name: string | null
+          provider: string | null
           respond_all: boolean
           system_instruction: string | null
           updated_at: string
@@ -1132,9 +1137,14 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          gcp_project_id?: string | null
+          gcp_region?: string | null
+          gcp_service_account?: string | null
+          gemini_api_key?: string | null
           id?: string
           is_active?: boolean | null
           model_name?: string | null
+          provider?: string | null
           respond_all?: boolean
           system_instruction?: string | null
           updated_at?: string
@@ -1142,9 +1152,14 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          gcp_project_id?: string | null
+          gcp_region?: string | null
+          gcp_service_account?: string | null
+          gemini_api_key?: string | null
           id?: string
           is_active?: boolean | null
           model_name?: string | null
+          provider?: string | null
           respond_all?: boolean
           system_instruction?: string | null
           updated_at?: string

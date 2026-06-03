@@ -276,11 +276,20 @@ Deno.serve(async (req) => {
     let reply = "";
     let rawModel = modelName.replace(/^google\//i, "");
 
-    // Auto-map model names for Vertex AI if standard AI Studio names are used
+    // Auto-map model names for Vertex AI - migrate deprecated models to currently available ones
     if (provider === "vertex_ai") {
-      if (rawModel === "gemini-1.5-flash") rawModel = "gemini-1.5-flash-002";
-      else if (rawModel === "gemini-1.5-pro") rawModel = "gemini-1.5-pro-002";
-      else if (rawModel === "gemini-2.0-flash") rawModel = "gemini-2.0-flash-001";
+      // gemini-1.5-* models were deprecated/removed from Vertex in 2025. Upgrade to 2.0.
+      if (rawModel === "gemini-1.5-flash" || rawModel === "gemini-1.5-flash-002" || rawModel === "gemini-1.5-flash-001") {
+        rawModel = "gemini-2.0-flash-001";
+      } else if (rawModel === "gemini-1.5-pro" || rawModel === "gemini-1.5-pro-002" || rawModel === "gemini-1.5-pro-001") {
+        rawModel = "gemini-2.0-flash-001";
+      } else if (rawModel === "gemini-2.0-flash") {
+        rawModel = "gemini-2.0-flash-001";
+      } else if (rawModel === "gemini-2.5-flash") {
+        rawModel = "gemini-2.5-flash";
+      } else if (rawModel === "gemini-2.5-pro") {
+        rawModel = "gemini-2.5-pro";
+      }
     }
 
     if (provider === "vertex_ai" && GCP_SERVICE_ACCOUNT && GCP_PROJECT_ID) {
