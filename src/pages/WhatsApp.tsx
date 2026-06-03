@@ -560,15 +560,18 @@ export default function WhatsAppPage() {
             </section>
 
             {/* ============ Painel de contexto (desktop xl: inline) ============ */}
-            {selected && showContext && (
+            {selected && showContext && workspace && (
               <div className="hidden xl:flex">
                 <WhatsAppContactPanel
+                  conversationId={selected.id}
+                  workspaceId={workspace.id}
                   contactName={selected.contact_name}
                   contactPhone={selected.contact_phone}
                   status={selected.status}
                   tags={selected.tags}
                   avatarUrl={selected.avatar_url}
                   lastActivity={selected.last_message_at}
+                  clientId={(selected as any).client_id ?? null}
                   onClose={() => setShowContext(false)}
                 />
               </div>
@@ -577,19 +580,23 @@ export default function WhatsAppPage() {
             {/* ============ Painel de contexto (tablet/mobile: drawer) ============ */}
             <Sheet open={contextSheetOpen} onOpenChange={setContextSheetOpen}>
               <SheetContent side="right" className="p-0 w-full sm:max-w-[340px] xl:hidden">
-                {selected && (
+                {selected && workspace && (
                   <WhatsAppContactPanel
+                    conversationId={selected.id}
+                    workspaceId={workspace.id}
                     contactName={selected.contact_name}
                     contactPhone={selected.contact_phone}
                     status={selected.status}
                     tags={selected.tags}
                     avatarUrl={selected.avatar_url}
                     lastActivity={selected.last_message_at}
+                    clientId={(selected as any).client_id ?? null}
                     onClose={() => setContextSheetOpen(false)}
                   />
                 )}
               </SheetContent>
             </Sheet>
+
           </div>
         )}
 
