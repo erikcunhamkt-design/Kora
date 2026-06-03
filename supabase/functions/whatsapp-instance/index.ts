@@ -609,7 +609,11 @@ Deno.serve(async (req) => {
 
     if (action === "send") {
       if (!existing) return json({ error: "Instance not found" }, 404);
-      const { conversationId, text } = body as { conversationId?: string; text?: string };
+      const { conversationId, text, replyMessageId } = body as {
+        conversationId?: string;
+        text?: string;
+        replyMessageId?: string | null;
+      };
       if (!conversationId || !text?.trim()) return json({ error: "conversationId and text are required" }, 400);
       const { data: conv } = await admin
         .from("whatsapp_conversations")
@@ -619,9 +623,20 @@ Deno.serve(async (req) => {
         .maybeSingle();
       if (!conv) return json({ error: "Conversation not found" }, 404);
 
-      const send = await uazForInstance(existing, "/send/text", {
-        body: { number: conv.contact_phone, text },
-      });
+      let replyWaId: string | null = null;
+      if (replyMessageId) {
+        const { data: rep } = await admin
+          .from("whatsapp_messages")
+          .select("wa_message_id")
+          .eq("id", replyMessageId)
+          .eq("workspace_id", workspaceId)
+          .maybeSingle();
+        replyWaId = (rep?.wa_message_id as string | null) ?? null;
+      }
+
+      const sendPayload: Record<string, unknown> = { number: conv.contact_phone, text };
+      if (replyWaId) sendPayload.replyid = replyWaId;
+      const send = await uazForInstance(existing, "/send/text", { body: sendPayload });
       const sd = (send.data ?? {}) as Record<string, unknown>;
       const waMessageId = (sd.messageid as string) || (sd.id as string) || null;
 
@@ -635,6 +650,7 @@ Deno.serve(async (req) => {
         content: text,
         status: send.ok ? "sent" : "error",
         error: send.ok ? null : JSON.stringify(sd).slice(0, 500),
+        reply_to_message_id: replyMessageId ?? null,
       }).select().single();
 
       await admin.from("whatsapp_conversations").update({
@@ -645,6 +661,48 @@ Deno.serve(async (req) => {
 
       return json({ ok: send.ok, message: inserted });
     }
+
+    if (action === "react_message") {
+      if (!existing) return json({ error: "Instance not found" }, 404);
+      const { messageId, emoji } = body as { messageId?: string; emoji?: string | null };
+      if (!messageId) return json({ error: "messageId is required" }, 400);
+      const { data: msg } = await admin
+        .from("whatsapp_messages")
+        .select("*")
+        .eq("id", messageId)
+        .eq("workspace_id", workspaceId)
+        .maybeSingle();
+      if (!msg) return json({ error: "Message not found" }, 404);
+      const { data: conv } = await admin
+        .from("whatsapp_conversations")
+        .select("contact_phone")
+        .eq("id", msg.conversation_id)
+        .maybeSingle();
+      if (msg.wa_message_id && conv?.contact_phone) {
+        try {
+          await uazForInstance(existing, "/message/react", {
+            body: { number: conv.contact_phone, id: msg.wa_message_id, text: emoji ?? "" },
+          });
+        } catch (_e) { /* swallow */ }
+      }
+      const reactions = (msg.reactions ?? {}) as Record<string, string>;
+      if (emoji) reactions[userId] = emoji;
+      else delete reactions[userId];
+      await admin.from("whatsapp_messages").update({ reactions }).eq("id", messageId);
+      return json({ ok: true, reactions });
+    }
+
+    if (action === "pin_message") {
+      const { messageId, pinned } = body as { messageId?: string; pinned?: boolean };
+      if (!messageId) return json({ error: "messageId is required" }, 400);
+      await admin
+        .from("whatsapp_messages")
+        .update({ pinned_at: pinned ? new Date().toISOString() : null })
+        .eq("id", messageId)
+        .eq("workspace_id", workspaceId);
+      return json({ ok: true });
+    }
+
 
     if (action === "send_media") {
       if (!existing) return json({ error: "Instance not found" }, 404);

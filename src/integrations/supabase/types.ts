@@ -1637,7 +1637,10 @@ export type Database = {
           id: string
           instance_id: string
           media_url: string | null
+          pinned_at: string | null
           raw_payload: Json | null
+          reactions: Json
+          reply_to_message_id: string | null
           sender_id: string | null
           status: string
           timestamp: string | null
@@ -1656,7 +1659,10 @@ export type Database = {
           id?: string
           instance_id: string
           media_url?: string | null
+          pinned_at?: string | null
           raw_payload?: Json | null
+          reactions?: Json
+          reply_to_message_id?: string | null
           sender_id?: string | null
           status?: string
           timestamp?: string | null
@@ -1675,7 +1681,10 @@ export type Database = {
           id?: string
           instance_id?: string
           media_url?: string | null
+          pinned_at?: string | null
           raw_payload?: Json | null
+          reactions?: Json
+          reply_to_message_id?: string | null
           sender_id?: string | null
           status?: string
           timestamp?: string | null
