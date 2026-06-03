@@ -17,6 +17,13 @@ import {
   Smartphone,
   Users,
   X,
+  Archive,
+  ArchiveRestore,
+  MailOpen,
+  UserCheck,
+  Tag,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -30,6 +37,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 import { useWhatsAppInstance } from "@/hooks/useWhatsAppInstance";
