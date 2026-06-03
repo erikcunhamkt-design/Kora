@@ -856,6 +856,7 @@ Deno.serve(async (req) => {
       return json({ ok: true });
     }
 
+    if (action === "send_media") {
       if (!existing) return json({ error: "Instance not found" }, 404);
       const { conversationId, kind, base64, mimeType, fileName, caption } = body as {
         conversationId?: string;
