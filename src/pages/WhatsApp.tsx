@@ -87,6 +87,31 @@ export default function WhatsAppPage() {
   const [showContext, setShowContext] = useState(false);
   const [contextSheetOpen, setContextSheetOpen] = useState(false);
 
+  // ---- Phase 3: in-conversation search ----
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [msgQuery, setMsgQuery] = useState("");
+
+  // ---- Phase 3: message density ----
+  type Density = "compact" | "normal" | "comfortable";
+  const [density, setDensity] = useState<Density>(() => {
+    if (typeof window === "undefined") return "normal";
+    return (localStorage.getItem("wa:density") as Density) || "normal";
+  });
+  useEffect(() => {
+    if (typeof window !== "undefined") localStorage.setItem("wa:density", density);
+  }, [density]);
+  const densityCfg = {
+    compact:     { gap: "space-y-1",   px: "px-3 md:px-4", py: "py-2 md:py-3" },
+    normal:      { gap: "space-y-2.5", px: "px-3 md:px-6", py: "py-4 md:py-5" },
+    comfortable: { gap: "space-y-4",   px: "px-4 md:px-8", py: "py-6 md:py-7" },
+  }[density];
+
+  // Reset in-chat search when changing conversation
+  useEffect(() => {
+    setSearchOpen(false);
+    setMsgQuery("");
+  }, [selectedId]);
+
   const status = instance?.status ?? "disconnected";
   const selected = useMemo(
     () => conversations.find((c) => c.id === selectedId) ?? null,
