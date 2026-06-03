@@ -1,99 +1,107 @@
-## Escopo
+## Diagnóstico — por que o bot não atende hoje
 
-Implementar features premium na aba **Atendimento (WhatsApp)** sem nenhuma dependência de IA. Removidas do plano original: transcrição de áudio, resumo IA, sugestão de resposta, detecção de intenção e tradução automática.
+Confirmei direto no banco:
 
-Vou entregar em **4 fases** para você validar cada etapa antes da próxima. Cada fase é deployável e usável sozinha.
+- A instância UAZAPI está `connected` (workspace `2dc45e1a…`).
+- `whatsapp_bot_settings.is_active = true` para esse workspace.
+- `workspace_ai_credentials` tem Vertex ativo (`gemini-2.0-flash-001`).
+- O webhook recebe mensagens e dispara `whatsapp-bot-reply` (linhas 582-604 de `whatsapp-webhook/index.ts`).
 
----
+**Causa raiz nº 1 (bloqueante):** `whatsapp-bot-reply` faz:
 
-## Fase 1 — Painel lateral do contato + Ações rápidas
+```ts
+.from("whatsapp_conversations")
+.select("*, whatsapp_instances!inner(instance_token, status)")
+```
 
-Layout vira **3 colunas**: lista | chat | painel do contato.
+Mas **não existe foreign key** entre `whatsapp_conversations.instance_id` e `whatsapp_instances.id` (confirmado em `pg_constraint`). Sem FK, o PostgREST não consegue embutir o relacionamento e a query falha → `conv` vem `null` → função retorna `"conversation not found"` e nunca envia.
 
-Painel lateral mostra:
-- Foto, nome, telefone, copiar número
-- Tags da conversa (editáveis inline)
-- Responsável atribuído (membros do workspace)
-- Cliente vinculado (busca em `clients`) — se ainda não existir, botão "Criar cliente"
-- Orçamentos vinculados (`supabase_quotes` por client_id)
-- Projetos ativos (`projects`)
-- Financeiro em aberto (`finance_*`)
-- Notas internas (textarea persistida)
+**Causa raiz nº 2 (latente):** a migration de segurança recente removeu o SELECT em nível de tabela de `whatsapp_instances` para `authenticated`. Service-role ainda tem ALL, então o webhook/bot funcionam — mas só depois de corrigir o embed.
 
-**Ações rápidas** (botões no topo do painel):
-- Criar orçamento (abre `CreateCrmSupabaseQuoteDialog` pré-preenchido)
-- Criar briefing (abre `BriefingCreateDialog`)
-- Agendar reunião (abre `ScheduleMeetingDialog`)
-- Marcar como Lead → empurra para CRM (`crm_opportunities`)
+**Causa raiz nº 3 (qualidade):** o bot dispara para QUALQUER inbound de texto, sem regras de pausa (humano assumiu, opt-out, horário, fora-de-escopo), o que pode gerar respostas indesejadas quando começar a funcionar.
 
 ---
 
-## Fase 2 — Produtividade no chat
+## Plano
 
-- **Respostas rápidas (`/snippets`)**: ao digitar `/` no input, abre popover com snippets do workspace. CRUD em Configurações. Variáveis `{{nome}}`, `{{telefone}}`.
-- **Notas internas**: toggle no input ("Nota interna" vs "Mensagem"). Notas ficam no chat com fundo âmbar, não são enviadas pro WhatsApp.
-- **Atribuição + SLA**: badge vermelho se conversa não respondida há +N horas (configurável). Filtro "Aguardando minha resposta".
-- **Filtros salvos** na lista: Não lidas, Sem responsável, Com tag X, Aguardando resposta.
-- **Atalhos de teclado**: `⌘K` busca, `⌘↵` envia, `J/K` navega, `E` arquiva, `/` abre snippets.
+### 1. Adicionar a foreign key faltante (migration)
+
+```sql
+ALTER TABLE public.whatsapp_conversations
+  ADD CONSTRAINT whatsapp_conversations_instance_id_fkey
+  FOREIGN KEY (instance_id) REFERENCES public.whatsapp_instances(id) ON DELETE CASCADE;
+
+ALTER TABLE public.whatsapp_messages
+  ADD CONSTRAINT whatsapp_messages_instance_id_fkey
+  FOREIGN KEY (instance_id) REFERENCES public.whatsapp_instances(id) ON DELETE CASCADE;
+
+ALTER TABLE public.whatsapp_messages
+  ADD CONSTRAINT whatsapp_messages_conversation_id_fkey
+  FOREIGN KEY (conversation_id) REFERENCES public.whatsapp_conversations(id) ON DELETE CASCADE;
+```
+
+Antes, fazer um `UPDATE … SET instance_id = NULL` para linhas órfãs (se houver) ou deletar — vou verificar primeiro.
+
+### 2. Refatorar `whatsapp-bot-reply` para não depender do embed
+
+Mesmo com FK, é mais robusto buscar a instância em duas queries (compatível com Service Role e fácil de logar):
+
+```ts
+const { data: conv } = await admin
+  .from("whatsapp_conversations").select("*").eq("id", conversationId).maybeSingle();
+const { data: inst } = await admin
+  .from("whatsapp_instances")
+  .select("id, instance_token, status")
+  .eq("id", conv.instance_id).maybeSingle();
+```
+
+Adicionar logs claros em cada `skipped` para debugar via Edge Function Logs.
+
+### 3. Guardrails de atendimento
+
+No `whatsapp-bot-reply`, antes de responder, pular se:
+
+- `conv.assigned_to != null` (humano já assumiu) — já existe.
+- Existe nota interna recente com tag `pause-bot` (opcional, fase 2).
+- Contato está em `whatsapp_opt_outs` para o workspace.
+- A última mensagem outbound foi enviada nos últimos 5s (debounce).
+- O texto inbound é vazio ou começa com `/` (comandos manuais).
+
+### 4. UI — controle por conversa no inbox
+
+Adicionar um toggle "🤖 Bot ativo" no header de cada conversa em `WhatsAppInbox` que escreve em `whatsapp_conversations.assigned_to`:
+
+- Botão **"Assumir conversa"** → seta `assigned_to = auth.uid()` (bot para de responder).
+- Botão **"Devolver ao bot"** → seta `assigned_to = NULL`.
+
+Indicador visual no card da conversa quando o bot estiver respondendo (badge "Bot").
+
+### 5. Configuração visível do bot
+
+Em `WhatsAppSection`/automações, mostrar:
+
+- Status (ativo/inativo) e provedor em uso (Vertex vs Lovable AI).
+- Editor do `system_instruction`.
+- Botão **"Testar resposta"** que chama a função com um conversationId fake e mostra o output, sem enviar para o WhatsApp.
+
+### 6. Validação end-to-end
+
+1. Aplicar migration.
+2. Deploy de `whatsapp-bot-reply` refatorado.
+3. Enviar mensagem real do celular → checar logs de `whatsapp-webhook` e `whatsapp-bot-reply`.
+4. Confirmar mensagem outbound em `whatsapp_messages` e chegada no WhatsApp do contato.
 
 ---
 
-## Fase 3 — Performance + Polimento UI
+## Detalhes técnicos
 
-- **Virtualização** da lista de conversas e mensagens (`@tanstack/react-virtual`) — escala pra milhares.
-- **Skeleton loaders** substituem spinners.
-- **Densidade ajustável** (compacto/confortável) salva no perfil.
-- **Indicadores ricos**: digitando…, online, visto às (quando o webhook entregar — não inventar).
-- **Reações com emoji** nas mensagens, **reply/quote**, **encaminhar**, **fixar mensagem** (uazapi suporta).
-- **Busca global** em mensagens (`⌘K` → busca full-text em `whatsapp_messages.content`).
+- Arquivos tocados:
+  - `supabase/migrations/<nova>.sql` (FKs)
+  - `supabase/functions/whatsapp-bot-reply/index.ts` (refator + guardrails + logs)
+  - `src/pages/WhatsApp.tsx` / componentes do inbox (toggle bot, badge)
+  - `src/components/automacoes/WhatsAppSection.tsx` (botão Testar)
+- Sem novas dependências, sem novos secrets (Vertex e Lovable AI já configurados).
+- Sem mudanças de schema além das 3 FKs.
+- Riscos: a FK pode falhar se houver linhas em `whatsapp_conversations` apontando para `instance_id` inexistente — vou checar e limpar antes de aplicar.
 
----
-
-## Fase 4 — Insights (aba dentro de Atendimento)
-
-Métricas por workspace/período:
-- Tempo médio de primeira resposta
-- Conversas abertas vs fechadas
-- Volume por hora/dia (heatmap)
-- Ranking por atendente
-- Taxa de conversão: conversa → orçamento → cliente
-
-Tudo via queries agregadas em `whatsapp_messages` + joins com `supabase_quotes`/`clients`. Sem IA.
-
----
-
-## Banco de dados (migrations)
-
-Fase 1:
-- `whatsapp_conversation_tags` (workspace_id, conversation_id, tag, color)
-- `whatsapp_conversation_assignments` (conversation_id, user_id, assigned_at)
-- adicionar `client_id` (FK opcional) em `whatsapp_conversations`
-- `whatsapp_internal_notes` (conversation_id, author_id, content, created_at)
-
-Fase 2:
-- `whatsapp_quick_replies` (workspace_id, shortcut, content, created_by)
-- `whatsapp_inbox_settings` (workspace_id, sla_minutes, default_filter)
-
-Fase 3:
-- adicionar `reply_to_message_id`, `pinned_at`, `reactions jsonb` em `whatsapp_messages`
-- índice full-text em `whatsapp_messages.content` (`tsvector`)
-
-Todas com RLS via `is_workspace_member()` e GRANTs corretos.
-
----
-
-## Edge function (`whatsapp-instance`)
-
-Novas actions:
-- `assign_conversation`, `set_tags`, `link_client`
-- `add_note`, `list_notes`
-- `send_reply` (com `quoted_message_id`), `react_message`, `pin_message`, `forward_message`
-- `search_messages` (full-text)
-
----
-
-## Decisão pedida
-
-Confirma que posso começar pela **Fase 1** (painel lateral + ações rápidas)? Depois sigo nas próximas direto, sem precisar perguntar a cada uma — mas valido com você ao final de cada fase antes de mexer no banco da próxima.
-
-Se preferir outra ordem (ex: começar pela Fase 2 que tem mais ganho de produtividade imediato), só dizer.
+Confirma para eu seguir?
