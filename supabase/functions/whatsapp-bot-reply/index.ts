@@ -14,9 +14,25 @@ const UAZ_BASE = (() => {
   return `https://${SUBDOMAIN}.uazapi.com`;
 })();
 
-const DEFAULT_MODEL = "gemini-1.5-flash";
+const DEFAULT_MODEL = "gemini-2.5-flash";
 const LOVABLE_DEFAULT_MODEL = "google/gemini-3-flash-preview";
 const MAX_HISTORY = 12;
+
+function normalizeGoogleModel(modelName: string): string {
+  const raw = (modelName || DEFAULT_MODEL).trim().replace(/^google\//i, "");
+  const deprecatedModels = new Set([
+    "gemini-1.5-flash",
+    "gemini-1.5-flash-001",
+    "gemini-1.5-flash-002",
+    "gemini-1.5-pro",
+    "gemini-1.5-pro-001",
+    "gemini-1.5-pro-002",
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-001",
+  ]);
+
+  return deprecatedModels.has(raw) ? DEFAULT_MODEL : raw;
+}
 
 function json(b: unknown, s = 200) {
   return new Response(JSON.stringify(b), {
@@ -274,14 +290,8 @@ Deno.serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY") || null;
 
     let reply = "";
-    let rawModel = modelName.replace(/^google\//i, "");
-
-    // Auto-map model names for Vertex AI if standard AI Studio names are used
-    if (provider === "vertex_ai") {
-      if (rawModel === "gemini-1.5-flash") rawModel = "gemini-1.5-flash-002";
-      else if (rawModel === "gemini-1.5-pro") rawModel = "gemini-1.5-pro-002";
-      else if (rawModel === "gemini-2.0-flash") rawModel = "gemini-2.0-flash-001";
-    }
+    // Auto-map removed Google models to a currently supported Gemini model.
+    let rawModel = normalizeGoogleModel(modelName);
 
     if (provider === "vertex_ai" && GCP_SERVICE_ACCOUNT && GCP_PROJECT_ID) {
       // 1. Google Cloud Vertex AI Mode
@@ -309,14 +319,8 @@ Deno.serve(async (req) => {
         const detail = await aiRes.text();
         console.warn("[bot-reply] Vertex AI API failed, attempting fallback to Generative Language API...", aiRes.status, detail);
         
-        // Clean the model name for AI Studio if it was mapped
-        let fallbackModel = rawModel;
-        if (fallbackModel.endsWith("-002") || fallbackModel.endsWith("-001")) {
-          fallbackModel = fallbackModel.substring(0, fallbackModel.length - 4);
-        }
-
         const fallbackToken = await getGCPToken(GCP_SERVICE_ACCOUNT, "https://www.googleapis.com/auth/generative-language");
-        const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/${fallbackModel}:generateContent`;
+        const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/${rawModel}:generateContent`;
         const fallbackRes = await fetch(fallbackUrl, {
           method: "POST",
           headers: {
@@ -368,7 +372,7 @@ Deno.serve(async (req) => {
       reply = aiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
     } else if (provider === "lovable" && LOVABLE_API_KEY) {
       // 3. Lovable AI Gateway Mode
-      let modelToUse = modelName;
+      let modelToUse = normalizeGoogleModel(modelName);
       // Auto-prefix gemini models for Lovable AI gateway if they don't have a prefix
       if (modelToUse.startsWith("gemini-") && !modelToUse.includes("/")) {
         modelToUse = `google/${modelToUse}`;
