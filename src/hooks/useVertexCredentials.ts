@@ -18,7 +18,7 @@ const empty: VertexCredentialStatus = {
   hasCredentials: false,
   isActive: false,
   location: "us-central1",
-  defaultModel: "gemini-2.0-flash-001",
+  defaultModel: "gemini-2.5-flash",
   projectId: null,
   clientEmail: null,
   updatedAt: null,
@@ -52,7 +52,7 @@ export function useVertexCredentials() {
         hasCredentials: true,
         isActive: !!data.is_active,
         location: data.location || "us-central1",
-        defaultModel: data.default_model || "gemini-2.0-flash-001",
+        defaultModel: data.default_model || "gemini-2.5-flash",
         projectId: (data as { credentials_project_id: string | null }).credentials_project_id ?? null,
         clientEmail: (data as { credentials_client_email: string | null }).credentials_client_email ?? null,
         updatedAt: data.updated_at,
@@ -87,7 +87,7 @@ export function useVertexCredentials() {
           credentials_project_id: (parsed.project_id as string) ?? null,
           credentials_client_email: (parsed.client_email as string) ?? null,
           location: opts?.location || "us-central1",
-          default_model: opts?.defaultModel || "gemini-2.0-flash-001",
+          default_model: opts?.defaultModel || "gemini-2.5-flash",
           is_active: true,
         };
         const { error } = await supabase
