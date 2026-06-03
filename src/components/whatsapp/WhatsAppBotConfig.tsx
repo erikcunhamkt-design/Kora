@@ -138,6 +138,18 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
           </div>
         </div>
 
+        <div className="flex items-start justify-between gap-4 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+          <div className="flex-1 space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-foreground">Domínio total (responder qualquer mensagem)</span>
+            </div>
+            <p className="text-xs text-muted-foreground/90 leading-relaxed">
+              Quando ativado, o bot responde a <strong>qualquer contato</strong> e <strong>qualquer mensagem</strong>, mesmo em conversas já assumidas por um humano, em opt-out, ou logo após outra resposta. Use com cuidado.
+            </p>
+          </div>
+          <Switch checked={respondAll} onCheckedChange={setRespondAll} />
+        </div>
+
         {vertex.hasCredentials && vertex.isActive ? (
           <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-4 flex gap-3">
             <Sparkles className="h-5 w-5 text-emerald-500 flex-shrink-0 mt-0.5" />
