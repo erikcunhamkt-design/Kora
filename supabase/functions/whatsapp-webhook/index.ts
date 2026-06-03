@@ -589,14 +589,16 @@ Deno.serve(async (req) => {
           .maybeSingle();
         if (bot?.is_active) {
           const botUrl = `${SUPABASE_URL}/functions/v1/whatsapp-bot-reply`;
-          fetch(botUrl, {
+          const response = await fetch(botUrl, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
               Authorization: `Bearer ${SERVICE_ROLE}`,
             },
             body: JSON.stringify({ conversationId, workspaceId }),
-          }).catch((err) => console.error("[whatsapp-webhook] bot-reply trigger failed:", err));
+          });
+          const resText = await response.text();
+          console.log("[whatsapp-webhook] bot-reply trigger response status:", response.status, "body:", resText);
         }
       } catch (err) {
         console.error("[whatsapp-webhook] bot trigger error:", err);
