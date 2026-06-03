@@ -930,10 +930,13 @@ export default function WhatsAppPage() {
                   contactPhone={selected.contact_phone}
                   status={selected.status}
                   tags={selected.tags}
+                  assignedTo={(selected as any).assigned_to ?? null}
                   avatarUrl={selected.avatar_url}
                   lastActivity={selected.last_message_at}
                   clientId={(selected as any).client_id ?? null}
                   onClose={() => setShowContext(false)}
+                  onAssign={(userId) => handleAssign(selected.id, userId)}
+                  onUpdateTags={(tags) => handleUpdateTags(selected.id, tags)}
                 />
               </div>
             )}
