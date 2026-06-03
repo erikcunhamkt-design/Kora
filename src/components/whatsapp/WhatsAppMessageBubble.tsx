@@ -98,9 +98,12 @@ export function WhatsAppMessageBubble({
   workspaceId,
   reactions,
   pinnedAt,
+  deletedAt,
   replyTo,
   onReply,
   onJumpTo,
+  onDelete,
+  onForward,
 }: WhatsAppMessageBubbleProps) {
   const outbound = direction === "outbound";
   const t = (type ?? "text").toLowerCase();
