@@ -706,11 +706,10 @@ export default function WhatsAppPage() {
                             <MoreVertical className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-52">
+                        <DropdownMenuContent align="end" className="w-56">
                           <DropdownMenuLabel className="flex items-center gap-2 text-xs">
                             <Rows3 className="h-3.5 w-3.5" /> Densidade das mensagens
                           </DropdownMenuLabel>
-                          <DropdownMenuSeparator />
                           {(["compact", "normal", "comfortable"] as const).map((d) => (
                             <DropdownMenuItem
                               key={d}
@@ -723,6 +722,33 @@ export default function WhatsAppPage() {
                               {density === d && <Check className="h-3.5 w-3.5 text-primary" />}
                             </DropdownMenuItem>
                           ))}
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => handleArchive(selected.id, selected.status !== "archived")}
+                            className="text-xs gap-2"
+                          >
+                            {selected.status === "archived" ? (
+                              <><ArchiveRestore className="h-3.5 w-3.5" /> Desarquivar</>
+                            ) : (
+                              <><Archive className="h-3.5 w-3.5" /> Arquivar conversa</>
+                            )}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleMarkUnread(selected.id, true)}
+                            className="text-xs gap-2"
+                          >
+                            <MailOpen className="h-3.5 w-3.5" /> Marcar como não lida
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => setSoundEnabled((s) => !s)}
+                            className="text-xs gap-2 justify-between"
+                          >
+                            <span className="flex items-center gap-2">
+                              {soundEnabled ? <Volume2 className="h-3.5 w-3.5" /> : <VolumeX className="h-3.5 w-3.5" />}
+                              Som de notificação
+                            </span>
+                            {soundEnabled && <Check className="h-3.5 w-3.5 text-primary" />}
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
