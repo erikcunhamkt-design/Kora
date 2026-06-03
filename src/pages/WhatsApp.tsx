@@ -688,6 +688,7 @@ export default function WhatsAppPage() {
                           workspaceId={workspace?.id}
                           reactions={(item.msg as any).reactions ?? null}
                           pinnedAt={(item.msg as any).pinned_at ?? null}
+                          deletedAt={(item.msg as any).deleted_at ?? null}
                           replyTo={(() => {
                             const rId = (item.msg as any).reply_to_message_id as string | null;
                             if (!rId) return null;
@@ -698,6 +699,21 @@ export default function WhatsAppPage() {
                           onJumpTo={(mid) => {
                             const el = document.getElementById(`wa-msg-${mid}`);
                             el?.scrollIntoView({ behavior: "smooth", block: "center" });
+                          }}
+                          onDelete={async (msgId) => {
+                            try {
+                              const { error } = await supabase.functions.invoke("whatsapp-instance", {
+                                body: { action: "delete_message", workspaceId: workspace?.id, messageId: msgId },
+                              });
+                              if (error) throw error;
+                              toast.success("Mensagem excluída");
+                            } catch (e) {
+                              toast.error("Falha ao excluir", { description: (e as Error).message });
+                            }
+                          }}
+                          onForward={(msgId) => {
+                            setForwardMessageId(msgId);
+                            setForwardOpen(true);
                           }}
                         />
                         </div>
