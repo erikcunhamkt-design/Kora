@@ -1874,6 +1874,50 @@ export type Database = {
           },
         ]
       }
+      workspace_ai_credentials: {
+        Row: {
+          created_at: string
+          credentials_json: Json
+          default_model: string
+          id: string
+          is_active: boolean
+          location: string
+          provider: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          credentials_json: Json
+          default_model?: string
+          id?: string
+          is_active?: boolean
+          location?: string
+          provider?: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          credentials_json?: Json
+          default_model?: string
+          id?: string
+          is_active?: boolean
+          location?: string
+          provider?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_ai_credentials_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workspace_members: {
         Row: {
           created_at: string
