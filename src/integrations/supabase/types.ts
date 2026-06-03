@@ -1535,6 +1535,36 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_internal_notes: {
+        Row: {
+          author_id: string | null
+          content: string
+          conversation_id: string
+          created_at: string
+          id: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          author_id?: string | null
+          content: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          author_id?: string | null
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       whatsapp_message_media: {
         Row: {
           created_at: string
