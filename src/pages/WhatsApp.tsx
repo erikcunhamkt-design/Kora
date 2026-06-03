@@ -232,22 +232,25 @@ export default function WhatsAppPage() {
     try {
       const { data: userData } = await supabase.auth.getUser();
       const { data, error } = await supabase.functions.invoke("whatsapp-instance", {
-        body: { 
-          action: "send", 
-          workspaceId: workspace.id, 
-          conversationId: selectedId, 
+        body: {
+          action: "send",
+          workspaceId: workspace.id,
+          conversationId: selectedId,
           text,
-          senderId: userData.user?.id 
+          senderId: userData.user?.id,
+          replyMessageId: replyTo?.id ?? null,
         },
       });
       if (error) throw error;
       if ((data as { error?: string })?.error) throw new Error((data as { error: string }).error);
+      setReplyTo(null);
     } catch (e) {
       toast.error("Falha ao enviar", { description: (e as Error).message });
     } finally {
       setSending(false);
     }
   };
+
 
   const handleSendMedia = async (payload: {
     kind: "image" | "video" | "audio" | "document" | "sticker";
