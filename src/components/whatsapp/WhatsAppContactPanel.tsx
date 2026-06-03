@@ -38,11 +38,14 @@ export interface WhatsAppContactPanelProps {
   contactPhone: string;
   status?: string | null;
   tags?: string[] | null;
+  assignedTo?: string | null;
   avatarUrl?: string | null;
   lastActivity?: string | null;
   clientId?: string | null;
   onClose?: () => void;
   onClientLinked?: (clientId: string | null) => void;
+  onAssign?: (userId: string | null) => void;
+  onUpdateTags?: (tags: string[]) => void;
 }
 
 interface Note {
