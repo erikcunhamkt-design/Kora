@@ -116,18 +116,7 @@ Deno.serve(async (req) => {
       console.log("[bot-reply] respond_all enabled — bypassing assigned/opt-out/debounce guards");
     }
 
-    // Debounce: don't reply if we already sent something in the last 4 seconds
-    const { data: lastOut } = await admin
-      .from("whatsapp_messages")
-      .select("created_at")
-      .eq("conversation_id", conversationId)
-      .eq("direction", "outbound")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (lastOut && Date.now() - new Date(lastOut.created_at as string).getTime() < 4000) {
-      console.log("[bot-reply] skip: debounce (recent outbound)");
-      return json({ ok: true, skipped: "debounce" });
+
     }
 
     const { data: history } = await admin
