@@ -83,3 +83,33 @@ Na presente etapa, garantimos o suporte nativo e tratamento seguro das mensagens
 ### Relatório de Compilação e Código
 * **Erros TypeScript**: 0 erros (`npx tsc --noEmit` executado com sucesso).
 * **Análise de Lint**: 37 erros / 25 warnings (estritamente de arquivos legados de outros módulos do projeto, sem qualquer regressão ou introdução de novos warnings no escopo do WhatsApp e sem uso de declarações `any` no novo código).
+
+---
+
+## 7. Robô de Atendimento com IA (Vertex AI / Gemini)
+
+A Edge Function `whatsapp-bot-reply` foi atualizada para dar suporte nativo às APIs de Inteligência Artificial do Google (Gemini) sem intermediários, desativando completamente o gateway da Lovable.
+
+### Modos de Operação Suportados
+
+1. **Vertex AI (Google Cloud)**:
+   * **GCP_SERVICE_ACCOUNT**: String JSON da sua conta de serviço do Google Cloud (contendo a chave privada, e-mail do cliente, etc.).
+   * **GCP_PROJECT_ID**: O ID do seu projeto no Google Cloud.
+   * **GCP_REGION**: A região do recurso (ex: `us-central1`).
+   
+2. **Google AI Studio (Gemini Developer API)**:
+   * **GEMINI_API_KEY**: Sua chave de API de desenvolvedor gerada no Google AI Studio (ou sob a variável alternativa `VERTEX_API_KEY`).
+
+### Configurando no Supabase
+
+Para ativar o robô no seu banco real, configure os segredos do Supabase via terminal CLI:
+
+```bash
+# Para o modo Google AI Studio (Recomendado pela simplicidade):
+supabase secrets set GEMINI_API_KEY="sua_chave_gemini_aqui"
+
+# Ou para o modo Vertex AI (Google Cloud):
+supabase secrets set GCP_PROJECT_ID="seu-projeto-gcp" GCP_SERVICE_ACCOUNT='{"type":"service_account",...}' GCP_REGION="us-central1"
+```
+
+A Edge Function fará a conversão automática do histórico de mensagens e das instruções de sistema do KORA Hub (`whatsapp_bot_settings`) para os payloads nativos das APIs do Google Gemini.
