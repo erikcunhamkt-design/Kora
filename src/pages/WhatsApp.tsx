@@ -566,8 +566,8 @@ export default function WhatsAppPage() {
                     <TabsTrigger value="unread" className="text-[11px] h-7">
                       Não lidas{unreadCount > 0 && <span className="ml-1 text-primary">{unreadCount}</span>}
                     </TabsTrigger>
-                    <TabsTrigger value="awaiting" className="text-[11px] h-7" title={`Aguardando há mais de ${SLA_MINUTES} min`}>
-                      SLA{awaitingCount > 0 && <span className="ml-1 text-destructive">{awaitingCount}</span>}
+                    <TabsTrigger value="awaiting" className="text-[11px] h-7" title={`Sem resposta há mais de ${SLA_MINUTES} min`}>
+                      Sem resposta{awaitingCount > 0 && <span className="ml-1 text-destructive">{awaitingCount}</span>}
                     </TabsTrigger>
                     <TabsTrigger value="open" className="text-[11px] h-7">Abertas</TabsTrigger>
                     <TabsTrigger value="resolved" className="text-[11px] h-7">Resolvidas</TabsTrigger>
