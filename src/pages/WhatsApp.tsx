@@ -601,20 +601,15 @@ export default function WhatsAppPage() {
                     <MessageCircle className="h-8 w-8 mx-auto text-muted-foreground/40 mb-2" />
                     <p className="text-xs text-muted-foreground">
                       {conversations.length === 0
-                        ? "Nenhuma conversa ainda. Sincronize para puxar as conversas existentes do seu WhatsApp."
+                        ? (status === "connected"
+                            ? "Sincronizando suas conversas em tempo real... Envie ou receba uma mensagem para começar."
+                            : "Conecte o WhatsApp para ver suas conversas.")
                         : "Nenhum resultado para esses filtros."}
                     </p>
-                    {conversations.length === 0 && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={handleSync}
-                        disabled={syncing || status !== "connected"}
-                        className="gap-2"
-                      >
-                        {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCw className="h-3.5 w-3.5" />}
-                        Sincronizar agora
-                      </Button>
+                    {conversations.length === 0 && status === "connected" && (
+                      <div className="inline-flex items-center gap-2 text-[11px] text-muted-foreground">
+                        <Loader2 className="h-3 w-3 animate-spin" /> Atualizando automaticamente
+                      </div>
                     )}
                   </div>
                 )}
