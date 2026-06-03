@@ -121,6 +121,29 @@ export function WhatsAppMessageBubble({
   const isUnknown = !isMedia && t !== "text" && !content;
   const reactionsObj = reactions ?? {};
 
+  if (deletedAt) {
+    return (
+      <div className={cn("flex w-full flex-col", outbound ? "items-end" : "items-start")}>
+        <div
+          className={cn(
+            "relative max-w-[85%] sm:max-w-[78%] md:max-w-[65%] xl:max-w-[60%] px-3 py-2 rounded-2xl text-sm",
+            outbound
+              ? "bg-primary/10 border border-primary/10 text-muted-foreground rounded-br-md italic"
+              : "bg-muted/30 border border-border/30 text-muted-foreground rounded-bl-md italic",
+          )}
+        >
+          Mensagem excluída
+          <div className={cn(
+            "flex items-center gap-1 text-[10px] opacity-70 mt-1",
+            outbound ? "justify-end" : "justify-start",
+          )}>
+            <span>{formatTime(createdAt)}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const react = async (emoji: string | null) => {
     if (!workspaceId) return;
     setBusy(true);
