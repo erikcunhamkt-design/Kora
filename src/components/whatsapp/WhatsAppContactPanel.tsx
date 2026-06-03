@@ -132,12 +132,15 @@ export function WhatsAppContactPanel({
   contactName,
   contactPhone,
   status,
-  tags,
+  tags: initialTags,
+  assignedTo: initialAssignedTo,
   avatarUrl,
   lastActivity,
   clientId: initialClientId,
   onClose,
   onClientLinked,
+  onAssign,
+  onUpdateTags,
 }: WhatsAppContactPanelProps) {
   const [clientId, setClientId] = useState<string | null>(initialClientId ?? null);
   const [client, setClient] = useState<ClientLite | null>(null);
