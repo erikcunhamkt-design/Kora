@@ -262,20 +262,7 @@ export default function WhatsAppPage() {
     }
   };
 
-  // Background auto-sync every 30s while connected and tab visible (silent)
-  useEffect(() => {
-    if (!workspace || !instance || status !== "connected") return;
-    const tick = () => {
-      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
-      void handleSync(true);
-    };
-    const id = window.setInterval(tick, 30000);
-    return () => window.clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspace, instance, status]);
-
-  // Ensure uazapi webhook is (re)registered once per session when connected,
-  // so inbound messages reach our webhook and trigger the bot reply.
+  // uazapi webhook registration check once per session when connected
   const webhookRegisteredRef = useRef(false);
   useEffect(() => {
     if (webhookRegisteredRef.current) return;

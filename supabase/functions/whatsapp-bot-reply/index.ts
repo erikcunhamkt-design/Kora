@@ -227,9 +227,35 @@ Deno.serve(async (req) => {
         return json({ error: "conversation not found" }, 404);
       }
 
+      // Respect respond_all setting (parsed from trigger node if available)
+      let flowNodes: any[] = [];
+      try {
+        if (bot.flow_data) {
+          flowNodes = typeof bot.flow_data === "string" 
+            ? JSON.parse(bot.flow_data) 
+            : bot.flow_data;
+        }
+      } catch (err) {
+        console.error("[bot-reply] failed to parse flow_data:", err);
+      }
+
+      const triggerNode = flowNodes.find((n: any) => n.type === "trigger" && n.enabled);
+      const aiNode = flowNodes.find((n: any) => n.type === "ai" && n.enabled);
+      const sendNode = flowNodes.find((n: any) => n.type === "send" && n.enabled);
+      const handoverNode = flowNodes.find((n: any) => n.type === "handover" && n.enabled);
+
+      const respondAll = triggerNode ? triggerNode.properties?.respondAll : bot.respond_all;
+
       // Respect respond_all setting
-      if (!bot.respond_all && conv.assigned_to) {
+      const isUnrestricted = respondAll ?? true;
+      if (!isUnrestricted && conv.assigned_to) {
         return json({ ok: true, skipped: "assigned and respond_all is false" });
+      }
+
+      // Check if AI node is disabled in custom flow
+      const hasFlowData = flowNodes.length > 0;
+      if (hasFlowData && !aiNode) {
+        return json({ ok: true, skipped: "AI node disabled in visual flow" });
       }
 
       // Instance
@@ -257,30 +283,82 @@ Deno.serve(async (req) => {
         .limit(MAX_HISTORY);
 
       const ordered = (history ?? []).slice().reverse();
-      systemInstruction = bot.system_instruction || systemInstruction;
-      provider = bot.provider || "lovable";
-      modelName = bot.model_name || DEFAULT_MODEL;
-      geminiApiKey = bot.gemini_api_key || null;
-      gcpProjectId = bot.gcp_project_id || null;
-      gcpRegion = bot.gcp_region || gcpRegion;
-      gcpServiceAccount = bot.gcp_service_account || null;
 
-      // Apply database-level custom keys if configured
-      if (provider === "gemini_api_key" && bot.gemini_api_key) {
-        geminiApiKey = bot.gemini_api_key;
-        gcpServiceAccount = null;
-        gcpProjectId = null;
-      } else if (provider === "vertex_ai" && bot.gcp_service_account) {
-        gcpServiceAccount = bot.gcp_service_account;
-        // Extract project ID from Service Account JSON if available
-        try {
-          const parsed = JSON.parse(gcpServiceAccount);
-          gcpProjectId = parsed.project_id || bot.gcp_project_id || gcpProjectId;
-        } catch {
-          gcpProjectId = bot.gcp_project_id || gcpProjectId;
+      // Check for human handover condition if handover node is enabled
+      if (handoverNode) {
+        const lastMsg = ordered.findLast((m: any) => m.direction === "inbound")?.content || "";
+        const handoverKeywords = ["atendente", "humano", "pessoa", "falar com", "suporte", "ajuda", "atendimento"];
+        if (handoverKeywords.some(keyword => lastMsg.toLowerCase().includes(keyword))) {
+          const handoverText = "Encaminhando o seu contato para o atendimento humano. Um de nossos colaboradores irá te atender em instantes! Obrigado por aguardar.";
+          console.log(`[bot-reply] Handover triggered. Sending text to ${conv.contact_phone}...`);
+          
+          const activeUazBase = baseForStoredSubdomain(instance.subdomain);
+          const sendRes = await fetch(`${activeUazBase}/send/text`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", token: instance.instance_token },
+            body: JSON.stringify({ number: conv.contact_phone, text: handoverText }),
+          });
+
+          if (sendRes.ok) {
+            await adminClient.from("whatsapp_messages").insert({
+              workspace_id: workspaceId,
+              instance_id: conv.instance_id,
+              conversation_id: conversationId,
+              direction: "outbound",
+              type: "text",
+              content: handoverText,
+              body: handoverText,
+              status: "sent",
+              timestamp: new Date().toISOString(),
+            });
+
+            await adminClient.from("whatsapp_conversations").update({
+              last_message: handoverText,
+              last_message_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              unread_count: 1
+            }).eq("id", conversationId);
+          }
+          
+          return json({ ok: true, handover: true });
         }
+      }
+
+      if (aiNode) {
+        systemInstruction = aiNode.properties?.instruction || systemInstruction;
+        provider = aiNode.properties?.provider || "lovable";
+        modelName = aiNode.properties?.model || DEFAULT_MODEL;
+        geminiApiKey = aiNode.properties?.geminiApiKey || null;
+        gcpProjectId = aiNode.properties?.gcpProjectId || null;
+        gcpRegion = aiNode.properties?.gcpRegion || gcpRegion;
+        gcpServiceAccount = aiNode.properties?.gcpServiceAccount || null;
+      } else {
+        // Fallback to table root columns
+        systemInstruction = bot.system_instruction || systemInstruction;
+        provider = bot.provider || "lovable";
+        modelName = bot.model_name || DEFAULT_MODEL;
+        geminiApiKey = bot.gemini_api_key || null;
+        gcpProjectId = bot.gcp_project_id || null;
         gcpRegion = bot.gcp_region || gcpRegion;
-        geminiApiKey = null;
+        gcpServiceAccount = bot.gcp_service_account || null;
+
+        // Apply database-level custom keys if configured
+        if (provider === "gemini_api_key" && bot.gemini_api_key) {
+          geminiApiKey = bot.gemini_api_key;
+          gcpServiceAccount = null;
+          gcpProjectId = null;
+        } else if (provider === "vertex_ai" && bot.gcp_service_account) {
+          gcpServiceAccount = bot.gcp_service_account;
+          // Extract project ID from Service Account JSON if available
+          try {
+            const parsed = JSON.parse(gcpServiceAccount);
+            gcpProjectId = parsed.project_id || bot.gcp_project_id || gcpProjectId;
+          } catch {
+            gcpProjectId = bot.gcp_project_id || gcpProjectId;
+          }
+          gcpRegion = bot.gcp_region || gcpRegion;
+          geminiApiKey = null;
+        }
       }
 
       contents = ordered
@@ -423,8 +501,24 @@ Deno.serve(async (req) => {
       throw new Error(`Configuração do provedor '${provider}' inválida ou chaves/credenciais não preenchidas.`);
     }
 
+    // Format reply using Send Node template if available
+    let finalReply = reply;
+    try {
+      const sendNode = flowNodes.find((n: any) => n.type === "send" && n.enabled);
+      if (sendNode && sendNode.properties?.template) {
+        const template = sendNode.properties.template;
+        if (template.includes("{{reply}}")) {
+          finalReply = template.replace("{{reply}}", reply);
+        } else {
+          finalReply = template;
+        }
+      }
+    } catch (e) {
+      console.warn("[bot-reply] failed to format reply template:", e);
+    }
+
     if (isTest) {
-      return json({ ok: true, reply });
+      return json({ ok: true, reply: finalReply });
     }
 
     // Send via uazapi
@@ -433,7 +527,7 @@ Deno.serve(async (req) => {
     const sendRes = await fetch(`${activeUazBase}/send/text`, {
       method: "POST",
       headers: { "Content-Type": "application/json", token: instance.instance_token },
-      body: JSON.stringify({ number: conv.contact_phone, text: reply }),
+      body: JSON.stringify({ number: conv.contact_phone, text: finalReply }),
     });
     const sendText = await sendRes.text();
     let sendData: Record<string, unknown> = {};
@@ -453,14 +547,14 @@ Deno.serve(async (req) => {
       wa_message_id: waMessageId,
       direction: "outbound",
       type: "text",
-      content: reply,
-      body: reply,
+      content: finalReply,
+      body: finalReply,
       status: "sent",
       timestamp: new Date().toISOString(),
     });
 
     await adminClient.from("whatsapp_conversations").update({
-      last_message: reply,
+      last_message: finalReply,
       last_message_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }).eq("id", conversationId);
