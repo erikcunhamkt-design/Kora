@@ -125,7 +125,7 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
       }
     }
 
-    const modelName = isCustomModel ? customModelName : model;
+    const modelName = model;
 
     try {
       const payload: any = {
