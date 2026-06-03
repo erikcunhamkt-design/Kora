@@ -210,14 +210,15 @@ export function WhatsAppMessageBubble({
   };
 
   const handleFavoriteSticker = async () => {
-    if (!mediaUrl || !workspaceId) return;
+    const urlToSave = resolvedUrl ?? (mediaUrl && !isEncryptedHost(mediaUrl) ? mediaUrl : null);
+    if (!urlToSave || !workspaceId) return;
     setFavoriting(true);
     try {
       const { error } = await supabase.functions.invoke("whatsapp-instance", {
         body: {
           action: "toggle_favorite_sticker",
           workspaceId,
-          stickerUrl: mediaUrl,
+          stickerUrl: urlToSave,
           mimeType: "image/webp",
           op: favorited ? "remove" : "add",
         },
