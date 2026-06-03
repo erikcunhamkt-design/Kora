@@ -96,9 +96,10 @@ Deno.serve(async (req) => {
     if (vertexCreds) {
       try {
         const sa = vertexCreds.credentials_json as unknown as VertexServiceAccount;
-        const model = bot.model_name?.startsWith("gemini-")
-          ? bot.model_name
-          : (vertexCreds.default_model || DEFAULT_VERTEX_MODEL);
+        // When Vertex is active, always use the model chosen in the Vertex integration card.
+        // The bot's model_name (e.g. "gemini-1.5-flash") may not be a valid Vertex model id.
+        const model = vertexCreds.default_model || DEFAULT_VERTEX_MODEL;
+        console.log("[bot-reply] using Vertex AI", { model, location: vertexCreds.location });
         reply = await callVertexGenerate({
           serviceAccount: sa,
           location: vertexCreds.location || "us-central1",
