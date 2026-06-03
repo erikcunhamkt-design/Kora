@@ -56,7 +56,10 @@ function dayLabel(iso: string) {
   return d.toLocaleDateString([], { day: "2-digit", month: "long", year: "numeric" });
 }
 
-type Filter = "all" | "unread" | "open" | "resolved";
+type Filter = "all" | "unread" | "awaiting" | "open" | "resolved";
+
+const SLA_MINUTES = 120;
+
 
 export default function WhatsAppPage() {
   const { workspace } = useCurrentWorkspace();
@@ -82,6 +85,15 @@ export default function WhatsAppPage() {
   const filtered = useMemo(() => {
     let list = conversations;
     if (filter === "unread")   list = list.filter((c) => c.unread_count > 0);
+    if (filter === "awaiting") {
+      const cutoff = Date.now() - SLA_MINUTES * 60_000;
+      list = list.filter(
+        (c) =>
+          c.unread_count > 0 &&
+          c.last_message_at != null &&
+          new Date(c.last_message_at).getTime() < cutoff,
+      );
+    }
     if (filter === "open")     list = list.filter((c) => (c.status ?? "open") !== "resolved");
     if (filter === "resolved") list = list.filter((c) => c.status === "resolved");
     if (query.trim()) {
@@ -97,6 +109,16 @@ export default function WhatsAppPage() {
   }, [conversations, query, filter]);
 
   const unreadCount = conversations.reduce((acc, c) => acc + (c.unread_count > 0 ? 1 : 0), 0);
+  const awaitingCount = useMemo(() => {
+    const cutoff = Date.now() - SLA_MINUTES * 60_000;
+    return conversations.filter(
+      (c) =>
+        c.unread_count > 0 &&
+        c.last_message_at != null &&
+        new Date(c.last_message_at).getTime() < cutoff,
+    ).length;
+  }, [conversations]);
+
 
   useEffect(() => {
     if (selectedId) void markRead(selectedId);
@@ -369,13 +391,17 @@ export default function WhatsAppPage() {
                 </div>
 
                 <Tabs value={filter} onValueChange={(v) => setFilter(v as Filter)}>
-                  <TabsList className="grid grid-cols-4 h-8 bg-background/40 p-0.5">
+                  <TabsList className="grid grid-cols-5 h-8 bg-background/40 p-0.5">
                     <TabsTrigger value="all" className="text-[11px] h-7">Todas</TabsTrigger>
                     <TabsTrigger value="unread" className="text-[11px] h-7">
                       Não lidas{unreadCount > 0 && <span className="ml-1 text-primary">{unreadCount}</span>}
                     </TabsTrigger>
+                    <TabsTrigger value="awaiting" className="text-[11px] h-7" title={`Aguardando há mais de ${SLA_MINUTES} min`}>
+                      SLA{awaitingCount > 0 && <span className="ml-1 text-destructive">{awaitingCount}</span>}
+                    </TabsTrigger>
                     <TabsTrigger value="open" className="text-[11px] h-7">Abertas</TabsTrigger>
                     <TabsTrigger value="resolved" className="text-[11px] h-7">Resolvidas</TabsTrigger>
+
                   </TabsList>
                 </Tabs>
               </div>
@@ -543,6 +569,9 @@ export default function WhatsAppPage() {
                     onSendMedia={handleSendMedia}
                     onSendStickerUrl={handleSendStickerUrl}
                     workspaceId={workspace?.id}
+                    contactName={selected.contact_name}
+                    contactPhone={selected.contact_phone}
+
                     placeholder={
                       status === "connected"
                         ? `Mensagem para ${selected.contact_name ?? selected.contact_phone}...`

@@ -1770,6 +1770,36 @@ export type Database = {
           },
         ]
       }
+      whatsapp_quick_replies: {
+        Row: {
+          content: string
+          created_at: string
+          created_by: string | null
+          id: string
+          shortcut: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          shortcut: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          shortcut?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       whatsapp_templates: {
         Row: {
           body: string

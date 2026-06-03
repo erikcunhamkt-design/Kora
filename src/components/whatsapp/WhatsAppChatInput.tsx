@@ -5,7 +5,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { WhatsAppStickerPicker } from "./WhatsAppStickerPicker";
+import {
+  QuickRepliesInlinePopover,
+  QuickRepliesManagerButton,
+  renderQuickReply,
+} from "./WhatsAppQuickReplies";
 import { toast } from "sonner";
+
 
 const MAX_BYTES = 10 * 1024 * 1024; // 10MB
 
@@ -43,6 +49,8 @@ export function WhatsAppChatInput({
   onSendMedia,
   onSendStickerUrl,
   workspaceId,
+  contactName,
+  contactPhone,
   placeholder,
 }: {
   disabled?: boolean;
@@ -51,11 +59,15 @@ export function WhatsAppChatInput({
   onSendMedia?: (payload: MediaPayload) => Promise<void> | void;
   onSendStickerUrl?: (stickerUrl: string, mimeType?: string | null) => Promise<void> | void;
   workspaceId?: string;
+  contactName?: string | null;
+  contactPhone?: string | null;
   placeholder?: string;
 }) {
   const [value, setValue] = useState("");
   const [recording, setRecording] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [quickOpen, setQuickOpen] = useState(false);
+  const [quickFilter, setQuickFilter] = useState("");
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
@@ -63,6 +75,7 @@ export function WhatsAppChatInput({
   const videoInputRef = useRef<HTMLInputElement | null>(null);
   const docInputRef = useRef<HTMLInputElement | null>(null);
   const stickerInputRef = useRef<HTMLInputElement | null>(null);
+
 
   const submit = async () => {
     const t = value.trim();
@@ -273,22 +286,60 @@ export function WhatsAppChatInput({
                 if (onSendStickerUrl) await onSendStickerUrl(url, mt);
               }}
             />
+
+            <QuickRepliesManagerButton workspaceId={workspaceId} />
           </TooltipProvider>
 
-          <Textarea
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            placeholder={placeholder ?? "Escreva uma mensagem..."}
-            disabled={busy}
-            rows={1}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                void submit();
-              }
+          <QuickRepliesInlinePopover
+            workspaceId={workspaceId}
+            filter={quickFilter}
+            open={quickOpen}
+            onOpenChange={setQuickOpen}
+            onPick={(content) => {
+              const rendered = renderQuickReply(content, {
+                nome: contactName,
+                telefone: contactPhone,
+              });
+              setValue((v) => {
+                // strip the trailing /filter token if any, then insert
+                const stripped = v.replace(/(^|\s)\/[^\s]*$/, (m, pre) => pre);
+                return (stripped ? stripped + " " : "") + rendered;
+              });
+              setQuickFilter("");
             }}
-            className="flex-1 resize-none border-0 bg-transparent shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 min-h-[36px] max-h-32 py-2 text-sm leading-relaxed"
+            anchor={
+              <Textarea
+                value={value}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setValue(v);
+                  // detect `/foo` token at end (start of line or after space)
+                  const m = v.match(/(?:^|\s)\/([^\s]*)$/);
+                  if (m) {
+                    setQuickFilter(m[1]);
+                    setQuickOpen(true);
+                  } else {
+                    setQuickOpen(false);
+                  }
+                }}
+                placeholder={placeholder ?? "Escreva uma mensagem... (/ para snippets)"}
+                disabled={busy}
+                rows={1}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape" && quickOpen) {
+                    setQuickOpen(false);
+                    return;
+                  }
+                  if (e.key === "Enter" && !e.shiftKey && !quickOpen) {
+                    e.preventDefault();
+                    void submit();
+                  }
+                }}
+                className="flex-1 resize-none border-0 bg-transparent shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 min-h-[36px] max-h-32 py-2 text-sm leading-relaxed"
+              />
+            }
           />
+
 
           {value.trim() ? (
             <Button
