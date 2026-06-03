@@ -523,7 +523,7 @@ export default function WhatsAppPage() {
               className={cn(
                 "flex-shrink-0 border-r border-border/40 bg-card/30 flex-col",
                 // widths
-                "w-full md:w-[280px] lg:w-[320px] xl:w-[340px]",
+                "w-full md:w-[340px] lg:w-[380px] xl:w-[400px]",
                 // mobile show/hide based on selection
                 showSidebar ? "flex" : "hidden md:flex",
               )}
