@@ -87,14 +87,11 @@ export function WhatsAppSection() {
         instance={instance}
         loading={loadingInstance}
         busy={busy}
-        syncing={syncing}
-        showSync
         connect={connect}
         disconnect={disconnect}
         removeInstance={removeInstance}
         refreshStatus={refreshStatus}
         importInstance={importInstance}
-        onSync={handleSync}
       />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
