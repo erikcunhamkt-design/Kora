@@ -14,14 +14,14 @@ const UAZ_BASE = (() => {
   return `https://${SUBDOMAIN}.uazapi.com`;
 })();
 
-const DEFAULT_MODEL = "gemini-1.5-flash";
-const LOVABLE_DEFAULT_MODEL = "google/gemini-1.5-flash";
+const DEFAULT_MODEL = "gemini-2.5-flash";
+const LOVABLE_DEFAULT_MODEL = "google/gemini-2.5-flash";
 const MAX_HISTORY = 12;
 
 function normalizeGoogleModel(modelName: string, provider: string): string {
   const raw = (modelName || "").trim().replace(/^google\//i, "");
-  if (!raw || raw === "custom" || raw === "gemini-2.5-flash" || raw === "gemini-2.5-pro") {
-    return provider === "vertex_ai" ? "gemini-1.5-flash-002" : DEFAULT_MODEL;
+  if (!raw || raw === "custom") {
+    return provider === "vertex_ai" ? "gemini-2.5-flash-001" : DEFAULT_MODEL;
   }
   return raw;
 }

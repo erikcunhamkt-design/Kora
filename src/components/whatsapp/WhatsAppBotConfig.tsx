@@ -24,7 +24,7 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
   // Form states
   const [isActive, setIsActive] = useState(false);
   const [instruction, setInstruction] = useState("");
-  const [model, setModel] = useState("gemini-1.5-flash");
+  const [model, setModel] = useState("gemini-2.5-flash");
   const [provider, setProvider] = useState<"lovable" | "gemini_api_key" | "vertex_ai">("lovable");
   const [geminiApiKey, setGeminiApiKey] = useState("");
   const [gcpProjectId, setGcpProjectId] = useState("");
@@ -59,15 +59,15 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
         setIsActive(data.is_active || false);
         setInstruction(data.system_instruction || "");
         
-        const dbModel = data.model_name || "gemini-1.5-flash";
+        const dbModel = data.model_name || "gemini-2.5-flash";
         const knownModels = [
-          "gemini-1.5-flash",
-          "gemini-1.5-pro",
+          "gemini-2.5-flash",
+          "gemini-2.5-pro",
           "gemini-2.0-flash",
-          "gemini-1.5-flash-002",
-          "gemini-1.5-pro-002",
-          "gemini-1.5-flash-001",
-          "gemini-1.5-pro-001"
+          "gemini-2.5-flash-001",
+          "gemini-2.5-pro-001",
+          "gemini-1.5-flash",
+          "gemini-1.5-pro"
         ];
         if (knownModels.includes(dbModel)) {
           setModel(dbModel);
@@ -100,7 +100,7 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
         setInstruction("Você é o atendente virtual do KORA Hub. Seja prestativo, educado e conciso.");
         setIsActive(false);
         setProvider("lovable");
-        setModel("gemini-1.5-flash");
+        setModel("gemini-2.5-flash");
         setCustomModelName("");
         setRespondAll(true);
       }
@@ -345,15 +345,13 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
                 <SelectContent>
                   {provider === "vertex_ai" ? (
                     <>
-                      <SelectItem value="gemini-1.5-flash-002">Gemini 1.5 Flash (002)</SelectItem>
-                      <SelectItem value="gemini-1.5-pro-002">Gemini 1.5 Pro (002)</SelectItem>
-                      <SelectItem value="gemini-1.5-flash-001">Gemini 1.5 Flash (001)</SelectItem>
-                      <SelectItem value="gemini-1.5-pro-001">Gemini 1.5 Pro (001)</SelectItem>
+                      <SelectItem value="gemini-2.5-flash-001">Gemini 2.5 Flash (001)</SelectItem>
+                      <SelectItem value="gemini-2.5-pro-001">Gemini 2.5 Pro (001)</SelectItem>
                     </>
                   ) : (
                     <>
-                      <SelectItem value="gemini-1.5-flash">Gemini 1.5 Flash (Recomendado)</SelectItem>
-                      <SelectItem value="gemini-1.5-pro">Gemini 1.5 Pro (Avançado)</SelectItem>
+                      <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash (Recomendado)</SelectItem>
+                      <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro (Avançado)</SelectItem>
                       <SelectItem value="gemini-2.0-flash">Gemini 2.0 Flash (Mais rápido)</SelectItem>
                     </>
                   )}
