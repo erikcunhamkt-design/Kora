@@ -498,18 +498,58 @@ export function WhatsAppContactPanel({
           )}
         </Section>
 
-        {/* Tags */}
         <Section title="Tags" icon={Tag}>
           <div className="flex flex-wrap gap-1.5">
-            {tags && tags.length > 0 ? (
-              tags.map((t) => (
-                <Badge key={t} variant="outline" className="text-[10px] h-5 border-border/60">
-                  {t}
+            {panelTags.length > 0 ? (
+              panelTags.map((t) => (
+                <Badge key={t} variant="outline" className="text-[10px] h-5 border-border/60 cursor-pointer hover:border-destructive hover:text-destructive"
+                  onClick={() => {
+                    const next = panelTags.filter((x) => x !== t);
+                    setPanelTags(next);
+                    onUpdateTags?.(next);
+                  }}
+                >
+                  {t} ×
                 </Badge>
               ))
             ) : (
               <span className="text-[11px] text-muted-foreground italic">Sem tags</span>
             )}
+          </div>
+          <div className="flex items-center gap-1.5 mt-2">
+            <Input
+              value={newTag}
+              onChange={(e) => setNewTag(e.target.value)}
+              placeholder="Nova tag..."
+              className="h-7 text-xs bg-background/60"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  const v = newTag.trim();
+                  if (v && !panelTags.includes(v)) {
+                    const next = [...panelTags, v];
+                    setPanelTags(next);
+                    onUpdateTags?.(next);
+                    setNewTag("");
+                  }
+                }
+              }}
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 px-2 text-xs"
+              onClick={() => {
+                const v = newTag.trim();
+                if (v && !panelTags.includes(v)) {
+                  const next = [...panelTags, v];
+                  setPanelTags(next);
+                  onUpdateTags?.(next);
+                  setNewTag("");
+                }
+              }}
+            >
+              <Plus className="h-3 w-3" />
+            </Button>
           </div>
         </Section>
 
