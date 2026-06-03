@@ -332,6 +332,14 @@ Deno.serve(async (req) => {
       });
       if (!list.ok) {
         console.error("sync /chat/find failed", list.status, list.data);
+        if (list.status === 401) {
+          // Token uazapi inválido — marcar como desconectado para forçar reconexão
+          await admin
+            .from("whatsapp_instances")
+            .update({ status: "disconnected", last_status_at: new Date().toISOString() })
+            .eq("id", existing.id);
+          return json({ synced: 0, needs_reconnect: true, message: "Sessão WhatsApp expirou. Reconecte a instância." });
+        }
         return json({ error: "uazapi /chat/find failed", status: list.status, detail: list.data }, 502);
       }
       const chats = Array.isArray(list.data)

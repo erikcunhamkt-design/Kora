@@ -134,6 +134,10 @@ export default function WhatsAppPage() {
       });
       if (error) throw error;
       if ((data as { error?: string })?.error) throw new Error((data as { error: string }).error);
+      if ((data as { needs_reconnect?: boolean })?.needs_reconnect) {
+        toast.warning("Sessão WhatsApp expirou", { description: "Reconecte a instância para continuar." });
+        return;
+      }
       toast.success(`Sincronizado: ${(data as { synced: number }).synced} conversas`);
       // After sync, backfill missing profile pictures in background
       void refreshAvatars(false);
