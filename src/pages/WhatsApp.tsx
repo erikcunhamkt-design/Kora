@@ -56,7 +56,10 @@ function dayLabel(iso: string) {
   return d.toLocaleDateString([], { day: "2-digit", month: "long", year: "numeric" });
 }
 
-type Filter = "all" | "unread" | "open" | "resolved";
+type Filter = "all" | "unread" | "awaiting" | "open" | "resolved";
+
+const SLA_MINUTES = 120;
+
 
 export default function WhatsAppPage() {
   const { workspace } = useCurrentWorkspace();
