@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Check, CheckCheck, Clock, FileText, AlertCircle, Star,
-  Reply, Pin, Smile, PinOff, CornerUpLeft, Trash2, Forward,
+  Reply, Pin, Smile, PinOff, CornerUpLeft, Trash2, Forward, Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { WhatsAppImageLightbox } from "./WhatsAppImageLightbox";
