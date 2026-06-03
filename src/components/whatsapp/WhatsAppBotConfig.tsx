@@ -37,6 +37,7 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
       if (data) {
         setSettings(data);
         setIsActive(data.is_active || false);
+        setRespondAll(((data as unknown) as { respond_all?: boolean }).respond_all === true);
         setInstruction(data.system_instruction || "");
         setModel(data.model_name || "gemini-1.5-flash");
       } else {
