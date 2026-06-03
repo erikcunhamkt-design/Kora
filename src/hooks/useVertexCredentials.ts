@@ -82,7 +82,7 @@ export function useVertexCredentials() {
         const payload = {
           workspace_id: workspace.id,
           provider: "vertex",
-          credentials_json: parsed,
+          credentials_json: parsed as never,
           location: opts?.location || "us-central1",
           default_model: opts?.defaultModel || "gemini-2.0-flash-001",
           is_active: true,
