@@ -306,11 +306,17 @@ export default function WhatsAppPage() {
     }
   };
 
-  // Group messages by day for separators
+  // Group messages by day for separators (+ in-conversation search filter)
+  const visibleMessages = useMemo(() => {
+    const q = msgQuery.trim().toLowerCase();
+    if (!q) return messages;
+    return messages.filter((m) => (m.content ?? "").toLowerCase().includes(q));
+  }, [messages, msgQuery]);
+
   const grouped = useMemo(() => {
     const out: Array<{ kind: "day"; label: string } | { kind: "msg"; msg: typeof messages[number] }> = [];
     let lastDay = "";
-    for (const m of messages) {
+    for (const m of visibleMessages) {
       const lbl = dayLabel(m.created_at);
       if (lbl !== lastDay) {
         out.push({ kind: "day", label: lbl });
@@ -319,7 +325,7 @@ export default function WhatsAppPage() {
       out.push({ kind: "msg", msg: m });
     }
     return out;
-  }, [messages]);
+  }, [visibleMessages]);
 
   if (loadingInstance) {
     return (
