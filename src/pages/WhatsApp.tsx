@@ -34,6 +34,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
@@ -240,7 +241,7 @@ export default function WhatsAppPage() {
     } catch { /* best-effort */ }
   };
 
-  const handleSync = async () => {
+  const handleSync = async (silent = false) => {
     if (!workspace) return;
     setSyncing(true);
     try {
@@ -250,18 +251,29 @@ export default function WhatsAppPage() {
       if (error) throw error;
       if ((data as { error?: string })?.error) throw new Error((data as { error: string }).error);
       if ((data as { needs_reconnect?: boolean })?.needs_reconnect) {
-        toast.warning("Sessão WhatsApp expirou", { description: "Reconecte a instância para continuar." });
+        if (!silent) toast.warning("Sessão WhatsApp expirou", { description: "Reconecte a instância para continuar." });
         return;
       }
-      toast.success(`Sincronizado: ${(data as { synced: number }).synced} conversas`);
-      // After sync, backfill missing profile pictures in background
+      if (!silent) toast.success(`Sincronizado: ${(data as { synced: number }).synced} conversas`);
       void refreshAvatars(false);
     } catch (e) {
-      toast.error("Falha ao sincronizar", { description: (e as Error).message });
+      if (!silent) toast.error("Falha ao sincronizar", { description: (e as Error).message });
     } finally {
       setSyncing(false);
     }
   };
+
+  // Background auto-sync every 30s while connected and tab visible (silent)
+  useEffect(() => {
+    if (!workspace || !instance || status !== "connected") return;
+    const tick = () => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      void handleSync(true);
+    };
+    const id = window.setInterval(tick, 30000);
+    return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspace, instance, status]);
 
   // Backfill avatars for already-cached conversations once on mount
   const avatarsRefreshedRef = useRef(false);
@@ -546,16 +558,10 @@ export default function WhatsAppPage() {
                         : `Status: ${status}`}
                     </p>
                   </div>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={handleSync}
-                    disabled={syncing || status !== "connected"}
-                    title="Sincronizar"
-                    className="h-8 w-8 flex-shrink-0"
-                  >
-                    {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCw className="h-4 w-4" />}
-                  </Button>
+                  <Badge variant="outline" className="h-7 px-2 text-[10px] gap-1 flex-shrink-0">
+                    {syncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCw className="h-3 w-3" />}
+                    Tempo real
+                  </Badge>
                 </div>
 
                 <div className="relative">
@@ -595,20 +601,15 @@ export default function WhatsAppPage() {
                     <MessageCircle className="h-8 w-8 mx-auto text-muted-foreground/40 mb-2" />
                     <p className="text-xs text-muted-foreground">
                       {conversations.length === 0
-                        ? "Nenhuma conversa ainda. Sincronize para puxar as conversas existentes do seu WhatsApp."
+                        ? (status === "connected"
+                            ? "Sincronizando suas conversas em tempo real... Envie ou receba uma mensagem para começar."
+                            : "Conecte o WhatsApp para ver suas conversas.")
                         : "Nenhum resultado para esses filtros."}
                     </p>
-                    {conversations.length === 0 && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={handleSync}
-                        disabled={syncing || status !== "connected"}
-                        className="gap-2"
-                      >
-                        {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCw className="h-3.5 w-3.5" />}
-                        Sincronizar agora
-                      </Button>
+                    {conversations.length === 0 && status === "connected" && (
+                      <div className="inline-flex items-center gap-2 text-[11px] text-muted-foreground">
+                        <Loader2 className="h-3 w-3 animate-spin" /> Atualizando automaticamente
+                      </div>
                     )}
                   </div>
                 )}
