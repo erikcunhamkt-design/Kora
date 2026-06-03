@@ -151,7 +151,7 @@ Deno.serve(async (req) => {
           webhookURL: webhookUrl,
           url: webhookUrl,
           enabled: true,
-          events: ["messages", "messages_update", "connection"],
+          addUrlEvents: true, events: ["messages", "messages_update", "connection", "chats", "contacts", "presence"],
         },
       }).catch(() => null);
 
@@ -206,6 +206,24 @@ Deno.serve(async (req) => {
         .single();
       return json({ instance: updated });
     }
+
+    if (action === "set_webhook") {
+      if (!existing) return json({ error: "Instance not found" }, 404);
+      const webhookUrl = `${SUPABASE_URL}/functions/v1/whatsapp-webhook?secret=${encodeURIComponent(WEBHOOK_SECRET)}&workspace=${workspaceId}`;
+      const events = ["messages", "messages_update", "connection", "chats", "contacts", "presence"];
+      const r = await uazForInstance(existing, "/webhook", {
+        body: {
+          webhookURL: webhookUrl,
+          url: webhookUrl,
+          enabled: true,
+          addUrlEvents: true,
+          events,
+        },
+      }).catch((e) => ({ ok: false, status: 0, data: String(e) }));
+      console.log("[set_webhook] result", r.status, JSON.stringify(r.data).slice(0, 300));
+      return json({ ok: r.ok, status: r.status, webhookUrl, events, detail: r.data });
+    }
+
 
     if (action === "disconnect") {
       if (!existing) return json({ instance: null });
@@ -294,7 +312,7 @@ Deno.serve(async (req) => {
           webhookURL: webhookUrl,
           url: webhookUrl,
           enabled: true,
-          events: ["messages", "messages_update", "connection"],
+          addUrlEvents: true, events: ["messages", "messages_update", "connection", "chats", "contacts", "presence"],
         }),
       }).catch(() => null);
 
