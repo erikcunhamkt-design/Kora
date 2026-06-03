@@ -49,6 +49,8 @@ export function WhatsAppChatInput({
   onSendMedia,
   onSendStickerUrl,
   workspaceId,
+  contactName,
+  contactPhone,
   placeholder,
 }: {
   disabled?: boolean;
@@ -57,11 +59,15 @@ export function WhatsAppChatInput({
   onSendMedia?: (payload: MediaPayload) => Promise<void> | void;
   onSendStickerUrl?: (stickerUrl: string, mimeType?: string | null) => Promise<void> | void;
   workspaceId?: string;
+  contactName?: string | null;
+  contactPhone?: string | null;
   placeholder?: string;
 }) {
   const [value, setValue] = useState("");
   const [recording, setRecording] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [quickOpen, setQuickOpen] = useState(false);
+  const [quickFilter, setQuickFilter] = useState("");
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
@@ -69,6 +75,7 @@ export function WhatsAppChatInput({
   const videoInputRef = useRef<HTMLInputElement | null>(null);
   const docInputRef = useRef<HTMLInputElement | null>(null);
   const stickerInputRef = useRef<HTMLInputElement | null>(null);
+
 
   const submit = async () => {
     const t = value.trim();
