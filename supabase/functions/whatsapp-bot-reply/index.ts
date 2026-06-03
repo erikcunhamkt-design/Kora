@@ -1,7 +1,13 @@
-// Generates an AI reply (Lovable AI / Gemini) for an inbound WhatsApp message
-// and sends it back via uazapi. Invoked fire-and-forget by whatsapp-webhook.
+// Generates an AI reply for an inbound WhatsApp message.
+// If the workspace has configured its own Vertex AI credentials, uses Vertex.
+// Otherwise falls back to Lovable AI Gateway (Gemini).
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import {
+  callVertexGenerate,
+  type VertexChatMessage,
+  type VertexServiceAccount,
+} from "../_shared/vertex.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -15,7 +21,8 @@ const UAZ_BASE = (() => {
   return `https://${SUBDOMAIN}.uazapi.com`;
 })();
 
-const DEFAULT_MODEL = "google/gemini-3-flash-preview";
+const DEFAULT_LOVABLE_MODEL = "google/gemini-3-flash-preview";
+const DEFAULT_VERTEX_MODEL = "gemini-2.0-flash-001";
 const MAX_HISTORY = 12;
 
 function json(b: unknown, s = 200) {
@@ -37,7 +44,6 @@ Deno.serve(async (req) => {
 
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 
-    // Bot settings
     const { data: bot } = await admin
       .from("whatsapp_bot_settings")
       .select("*")
@@ -45,21 +51,17 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (!bot || !bot.is_active) return json({ ok: true, skipped: "bot inactive" });
 
-    // Conversation + instance
     const { data: conv } = await admin
       .from("whatsapp_conversations")
       .select("*, whatsapp_instances!inner(instance_token, status)")
       .eq("id", conversationId)
       .maybeSingle();
     if (!conv) return json({ error: "conversation not found" }, 404);
-
-    // Don't auto-reply if an attendant took over
     if (conv.assigned_to) return json({ ok: true, skipped: "assigned" });
 
     const instance = (conv as { whatsapp_instances: { instance_token: string; status: string } }).whatsapp_instances;
     if (!instance || instance.status !== "connected") return json({ ok: true, skipped: "instance not connected" });
 
-    // Load recent message history
     const { data: history } = await admin
       .from("whatsapp_messages")
       .select("direction, content, body, type, timestamp, created_at")
@@ -68,41 +70,71 @@ Deno.serve(async (req) => {
       .limit(MAX_HISTORY);
 
     const ordered = (history ?? []).slice().reverse();
-    const messages = [
-      {
-        role: "system",
-        content: bot.system_instruction ||
-          "Você é um atendente cordial e prestativo. Responda de forma clara, breve e em português.",
-      },
+    const systemPrompt = bot.system_instruction ||
+      "Você é um atendente cordial e prestativo. Responda de forma clara, breve e em português.";
+
+    const messages: VertexChatMessage[] = [
+      { role: "system", content: systemPrompt },
       ...ordered.map((m) => ({
-        role: m.direction === "inbound" ? "user" : "assistant",
+        role: (m.direction === "inbound" ? "user" : "assistant") as "user" | "assistant",
         content: m.content || m.body || (m.type ? `[${m.type}]` : ""),
       })).filter((m) => m.content),
     ];
 
-    // Call Lovable AI Gateway
-    const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: bot.model_name || DEFAULT_MODEL,
-        messages,
-      }),
-    });
+    // Check for workspace Vertex credentials
+    const { data: vertexCreds } = await admin
+      .from("workspace_ai_credentials")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .eq("provider", "vertex")
+      .eq("is_active", true)
+      .maybeSingle();
 
-    if (!aiRes.ok) {
-      const detail = await aiRes.text();
-      console.error("[bot-reply] AI error", aiRes.status, detail);
-      if (aiRes.status === 429) return json({ error: "rate-limited" }, 429);
-      if (aiRes.status === 402) return json({ error: "credits exhausted" }, 402);
-      return json({ error: "ai gateway failed", status: aiRes.status }, 502);
+    let reply: string | undefined;
+    let provider = "lovable";
+
+    if (vertexCreds) {
+      try {
+        const sa = vertexCreds.credentials_json as unknown as VertexServiceAccount;
+        const model = bot.model_name?.startsWith("gemini-")
+          ? bot.model_name
+          : (vertexCreds.default_model || DEFAULT_VERTEX_MODEL);
+        reply = await callVertexGenerate({
+          serviceAccount: sa,
+          location: vertexCreds.location || "us-central1",
+          model,
+          messages,
+        });
+        provider = "vertex";
+      } catch (e) {
+        console.error("[bot-reply] Vertex failed, falling back to Lovable:", (e as Error).message);
+      }
     }
 
-    const aiData = await aiRes.json() as { choices?: Array<{ message?: { content?: string } }> };
-    const reply = aiData.choices?.[0]?.message?.content?.trim();
+    if (!reply) {
+      // Fallback to Lovable AI Gateway
+      const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: DEFAULT_LOVABLE_MODEL,
+          messages: messages.map((m) => ({ role: m.role, content: m.content })),
+        }),
+      });
+      if (!aiRes.ok) {
+        const detail = await aiRes.text();
+        console.error("[bot-reply] AI error", aiRes.status, detail);
+        if (aiRes.status === 429) return json({ error: "rate-limited" }, 429);
+        if (aiRes.status === 402) return json({ error: "credits exhausted" }, 402);
+        return json({ error: "ai gateway failed", status: aiRes.status }, 502);
+      }
+      const aiData = await aiRes.json() as { choices?: Array<{ message?: { content?: string } }> };
+      reply = aiData.choices?.[0]?.message?.content?.trim();
+    }
+
     if (!reply) return json({ ok: true, skipped: "empty reply" });
 
     // Send via uazapi
@@ -136,7 +168,7 @@ Deno.serve(async (req) => {
       updated_at: new Date().toISOString(),
     }).eq("id", conversationId);
 
-    return json({ ok: sendRes.ok, reply });
+    return json({ ok: sendRes.ok, reply, provider });
   } catch (e) {
     console.error("[bot-reply] error", e);
     return json({ error: (e as Error).message }, 500);
