@@ -70,10 +70,23 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
 
         setProvider((data as any).provider || "lovable");
         setGeminiApiKey((data as any).gemini_api_key || "");
-        setGcpProjectId((data as any).gcp_project_id || "");
-        setGcpRegion((data as any).gcp_region || "us-central1");
-        setGcpServiceAccount((data as any).gcp_service_account || "");
         setRespondAll((data as any).respond_all ?? true);
+        setGcpRegion((data as any).gcp_region || "us-central1");
+        const sa = (data as any).gcp_service_account || "";
+        setGcpServiceAccount(sa);
+        
+        let loadedProjectId = (data as any).gcp_project_id || "";
+        if (!loadedProjectId && sa) {
+          try {
+            const parsed = JSON.parse(sa);
+            if (parsed.project_id) {
+              loadedProjectId = parsed.project_id;
+            }
+          } catch {
+            // ignore
+          }
+        }
+        setGcpProjectId(loadedProjectId);
       } else {
         setInstruction("Você é o atendente virtual do KORA Hub. Seja prestativo, educado e conciso.");
         setIsActive(false);
@@ -110,6 +123,18 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
     e.preventDefault();
     setSaving(true);
 
+    let activeGcpProjectId = gcpProjectId;
+    if (!activeGcpProjectId && gcpServiceAccount) {
+      try {
+        const parsed = JSON.parse(gcpServiceAccount);
+        if (parsed.project_id) {
+          activeGcpProjectId = parsed.project_id;
+        }
+      } catch (err) {
+        // ignore
+      }
+    }
+
     const modelName = isCustomModel ? customModelName : model;
 
     try {
@@ -120,7 +145,7 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
         model_name: modelName,
         provider,
         gemini_api_key: geminiApiKey || null,
-        gcp_project_id: gcpProjectId || null,
+        gcp_project_id: activeGcpProjectId || null,
         gcp_region: gcpRegion || null,
         gcp_service_account: gcpServiceAccount || null,
         respond_all: respondAll,
@@ -503,14 +528,13 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                        GCP Project ID *
+                        GCP Project ID
                       </label>
                       <Input
                         value={gcpProjectId}
                         onChange={(e) => setGcpProjectId(e.target.value)}
-                        placeholder="meu-projeto-gcp-123"
+                        placeholder="Autodetectado do JSON..."
                         className="h-9 text-sm bg-background/40 border-border/60 focus:border-violet-500"
-                        required
                       />
                     </div>
                     
