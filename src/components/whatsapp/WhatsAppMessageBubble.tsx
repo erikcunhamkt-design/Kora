@@ -331,33 +331,41 @@ export function WhatsAppMessageBubble({
   );
 
   // Sticker has no chat-bubble background
-  if (isSticker && mediaUrl) {
+  if (isSticker) {
     return (
       <div className={cn("flex w-full flex-col group", outbound ? "items-end" : "items-start")}>
         <div className="relative">
           {HoverToolbar}
-          <img
-            src={mediaUrl}
-            alt="sticker"
-            className="h-36 w-36 object-contain"
-            loading="lazy"
-            decoding="async"
-            referrerPolicy="no-referrer"
-          />
-          <button
-            type="button"
-            onClick={handleFavoriteSticker}
-            disabled={favoriting}
-            className={cn(
-              "absolute top-1 right-1 h-7 w-7 rounded-full bg-background/80 backdrop-blur border border-border/60 flex items-center justify-center transition",
-              "opacity-0 group-hover:opacity-100",
-              favorited && "opacity-100 text-warning",
-            )}
-            aria-label={favorited ? "Remover dos favoritos" : "Favoritar figurinha"}
-            title={favorited ? "Remover dos favoritos" : "Favoritar figurinha"}
-          >
-            <Star className={cn("h-3.5 w-3.5", favorited && "fill-current")} />
-          </button>
+          {effectiveMediaUrl ? (
+            <img
+              src={effectiveMediaUrl}
+              alt="sticker"
+              className="h-36 w-36 object-contain"
+              loading="lazy"
+              decoding="async"
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <div className="h-36 w-36 rounded-lg border border-border/40 bg-card flex items-center justify-center text-muted-foreground text-xs">
+              {downloading ? <Loader2 className="h-5 w-5 animate-spin" /> : (downloadError ?? "🧩")}
+            </div>
+          )}
+          {effectiveMediaUrl && (
+            <button
+              type="button"
+              onClick={handleFavoriteSticker}
+              disabled={favoriting}
+              className={cn(
+                "absolute top-1 right-1 h-7 w-7 rounded-full bg-background/80 backdrop-blur border border-border/60 flex items-center justify-center transition",
+                "opacity-0 group-hover:opacity-100",
+                favorited && "opacity-100 text-warning",
+              )}
+              aria-label={favorited ? "Remover dos favoritos" : "Favoritar figurinha"}
+              title={favorited ? "Remover dos favoritos" : "Favoritar figurinha"}
+            >
+              <Star className={cn("h-3.5 w-3.5", favorited && "fill-current")} />
+            </button>
+          )}
         </div>
         <div className={cn(
           "flex items-center gap-1 text-[10px] opacity-70 mt-0.5",
@@ -373,6 +381,7 @@ export function WhatsAppMessageBubble({
       </div>
     );
   }
+
 
   return (
     <div className={cn("flex w-full flex-col group", outbound ? "items-end" : "items-start")}>
