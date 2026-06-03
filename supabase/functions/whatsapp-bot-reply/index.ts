@@ -86,16 +86,34 @@ Deno.serve(async (req) => {
       return json({ ok: true, skipped: "instance not connected" });
     }
 
-    // Opt-out check
-    const { data: optOut } = await admin
-      .from("whatsapp_opt_outs")
-      .select("id")
-      .eq("workspace_id", workspaceId)
-      .eq("normalized_phone", (conv as { contact_phone: string }).contact_phone)
-      .maybeSingle();
-    if (optOut) {
-      console.log("[bot-reply] skip: contact opted out");
-      return json({ ok: true, skipped: "opt-out" });
+    if (!respondAll) {
+      // Opt-out check
+      const { data: optOut } = await admin
+        .from("whatsapp_opt_outs")
+        .select("id")
+        .eq("workspace_id", workspaceId)
+        .eq("normalized_phone", (conv as { contact_phone: string }).contact_phone)
+        .maybeSingle();
+      if (optOut) {
+        console.log("[bot-reply] skip: contact opted out");
+        return json({ ok: true, skipped: "opt-out" });
+      }
+
+      // Debounce: don't reply if we already sent something in the last 4 seconds
+      const { data: lastOut } = await admin
+        .from("whatsapp_messages")
+        .select("created_at")
+        .eq("conversation_id", conversationId)
+        .eq("direction", "outbound")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (lastOut && Date.now() - new Date(lastOut.created_at as string).getTime() < 4000) {
+        console.log("[bot-reply] skip: debounce (recent outbound)");
+        return json({ ok: true, skipped: "debounce" });
+      }
+    } else {
+      console.log("[bot-reply] respond_all enabled — bypassing assigned/opt-out/debounce guards");
     }
 
     // Debounce: don't reply if we already sent something in the last 4 seconds
