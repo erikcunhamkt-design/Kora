@@ -91,6 +91,11 @@ export default function WhatsAppPage() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [msgQuery, setMsgQuery] = useState("");
 
+  // ---- Phase 3: reply context ----
+  const [replyTo, setReplyTo] = useState<{
+    id: string; content: string | null; direction: string; type: string | null;
+  } | null>(null);
+
   // ---- Phase 3: message density ----
   type Density = "compact" | "normal" | "comfortable";
   const [density, setDensity] = useState<Density>(() => {
@@ -106,11 +111,13 @@ export default function WhatsAppPage() {
     comfortable: { gap: "space-y-4",   px: "px-4 md:px-8", py: "py-6 md:py-7" },
   }[density];
 
-  // Reset in-chat search when changing conversation
+  // Reset in-chat search/reply when changing conversation
   useEffect(() => {
     setSearchOpen(false);
     setMsgQuery("");
+    setReplyTo(null);
   }, [selectedId]);
+
 
   const status = instance?.status ?? "disconnected";
   const selected = useMemo(
