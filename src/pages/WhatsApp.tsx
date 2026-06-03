@@ -612,6 +612,7 @@ export default function WhatsAppPage() {
                       conversation={c}
                       active={selectedId === c.id}
                       onClick={() => setSelectedId(c.id)}
+                      showWaitingTime={filter === "awaiting"}
                     />
                   ))}
                 </div>
