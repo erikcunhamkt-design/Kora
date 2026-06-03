@@ -5,7 +5,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { WhatsAppStickerPicker } from "./WhatsAppStickerPicker";
+import {
+  QuickRepliesInlinePopover,
+  QuickRepliesManagerButton,
+  renderQuickReply,
+} from "./WhatsAppQuickReplies";
 import { toast } from "sonner";
+
 
 const MAX_BYTES = 10 * 1024 * 1024; // 10MB
 
