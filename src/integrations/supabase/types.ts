@@ -1125,6 +1125,7 @@ export type Database = {
           id: string
           is_active: boolean | null
           model_name: string | null
+          respond_all: boolean
           system_instruction: string | null
           updated_at: string
           workspace_id: string
@@ -1134,6 +1135,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           model_name?: string | null
+          respond_all?: boolean
           system_instruction?: string | null
           updated_at?: string
           workspace_id: string
@@ -1143,6 +1145,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           model_name?: string | null
+          respond_all?: boolean
           system_instruction?: string | null
           updated_at?: string
           workspace_id?: string

@@ -65,7 +65,8 @@ Deno.serve(async (req) => {
       console.log("[bot-reply] skip: conversation not found", { conversationId });
       return json({ error: "conversation not found" }, 404);
     }
-    if (conv.assigned_to) {
+    const respondAll = (bot as { respond_all?: boolean }).respond_all === true;
+    if (conv.assigned_to && !respondAll) {
       console.log("[bot-reply] skip: assigned to human", { conversationId, assigned_to: conv.assigned_to });
       return json({ ok: true, skipped: "assigned" });
     }
