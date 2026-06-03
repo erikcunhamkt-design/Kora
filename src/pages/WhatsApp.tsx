@@ -275,6 +275,18 @@ export default function WhatsAppPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspace, instance, status]);
 
+  // Ensure uazapi webhook is (re)registered once per session when connected,
+  // so inbound messages reach our webhook and trigger the bot reply.
+  const webhookRegisteredRef = useRef(false);
+  useEffect(() => {
+    if (webhookRegisteredRef.current) return;
+    if (!workspace || !instance || status !== "connected") return;
+    webhookRegisteredRef.current = true;
+    void supabase.functions
+      .invoke("whatsapp-instance", { body: { action: "set_webhook", workspaceId: workspace.id } })
+      .catch(() => { webhookRegisteredRef.current = false; });
+  }, [workspace, instance, status]);
+
   // Backfill avatars for already-cached conversations once on mount
   const avatarsRefreshedRef = useRef(false);
   useEffect(() => {
