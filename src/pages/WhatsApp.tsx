@@ -96,6 +96,7 @@ export default function WhatsAppPage() {
   const [syncing, setSyncing] = useState(false);
   const [showContext, setShowContext] = useState(false);
   const [contextSheetOpen, setContextSheetOpen] = useState(false);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   // ---- Phase 3: in-conversation search ----
   const [searchOpen, setSearchOpen] = useState(false);
@@ -129,6 +130,13 @@ export default function WhatsAppPage() {
     setForwardOpen(false);
     setForwardMessageId(null);
   }, [selectedId]);
+
+  // Scroll to bottom when opening a chat or when messages change
+  useEffect(() => {
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+    }
+  }, [selectedId, messages.length]);
 
   // ---- Phase 4: forward message ----
   const [forwardOpen, setForwardOpen] = useState(false);
@@ -795,7 +803,7 @@ export default function WhatsAppPage() {
                   )}
 
                   {/* Mensagens */}
-                  <div className={cn("flex-1 overflow-y-auto", densityCfg.px, densityCfg.py, densityCfg.gap)}>
+                  <div ref={messagesContainerRef} className={cn("flex-1 overflow-y-auto", densityCfg.px, densityCfg.py, densityCfg.gap)}>
                     {messages.length === 0 && (
                       <div className="flex h-full items-center justify-center">
                         <WhatsAppEmptyState
