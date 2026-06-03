@@ -319,14 +319,8 @@ Deno.serve(async (req) => {
         const detail = await aiRes.text();
         console.warn("[bot-reply] Vertex AI API failed, attempting fallback to Generative Language API...", aiRes.status, detail);
         
-        // Clean the model name for AI Studio if it was mapped
-        let fallbackModel = rawModel;
-        if (fallbackModel.endsWith("-002") || fallbackModel.endsWith("-001")) {
-          fallbackModel = fallbackModel.substring(0, fallbackModel.length - 4);
-        }
-
         const fallbackToken = await getGCPToken(GCP_SERVICE_ACCOUNT, "https://www.googleapis.com/auth/generative-language");
-        const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/${fallbackModel}:generateContent`;
+        const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/${rawModel}:generateContent`;
         const fallbackRes = await fetch(fallbackUrl, {
           method: "POST",
           headers: {
