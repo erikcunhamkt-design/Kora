@@ -360,21 +360,6 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
                 </div>
               </div>
 
-              {isCustomModel && (
-                <div className="md:col-span-2 space-y-2">
-                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                    ID do Modelo Customizado *
-                  </label>
-                  <Input
-                    value={customModelName}
-                    onChange={(e) => setCustomModelName(e.target.value)}
-                    placeholder="ex: gemini-2.5-pro"
-                    className="h-9 text-sm bg-background/30 border-border/60 focus:border-violet-500"
-                    required
-                  />
-                  <p className="text-[10px] text-muted-foreground">Insira o ID oficial do modelo de IA do Google (ex: gemini-1.5-flash-latest).</p>
-                </div>
-              )}
             </div>
           </div>
 
