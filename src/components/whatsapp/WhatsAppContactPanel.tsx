@@ -154,6 +154,9 @@ export function WhatsAppContactPanel({
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState<ClientLite[]>([]);
   const [creatingOpportunity, setCreatingOpportunity] = useState(false);
+  const [panelTags, setPanelTags] = useState<string[]>(initialTags ?? []);
+  const [newTag, setNewTag] = useState("");
+  const [members, setMembers] = useState<{ id: string; name: string | null; email: string | null }[]>([]);
 
   useEffect(() => {
     setClientId(initialClientId ?? null);
