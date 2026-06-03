@@ -14,7 +14,7 @@ type BotSettings = Database["public"]["Tables"]["whatsapp_bot_settings"]["Row"];
 export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
   const [settings, setSettings] = useState<BotSettings | null>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const { status: vertex } = useVertexCredentials();
 
   // Form states
   const [isActive, setIsActive] = useState(false);
