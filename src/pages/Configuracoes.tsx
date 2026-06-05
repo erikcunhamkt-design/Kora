@@ -835,6 +835,31 @@ const Configuracoes = () => {
                 </div>
               </div>
 
+              <div className="mt-6 space-y-4">
+                <h3 className="text-sm font-semibold text-foreground">Sincronização Cloud & CRM (Supabase)</h3>
+                <p className="text-xs text-muted-foreground">
+                  Ative ou desative as integrações e fluxos de gravação direta na nuvem Supabase para o CRM, Orçamentos e Fichas Técnicas.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <CrmSupabaseExperimentalToggleCard />
+                  <CrmSupabaseStageMoveToggleCard />
+                  <CrmSupabaseBasicEditToggleCard />
+                  <CrmSupabaseCreateToggleCard />
+                  <CrmSupabaseArchiveToggleCard />
+                  <CrmSupabaseRestoreArchiveToggleCard />
+                  <CrmSupabaseCreateQuoteToggleCard />
+                  <QuotesSupabaseExperimentalToggleCard />
+                  <QuotesSupabaseApprovalToggleCard />
+                  <QuotesSupabaseReceivableToggleCard />
+                  <QuotesSupabaseProjectToggleCard />
+                  <QuotesSupabaseBaseTasksToggleCard />
+                  <QuotesSupabaseStatusTransitionToggleCard />
+                  <QuotesSupabaseTechnicalSheetsAutoSaveToggleCard />
+                  <SupabaseOperationalDashboardToggleCard />
+                  <SupabaseExperimentalToggleCard />
+                </div>
+              </div>
+
               <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-300/90 flex items-start gap-2 mt-6">
                 <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
                 Alguns dados ainda estão em modo local/protótipo e serão migrados para Supabase antes da produção.
