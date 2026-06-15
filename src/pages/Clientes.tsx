@@ -128,7 +128,7 @@ const Clientes = () => {
   const { t } = useTranslation();
   const { addClient: localAdd, updateClient: localUpdate, archiveClient: localArchive, restoreClient: localRestore, deleteClient: localDelete } = useClients();
   const { addClient: supabaseAdd, updateClient: supabaseUpdate, archiveClient: supabaseArchive, deleteClient: supabaseDelete } = useSupabaseClients();
-  const { source, setSource, clients, loading, error, isSupabaseAvailable } = useClientsDataSource();
+  const { source, setSource, clients, loading, error, isSupabaseAvailable, refresh } = useClientsDataSource();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { activeTypes } = useClientTypes();
@@ -158,6 +158,7 @@ const Clientes = () => {
           address: data.address || null,
           document: data.document || null,
         });
+        await refresh();
         toast.success("Cliente criado no Supabase.");
       } catch (err: any) {
         console.error("Supabase createClient error:", err);
@@ -195,6 +196,7 @@ const Clientes = () => {
         if (data.document !== undefined) patch.document = data.document;
 
         await supabaseUpdate(id.toString(), patch);
+        await refresh();
         toast.success("Cliente atualizado no Supabase.");
       } catch (err) {
         toast.error("Erro ao atualizar cliente no Supabase.");
@@ -209,6 +211,7 @@ const Clientes = () => {
     if (source === "supabase") {
       try {
         await supabaseArchive(id.toString(), true);
+        await refresh();
         toast.success("Cliente arquivado no Supabase.");
       } catch (err) {
         toast.error("Erro ao arquivar cliente no Supabase.");
@@ -223,6 +226,7 @@ const Clientes = () => {
     if (source === "supabase") {
       try {
         await supabaseArchive(id.toString(), false);
+        await refresh();
         toast.success("Cliente restaurado no Supabase.");
       } catch (err) {
         toast.error("Erro ao restaurar cliente no Supabase.");
@@ -237,6 +241,7 @@ const Clientes = () => {
     if (source === "supabase") {
       try {
         await supabaseDelete(id.toString());
+        await refresh();
         toast.success("Cliente excluído do Supabase.");
       } catch (err) {
         toast.error("Erro ao excluir cliente do Supabase.");
