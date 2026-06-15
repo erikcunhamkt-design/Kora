@@ -24,7 +24,6 @@ import {
   useClients, type Client, type ClientStatus, type ClientTemperature,
 } from "@/hooks/useClients";
 import { useClientsDataSource } from "@/hooks/useClientsDataSource";
-import { useSupabaseClients } from "@/hooks/useSupabaseClients";
 import { useTranslation } from "@/contexts/LanguageContext";
 import {
   Users, UserCheck, UserPlus, Search, SlidersHorizontal,
@@ -127,7 +126,7 @@ const TempPill = ({ t }: { t?: ClientTemperature }) => {
 const Clientes = () => {
   const { t } = useTranslation();
   const { addClient: localAdd, updateClient: localUpdate, archiveClient: localArchive, restoreClient: localRestore, deleteClient: localDelete } = useClients();
-  const { source, setSource, clients, loading, error, isSupabaseAvailable, refresh, addClient: supabaseAdd, updateClient: supabaseUpdate, archiveClient: supabaseArchive, deleteClient: supabaseDelete } = useClientsDataSource();
+  const { source, clients, loading, addClient: supabaseAdd, updateClient: supabaseUpdate, archiveClient: supabaseArchive, deleteClient: supabaseDelete } = useClientsDataSource();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { activeTypes } = useClientTypes();
@@ -157,7 +156,6 @@ const Clientes = () => {
           address: data.address || null,
           document: data.document || null,
         });
-        await refresh();
         toast.success("Cliente criado no Supabase.");
       } catch (err: any) {
         console.error("Supabase createClient error:", err);
@@ -195,7 +193,6 @@ const Clientes = () => {
         if (data.document !== undefined) patch.document = data.document;
 
         await supabaseUpdate(id.toString(), patch);
-        await refresh();
         toast.success("Cliente atualizado no Supabase.");
       } catch (err) {
         toast.error("Erro ao atualizar cliente no Supabase.");
@@ -210,7 +207,6 @@ const Clientes = () => {
     if (source === "supabase") {
       try {
         await supabaseArchive(id.toString(), true);
-        await refresh();
         toast.success("Cliente arquivado no Supabase.");
       } catch (err) {
         toast.error("Erro ao arquivar cliente no Supabase.");
@@ -225,7 +221,6 @@ const Clientes = () => {
     if (source === "supabase") {
       try {
         await supabaseArchive(id.toString(), false);
-        await refresh();
         toast.success("Cliente restaurado no Supabase.");
       } catch (err) {
         toast.error("Erro ao restaurar cliente no Supabase.");
@@ -240,7 +235,6 @@ const Clientes = () => {
     if (source === "supabase") {
       try {
         await supabaseDelete(id.toString());
-        await refresh();
         toast.success("Cliente excluído do Supabase.");
       } catch (err) {
         toast.error("Erro ao excluir cliente do Supabase.");
@@ -557,7 +551,12 @@ const Clientes = () => {
       />
 
       {/* Client listing */}
-      {noClients ? (
+      {loading ? (
+        <div className="py-12 flex items-center justify-center text-xs text-muted-foreground gap-2">
+          <RefreshCw className="h-5 w-5 animate-spin text-primary" />
+          Carregando clientes do Supabase...
+        </div>
+      ) : noClients ? (
         <EmptyState
           icon={Users}
           title="Comece pela sua base de clientes"
@@ -565,11 +564,6 @@ const Clientes = () => {
           primaryAction={{ label: "Novo cliente", onClick: handleNewClient }}
           secondaryAction={{ label: "Compartilhar link de cadastro", onClick: () => setSignupLinkOpen(true), variant: "outline" }}
         />
-      ) : loading ? (
-        <div className="py-12 flex items-center justify-center text-xs text-muted-foreground gap-2">
-          <RefreshCw className="h-5 w-5 animate-spin text-primary" />
-          Carregando clientes do Supabase...
-        </div>
       ) : viewMode === "table" ? (
         <div className="orbit-card overflow-hidden">
           <Table>

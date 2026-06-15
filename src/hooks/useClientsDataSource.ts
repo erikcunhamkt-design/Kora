@@ -1,10 +1,7 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
-import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
+import { useMemo } from "react";
 import { useClients } from "@/hooks/useClients";
 import { useSupabaseClients } from "@/hooks/useSupabaseClients";
 import type { Client } from "@/types/domain";
-
-const DATA_SOURCE_KEY = "kora.clients.dataSource.v1";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function mapSupabaseClientToLocalClient(s: any): Client {
@@ -43,47 +40,14 @@ export function mapSupabaseClientToLocalClient(s: any): Client {
 }
 
 export function useClientsDataSource() {
-  const { workspace } = useCurrentWorkspace();
-  const { clients: localClients, setClients: setLocalClients } = useClients();
+  const { clients: localClients } = useClients();
   const supa = useSupabaseClients();
-  const { clients: supabaseClients, loading: supabaseLoading, error: supabaseError, refreshClients } = supa;
+  const { workspace, workspaceLoading, clients: supabaseClients, loading: supabaseLoading, error: supabaseError, refreshClients } = supa;
+  const source: "local" | "supabase" = workspaceLoading || workspace ? "supabase" : "local";
 
   const isSupabaseAvailable = useMemo(() => {
     return !!workspace;
   }, [workspace]);
-
-  const [source, setSourceState] = useState<"local" | "supabase">(() => {
-    try {
-      const saved = localStorage.getItem(DATA_SOURCE_KEY);
-      if (saved === "local") {
-        return "local";
-      }
-    } catch {
-      // Ignore
-    }
-    return "supabase";
-  });
-
-  const setSource = useCallback((newSource: "local" | "supabase") => {
-    if (newSource === "supabase" && !workspace) {
-      return false;
-    }
-    try {
-      localStorage.setItem(DATA_SOURCE_KEY, newSource);
-    } catch {
-      // Ignore
-    }
-    setSourceState(newSource);
-    return true;
-  }, [workspace]);
-
-  // Only auto-fallback to local when workspace truly missing. Do NOT auto-promote
-  // back to supabase on every render — that thrashes state and unmounts dialogs.
-  useEffect(() => {
-    if (!workspace && source === "supabase") {
-      setSourceState("local");
-    }
-  }, [workspace, source]);
 
   const clients = useMemo(() => {
     if (source === "supabase") {
@@ -92,12 +56,11 @@ export function useClientsDataSource() {
     return localClients;
   }, [source, localClients, supabaseClients]);
 
-  const loading = source === "supabase" ? supabaseLoading : false;
+  const loading = workspaceLoading || (source === "supabase" ? supabaseLoading : false);
   const error = source === "supabase" ? supabaseError : null;
 
   return {
     source,
-    setSource,
     clients,
     loading,
     error,
