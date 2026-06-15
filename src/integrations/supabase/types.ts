@@ -1524,6 +1524,7 @@ export type Database = {
           last_status_at: string | null
           phone: string | null
           phone_name: string | null
+          provider: string
           qr_code: string | null
           status: string
           subdomain: string
@@ -1540,6 +1541,7 @@ export type Database = {
           last_status_at?: string | null
           phone?: string | null
           phone_name?: string | null
+          provider?: string
           qr_code?: string | null
           status?: string
           subdomain: string
@@ -1556,6 +1558,7 @@ export type Database = {
           last_status_at?: string | null
           phone?: string | null
           phone_name?: string | null
+          provider?: string
           qr_code?: string | null
           status?: string
           subdomain?: string
@@ -1734,6 +1737,62 @@ export type Database = {
             columns: ["instance_id"]
             isOneToOne: false
             referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_official_credentials: {
+        Row: {
+          access_token: string
+          app_secret: string | null
+          created_at: string
+          display_phone_number: string | null
+          id: string
+          last_verified_at: string | null
+          phone_number_id: string
+          status: string
+          updated_at: string
+          verified_name: string | null
+          verify_token: string
+          waba_id: string
+          workspace_id: string
+        }
+        Insert: {
+          access_token: string
+          app_secret?: string | null
+          created_at?: string
+          display_phone_number?: string | null
+          id?: string
+          last_verified_at?: string | null
+          phone_number_id: string
+          status?: string
+          updated_at?: string
+          verified_name?: string | null
+          verify_token: string
+          waba_id: string
+          workspace_id: string
+        }
+        Update: {
+          access_token?: string
+          app_secret?: string | null
+          created_at?: string
+          display_phone_number?: string | null
+          id?: string
+          last_verified_at?: string | null
+          phone_number_id?: string
+          status?: string
+          updated_at?: string
+          verified_name?: string | null
+          verify_token?: string
+          waba_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_official_credentials_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: true
+            referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
         ]
