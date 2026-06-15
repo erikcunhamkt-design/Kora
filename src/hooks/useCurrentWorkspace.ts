@@ -20,13 +20,18 @@ export interface WorkspaceMember {
 }
 
 export function useCurrentWorkspace() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [membership, setMembership] = useState<WorkspaceMember | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
+    if (authLoading) {
+      setLoading(true);
+      return;
+    }
+
     if (!user) {
       setWorkspace(null);
       setMembership(null);
@@ -74,7 +79,7 @@ export function useCurrentWorkspace() {
     }
 
     fetchWorkspaceData();
-  }, [user]);
+  }, [user, authLoading]);
 
   return { workspace, membership, loading, error };
 }
