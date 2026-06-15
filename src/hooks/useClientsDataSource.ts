@@ -1,5 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
-import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
+import { useState, useCallback, useMemo } from "react";
 import { useClients } from "@/hooks/useClients";
 import { useSupabaseClients } from "@/hooks/useSupabaseClients";
 import type { Client } from "@/types/domain";
@@ -43,10 +42,9 @@ export function mapSupabaseClientToLocalClient(s: any): Client {
 }
 
 export function useClientsDataSource() {
-  const { workspace } = useCurrentWorkspace();
   const { clients: localClients, setClients: setLocalClients } = useClients();
   const supa = useSupabaseClients();
-  const { clients: supabaseClients, loading: supabaseLoading, error: supabaseError, refreshClients } = supa;
+  const { workspace, clients: supabaseClients, loading: supabaseLoading, error: supabaseError, refreshClients } = supa;
 
   const isSupabaseAvailable = useMemo(() => {
     return !!workspace;
@@ -76,14 +74,6 @@ export function useClientsDataSource() {
     setSourceState(newSource);
     return true;
   }, [workspace]);
-
-  // Only auto-fallback to local when workspace truly missing. Do NOT auto-promote
-  // back to supabase on every render — that thrashes state and unmounts dialogs.
-  useEffect(() => {
-    if (!workspace && source === "supabase") {
-      setSourceState("local");
-    }
-  }, [workspace, source]);
 
   const clients = useMemo(() => {
     if (source === "supabase") {

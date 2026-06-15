@@ -4,12 +4,16 @@ import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { clientsRepository, type SupabaseClientInput } from "@/repositories/clientsRepository";
 
 export function useSupabaseClients() {
-  const { workspace } = useCurrentWorkspace();
+  const { workspace, loading: workspaceLoading } = useCurrentWorkspace();
   const [clients, setClients] = useState<unknown[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
   const fetchClients = useCallback(async () => {
+    if (workspaceLoading) {
+      return;
+    }
+
     if (!workspace) {
       setClients([]);
       setLoading(false);
@@ -26,7 +30,7 @@ export function useSupabaseClients() {
     } finally {
       setLoading(false);
     }
-  }, [workspace]);
+  }, [workspace, workspaceLoading]);
 
   useEffect(() => {
     fetchClients();
@@ -81,6 +85,8 @@ export function useSupabaseClients() {
   }, [workspace]);
 
   return {
+    workspace,
+    workspaceLoading,
     clients,
     loading,
     error,
