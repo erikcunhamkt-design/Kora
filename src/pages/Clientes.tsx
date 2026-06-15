@@ -551,7 +551,12 @@ const Clientes = () => {
       />
 
       {/* Client listing */}
-      {noClients ? (
+      {loading ? (
+        <div className="py-12 flex items-center justify-center text-xs text-muted-foreground gap-2">
+          <RefreshCw className="h-5 w-5 animate-spin text-primary" />
+          Carregando clientes do Supabase...
+        </div>
+      ) : noClients ? (
         <EmptyState
           icon={Users}
           title="Comece pela sua base de clientes"
@@ -559,11 +564,6 @@ const Clientes = () => {
           primaryAction={{ label: "Novo cliente", onClick: handleNewClient }}
           secondaryAction={{ label: "Compartilhar link de cadastro", onClick: () => setSignupLinkOpen(true), variant: "outline" }}
         />
-      ) : loading ? (
-        <div className="py-12 flex items-center justify-center text-xs text-muted-foreground gap-2">
-          <RefreshCw className="h-5 w-5 animate-spin text-primary" />
-          Carregando clientes do Supabase...
-        </div>
       ) : viewMode === "table" ? (
         <div className="orbit-card overflow-hidden">
           <Table>
