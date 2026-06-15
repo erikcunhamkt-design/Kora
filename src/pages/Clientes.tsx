@@ -138,29 +138,30 @@ const Clientes = () => {
       try {
         await supabaseAdd({
           name: data.name,
-          company: data.company || "",
-          email: data.email || "",
-          phone: data.phone || "",
-          whatsapp: data.whatsapp || "",
-          instagram: data.instagram || "",
-          website: data.site || "",
-          type: data.serviceType || "",
-          source: data.origin || "",
+          company: data.company || null,
+          email: data.email || null,
+          phone: data.phone || null,
+          whatsapp: data.whatsapp || null,
+          instagram: data.instagram || null,
+          website: data.site || null,
+          type: data.serviceType || null,
+          source: data.origin || null,
           status: data.status || "Ativo",
           potential_value: data.potentialValue || 0,
-          notes: data.observations || "",
+          notes: data.observations || null,
           tags: data.tags || [],
           temperature: data.temperature || "Morno",
-          next_action: data.nextAction || "",
-          next_action_date: data.nextActionDate || "",
-          city: data.city || "",
-          state: data.state || "",
-          address: data.address || "",
-          document: data.document || "",
+          next_action: data.nextAction || null,
+          next_action_date: data.nextActionDate || null,
+          city: data.city || null,
+          state: data.state || null,
+          address: data.address || null,
+          document: data.document || null,
         });
         toast.success("Cliente criado no Supabase.");
-      } catch (err) {
-        toast.error("Erro ao criar cliente no Supabase.");
+      } catch (err: any) {
+        console.error("Supabase createClient error:", err);
+        toast.error(`Erro ao criar cliente: ${err?.message || "desconhecido"}`);
       }
     } else {
       localAdd(data);
