@@ -45,7 +45,8 @@ export function mapSupabaseClientToLocalClient(s: any): Client {
 export function useClientsDataSource() {
   const { workspace } = useCurrentWorkspace();
   const { clients: localClients, setClients: setLocalClients } = useClients();
-  const { clients: supabaseClients, loading: supabaseLoading, error: supabaseError, refreshClients } = useSupabaseClients();
+  const supa = useSupabaseClients();
+  const { clients: supabaseClients, loading: supabaseLoading, error: supabaseError, refreshClients } = supa;
 
   const isSupabaseAvailable = useMemo(() => {
     return !!workspace;
@@ -65,7 +66,7 @@ export function useClientsDataSource() {
 
   const setSource = useCallback((newSource: "local" | "supabase") => {
     if (newSource === "supabase" && !workspace) {
-      return false; // Cannot switch to Supabase if not available
+      return false;
     }
     try {
       localStorage.setItem(DATA_SOURCE_KEY, newSource);
@@ -76,19 +77,13 @@ export function useClientsDataSource() {
     return true;
   }, [workspace]);
 
-  // Fallback check: if workspace is lost, fallback to local source automatically.
-  // If workspace is present and was local, auto-promote to supabase.
+  // Only auto-fallback to local when workspace truly missing. Do NOT auto-promote
+  // back to supabase on every render — that thrashes state and unmounts dialogs.
   useEffect(() => {
     if (!workspace && source === "supabase") {
       setSourceState("local");
-    } else if (workspace && source === "local") {
-      const saved = localStorage.getItem(DATA_SOURCE_KEY);
-      if (saved !== "local") {
-        setSourceState("supabase");
-      }
     }
   }, [workspace, source]);
-
 
   const clients = useMemo(() => {
     if (source === "supabase") {
@@ -108,5 +103,10 @@ export function useClientsDataSource() {
     error,
     isSupabaseAvailable,
     refresh: refreshClients,
+    addClient: supa.addClient,
+    updateClient: supa.updateClient,
+    archiveClient: supa.archiveClient,
+    deleteClient: supa.deleteClient,
   };
 }
+
