@@ -1,107 +1,72 @@
-## Diagnóstico — por que o bot não atende hoje
+## Objetivo
+Permitir conectar o WhatsApp por **dois provedores** no card de Integrações:
+1. **uazapi** (já existente — QR Code)
+2. **WhatsApp Cloud API oficial (Meta)** — credenciais
 
-Confirmei direto no banco:
+O usuário escolhe o provedor, salva as credenciais e o atendimento (inbox/campanhas existentes) passa a funcionar com o provedor escolhido.
 
-- A instância UAZAPI está `connected` (workspace `2dc45e1a…`).
-- `whatsapp_bot_settings.is_active = true` para esse workspace.
-- `workspace_ai_credentials` tem Vertex ativo (`gemini-2.0-flash-001`).
-- O webhook recebe mensagens e dispara `whatsapp-bot-reply` (linhas 582-604 de `whatsapp-webhook/index.ts`).
+## UI (frontend)
 
-**Causa raiz nº 1 (bloqueante):** `whatsapp-bot-reply` faz:
+Em `src/components/automacoes/IntegrationsSection.tsx`, substituir o `WhatsAppConnectionCard` único por um bloco com **Tabs**:
 
-```ts
-.from("whatsapp_conversations")
-.select("*, whatsapp_instances!inner(instance_token, status)")
+```text
+┌─ Conexão WhatsApp ───────────────────────────┐
+│  [ uazapi (QR Code) ] [ API Oficial (Meta) ] │
+│                                              │
+│  <conteúdo da aba ativa>                     │
+└──────────────────────────────────────────────┘
 ```
 
-Mas **não existe foreign key** entre `whatsapp_conversations.instance_id` e `whatsapp_instances.id` (confirmado em `pg_constraint`). Sem FK, o PostgREST não consegue embutir o relacionamento e a query falha → `conv` vem `null` → função retorna `"conversation not found"` e nunca envia.
+- Aba **uazapi**: mantém `WhatsAppConnectionCard` atual sem mudanças.
+- Aba **API Oficial**: novo `OfficialWhatsAppCard.tsx` com formulário:
+  - Phone Number ID
+  - WhatsApp Business Account ID (WABA ID)
+  - Permanent Access Token (input password)
+  - Verify Token (gerado automaticamente, com botão "copiar")
+  - App Secret (opcional, para validar assinatura do webhook)
+  - Status badge (não configurado / configurado / verificado)
+  - Botão **Testar conexão** (chama edge function que faz `GET /v19.0/{phone_number_id}` na Graph API)
+  - Botão **Salvar / Atualizar** e **Remover**
+  - Bloco informativo com a **URL do Webhook** a configurar no Meta Developer Portal
 
-**Causa raiz nº 2 (latente):** a migration de segurança recente removeu o SELECT em nível de tabela de `whatsapp_instances` para `authenticated`. Service-role ainda tem ALL, então o webhook/bot funcionam — mas só depois de corrigir o embed.
+Novo hook `src/hooks/useWhatsAppOfficial.ts` (CRUD via supabase) — segue o mesmo padrão de `useWhatsAppInstance`.
 
-**Causa raiz nº 3 (qualidade):** o bot dispara para QUALQUER inbound de texto, sem regras de pausa (humano assumiu, opt-out, horário, fora-de-escopo), o que pode gerar respostas indesejadas quando começar a funcionar.
+Apenas um provedor pode estar **ativo** por workspace por vez. Ao conectar/salvar um, o outro fica "inativo" (não é apagado). Indicador visual de "Provedor ativo: …" no topo do card.
 
----
+## Backend (Supabase)
 
-## Plano
+### Nova tabela `whatsapp_official_credentials`
+Colunas: `id`, `workspace_id` (unique), `phone_number_id`, `waba_id`, `display_phone_number`, `access_token` (text, server-only via RLS), `verify_token`, `app_secret` (nullable), `status` (`not_configured` | `configured` | `verified`), `last_verified_at`, `created_at`, `updated_at`.
 
-### 1. Adicionar a foreign key faltante (migration)
+RLS:
+- Workspace members: SELECT/INSERT/UPDATE/DELETE em linhas do próprio workspace.
+- `access_token` e `app_secret` retornados pela API só para membros (não anon). Mesma postura das outras tabelas WhatsApp.
 
-```sql
-ALTER TABLE public.whatsapp_conversations
-  ADD CONSTRAINT whatsapp_conversations_instance_id_fkey
-  FOREIGN KEY (instance_id) REFERENCES public.whatsapp_instances(id) ON DELETE CASCADE;
+### Tabela `whatsapp_instances` (existente)
+Adicionar coluna `provider` (`uazapi` | `official`, default `uazapi`) para registrar qual está ativo. Permite ao inbox/campanhas saberem por onde enviar.
 
-ALTER TABLE public.whatsapp_messages
-  ADD CONSTRAINT whatsapp_messages_instance_id_fkey
-  FOREIGN KEY (instance_id) REFERENCES public.whatsapp_instances(id) ON DELETE CASCADE;
+### Edge functions
 
-ALTER TABLE public.whatsapp_messages
-  ADD CONSTRAINT whatsapp_messages_conversation_id_fkey
-  FOREIGN KEY (conversation_id) REFERENCES public.whatsapp_conversations(id) ON DELETE CASCADE;
-```
+1. **`whatsapp-official-credentials`** (POST, autenticado)
+   - actions: `get`, `upsert`, `delete`, `verify`
+   - `verify`: chama `https://graph.facebook.com/v19.0/{phone_number_id}?fields=display_phone_number,verified_name` com o token salvo → atualiza `status=verified` e `display_phone_number`.
 
-Antes, fazer um `UPDATE … SET instance_id = NULL` para linhas órfãs (se houver) ou deletar — vou verificar primeiro.
+2. **`whatsapp-official-webhook`** (público, sem JWT)
+   - `GET`: handshake do Meta — verifica `hub.verify_token` contra qualquer linha em `whatsapp_official_credentials` e responde `hub.challenge`.
+   - `POST`: valida assinatura `X-Hub-Signature-256` se `app_secret` existir, identifica workspace pelo `phone_number_id` do payload, normaliza mensagens recebidas para as tabelas existentes `whatsapp_conversations` / `whatsapp_messages` (mesmo formato usado pelo `whatsapp-webhook` atual da uazapi).
 
-### 2. Refatorar `whatsapp-bot-reply` para não depender do embed
+3. **`whatsapp-official-send`** (POST, autenticado)
+   - Body: `{ workspaceId, to, type, content }`
+   - Envia via `POST https://graph.facebook.com/v19.0/{phone_number_id}/messages` com `Authorization: Bearer <access_token>`.
+   - Persiste a mensagem em `whatsapp_messages` (provider=`official`).
 
-Mesmo com FK, é mais robusto buscar a instância em duas queries (compatível com Service Role e fácil de logar):
+O envio em outras partes do app (inbox, campanhas) passa a checar `whatsapp_instances.provider` e roteia para `whatsapp-official-send` quando for `official`, mantendo o resto da experiência igual.
 
-```ts
-const { data: conv } = await admin
-  .from("whatsapp_conversations").select("*").eq("id", conversationId).maybeSingle();
-const { data: inst } = await admin
-  .from("whatsapp_instances")
-  .select("id, instance_token, status")
-  .eq("id", conv.instance_id).maybeSingle();
-```
+## Segurança
+- Tokens ficam **na tabela** (não como Supabase Secret), porque cada workspace tem o seu. RLS restringe leitura aos membros do workspace.
+- Webhook valida `X-Hub-Signature-256` quando `app_secret` estiver definido.
+- `access_token` nunca é exposto a `anon`; UI o trata como write-only (campo em branco no modo edição com placeholder "•••• salvo").
 
-Adicionar logs claros em cada `skipped` para debugar via Edge Function Logs.
-
-### 3. Guardrails de atendimento
-
-No `whatsapp-bot-reply`, antes de responder, pular se:
-
-- `conv.assigned_to != null` (humano já assumiu) — já existe.
-- Existe nota interna recente com tag `pause-bot` (opcional, fase 2).
-- Contato está em `whatsapp_opt_outs` para o workspace.
-- A última mensagem outbound foi enviada nos últimos 5s (debounce).
-- O texto inbound é vazio ou começa com `/` (comandos manuais).
-
-### 4. UI — controle por conversa no inbox
-
-Adicionar um toggle "🤖 Bot ativo" no header de cada conversa em `WhatsAppInbox` que escreve em `whatsapp_conversations.assigned_to`:
-
-- Botão **"Assumir conversa"** → seta `assigned_to = auth.uid()` (bot para de responder).
-- Botão **"Devolver ao bot"** → seta `assigned_to = NULL`.
-
-Indicador visual no card da conversa quando o bot estiver respondendo (badge "Bot").
-
-### 5. Configuração visível do bot
-
-Em `WhatsAppSection`/automações, mostrar:
-
-- Status (ativo/inativo) e provedor em uso (Vertex vs Lovable AI).
-- Editor do `system_instruction`.
-- Botão **"Testar resposta"** que chama a função com um conversationId fake e mostra o output, sem enviar para o WhatsApp.
-
-### 6. Validação end-to-end
-
-1. Aplicar migration.
-2. Deploy de `whatsapp-bot-reply` refatorado.
-3. Enviar mensagem real do celular → checar logs de `whatsapp-webhook` e `whatsapp-bot-reply`.
-4. Confirmar mensagem outbound em `whatsapp_messages` e chegada no WhatsApp do contato.
-
----
-
-## Detalhes técnicos
-
-- Arquivos tocados:
-  - `supabase/migrations/<nova>.sql` (FKs)
-  - `supabase/functions/whatsapp-bot-reply/index.ts` (refator + guardrails + logs)
-  - `src/pages/WhatsApp.tsx` / componentes do inbox (toggle bot, badge)
-  - `src/components/automacoes/WhatsAppSection.tsx` (botão Testar)
-- Sem novas dependências, sem novos secrets (Vertex e Lovable AI já configurados).
-- Sem mudanças de schema além das 3 FKs.
-- Riscos: a FK pode falhar se houver linhas em `whatsapp_conversations` apontando para `instance_id` inexistente — vou checar e limpar antes de aplicar.
-
-Confirma para eu seguir?
+## Fora de escopo
+- Sincronização de templates aprovados (HSM) da Meta — fica para depois.
+- Migrar campanhas existentes — elas continuarão funcionando no provedor ativo escolhido.
