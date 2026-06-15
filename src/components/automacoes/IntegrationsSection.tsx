@@ -1,11 +1,13 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plug, Check, Clock } from "lucide-react";
+import { Plug, Check, Clock, Smartphone } from "lucide-react";
 import { toast } from "sonner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIntegrations } from "@/hooks/useIntegrations";
 import { useWhatsAppInstance } from "@/hooks/useWhatsAppInstance";
 import { WhatsAppConnectionCard } from "@/components/automacoes/WhatsAppConnectionCard";
+import { OfficialWhatsAppCard } from "@/components/automacoes/OfficialWhatsAppCard";
 import { VertexAIConnectionCard } from "@/components/automacoes/VertexAIConnectionCard";
 
 export function IntegrationsSection() {
@@ -28,16 +30,42 @@ export function IntegrationsSection() {
         </p>
       </div>
       <VertexAIConnectionCard />
-      <WhatsAppConnectionCard
-        instance={instance}
-        loading={loading}
-        busy={busy}
-        connect={connect}
-        disconnect={disconnect}
-        removeInstance={removeInstance}
-        refreshStatus={refreshStatus}
-        importInstance={importInstance}
-      />
+
+      <Card className="p-5 space-y-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-success/15 text-success">
+            <Smartphone className="h-5 w-5" />
+          </div>
+          <div>
+            <h3 className="font-semibold">Conexão WhatsApp</h3>
+            <p className="text-xs text-muted-foreground">
+              Escolha entre conexão via QR Code (uazapi) ou a API Oficial do WhatsApp (Meta Cloud API).
+            </p>
+          </div>
+        </div>
+        <Tabs defaultValue="uazapi" className="w-full">
+          <TabsList>
+            <TabsTrigger value="uazapi">uazapi (QR Code)</TabsTrigger>
+            <TabsTrigger value="official">API Oficial (Meta)</TabsTrigger>
+          </TabsList>
+          <TabsContent value="uazapi" className="mt-4">
+            <WhatsAppConnectionCard
+              instance={instance}
+              loading={loading}
+              busy={busy}
+              connect={connect}
+              disconnect={disconnect}
+              removeInstance={removeInstance}
+              refreshStatus={refreshStatus}
+              importInstance={importInstance}
+            />
+          </TabsContent>
+          <TabsContent value="official" className="mt-4">
+            <OfficialWhatsAppCard />
+          </TabsContent>
+        </Tabs>
+      </Card>
+
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
         {visibleItems.map((i) => (
           <Card key={i.id} className="p-5 space-y-3">
