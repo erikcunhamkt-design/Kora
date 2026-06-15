@@ -127,8 +127,7 @@ const TempPill = ({ t }: { t?: ClientTemperature }) => {
 const Clientes = () => {
   const { t } = useTranslation();
   const { addClient: localAdd, updateClient: localUpdate, archiveClient: localArchive, restoreClient: localRestore, deleteClient: localDelete } = useClients();
-  const { addClient: supabaseAdd, updateClient: supabaseUpdate, archiveClient: supabaseArchive, deleteClient: supabaseDelete } = useSupabaseClients();
-  const { source, setSource, clients, loading, error, isSupabaseAvailable, refresh } = useClientsDataSource();
+  const { source, setSource, clients, loading, error, isSupabaseAvailable, refresh, addClient: supabaseAdd, updateClient: supabaseUpdate, archiveClient: supabaseArchive, deleteClient: supabaseDelete } = useClientsDataSource();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { activeTypes } = useClientTypes();
