@@ -63,27 +63,64 @@ Deno.serve(async (req) => {
     if (!res.ok) return json({ error: data?.error?.message ?? "Falha ao enviar", details: data }, 400);
 
     const messageId = data?.messages?.[0]?.id ?? null;
-    const { data: conv } = await admin
-      .from("whatsapp_conversations")
-      .upsert({
-        workspace_id: workspaceId,
-        phone: to,
-        last_message_at: new Date().toISOString(),
-        last_message_preview: text.slice(0, 200),
-      }, { onConflict: "workspace_id,phone" })
-      .select("id")
-      .single();
+    const nowIso = new Date().toISOString();
 
-    if (conv) {
+    // Ensure instance row
+    let instanceId: string | null = null;
+    const { data: inst } = await admin
+      .from("whatsapp_instances")
+      .select("id")
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+    if (inst) instanceId = inst.id;
+    else {
+      const { data: created } = await admin
+        .from("whatsapp_instances")
+        .insert({ workspace_id: workspaceId, provider: "official", status: "connected" })
+        .select("id").single();
+      instanceId = created?.id ?? null;
+    }
+    if (!instanceId) return json({ ok: true, messageId, warning: "no instance row" });
+
+    // Upsert conversation
+    let convId: string | null = null;
+    const { data: existingConv } = await admin
+      .from("whatsapp_conversations")
+      .select("id")
+      .eq("workspace_id", workspaceId)
+      .eq("contact_phone", to)
+      .maybeSingle();
+    if (existingConv) {
+      convId = existingConv.id;
+      await admin.from("whatsapp_conversations")
+        .update({ last_message: text.slice(0, 200), last_message_at: nowIso })
+        .eq("id", convId);
+    } else {
+      const { data: createdConv } = await admin
+        .from("whatsapp_conversations")
+        .insert({
+          workspace_id: workspaceId,
+          instance_id: instanceId,
+          contact_phone: to,
+          last_message: text.slice(0, 200),
+          last_message_at: nowIso,
+        })
+        .select("id").single();
+      convId = createdConv?.id ?? null;
+    }
+
+    if (convId) {
       await admin.from("whatsapp_messages").insert({
         workspace_id: workspaceId,
-        conversation_id: conv.id,
-        external_id: messageId,
+        instance_id: instanceId,
+        conversation_id: convId,
+        wa_message_id: messageId,
         direction: "outbound",
         type: "text",
+        body: text,
         content: text,
         status: "sent",
-        sent_at: new Date().toISOString(),
+        timestamp: nowIso,
       });
     }
 
