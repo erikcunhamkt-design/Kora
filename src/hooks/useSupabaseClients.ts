@@ -50,6 +50,7 @@ export function useSupabaseClients() {
       requestSeq.current += 1;
       const result = await clientsRepository.createClient(workspace.id, input);
       setClients((prev) => [result, ...prev]);
+      setLoading(false);
       return result;
     } catch (err) {
       console.error("Error creating Supabase client:", err);
@@ -63,6 +64,7 @@ export function useSupabaseClients() {
       requestSeq.current += 1;
       const result = await clientsRepository.updateClient(workspace.id, clientId, patch);
       setClients((prev) => prev.map((c) => (c.id === clientId ? result : c)));
+      setLoading(false);
       return result;
     } catch (err) {
       console.error("Error updating Supabase client:", err);
@@ -76,6 +78,7 @@ export function useSupabaseClients() {
       requestSeq.current += 1;
       const result = await clientsRepository.archiveClient(workspace.id, clientId, archived);
       setClients((prev) => prev.map((c) => (c.id === clientId ? result : c)));
+      setLoading(false);
       return result;
     } catch (err) {
       console.error("Error archiving Supabase client:", err);
@@ -89,6 +92,7 @@ export function useSupabaseClients() {
       requestSeq.current += 1;
       await clientsRepository.deleteClient(workspace.id, clientId);
       setClients((prev) => prev.filter((c) => c.id !== clientId));
+      setLoading(false);
       return true;
     } catch (err) {
       console.error("Error deleting Supabase client:", err);
