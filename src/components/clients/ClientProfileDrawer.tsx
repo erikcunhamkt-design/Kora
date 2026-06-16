@@ -139,7 +139,7 @@ const waLink = (phone?: string) => {
 export const ClientProfileDrawer = ({
   client, onClose, onEdit, onWhats, onArchive, onRestore,
   onCreateOpportunity, onCreateQuote,
-  onUpdateAssets, onUpdateTechnicalSheet, onUpdateContacts,
+  onUpdateAssets, onUpdateTechnicalSheet, onUpdateContacts, onUpdateAvatar,
   initialTab, highlightedActivityId,
 }: {
   client: Client | null;
@@ -153,10 +153,13 @@ export const ClientProfileDrawer = ({
   onUpdateAssets?: (clientId: number, assets: ClientAsset[]) => void;
   onUpdateTechnicalSheet?: (clientId: number, sheet: ClientTechnicalSheet) => void;
   onUpdateContacts?: (clientId: number, contacts: ClientContact[]) => void;
+  onUpdateAvatar?: (clientId: number, avatarUrl: string | null) => void;
   initialTab?: string;
   highlightedActivityId?: string;
 }) => {
   const navigate = useNavigate();
+  const { workspace } = useCurrentWorkspace();
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const VALID_TABS = ["overview", "activities", "contacts", "commercial", "projects", "finance", "materials", "sheet"];
   const safeInitial = initialTab && VALID_TABS.includes(initialTab) ? initialTab : "overview";
   const [tab, setTab] = useState<string>(safeInitial);
