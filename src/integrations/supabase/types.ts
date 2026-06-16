@@ -201,6 +201,7 @@ export type Database = {
         Row: {
           address: string | null
           archived: boolean | null
+          avatar_url: string | null
           city: string | null
           company: string | null
           created_at: string
@@ -230,6 +231,7 @@ export type Database = {
         Insert: {
           address?: string | null
           archived?: boolean | null
+          avatar_url?: string | null
           city?: string | null
           company?: string | null
           created_at?: string
@@ -259,6 +261,7 @@ export type Database = {
         Update: {
           address?: string | null
           archived?: boolean | null
+          avatar_url?: string | null
           city?: string | null
           company?: string | null
           created_at?: string
