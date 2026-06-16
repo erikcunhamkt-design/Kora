@@ -181,7 +181,7 @@ const Clientes = () => {
           address: data.address || null,
           document: data.document || null,
         });
-        toast.success("Cliente criado no Supabase.");
+        toast.success("Cliente adicionado.");
       } catch (err) {
         console.error("Supabase createClient error:", err);
         toast.error(`Erro ao criar cliente: ${err instanceof Error ? err.message : "desconhecido"}`);
