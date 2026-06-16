@@ -764,10 +764,31 @@ const CRM = () => {
         <div className="flex items-start gap-2.5 p-3 rounded-lg border border-primary/20 bg-primary/5 text-xs text-foreground">
           <Cloud className="h-4 w-4 text-primary shrink-0 mt-0.5" />
           <div className="flex-1 flex justify-between items-center gap-4 flex-wrap">
+      {/* Banner do modo Supabase */}
+      {activeDataSource === "supabase" && (
+        <div
+          className={`flex items-start gap-2.5 p-3 rounded-lg border text-xs text-foreground ${
+            supabaseWriteEnabled
+              ? "border-emerald-500/20 bg-emerald-500/5"
+              : "border-primary/20 bg-primary/5"
+          }`}
+        >
+          <Cloud
+            className={`h-4 w-4 shrink-0 mt-0.5 ${
+              supabaseWriteEnabled ? "text-emerald-400" : "text-primary"
+            }`}
+          />
+          <div className="flex-1 flex justify-between items-center gap-4 flex-wrap">
             <div>
-              <span className="font-semibold block">Supabase experimental — somente leitura</span>
+              <span className="font-semibold block">
+                {supabaseWriteEnabled
+                  ? "CRM Supabase operacional"
+                  : "Supabase em modo leitura"}
+              </span>
               <p className="text-muted-foreground mt-0.5 leading-normal">
-                Você está visualizando as oportunidades importadas no Supabase. Edições, movimentações ou novos cadastros estão bloqueados neste modo.
+                {supabaseWriteEnabled
+                  ? "Criação, edição, movimentação, ganhar/perder e arquivamento estão ativos no Supabase. O modo local segue intacto."
+                  : "Você está visualizando as oportunidades importadas no Supabase. Ative o CRM Supabase Operacional em Configurações → Sincronização Cloud para liberar a edição."}
               </p>
             </div>
             <Button
