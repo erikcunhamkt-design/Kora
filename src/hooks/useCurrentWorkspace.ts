@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -25,6 +25,8 @@ export function useCurrentWorkspace() {
   const [membership, setMembership] = useState<WorkspaceMember | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const requestSeq = useRef(0);
+  const lastUserId = useRef<string | null>(null);
 
   useEffect(() => {
     if (authLoading) {
@@ -33,13 +35,22 @@ export function useCurrentWorkspace() {
     }
 
     if (!user) {
+      requestSeq.current += 1;
+      lastUserId.current = null;
       setWorkspace(null);
       setMembership(null);
       setLoading(false);
       return;
     }
 
+    if (lastUserId.current !== user.id) {
+      lastUserId.current = user.id;
+      setWorkspace(null);
+      setMembership(null);
+    }
+
     async function fetchWorkspaceData() {
+      const seq = ++requestSeq.current;
       setLoading(true);
       setError(null);
       try {
@@ -53,6 +64,8 @@ export function useCurrentWorkspace() {
 
         if (memberError) throw memberError;
 
+        if (seq !== requestSeq.current) return;
+
         if (memberData) {
           setMembership(memberData as WorkspaceMember);
 
@@ -64,17 +77,23 @@ export function useCurrentWorkspace() {
             .single();
 
           if (wsError) throw wsError;
+          if (seq !== requestSeq.current) return;
           setWorkspace(wsData as Workspace);
         } else {
+          if (seq !== requestSeq.current) return;
           // No workspace member relationship found
           setWorkspace(null);
           setMembership(null);
         }
       } catch (err) {
         console.error("Error loading workspace details:", err);
-        setError(err as Error);
+        if (seq === requestSeq.current) {
+          setError(err as Error);
+        }
       } finally {
-        setLoading(false);
+        if (seq === requestSeq.current) {
+          setLoading(false);
+        }
       }
     }
 
