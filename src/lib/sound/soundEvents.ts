@@ -4,6 +4,7 @@ import errorSoft from "@/assets/sounds/error-soft.mp3";
 import taskComplete from "@/assets/sounds/task-complete.mp3";
 import aiPulse from "@/assets/sounds/ai-pulse.mp3";
 import campaignComplete from "@/assets/sounds/campaign-complete.mp3";
+import whatsappUnansweredAlert from "@/assets/sounds/whatsapp-unanswered-alert.mp3";
 
 export type KoraSoundModule =
   | "whatsapp"
