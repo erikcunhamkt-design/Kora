@@ -518,6 +518,9 @@ const Configuracoes = () => {
             </SettingsSection>
           )}
 
+          {active === "appearance" && <SoundPreferencesSection />}
+
+
           {active === "accessibility" && (
             <SettingsSection title="Acessibilidade" description="Personalize a interface com base no seu perfil visual ou cognitivo.">
               <SettingsCard title="Necessidades Visuais" description="Ajustes de contraste, zoom e daltonismo.">
