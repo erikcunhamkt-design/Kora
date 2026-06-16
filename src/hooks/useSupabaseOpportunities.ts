@@ -199,6 +199,8 @@ export function useSupabaseOpportunities(options?: { includeArchived?: boolean; 
     createOpportunity,
     updateOpportunity,
     moveOpportunityStage,
+    markWon,
+    markLost,
     archiveOpportunity,
     deleteOpportunity,
     restoreDeletedOpportunity,
