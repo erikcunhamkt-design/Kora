@@ -36,6 +36,7 @@ export function mapSupabaseClientToLocalClient(s: any): Client {
     createdAt: s.created_at,
     updatedAt: s.updated_at || s.created_at,
     contacts: [],
+    avatarUrl: s.avatar_url || undefined,
   };
 }
 
