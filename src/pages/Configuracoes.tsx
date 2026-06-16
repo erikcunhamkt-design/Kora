@@ -83,6 +83,7 @@ import { QuotesSupabaseTechnicalSheetsAutoSaveToggleCard } from "@/components/se
 import { useSupabaseClients } from "@/hooks/useSupabaseClients";
 import { useAccessibility } from "@/contexts/AccessibilityContext";
 import { useTranslation } from "@/contexts/LanguageContext";
+import { SoundPreferencesSection } from "@/components/settings/SoundPreferencesSection";
 
 
 
