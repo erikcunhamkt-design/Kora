@@ -18,6 +18,7 @@ export type KoraSoundEvent =
   | "whatsapp:new_message"
   | "whatsapp:sent"
   | "whatsapp:human_takeover"
+  | "whatsapp:unanswered_alert"
   | "campaign:created"
   | "campaign:batch_success"
   | "campaign:batch_error"
