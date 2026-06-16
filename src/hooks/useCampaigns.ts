@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { playKoraSound } from "@/lib/sound/soundManager";
 
 export type Channel = "whatsapp" | "email" | "sms";
 export type CampaignObjective = "nurture" | "announcement" | "follow_up" | "launch" | "reminder" | "custom";
@@ -124,15 +125,22 @@ export function useCampaigns() {
   }, []);
 
   const simulateSend = useCallback((id: string) => {
+    let hadError = false;
     setCampaigns((p) => p.map((c) => {
       if (c.id !== id) return c;
       const seg = segments.find((s) => s.id === c.audienceSegmentId);
       const sent = seg?.optedInContacts ?? 0;
+      if (sent === 0) hadError = true;
       const delivered = Math.floor(sent * 0.95);
       const replied = Math.floor(delivered * 0.18);
       const optOut = Math.floor(delivered * 0.02);
       return { ...c, status: "completed", sentCount: sent, deliveredCount: delivered, repliedCount: replied, optOutCount: optOut };
     }));
+    if (hadError) {
+      playKoraSound("campaign:batch_error");
+    } else {
+      playKoraSound("campaign:completed");
+    }
   }, [segments]);
 
   const deleteCampaign = useCallback((id: string) => setCampaigns((p) => p.filter((c) => c.id !== id)), []);
