@@ -835,6 +835,10 @@ const Clientes = () => {
           updateClient(id, { contacts });
           setSelectedClient((prev) => (prev && prev.id === id ? { ...prev, contacts } : prev));
         }}
+        onUpdateAvatar={(id, avatarUrl) => {
+          updateClient(id, { avatarUrl: avatarUrl || "" });
+          setSelectedClient((prev) => (prev && prev.id === id ? { ...prev, avatarUrl: avatarUrl || undefined } : prev));
+        }}
       />
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(v) => !v && setDeleteTarget(null)}>
