@@ -24,6 +24,7 @@ import {
   useClients, type Client, type ClientStatus, type ClientTemperature,
 } from "@/hooks/useClients";
 import { useClientsDataSource } from "@/hooks/useClientsDataSource";
+import type { SupabaseClientInput } from "@/repositories/clientsRepository";
 import { useTranslation } from "@/contexts/LanguageContext";
 import {
   Users, UserCheck, UserPlus, Search, SlidersHorizontal,
@@ -33,6 +34,7 @@ import {
   Edit2, Archive, Trash2, Copy, ChevronDown, Flame, Snowflake, Sparkles, RefreshCw,
   Target, ArchiveRestore,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -84,11 +86,34 @@ const fmtDate = (iso?: string) => {
 
 const onlyDigits = (s: string) => s.replace(/\D+/g, "");
 
+type ClientFormPayload = {
+  name: string;
+  company: string;
+  email: string;
+  phone: string;
+  whatsapp: string;
+  instagram: string;
+  site: string;
+  serviceType: string;
+  origin?: string;
+  status: ClientStatus;
+  temperature?: ClientTemperature;
+  potentialValue: number;
+  nextAction?: string;
+  nextActionDate?: string;
+  city?: string;
+  state?: string;
+  address?: string;
+  document?: string;
+  observations: string;
+  tags?: string[];
+};
+
 // ---------- KPI Card ----------
 const KpiCard = ({
   icon: Icon, label, value, hint, tone = "neutral",
 }: {
-  icon: any; label: string; value: string | number; hint?: string;
+  icon: LucideIcon; label: string; value: string | number; hint?: string;
   tone?: "neutral" | "primary" | "warning" | "success";
 }) => {
   const toneCls: Record<string, string> = {
@@ -131,7 +156,7 @@ const Clientes = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { activeTypes } = useClientTypes();
 
-  const addClient = async (data: any) => {
+  const addClient = async (data: ClientFormPayload) => {
     if (source === "supabase") {
       try {
         await supabaseAdd({
@@ -157,9 +182,10 @@ const Clientes = () => {
           document: data.document || null,
         });
         toast.success("Cliente criado no Supabase.");
-      } catch (err: any) {
+      } catch (err) {
         console.error("Supabase createClient error:", err);
-        toast.error(`Erro ao criar cliente: ${err?.message || "desconhecido"}`);
+        toast.error(`Erro ao criar cliente: ${err instanceof Error ? err.message : "desconhecido"}`);
+        throw err;
       }
     } else {
       localAdd(data);
@@ -170,7 +196,7 @@ const Clientes = () => {
   const updateClient = async (id: number, data: Partial<Client>) => {
     if (source === "supabase") {
       try {
-        const patch: any = {};
+        const patch: Partial<SupabaseClientInput> = {};
         if (data.name !== undefined) patch.name = data.name;
         if (data.company !== undefined) patch.company = data.company;
         if (data.email !== undefined) patch.email = data.email;
@@ -196,6 +222,7 @@ const Clientes = () => {
         toast.success("Cliente atualizado no Supabase.");
       } catch (err) {
         toast.error("Erro ao atualizar cliente no Supabase.");
+        throw err;
       }
     } else {
       localUpdate(id, data);
@@ -388,7 +415,7 @@ const Clientes = () => {
       status: "Potencial",
       potentialValue: 0,
       observations: req.message || "",
-    } as any);
+    });
   };
 
   const convertRequestToLead = (req: SignupRequest) => {
@@ -406,7 +433,7 @@ const Clientes = () => {
       tags: [],
       nextAction: "Entrar em contato",
       description: req.message || "",
-    } as any);
+    } as Parameters<typeof addLead>[0]);
   };
 
   const noClients = clients.length === 0;
@@ -764,7 +791,7 @@ const Clientes = () => {
         onOpenChange={(v) => !v && setEditClient(null)}
         initial={editClient ?? undefined}
         onSave={(data) => {
-          if (editClient) updateClient(editClient.id, data as Partial<Client>);
+          if (editClient) return updateClient(editClient.id, data as Partial<Client>);
         }}
       />
 
@@ -903,12 +930,13 @@ const ClientFormDialog = ({
   open: boolean;
   onOpenChange: (v: boolean) => void;
   initial?: Client;
-  onSave: (data: any) => void;
+  onSave: (data: ClientFormPayload) => void | Promise<void>;
 }) => {
   const { activeTypes } = useClientTypes();
   const [form, setForm] = useState<FormState>(emptyForm);
   const [typeDialogOpen, setTypeDialogOpen] = useState(false);
   const [commercialOpen, setCommercialOpen] = useState(true);
+  const [saving, setSaving] = useState(false);
   const isEdit = !!initial;
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) =>
@@ -941,7 +969,8 @@ const ClientFormDialog = ({
     }
   }, [open, initial]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (saving) return;
     if (!form.name.trim()) return toast.error("Informe o nome do cliente");
     if (!form.email.trim() && !form.whatsapp.trim() && !form.phone.trim()) {
       return toast.error("Informe pelo menos um contato (email, telefone ou WhatsApp)");
@@ -965,9 +994,13 @@ const ClientFormDialog = ({
       state: form.state.trim() || undefined,
       observations: form.observations.trim(),
     };
-    onSave(payload);
-    toast.success(isEdit ? "Cliente atualizado" : "Cliente adicionado");
-    onOpenChange(false);
+    setSaving(true);
+    try {
+      await onSave(payload);
+      onOpenChange(false);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -1090,9 +1123,9 @@ const ClientFormDialog = ({
         </FormBlock>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button className="orbit-gradient text-white border-0" onClick={handleSave}>
-            {isEdit ? "Salvar alterações" : "Salvar cliente"}
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancelar</Button>
+          <Button className="orbit-gradient text-white border-0" onClick={handleSave} disabled={saving}>
+            {saving ? "Salvando..." : isEdit ? "Salvar alterações" : "Salvar cliente"}
           </Button>
         </DialogFooter>
 
