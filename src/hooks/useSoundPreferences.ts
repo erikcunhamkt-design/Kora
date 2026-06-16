@@ -94,5 +94,27 @@ export function useSoundPreferences() {
     [],
   );
 
-  return { prefs, update, setEnabled, setVolume, toggleModule, muteFor, setQuietHours };
+  const setUnansweredAlert = useCallback(
+    (patch: Partial<SoundPreferences["unansweredAlert"]>) =>
+      setPrefsState((prev) => {
+        const next: SoundPreferences = {
+          ...prev,
+          unansweredAlert: { ...prev.unansweredAlert, ...patch },
+        };
+        writePrefs(next);
+        return next;
+      }),
+    [],
+  );
+
+  return {
+    prefs,
+    update,
+    setEnabled,
+    setVolume,
+    toggleModule,
+    muteFor,
+    setQuietHours,
+    setUnansweredAlert,
+  };
 }
