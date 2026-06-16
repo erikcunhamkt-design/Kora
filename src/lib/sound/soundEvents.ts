@@ -42,9 +42,10 @@ export interface KoraSoundDefinition {
 }
 
 export const SOUND_EVENTS: Record<KoraSoundEvent, KoraSoundDefinition> = {
-  "whatsapp:new_message":     { src: notificationSoft,   module: "whatsapp",  gain: 0.9, throttleMs: 5000 },
-  "whatsapp:sent":            { src: taskComplete,       module: "whatsapp",  gain: 0.5, throttleMs: 1500 },
-  "whatsapp:human_takeover":  { src: aiPulse,            module: "whatsapp",  gain: 0.7, throttleMs: 3000 },
+  "whatsapp:new_message":     { src: notificationSoft,        module: "whatsapp",  gain: 0.9, throttleMs: 5000 },
+  "whatsapp:sent":            { src: taskComplete,             module: "whatsapp",  gain: 0.5, throttleMs: 1500 },
+  "whatsapp:human_takeover":  { src: aiPulse,                  module: "whatsapp",  gain: 0.7, throttleMs: 3000 },
+  "whatsapp:unanswered_alert":{ src: whatsappUnansweredAlert,  module: "whatsapp",  gain: 1.0, throttleMs: 0 },
   "campaign:created":         { src: successSoft,        module: "campaigns", gain: 0.7, throttleMs: 3000 },
   "campaign:batch_success":   { src: successSoft,        module: "campaigns", gain: 0.7, throttleMs: 3000 },
   "campaign:batch_error":     { src: errorSoft,          module: "campaigns", gain: 0.8, throttleMs: 3000 },
