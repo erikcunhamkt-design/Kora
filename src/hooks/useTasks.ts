@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { playKoraSound } from "@/lib/sound/soundManager";
 
 export type TaskPriority = "alta" | "média" | "baixa";
 export type TaskStatus = "a_fazer" | "em_andamento" | "revisao" | "concluido";
@@ -150,7 +151,13 @@ export function useTasks() {
   }, []);
 
   const moveTask = useCallback((id: number, status: TaskStatus) => {
-    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, status, updatedAt: new Date().toISOString() } : t)));
+    setTasks((prev) => prev.map((t) => {
+      if (t.id !== id) return t;
+      if (status === "concluido" && t.status !== "concluido") {
+        playKoraSound("tasks:completed");
+      }
+      return { ...t, status, updatedAt: new Date().toISOString() };
+    }));
   }, []);
 
   const toggleSubtask = useCallback((taskId: number, idx: number) => {

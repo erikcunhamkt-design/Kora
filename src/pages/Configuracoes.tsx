@@ -83,6 +83,7 @@ import { QuotesSupabaseTechnicalSheetsAutoSaveToggleCard } from "@/components/se
 import { useSupabaseClients } from "@/hooks/useSupabaseClients";
 import { useAccessibility } from "@/contexts/AccessibilityContext";
 import { useTranslation } from "@/contexts/LanguageContext";
+import { SoundPreferencesSection } from "@/components/settings/SoundPreferencesSection";
 
 
 
@@ -517,6 +518,9 @@ const Configuracoes = () => {
               </SettingsCard>
             </SettingsSection>
           )}
+
+          {active === "appearance" && <SoundPreferencesSection />}
+
 
           {active === "accessibility" && (
             <SettingsSection title="Acessibilidade" description="Personalize a interface com base no seu perfil visual ou cognitivo.">

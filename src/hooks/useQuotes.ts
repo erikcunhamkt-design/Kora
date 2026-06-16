@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { emitNotification } from "@/lib/notify";
+import { playKoraSound } from "@/lib/sound/soundManager";
 
 export type QuoteStatus =
   | "rascunho"
@@ -205,6 +206,7 @@ export function useQuotes() {
           sourceId: quote.id,
           sourceType: "quote",
         });
+        playKoraSound("quotes:approved");
       }
       const now = new Date().toISOString();
       return prev.map((q) => {
