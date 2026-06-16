@@ -36,6 +36,7 @@ import {
   Users,
   RefreshCw,
   ChevronDown,
+  Volume2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/PageHeader";
