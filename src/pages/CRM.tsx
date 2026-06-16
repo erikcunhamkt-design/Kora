@@ -123,6 +123,8 @@ import { mapSupabaseOpportunityToLocalLead } from "@/services/crm/crmOpportunity
 import { crmOpportunitiesRepository, type SupabaseOpportunityInput } from "@/repositories/crmOpportunitiesRepository";
 import { Cloud, Database, Lock, RefreshCw } from "lucide-react";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
+import { useSupabaseCrmWriteFlag } from "@/hooks/useSupabaseCrmWriteFlag";
+import { supabaseCrmAuditLog } from "@/services/crm/supabaseCrmAuditLog";
 import { CreateCrmSupabaseQuoteDialog } from "@/components/crm/CreateCrmSupabaseQuoteDialog";
 import { LinkedQuotesSection } from "@/components/crm/LinkedQuotesSection";
 import { useTranslation } from "@/contexts/LanguageContext";
