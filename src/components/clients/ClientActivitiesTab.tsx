@@ -498,7 +498,7 @@ export const ClientActivitiesTab = ({
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-            <Activity className="h-4 w-4" /> Histórico do relacionamento
+            <Activity className="h-4 w-4" /> Histórico de Relacionamento
           </h3>
           <p className="text-xs text-muted-foreground mt-0.5">
             Eventos comerciais, financeiros e operacionais deste cliente.

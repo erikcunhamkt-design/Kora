@@ -294,7 +294,7 @@ export const ClientProfileDrawer = ({
         <Tabs value={tab} onValueChange={setTab} className="px-6 pt-5">
           <TabsList className="w-full h-auto p-1 flex flex-wrap gap-1 justify-start bg-muted/40">
             <TabsTrigger value="overview" className="text-xs">Visão geral</TabsTrigger>
-            <TabsTrigger value="activities" className="text-xs">Atividades</TabsTrigger>
+            <TabsTrigger value="activities" className="text-xs">Histórico de Relacionamento</TabsTrigger>
             <TabsTrigger value="contacts" className="text-xs">Contatos</TabsTrigger>
             <TabsTrigger value="commercial" className="text-xs">Comercial</TabsTrigger>
             <TabsTrigger value="projects" className="text-xs">Projetos</TabsTrigger>
