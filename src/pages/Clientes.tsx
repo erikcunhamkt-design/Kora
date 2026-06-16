@@ -24,6 +24,7 @@ import {
   useClients, type Client, type ClientStatus, type ClientTemperature,
 } from "@/hooks/useClients";
 import { useClientsDataSource } from "@/hooks/useClientsDataSource";
+import type { SupabaseClientInput } from "@/repositories/clientsRepository";
 import { useTranslation } from "@/contexts/LanguageContext";
 import {
   Users, UserCheck, UserPlus, Search, SlidersHorizontal,
@@ -155,7 +156,7 @@ const Clientes = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { activeTypes } = useClientTypes();
 
-  const addClient = async (data: any) => {
+  const addClient = async (data: ClientFormPayload) => {
     if (source === "supabase") {
       try {
         await supabaseAdd({
@@ -181,9 +182,9 @@ const Clientes = () => {
           document: data.document || null,
         });
         toast.success("Cliente criado no Supabase.");
-      } catch (err: any) {
+      } catch (err) {
         console.error("Supabase createClient error:", err);
-        toast.error(`Erro ao criar cliente: ${err?.message || "desconhecido"}`);
+        toast.error(`Erro ao criar cliente: ${err instanceof Error ? err.message : "desconhecido"}`);
         throw err;
       }
     } else {
@@ -195,7 +196,7 @@ const Clientes = () => {
   const updateClient = async (id: number, data: Partial<Client>) => {
     if (source === "supabase") {
       try {
-        const patch: any = {};
+        const patch: Partial<SupabaseClientInput> = {};
         if (data.name !== undefined) patch.name = data.name;
         if (data.company !== undefined) patch.company = data.company;
         if (data.email !== undefined) patch.email = data.email;
@@ -414,7 +415,7 @@ const Clientes = () => {
       status: "Potencial",
       potentialValue: 0,
       observations: req.message || "",
-    } as any);
+    });
   };
 
   const convertRequestToLead = (req: SignupRequest) => {
@@ -432,7 +433,7 @@ const Clientes = () => {
       tags: [],
       nextAction: "Entrar em contato",
       description: req.message || "",
-    } as any);
+    } as Parameters<typeof addLead>[0]);
   };
 
   const noClients = clients.length === 0;
