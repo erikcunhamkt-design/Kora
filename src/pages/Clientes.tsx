@@ -217,6 +217,7 @@ const Clientes = () => {
         if (data.state !== undefined) patch.state = data.state;
         if (data.address !== undefined) patch.address = data.address;
         if (data.document !== undefined) patch.document = data.document;
+        if (data.avatarUrl !== undefined) patch.avatar_url = data.avatarUrl || null;
 
         await supabaseUpdate(id.toString(), patch);
         toast.success("Cliente atualizado no Supabase.");
@@ -833,6 +834,10 @@ const Clientes = () => {
         onUpdateContacts={(id, contacts) => {
           updateClient(id, { contacts });
           setSelectedClient((prev) => (prev && prev.id === id ? { ...prev, contacts } : prev));
+        }}
+        onUpdateAvatar={(id, avatarUrl) => {
+          updateClient(id, { avatarUrl: avatarUrl || "" });
+          setSelectedClient((prev) => (prev && prev.id === id ? { ...prev, avatarUrl: avatarUrl || undefined } : prev));
         }}
       />
 

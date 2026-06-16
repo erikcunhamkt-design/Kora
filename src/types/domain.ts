@@ -160,6 +160,7 @@ export interface Client {
   technicalSheet?: ClientTechnicalSheet;
   assets?: ClientAsset[];
   archived?: boolean;
+  avatarUrl?: string;
 }
 
 // Quotes

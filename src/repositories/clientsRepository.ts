@@ -24,6 +24,7 @@ export interface SupabaseClientInput {
   tags?: string[];
   archived?: boolean;
   is_demo?: boolean;
+  avatar_url?: string | null;
 }
 
 export interface SupabaseContactInput {

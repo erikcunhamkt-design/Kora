@@ -160,4 +160,36 @@ export const clientAssetsStorage = {
     }
     return true;
   },
+
+  async uploadClientAvatar(
+    workspaceId: string,
+    clientId: string,
+    file: File
+  ): Promise<StorageUploadResult> {
+    const validation = this.validateFile(file);
+    if (!validation.valid) {
+      throw new Error(validation.error || "Arquivo inválido.");
+    }
+
+    const fileExt = (file.name.split(".").pop() || "png").toLowerCase();
+    const secureName = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
+    const filePath = `${workspaceId}/${clientId}/avatar/${secureName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from(BUCKET_NAME)
+      .upload(filePath, file, { cacheControl: "3600", upsert: false });
+
+    if (uploadError) throw uploadError;
+
+    // Long-lived signed URL (1 year) so we can store it directly on the client row.
+    const { data, error } = await supabase.storage
+      .from(BUCKET_NAME)
+      .createSignedUrl(filePath, 60 * 60 * 24 * 365);
+
+    if (error || !data?.signedUrl) {
+      throw error || new Error("Não foi possível gerar URL da foto.");
+    }
+
+    return { path: filePath, url: data.signedUrl };
+  },
 };
