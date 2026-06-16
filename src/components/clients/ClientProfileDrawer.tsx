@@ -181,36 +181,100 @@ export const ClientProfileDrawer = ({
     onWhats(client);
   };
 
+  const handleAvatarPick = async (file: File | null) => {
+    if (!file || !client) return;
+    if (!workspace) {
+      toast.error("Workspace não carregado.");
+      return;
+    }
+    setUploadingAvatar(true);
+    try {
+      const { url } = await clientAssetsStorage.uploadClientAvatar(
+        workspace.id,
+        String(client.id),
+        file
+      );
+      onUpdateAvatar?.(client.id, url);
+      toast.success("Foto do cliente atualizada.");
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : "Erro ao enviar foto.");
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  const initials = (client.name || "?").slice(0, 2).toUpperCase();
+
   return (
     <Sheet open={!!client} onOpenChange={(v) => !v && onClose()}>
       <SheetContent className="bg-card border-border w-full sm:max-w-[760px] overflow-y-auto p-0">
         {/* Header */}
         <div className="p-6 pb-4 border-b border-border/60">
           <SheetHeader className="space-y-2">
-            <SheetTitle className="text-foreground text-xl">{client.name}</SheetTitle>
-            <SheetDescription asChild>
-              <div className="flex items-center gap-2 flex-wrap text-xs">
-                {client.company && (
-                  <span className="text-foreground/80 font-medium">{client.company}</span>
+            <div className="flex items-start gap-4">
+              <label
+                className={cn(
+                  "relative h-16 w-16 shrink-0 rounded-full overflow-hidden border border-border/60 bg-muted/40 flex items-center justify-center group cursor-pointer",
+                  uploadingAvatar && "opacity-70 cursor-wait"
                 )}
-                <Badge variant="outline" className={statusBadge[client.status]}>{client.status}</Badge>
-                {client.temperature && TempIcon ? (
-                  <span className={cn("inline-flex items-center gap-1", tempCls)}>
-                    <TempIcon className="h-3 w-3" /> {client.temperature}
-                  </span>
+                title="Trocar foto do cliente"
+              >
+                {client.avatarUrl ? (
+                  <img
+                    src={client.avatarUrl}
+                    alt={client.name}
+                    className="h-full w-full object-cover"
+                  />
                 ) : (
-                  <Badge variant="outline" className="text-muted-foreground/70">Temperatura não definida</Badge>
+                  <span className="text-base font-semibold text-foreground/80">{initials}</span>
                 )}
-                {client.serviceType && client.serviceType !== "—" && (
-                  <span className="text-muted-foreground">· {client.serviceType}</span>
-                )}
-                {location && (
-                  <span className="text-muted-foreground inline-flex items-center gap-1">
-                    <MapPin className="h-3 w-3" />{location}
-                  </span>
-                )}
+                <div className="absolute inset-0 bg-background/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  {uploadingAvatar ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-foreground" />
+                  ) : (
+                    <Camera className="h-4 w-4 text-foreground" />
+                  )}
+                </div>
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="sr-only"
+                  disabled={uploadingAvatar}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0] ?? null;
+                    handleAvatarPick(f);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+              <div className="min-w-0 flex-1">
+                <SheetTitle className="text-foreground text-xl">{client.name}</SheetTitle>
+                <SheetDescription asChild>
+                  <div className="flex items-center gap-2 flex-wrap text-xs mt-1">
+                    {client.company && (
+                      <span className="text-foreground/80 font-medium">{client.company}</span>
+                    )}
+                    <Badge variant="outline" className={statusBadge[client.status]}>{client.status}</Badge>
+                    {client.temperature && TempIcon ? (
+                      <span className={cn("inline-flex items-center gap-1", tempCls)}>
+                        <TempIcon className="h-3 w-3" /> {client.temperature}
+                      </span>
+                    ) : (
+                      <Badge variant="outline" className="text-muted-foreground/70">Temperatura não definida</Badge>
+                    )}
+                    {client.serviceType && client.serviceType !== "—" && (
+                      <span className="text-muted-foreground">· {client.serviceType}</span>
+                    )}
+                    {location && (
+                      <span className="text-muted-foreground inline-flex items-center gap-1">
+                        <MapPin className="h-3 w-3" />{location}
+                      </span>
+                    )}
+                  </div>
+                </SheetDescription>
               </div>
-            </SheetDescription>
+            </div>
           </SheetHeader>
 
           <div className="flex gap-2 mt-4">
