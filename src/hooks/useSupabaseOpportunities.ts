@@ -90,6 +90,46 @@ export function useSupabaseOpportunities(options?: { includeArchived?: boolean; 
       setLoading(false);
     }
   };
+  const markWon = async (opportunityId: string) => {
+    if (!workspace?.id) {
+      toast.error("Nenhum workspace ativo encontrado.");
+      return null;
+    }
+    setLoading(true);
+    try {
+      const opp = await crmOpportunitiesRepository.markOpportunityWon(workspace.id, opportunityId);
+      toast.success("Oportunidade marcada como ganha 🎉");
+      await fetchOpportunities();
+      return opp;
+    } catch (err) {
+      console.error("Erro ao marcar como ganha:", err);
+      toast.error("Erro ao marcar oportunidade como ganha.");
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const markLost = async (opportunityId: string, reason?: string) => {
+    if (!workspace?.id) {
+      toast.error("Nenhum workspace ativo encontrado.");
+      return null;
+    }
+    setLoading(true);
+    try {
+      const opp = await crmOpportunitiesRepository.markOpportunityLost(workspace.id, opportunityId, reason);
+      toast.success("Oportunidade marcada como perdida.");
+      await fetchOpportunities();
+      return opp;
+    } catch (err) {
+      console.error("Erro ao marcar como perdida:", err);
+      toast.error("Erro ao marcar oportunidade como perdida.");
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
   const archiveOpportunity = async (opportunityId: string, archived = true) => {
     if (!workspace?.id) {
