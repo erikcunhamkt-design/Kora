@@ -150,6 +150,73 @@ export function SoundPreferencesSection() {
       </SettingsCard>
 
       <SettingsCard>
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="h-10 w-10 rounded-lg bg-primary/15 border border-primary/25 text-primary flex items-center justify-center">
+              <AlarmClock className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-foreground">Alerta de WhatsApp sem resposta</p>
+              <p className="text-xs text-muted-foreground">
+                Toca um som em loop quando uma conversa fica sem resposta acima do tempo definido.
+                Para automaticamente ao abrir a conversa.
+              </p>
+            </div>
+          </div>
+          <Switch
+            checked={prefs.unansweredAlert.enabled}
+            onCheckedChange={(enabled) => setUnansweredAlert({ enabled })}
+            disabled={!prefs.enabled || !prefs.modules.whatsapp}
+          />
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-3 max-w-md">
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Disparar após (minutos)</Label>
+            <Input
+              type="number"
+              min={1}
+              max={240}
+              value={prefs.unansweredAlert.thresholdMinutes}
+              onChange={(e) =>
+                setUnansweredAlert({
+                  thresholdMinutes: Math.max(1, parseInt(e.target.value, 10) || 1),
+                })
+              }
+              disabled={!prefs.unansweredAlert.enabled}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Repetir a cada (segundos)</Label>
+            <Input
+              type="number"
+              min={5}
+              max={600}
+              value={prefs.unansweredAlert.repeatSeconds}
+              onChange={(e) =>
+                setUnansweredAlert({
+                  repeatSeconds: Math.max(5, parseInt(e.target.value, 10) || 5),
+                })
+              }
+              disabled={!prefs.unansweredAlert.enabled}
+            />
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => previewKoraSound("whatsapp:unanswered_alert")}
+            disabled={!prefs.enabled || !prefs.modules.whatsapp}
+          >
+            <Play className="h-3.5 w-3.5 mr-1" />
+            Testar som de alerta
+          </Button>
+        </div>
+      </SettingsCard>
+
+      <SettingsCard>
         <p className="text-sm font-medium text-foreground mb-3">Módulos com som</p>
         <div className="divide-y divide-border/40">
           {(Object.keys(MODULE_LABELS) as KoraSoundModule[]).map((mod) => (
