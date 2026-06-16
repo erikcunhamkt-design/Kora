@@ -12,6 +12,11 @@ export interface SoundPreferences {
     start: string; // HH:mm
     end: string;   // HH:mm
   };
+  unansweredAlert: {
+    enabled: boolean;
+    thresholdMinutes: number; // tempo sem resposta para começar a alertar
+    repeatSeconds: number;    // intervalo de repetição do alerta
+  };
 }
 
 export const DEFAULT_SOUND_PREFERENCES: SoundPreferences = {
@@ -30,6 +35,11 @@ export const DEFAULT_SOUND_PREFERENCES: SoundPreferences = {
     enabled: false,
     start: "22:00",
     end: "08:00",
+  },
+  unansweredAlert: {
+    enabled: false,
+    thresholdMinutes: 10,
+    repeatSeconds: 30,
   },
 };
 
