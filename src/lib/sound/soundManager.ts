@@ -94,6 +94,8 @@ function getAudio(src: string): HTMLAudioElement | null {
 export interface PlaySoundOptions {
   /** Skip throttle/quiet hours (used by "Testar som"). Still respects enabled+volume. */
   force?: boolean;
+  /** Skip only the per-event throttle (used by repeating alerts). Still respects mute/quiet hours. */
+  skipThrottle?: boolean;
 }
 
 export function playKoraSound(event: KoraSoundEvent, opts: PlaySoundOptions = {}): void {
@@ -110,8 +112,10 @@ export function playKoraSound(event: KoraSoundEvent, opts: PlaySoundOptions = {}
       if (!Number.isNaN(until) && until > Date.now()) return;
     }
     if (isWithinQuietHours(prefs)) return;
-    const last = lastPlayedAt.get(event) ?? 0;
-    if (Date.now() - last < def.throttleMs) return;
+    if (!opts.skipThrottle) {
+      const last = lastPlayedAt.get(event) ?? 0;
+      if (Date.now() - last < def.throttleMs) return;
+    }
   }
 
   const audio = getAudio(def.src);
