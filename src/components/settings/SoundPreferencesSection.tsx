@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Volume2, VolumeX, Play, Moon } from "lucide-react";
+import { Volume2, VolumeX, Play, Moon, AlarmClock } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
@@ -26,8 +26,15 @@ const MODULE_PREVIEW: Record<KoraSoundModule, KoraSoundEvent> = {
 };
 
 export function SoundPreferencesSection() {
-  const { prefs, setEnabled, setVolume, toggleModule, muteFor, setQuietHours } =
-    useSoundPreferences();
+  const {
+    prefs,
+    setEnabled,
+    setVolume,
+    toggleModule,
+    muteFor,
+    setQuietHours,
+    setUnansweredAlert,
+  } = useSoundPreferences();
 
   const mutedRemainingLabel = useMemo(() => {
     if (!prefs.mutedUntil) return null;
