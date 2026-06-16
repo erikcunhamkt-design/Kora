@@ -78,6 +78,7 @@ import { QuotesSupabaseReceivableToggleCard } from "@/components/settings/Quotes
 import { QuotesSupabaseProjectToggleCard } from "@/components/settings/QuotesSupabaseProjectToggleCard";
 import { SupabaseOperationalDashboardToggleCard } from "@/components/settings/SupabaseOperationalDashboardToggleCard";
 import { SupabaseOperationalDashboardCard } from "@/components/settings/SupabaseOperationalDashboardCard";
+import { CrmSupabaseOperationalToggleCard } from "@/components/settings/CrmSupabaseOperationalToggleCard";
 import { QuotesSupabaseBaseTasksToggleCard } from "@/components/settings/QuotesSupabaseBaseTasksToggleCard";
 import { QuotesSupabaseStatusTransitionToggleCard } from "@/components/settings/QuotesSupabaseStatusTransitionToggleCard";
 import { QuotesSupabaseTechnicalSheetsAutoSaveToggleCard } from "@/components/settings/QuotesSupabaseTechnicalSheetsAutoSaveToggleCard";
@@ -848,6 +849,7 @@ const Configuracoes = () => {
                   Ative ou desative as integrações e fluxos de gravação direta na nuvem Supabase para o CRM, Orçamentos e Fichas Técnicas.
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <CrmSupabaseOperationalToggleCard />
                   <CrmSupabaseExperimentalToggleCard />
                   <CrmSupabaseStageMoveToggleCard />
                   <CrmSupabaseBasicEditToggleCard />
