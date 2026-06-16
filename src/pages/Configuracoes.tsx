@@ -522,7 +522,7 @@ const Configuracoes = () => {
             </SettingsSection>
           )}
 
-          {active === "appearance" && <SoundPreferencesSection />}
+          {active === "sounds" && <SoundPreferencesSection />}
 
 
           {active === "accessibility" && (
