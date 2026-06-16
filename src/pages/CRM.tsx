@@ -149,14 +149,17 @@ const CRM = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { workspace } = useCurrentWorkspace();
 
-  // ----- CRM Supabase Experimental Flag & DataSource Setup -----
+  // ----- CRM Supabase Operacional — feature flag master -----
+  // Quando `supabaseWriteEnabled` for false, o modo Supabase volta a ser
+  // somente leitura. Quando true, todas as ações de escrita ficam liberadas.
+  const { enabled: supabaseWriteEnabled } = useSupabaseCrmWriteFlag();
   const isExperimentalEnabled = true;
-  const isStageMoveEnabled = true;
-  const isBasicEditEnabled = true;
-  const isCreateOpportunityEnabled = true;
-  const isArchiveEnabled = true;
-  const isRestoreArchiveEnabled = true;
-  const isSoftDeleteEnabled = true;
+  const isStageMoveEnabled = supabaseWriteEnabled;
+  const isBasicEditEnabled = supabaseWriteEnabled;
+  const isCreateOpportunityEnabled = supabaseWriteEnabled;
+  const isArchiveEnabled = supabaseWriteEnabled;
+  const isRestoreArchiveEnabled = supabaseWriteEnabled;
+  const isSoftDeleteEnabled = supabaseWriteEnabled;
 
   const [dataSource, setDataSource] = useState<"local" | "supabase">(() => {
     try {
