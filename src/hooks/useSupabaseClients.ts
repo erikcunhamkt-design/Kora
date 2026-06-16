@@ -9,6 +9,7 @@ export function useSupabaseClients() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const requestSeq = useRef(0);
+  const workspaceIdRef = useRef<string | null>(null);
 
   const fetchClients = useCallback(async () => {
     if (workspaceLoading) {
@@ -16,15 +17,21 @@ export function useSupabaseClients() {
     }
 
     if (!workspace) {
+      workspaceIdRef.current = null;
       setClients([]);
       setLoading(false);
       return;
+    }
+    const workspaceId = workspace.id;
+    if (workspaceIdRef.current !== workspaceId) {
+      workspaceIdRef.current = workspaceId;
+      setClients([]);
     }
     const seq = ++requestSeq.current;
     setLoading(true);
     setError(null);
     try {
-      const data = await clientsRepository.listClients(workspace.id);
+      const data = await clientsRepository.listClients(workspaceId);
       if (seq === requestSeq.current) {
         setClients(data);
       }
@@ -49,7 +56,10 @@ export function useSupabaseClients() {
     try {
       requestSeq.current += 1;
       const result = await clientsRepository.createClient(workspace.id, input);
-      setClients((prev) => [result, ...prev]);
+      setClients((prev) => {
+        const exists = prev.some((c) => c.id === result.id);
+        return exists ? prev.map((c) => (c.id === result.id ? result : c)) : [result, ...prev];
+      });
       setLoading(false);
       return result;
     } catch (err) {
