@@ -5,6 +5,7 @@ import taskComplete from "@/assets/sounds/task-complete.mp3";
 import aiPulse from "@/assets/sounds/ai-pulse.mp3";
 import campaignComplete from "@/assets/sounds/campaign-complete.mp3";
 import whatsappUnansweredAlert from "@/assets/sounds/whatsapp-unanswered-alert.mp3";
+import crmDing from "@/assets/sounds/crm-ding.mp3";
 
 export type KoraSoundModule =
   | "whatsapp"
@@ -50,8 +51,8 @@ export const SOUND_EVENTS: Record<KoraSoundEvent, KoraSoundDefinition> = {
   "campaign:batch_success":   { src: successSoft,        module: "campaigns", gain: 0.7, throttleMs: 3000 },
   "campaign:batch_error":     { src: errorSoft,          module: "campaigns", gain: 0.8, throttleMs: 3000 },
   "campaign:completed":       { src: campaignComplete,   module: "campaigns", gain: 0.9, throttleMs: 3000 },
-  "crm:opportunity_created":  { src: notificationSoft,   module: "crm",       gain: 0.7, throttleMs: 3000 },
-  "quotes:approved":          { src: successSoft,        module: "crm",       gain: 1.0, throttleMs: 3000 },
+  "crm:opportunity_created":  { src: crmDing,            module: "crm",       gain: 0.8, throttleMs: 3000 },
+  "quotes:approved":          { src: crmDing,            module: "crm",       gain: 1.0, throttleMs: 3000 },
   "finance:paid":             { src: successSoft,        module: "finance",   gain: 0.8, throttleMs: 3000 },
   "finance:overdue_alert":    { src: errorSoft,          module: "finance",   gain: 0.7, throttleMs: 5000 },
   "tasks:completed":          { src: taskComplete,       module: "tasks",     gain: 0.7, throttleMs: 1500 },
