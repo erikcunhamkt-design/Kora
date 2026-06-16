@@ -12,6 +12,11 @@ export interface SoundPreferences {
     start: string; // HH:mm
     end: string;   // HH:mm
   };
+  unansweredAlert: {
+    enabled: boolean;
+    thresholdMinutes: number; // tempo sem resposta para começar a alertar
+    repeatSeconds: number;    // intervalo de repetição do alerta
+  };
 }
 
 export const DEFAULT_SOUND_PREFERENCES: SoundPreferences = {
@@ -30,6 +35,11 @@ export const DEFAULT_SOUND_PREFERENCES: SoundPreferences = {
     enabled: false,
     start: "22:00",
     end: "08:00",
+  },
+  unansweredAlert: {
+    enabled: false,
+    thresholdMinutes: 10,
+    repeatSeconds: 30,
   },
 };
 
@@ -84,6 +94,8 @@ function getAudio(src: string): HTMLAudioElement | null {
 export interface PlaySoundOptions {
   /** Skip throttle/quiet hours (used by "Testar som"). Still respects enabled+volume. */
   force?: boolean;
+  /** Skip only the per-event throttle (used by repeating alerts). Still respects mute/quiet hours. */
+  skipThrottle?: boolean;
 }
 
 export function playKoraSound(event: KoraSoundEvent, opts: PlaySoundOptions = {}): void {
@@ -100,8 +112,10 @@ export function playKoraSound(event: KoraSoundEvent, opts: PlaySoundOptions = {}
       if (!Number.isNaN(until) && until > Date.now()) return;
     }
     if (isWithinQuietHours(prefs)) return;
-    const last = lastPlayedAt.get(event) ?? 0;
-    if (Date.now() - last < def.throttleMs) return;
+    if (!opts.skipThrottle) {
+      const last = lastPlayedAt.get(event) ?? 0;
+      if (Date.now() - last < def.throttleMs) return;
+    }
   }
 
   const audio = getAudio(def.src);
