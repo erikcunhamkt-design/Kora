@@ -930,7 +930,7 @@ const ClientFormDialog = ({
   open: boolean;
   onOpenChange: (v: boolean) => void;
   initial?: Client;
-  onSave: (data: any) => void | Promise<void>;
+  onSave: (data: ClientFormPayload) => void | Promise<void>;
 }) => {
   const { activeTypes } = useClientTypes();
   const [form, setForm] = useState<FormState>(emptyForm);
