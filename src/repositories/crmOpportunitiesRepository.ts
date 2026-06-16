@@ -149,6 +149,28 @@ export const crmOpportunitiesRepository = {
     return this.updateOpportunity(workspaceId, opportunityId, patch);
   },
 
+  async markOpportunityWon(workspaceId: string, opportunityId: string) {
+    const patch: Partial<SupabaseOpportunityInput> = {
+      stage: "fechado",
+      status: "won",
+      won_at: new Date().toISOString(),
+      lost_at: null,
+      lost_reason: null,
+    };
+    return this.updateOpportunity(workspaceId, opportunityId, patch);
+  },
+
+  async markOpportunityLost(workspaceId: string, opportunityId: string, reason?: string) {
+    const patch: Partial<SupabaseOpportunityInput> = {
+      stage: "perdido",
+      status: "lost",
+      lost_at: new Date().toISOString(),
+      won_at: null,
+      lost_reason: reason ?? null,
+    };
+    return this.updateOpportunity(workspaceId, opportunityId, patch);
+  },
+
   async archiveOpportunity(workspaceId: string, opportunityId: string, archived = true) {
     const { data, error } = await supabase
       .from("crm_opportunities")

@@ -123,6 +123,8 @@ import { mapSupabaseOpportunityToLocalLead } from "@/services/crm/crmOpportunity
 import { crmOpportunitiesRepository, type SupabaseOpportunityInput } from "@/repositories/crmOpportunitiesRepository";
 import { Cloud, Database, Lock, RefreshCw } from "lucide-react";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
+import { useSupabaseCrmWriteFlag } from "@/hooks/useSupabaseCrmWriteFlag";
+import { supabaseCrmAuditLog } from "@/services/crm/supabaseCrmAuditLog";
 import { CreateCrmSupabaseQuoteDialog } from "@/components/crm/CreateCrmSupabaseQuoteDialog";
 import { LinkedQuotesSection } from "@/components/crm/LinkedQuotesSection";
 import { useTranslation } from "@/contexts/LanguageContext";
@@ -147,14 +149,17 @@ const CRM = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { workspace } = useCurrentWorkspace();
 
-  // ----- CRM Supabase Experimental Flag & DataSource Setup -----
+  // ----- CRM Supabase Operacional — feature flag master -----
+  // Quando `supabaseWriteEnabled` for false, o modo Supabase volta a ser
+  // somente leitura. Quando true, todas as ações de escrita ficam liberadas.
+  const { enabled: supabaseWriteEnabled } = useSupabaseCrmWriteFlag();
   const isExperimentalEnabled = true;
-  const isStageMoveEnabled = true;
-  const isBasicEditEnabled = true;
-  const isCreateOpportunityEnabled = true;
-  const isArchiveEnabled = true;
-  const isRestoreArchiveEnabled = true;
-  const isSoftDeleteEnabled = true;
+  const isStageMoveEnabled = supabaseWriteEnabled;
+  const isBasicEditEnabled = supabaseWriteEnabled;
+  const isCreateOpportunityEnabled = supabaseWriteEnabled;
+  const isArchiveEnabled = supabaseWriteEnabled;
+  const isRestoreArchiveEnabled = supabaseWriteEnabled;
+  const isSoftDeleteEnabled = supabaseWriteEnabled;
 
   const [dataSource, setDataSource] = useState<"local" | "supabase">(() => {
     try {
@@ -718,8 +723,15 @@ const CRM = () => {
             <Database className="h-4 w-4 text-primary" />
             <span className="text-xs font-semibold text-foreground">Fonte do CRM:</span>
             {activeDataSource === "supabase" && (
-              <Badge variant="outline" className="text-[10px] uppercase font-mono py-0 text-primary border-primary/30 bg-primary/5">
-                Supabase experimental
+              <Badge
+                variant="outline"
+                className={
+                  supabaseWriteEnabled
+                    ? "text-[10px] uppercase font-mono py-0 text-emerald-400 border-emerald-500/30 bg-emerald-500/5"
+                    : "text-[10px] uppercase font-mono py-0 text-primary border-primary/30 bg-primary/5"
+                }
+              >
+                {supabaseWriteEnabled ? "Operacional" : "Modo leitura"}
               </Badge>
             )}
           </div>
@@ -747,15 +759,31 @@ const CRM = () => {
         </div>
       )}
 
-      {/* Banner de Aviso de Somente Leitura */}
+      {/* Banner do modo Supabase */}
       {activeDataSource === "supabase" && (
-        <div className="flex items-start gap-2.5 p-3 rounded-lg border border-primary/20 bg-primary/5 text-xs text-foreground">
-          <Cloud className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+        <div
+          className={`flex items-start gap-2.5 p-3 rounded-lg border text-xs text-foreground ${
+            supabaseWriteEnabled
+              ? "border-emerald-500/20 bg-emerald-500/5"
+              : "border-primary/20 bg-primary/5"
+          }`}
+        >
+          <Cloud
+            className={`h-4 w-4 shrink-0 mt-0.5 ${
+              supabaseWriteEnabled ? "text-emerald-400" : "text-primary"
+            }`}
+          />
           <div className="flex-1 flex justify-between items-center gap-4 flex-wrap">
             <div>
-              <span className="font-semibold block">Supabase experimental — somente leitura</span>
+              <span className="font-semibold block">
+                {supabaseWriteEnabled
+                  ? "CRM Supabase operacional"
+                  : "Supabase em modo leitura"}
+              </span>
               <p className="text-muted-foreground mt-0.5 leading-normal">
-                Você está visualizando as oportunidades importadas no Supabase. Edições, movimentações ou novos cadastros estão bloqueados neste modo.
+                {supabaseWriteEnabled
+                  ? "Criação, edição, movimentação, ganhar/perder e arquivamento estão ativos no Supabase. O modo local segue intacto."
+                  : "Você está visualizando as oportunidades importadas no Supabase. Ative o CRM Supabase Operacional em Configurações → Sincronização Cloud para liberar a edição."}
               </p>
             </div>
             <Button
