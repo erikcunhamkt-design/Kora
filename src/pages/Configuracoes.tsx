@@ -36,6 +36,7 @@ import {
   Users,
   RefreshCw,
   ChevronDown,
+  Volume2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -94,6 +95,7 @@ const NAV_ITEMS: SettingsNavItem[] = [
   { id: "company", label: "Empresa", icon: Building2 },
   { id: "links", label: "Links públicos", icon: Link2 },
   { id: "appearance", label: "Aparência", icon: Palette },
+  { id: "sounds", label: "Sons", icon: Volume2 },
   { id: "accessibility", label: "Acessibilidade", icon: Sparkles },
   { id: "notifications", label: "Notificações", icon: Bell },
   { id: "security", label: "Segurança", icon: Shield },
@@ -129,6 +131,7 @@ const TAB_ALIASES: Record<string, string> = {
   empresa: "company",
   links: "links",
   aparencia: "appearance",
+  sons: "sounds",
   acessibilidade: "accessibility",
   notificacoes: "notifications",
   seguranca: "security",
@@ -519,7 +522,7 @@ const Configuracoes = () => {
             </SettingsSection>
           )}
 
-          {active === "appearance" && <SoundPreferencesSection />}
+          {active === "sounds" && <SoundPreferencesSection />}
 
 
           {active === "accessibility" && (
