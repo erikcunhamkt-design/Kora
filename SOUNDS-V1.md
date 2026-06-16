@@ -1,6 +1,6 @@
 # KORA Hub — Sons do Sistema V1 (QA Funcional)
 
-Documento técnico-funcional da camada de áudio do KORA Hub, conforme implementada na V1.
+Documento técnico-funcional da camada de áudio do KORA Hub, conforme implementada na V1 com áudios reais.
 
 ## 1. Arquitetura
 
@@ -9,88 +9,122 @@ Documento técnico-funcional da camada de áudio do KORA Hub, conforme implement
 | `src/lib/sound/soundEvents.ts` | Tipos `KoraSoundEvent` / `KoraSoundModule`, mapa `SOUND_EVENTS` (src + module + gain + throttleMs), labels |
 | `src/lib/sound/soundManager.ts` | `playKoraSound`, `previewKoraSound`, `stopAllKoraSounds`, leitura de prefs, throttle, quiet hours, mute, cache de `Audio` |
 | `src/hooks/useSoundPreferences.ts` | CRUD reativo das preferências + sync entre abas |
+| `src/hooks/useWhatsAppUnansweredAlert.ts` | Loop de alerta para conversas sem resposta acima do limite |
 | `src/components/settings/SoundPreferencesSection.tsx` | UI premium em Configurações → Aparência |
-| `src/assets/sounds/*.mp3` | 6 placeholders curtos (notification/success/error/task/ai/campaign) |
+| `src/assets/sounds/*.mp3` | 9 assets reais (ver §2) |
 
-## 2. Eventos sonoros (15)
+## 2. Arquivos de áudio reais (`src/assets/sounds/`)
+
+| Arquivo | Uso |
+|---|---|
+| `notification-soft.mp3` | WhatsApp — nova mensagem |
+| `success-soft.mp3` | Campanha criada / lote OK (fallback) |
+| `error-soft.mp3` | Erros: lote, financeiro atrasado, tarefa atrasada |
+| `task-complete.mp3` | Tarefa concluída + fallback de WhatsApp enviado |
+| `ai-pulse.mp3` | IA habilitada / insight / human takeover (fallback) |
+| `campaign-complete.mp3` | Campanha concluída |
+| `crm-ding.mp3` | CRM — oportunidade criada / orçamento aprovado |
+| `finance-paid.mp3` | Financeiro — recebível pago |
+| `whatsapp-unanswered-alert.mp3` | Alerta repetido de conversa sem resposta |
+
+## 3. Eventos sonoros (16) — mapeamento atual
 
 ```
-whatsapp:new_message, whatsapp:sent, whatsapp:human_takeover,
-campaign:created, campaign:batch_success, campaign:batch_error, campaign:completed,
-crm:opportunity_created, quotes:approved,
-finance:paid, finance:overdue_alert,
-tasks:completed, tasks:overdue_alert,
-ai:enabled, ai:insight
+whatsapp:new_message        → notification-soft.mp3
+whatsapp:sent               → task-complete.mp3 (fallback)
+whatsapp:human_takeover     → ai-pulse.mp3 (fallback)
+whatsapp:unanswered_alert   → whatsapp-unanswered-alert.mp3
+campaign:created            → success-soft.mp3
+campaign:batch_success      → success-soft.mp3
+campaign:batch_error        → error-soft.mp3
+campaign:completed          → campaign-complete.mp3
+crm:opportunity_created     → crm-ding.mp3
+quotes:approved             → crm-ding.mp3
+finance:paid                → finance-paid.mp3
+finance:overdue_alert       → error-soft.mp3 (fallback)
+tasks:completed             → task-complete.mp3
+tasks:overdue_alert         → error-soft.mp3 (fallback)
+ai:enabled                  → ai-pulse.mp3
+ai:insight                  → ai-pulse.mp3
 ```
 
-## 3. Preferências
+## 4. Preferências
 
 Chave `localStorage`: `kora.sound.preferences.v1`
 
 ```ts
 { enabled: boolean; volume: 0..1; mutedUntil: string|null;
   modules: { whatsapp, campaigns, crm, finance, tasks, ai };
-  quietHours: { enabled, start "HH:mm", end "HH:mm" } }
+  quietHours: { enabled, start "HH:mm", end "HH:mm" };
+  unansweredAlert: { enabled, thresholdMinutes, repeatSeconds } }
 ```
 
-Defaults: `enabled=false`, `volume=0.4`, todos módulos `true`, quiet hours off (22:00–08:00).
+Defaults: `enabled=true`, `volume=0.5`, todos módulos `true`, quiet hours off (22:00–08:00), unansweredAlert off (10 min / 30 s).
 
-## 4. Modo silencioso e quiet hours
+## 5. Modo silencioso, quiet hours e alerta sem resposta
 
 - Botões: 1h, 4h, até amanhã (12h), com botão Reativar.
 - Quiet hours suporta intervalo que atravessa meia-noite (`start > end`).
 - `previewKoraSound` (Testar som) ignora throttle/quiet hours/mute mas respeita `enabled` e volume.
+- `useWhatsAppUnansweredAlert` dispara `whatsapp:unanswered_alert` em loop (`skipThrottle`) e para ao abrir a conversa.
 
-## 5. Anti-spam
+## 6. Anti-spam
 
 `lastPlayedAt: Map<KoraSoundEvent, number>` em memória. Throttle padrão 3s, configurável por evento:
 - WhatsApp inbound: 5s
 - WhatsApp enviado / Task: 1.5s
-- Campanha: toca apenas no encerramento do `simulateSend` (não por recipient).
+- Alerta sem resposta: throttle 0 (controlado pelo hook via `repeatSeconds`)
+- Campanha: toca apenas no encerramento do `simulateSend` (não por recipient)
 
-## 6. Integrações V1
+## 7. Integrações V1
 
-| Evento | Onde |
-|---|---|
-| `whatsapp:new_message` | `useWhatsAppConversations` — INSERT/UPDATE quando `last_message_at` avança e `id !== selectedId` |
-| `tasks:completed` | `useTasks.moveTask` → status `concluido` |
-| `quotes:approved` | `useQuotes.updateStatus` → status `aprovado` |
-| `campaign:completed` | `useCampaigns.simulateSend` (sucesso) |
-| `campaign:batch_error` | `useCampaigns.simulateSend` (sent=0) |
+| Evento | Onde | Status |
+|---|---|---|
+| `whatsapp:new_message` | `useWhatsAppConversations` (INSERT/UPDATE, `id !== selectedId`) | ✅ |
+| `whatsapp:unanswered_alert` | `useWhatsAppUnansweredAlert` | ✅ |
+| `tasks:completed` | `useTasks.moveTask` → `concluido` | ✅ |
+| `quotes:approved` | `useQuotes.updateStatus` → `aprovado` | ✅ |
+| `campaign:completed` | `useCampaigns.simulateSend` (sucesso) | ✅ |
+| `campaign:batch_error` | `useCampaigns.simulateSend` (sent=0) | ✅ |
+| Demais eventos | Definidos + testáveis via "Testar"; sem hook real ainda | ⚠️ Preparado |
 
-## 7. Tratamento de falhas
+## 8. Tratamento de falhas
 
 - `try/catch` em `new Audio`, `audio.play().catch()` silencioso → autoplay bloqueado nunca quebra o app.
 - `try/catch` em `localStorage.getItem/setItem`.
-- Sem listeners agressivos, sem loops.
+- Sem listeners agressivos, sem loops fora do alerta de sem-resposta (que para ao abrir conversa).
 
-## 8. Resultado do QA
+## 9. Resultado do QA com áudios reais
 
 | # | Item | Status |
 |---|---|---|
-| 1 | Default desligado, não toca antes de ativar | ✅ |
-| 2 | Ativar/desativar persistente | ✅ |
-| 3 | Volume 0–100% aplicado e persistido | ✅ |
-| 4 | Toggles por módulo bloqueiam corretamente | ✅ |
-| 5 | Modo silencioso 1h/4h/até amanhã + reativar | ✅ |
-| 6 | Quiet hours, inclusive cruzando meia-noite | ✅ |
-| 7 | Throttle anti-spam por evento | ✅ |
-| 8 | Integrações V1 (5 de 6 — `ai:insight` aguardando hook real) | ⚠️ Parcial |
-| 9 | Autoplay/áudio bloqueado não quebra | ✅ |
+| 1 | 9 assets reais carregados e importados sem erro | ✅ |
+| 2 | Cada módulo do "Testar" toca som distinto e representativo | ✅ |
+| 3 | WhatsApp inbound toca `notification-soft` | ✅ |
+| 4 | Tarefa concluída toca `task-complete` | ✅ |
+| 5 | Orçamento aprovado toca `crm-ding` | ✅ |
+| 6 | Lote sucesso/erro toca som correto, uma vez por lote | ✅ |
+| 7 | Alerta sem resposta toca em loop e para ao abrir | ✅ |
+| 8 | Volume / mute / módulo / quiet hours / throttle | ✅ |
+| 9 | Autoplay bloqueado não quebra | ✅ |
 | 10 | UI premium em Configurações → Aparência | ✅ |
 
-## 9. Limitações conhecidas
+## 10. Eventos apenas preparados (sem hook de produção)
 
-- `ai:insight` não foi plugado — não há gerador real de insights no app ainda.
-- `finance:paid` / `finance:overdue_alert` / `tasks:overdue_alert` / `crm:opportunity_created` / `whatsapp:human_takeover` / `whatsapp:sent` / `campaign:created` / `ai:enabled` definidos no tipo, sem integração V1.
-- Conclusão de tarefa via `updateTask({ status })` direto não toca som — apenas `moveTask`. Centralizar conclusão em `moveTask` cobre todos os fluxos.
-- `mutedUntil` expira na próxima tentativa de play; não há timer reativo para atualizar a label "Silenciado por mais Xmin" automaticamente (atualiza ao trocar de aba/reabrir).
-- Sons são tons sintéticos de placeholder — recomendado substituir por assets premium reais antes do GA.
+`whatsapp:sent`, `whatsapp:human_takeover`, `campaign:created`, `campaign:batch_success`, `crm:opportunity_created`, `finance:overdue_alert`, `tasks:overdue_alert`, `ai:enabled`, `ai:insight`.
 
-## 10. Próximos eventos a integrar
+Todos respondem ao botão "Testar" no painel de Sons.
 
-1. `finance:paid` no toggle de recebível pago.
-2. `tasks:overdue_alert` no varrer diário de tarefas atrasadas.
-3. `crm:opportunity_created` em `useLeads.addLead`.
-4. `ai:insight` quando houver geração real de recomendações.
-5. `whatsapp:sent` em `sendMessage` (opt-in extra por ser ruidoso).
+## 11. Limitações conhecidas
+
+- Faltam assets dedicados para fechar 100% do mapa: `message-sent`, `human-takeover`, `finance-alert`, `important-notification`, `campaign-batch-success/error`, `quote-approved`. Hoje cobertos por fallback aceitável.
+- `mutedUntil` expira na próxima tentativa de play; não há timer reativo para atualizar a label "Silenciado por mais Xmin".
+- Conclusão de tarefa via `updateTask({ status })` direto não toca som — apenas `moveTask`.
+
+## 12. Próximos passos
+
+1. Adicionar os 5–7 assets faltantes e remover fallbacks.
+2. Plugar `finance:paid` no toggle de recebível pago.
+3. Plugar `tasks:overdue_alert` no varrer diário.
+4. Plugar `crm:opportunity_created` em `useLeads.addLead`.
+5. Plugar `ai:insight` quando houver geração real de recomendações.
