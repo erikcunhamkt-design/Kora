@@ -95,6 +95,7 @@ const NAV_ITEMS: SettingsNavItem[] = [
   { id: "company", label: "Empresa", icon: Building2 },
   { id: "links", label: "Links públicos", icon: Link2 },
   { id: "appearance", label: "Aparência", icon: Palette },
+  { id: "sounds", label: "Sons", icon: Volume2 },
   { id: "accessibility", label: "Acessibilidade", icon: Sparkles },
   { id: "notifications", label: "Notificações", icon: Bell },
   { id: "security", label: "Segurança", icon: Shield },
