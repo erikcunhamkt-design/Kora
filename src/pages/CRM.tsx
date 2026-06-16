@@ -723,8 +723,15 @@ const CRM = () => {
             <Database className="h-4 w-4 text-primary" />
             <span className="text-xs font-semibold text-foreground">Fonte do CRM:</span>
             {activeDataSource === "supabase" && (
-              <Badge variant="outline" className="text-[10px] uppercase font-mono py-0 text-primary border-primary/30 bg-primary/5">
-                Supabase experimental
+              <Badge
+                variant="outline"
+                className={
+                  supabaseWriteEnabled
+                    ? "text-[10px] uppercase font-mono py-0 text-emerald-400 border-emerald-500/30 bg-emerald-500/5"
+                    : "text-[10px] uppercase font-mono py-0 text-primary border-primary/30 bg-primary/5"
+                }
+              >
+                {supabaseWriteEnabled ? "Operacional" : "Modo leitura"}
               </Badge>
             )}
           </div>
