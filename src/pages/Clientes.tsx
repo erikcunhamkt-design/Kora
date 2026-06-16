@@ -33,6 +33,7 @@ import {
   Edit2, Archive, Trash2, Copy, ChevronDown, Flame, Snowflake, Sparkles, RefreshCw,
   Target, ArchiveRestore,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -84,11 +85,34 @@ const fmtDate = (iso?: string) => {
 
 const onlyDigits = (s: string) => s.replace(/\D+/g, "");
 
+type ClientFormPayload = {
+  name: string;
+  company: string;
+  email: string;
+  phone: string;
+  whatsapp: string;
+  instagram: string;
+  site: string;
+  serviceType: string;
+  origin?: string;
+  status: ClientStatus;
+  temperature?: ClientTemperature;
+  potentialValue: number;
+  nextAction?: string;
+  nextActionDate?: string;
+  city?: string;
+  state?: string;
+  address?: string;
+  document?: string;
+  observations: string;
+  tags?: string[];
+};
+
 // ---------- KPI Card ----------
 const KpiCard = ({
   icon: Icon, label, value, hint, tone = "neutral",
 }: {
-  icon: any; label: string; value: string | number; hint?: string;
+  icon: LucideIcon; label: string; value: string | number; hint?: string;
   tone?: "neutral" | "primary" | "warning" | "success";
 }) => {
   const toneCls: Record<string, string> = {
