@@ -764,7 +764,7 @@ const Clientes = () => {
         onOpenChange={(v) => !v && setEditClient(null)}
         initial={editClient ?? undefined}
         onSave={(data) => {
-          if (editClient) updateClient(editClient.id, data as Partial<Client>);
+          if (editClient) return updateClient(editClient.id, data as Partial<Client>);
         }}
       />
 
