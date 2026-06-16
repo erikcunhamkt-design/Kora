@@ -131,6 +131,7 @@ const TAB_ALIASES: Record<string, string> = {
   empresa: "company",
   links: "links",
   aparencia: "appearance",
+  sons: "sounds",
   acessibilidade: "accessibility",
   notificacoes: "notifications",
   seguranca: "security",
