@@ -759,11 +759,6 @@ const CRM = () => {
         </div>
       )}
 
-      {/* Banner de Aviso de Somente Leitura */}
-      {activeDataSource === "supabase" && (
-        <div className="flex items-start gap-2.5 p-3 rounded-lg border border-primary/20 bg-primary/5 text-xs text-foreground">
-          <Cloud className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-          <div className="flex-1 flex justify-between items-center gap-4 flex-wrap">
       {/* Banner do modo Supabase */}
       {activeDataSource === "supabase" && (
         <div
