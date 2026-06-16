@@ -903,12 +903,13 @@ const ClientFormDialog = ({
   open: boolean;
   onOpenChange: (v: boolean) => void;
   initial?: Client;
-  onSave: (data: any) => void;
+  onSave: (data: any) => void | Promise<void>;
 }) => {
   const { activeTypes } = useClientTypes();
   const [form, setForm] = useState<FormState>(emptyForm);
   const [typeDialogOpen, setTypeDialogOpen] = useState(false);
   const [commercialOpen, setCommercialOpen] = useState(true);
+  const [saving, setSaving] = useState(false);
   const isEdit = !!initial;
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) =>
@@ -941,7 +942,8 @@ const ClientFormDialog = ({
     }
   }, [open, initial]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (saving) return;
     if (!form.name.trim()) return toast.error("Informe o nome do cliente");
     if (!form.email.trim() && !form.whatsapp.trim() && !form.phone.trim()) {
       return toast.error("Informe pelo menos um contato (email, telefone ou WhatsApp)");
@@ -965,9 +967,13 @@ const ClientFormDialog = ({
       state: form.state.trim() || undefined,
       observations: form.observations.trim(),
     };
-    onSave(payload);
-    toast.success(isEdit ? "Cliente atualizado" : "Cliente adicionado");
-    onOpenChange(false);
+    setSaving(true);
+    try {
+      await onSave(payload);
+      onOpenChange(false);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -1090,9 +1096,9 @@ const ClientFormDialog = ({
         </FormBlock>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button className="orbit-gradient text-white border-0" onClick={handleSave}>
-            {isEdit ? "Salvar alterações" : "Salvar cliente"}
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancelar</Button>
+          <Button className="orbit-gradient text-white border-0" onClick={handleSave} disabled={saving}>
+            {saving ? "Salvando..." : isEdit ? "Salvar alterações" : "Salvar cliente"}
           </Button>
         </DialogFooter>
 
