@@ -15,8 +15,8 @@ export interface SoundPreferences {
 }
 
 export const DEFAULT_SOUND_PREFERENCES: SoundPreferences = {
-  enabled: false,
-  volume: 0.4,
+  enabled: true,
+  volume: 0.5,
   mutedUntil: null,
   modules: {
     whatsapp: true,
