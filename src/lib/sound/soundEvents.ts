@@ -6,6 +6,7 @@ import aiPulse from "@/assets/sounds/ai-pulse.mp3";
 import campaignComplete from "@/assets/sounds/campaign-complete.mp3";
 import whatsappUnansweredAlert from "@/assets/sounds/whatsapp-unanswered-alert.mp3";
 import crmDing from "@/assets/sounds/crm-ding.mp3";
+import financePaid from "@/assets/sounds/finance-paid.mp3";
 
 export type KoraSoundModule =
   | "whatsapp"
