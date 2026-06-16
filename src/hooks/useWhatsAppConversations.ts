@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { playKoraSound } from "@/lib/sound/soundManager";
 
 export type WAConversation = Database["public"]["Tables"]["whatsapp_conversations"]["Row"];
 export type WAMessage = Database["public"]["Tables"]["whatsapp_messages"]["Row"] & {
@@ -12,6 +13,9 @@ export function useWhatsAppConversations(workspaceId: string | undefined, instan
   const [messages, setMessages] = useState<WAMessage[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const selectedIdRef = useRef<string | null>(null);
+  useEffect(() => { selectedIdRef.current = selectedId; }, [selectedId]);
+
 
   // Initial load + realtime subscription for conversations
   useEffect(() => {
@@ -42,12 +46,24 @@ export function useWhatsAppConversations(workspaceId: string | undefined, instan
         (payload) => {
           setConversations((prev) => {
             if (payload.eventType === "INSERT") {
-              const next = [payload.new as WAConversation, ...prev.filter((c) => c.id !== (payload.new as WAConversation).id)];
+              const newConv = payload.new as WAConversation;
+              if (newConv.id !== selectedIdRef.current) {
+                playKoraSound("whatsapp:new_message");
+              }
+              const next = [newConv, ...prev.filter((c) => c.id !== newConv.id)];
               return next.sort((a, b) => (b.last_message_at ?? "").localeCompare(a.last_message_at ?? ""));
             }
             if (payload.eventType === "UPDATE") {
+              const updated = payload.new as WAConversation;
+              const previous = prev.find((c) => c.id === updated.id);
+              const advanced =
+                !!updated.last_message_at &&
+                (!previous?.last_message_at || updated.last_message_at > previous.last_message_at);
+              if (advanced && updated.id !== selectedIdRef.current) {
+                playKoraSound("whatsapp:new_message");
+              }
               return prev
-                .map((c) => (c.id === (payload.new as WAConversation).id ? (payload.new as WAConversation) : c))
+                .map((c) => (c.id === updated.id ? updated : c))
                 .sort((a, b) => (b.last_message_at ?? "").localeCompare(a.last_message_at ?? ""));
             }
             if (payload.eventType === "DELETE") {
