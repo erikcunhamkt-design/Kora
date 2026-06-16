@@ -27,7 +27,10 @@ import {
   Briefcase, FileSpreadsheet, FolderKanban, Wallet,
   ClipboardList, ChevronRight, Plus, Trash2, ExternalLink, UserCog,
   Crown, BadgeDollarSign, Users, CheckCircle2, AlertCircle, BookOpen,
+  Camera, Loader2,
 } from "lucide-react";
+import { clientAssetsStorage } from "@/services/storage/clientAssetsStorage";
+import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { cn } from "@/lib/utils";
 import {
   type Client, type ClientStatus, type ClientTemperature,
