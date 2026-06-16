@@ -3,8 +3,10 @@ import { AppSidebar } from "./AppSidebar";
 import { TopBar } from "./TopBar";
 import { Footer } from "./Footer";
 import { AccessibilityOnboardingDialog } from "@/components/accessibility/AccessibilityOnboardingDialog";
+import { useWhatsAppUnansweredAlert } from "@/hooks/useWhatsAppUnansweredAlert";
 
 export function MainLayout({ children }: { children: React.ReactNode }) {
+  useWhatsAppUnansweredAlert();
   return (
     <SidebarProvider>
       <AccessibilityOnboardingDialog />
@@ -23,4 +25,3 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
     </SidebarProvider>
   );
 }
-
