@@ -1,11 +1,12 @@
-// @ts-nocheck
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { clientsRepository, type SupabaseClientInput } from "@/repositories/clientsRepository";
 
+type SupabaseClientRecord = Awaited<ReturnType<typeof clientsRepository.listClients>>[number];
+
 export function useSupabaseClients() {
   const { workspace, loading: workspaceLoading } = useCurrentWorkspace();
-  const [clients, setClients] = useState<unknown[]>([]);
+  const [clients, setClients] = useState<SupabaseClientRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const requestSeq = useRef(0);
