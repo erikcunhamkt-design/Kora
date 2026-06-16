@@ -160,6 +160,7 @@ const Clientes = () => {
       } catch (err: any) {
         console.error("Supabase createClient error:", err);
         toast.error(`Erro ao criar cliente: ${err?.message || "desconhecido"}`);
+        throw err;
       }
     } else {
       localAdd(data);
@@ -196,6 +197,7 @@ const Clientes = () => {
         toast.success("Cliente atualizado no Supabase.");
       } catch (err) {
         toast.error("Erro ao atualizar cliente no Supabase.");
+        throw err;
       }
     } else {
       localUpdate(id, data);
