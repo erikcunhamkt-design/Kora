@@ -1,8 +1,14 @@
-// Processes whatsapp_queue (campaign rows) with anti-ban delays.
-// Trigger via cron (e.g., every minute). Each invocation picks up to BATCH rows
-// whose scheduled_at <= now() and status='pending', sends them with random
-// 30-90s gaps, and schedules the next batch.
-import { createClient } from "npm:@supabase/supabase-js@2";
+// Processes whatsapp_queue (campaign rows) with anti-ban pacing.
+//
+// Design (Batch 3): the 30-90s anti-ban gap is enforced at the DB via a
+// per-instance gate (whatsapp_instances.campaign_next_send_at), NOT by
+// sleeping inside this function. Each cron tick (every minute) calls
+// claim_campaign_messages(), which atomically hands back at most ONE due
+// message per workspace whose gate is open, flips it to 'sending', and
+// closes that instance's gate for a random 30-90s. We send those messages
+// and return in seconds — no long-running invocation, no rows stranded in
+// 'sending'. A reaper resets anything stuck (crash / legacy sleep-loop rows).
+import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -16,12 +22,15 @@ const UAZ_BASE = (() => {
   return `https://${SUBDOMAIN}.uazapi.com`;
 })();
 
-// Anti-ban tuning
-const MIN_DELAY_MS = 30_000;   // 30s
-const MAX_DELAY_MS = 90_000;   // 90s
-const BATCH = 5;               // messages per invocation
-const TYPING_MIN_MS = 1500;
-const TYPING_MAX_MS = 4000;
+// Anti-ban tuning. MIN/MAX delay is enforced DB-side (the gate); kept here to
+// pass into the claim RPC. BATCH caps distinct-workspace sends per invocation
+// so wall-clock stays bounded (BATCH x typing <= a few seconds).
+const MIN_DELAY_S = 30;
+const MAX_DELAY_S = 90;
+const BATCH = 8;
+const STUCK_CUTOFF_S = 300; // reset 'sending' rows older than 5min
+const TYPING_MIN_MS = 1200;
+const TYPING_MAX_MS = 2800;
 
 const rand = (min: number, max: number) => Math.floor(min + Math.random() * (max - min));
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -44,14 +53,40 @@ function renderTemplate(tpl: string, vars: Record<string, unknown> | null, recip
   return out;
 }
 
-interface QueueRow {
+interface ClaimedRow {
   id: string;
   campaign_id: string;
   workspace_id: string;
   phone: string;
   recipient_name: string | null;
   variables: Record<string, unknown> | null;
-  status: string;
+  instance_id: string;
+  instance_token: string;
+}
+
+async function refreshCampaignCounts(admin: SupabaseClient, campaignId: string) {
+  const [{ count: sentCount }, { count: failedCount }] = await Promise.all([
+    admin.from("whatsapp_queue").select("id", { count: "exact", head: true })
+      .eq("campaign_id", campaignId).eq("status", "sent"),
+    admin.from("whatsapp_queue").select("id", { count: "exact", head: true })
+      .eq("campaign_id", campaignId).eq("status", "failed"),
+  ]);
+  await admin.from("whatsapp_campaigns").update({
+    sent_contacts: sentCount ?? 0,
+    failed_contacts: failedCount ?? 0,
+    status: "running",
+  }).eq("id", campaignId);
+}
+
+async function completeIfDrained(admin: SupabaseClient, campaignId: string) {
+  const { count } = await admin
+    .from("whatsapp_queue")
+    .select("id", { count: "exact", head: true })
+    .eq("campaign_id", campaignId)
+    .in("status", ["pending", "sending"]);
+  if ((count ?? 0) === 0) {
+    await admin.from("whatsapp_campaigns").update({ status: "completed" }).eq("id", campaignId);
+  }
 }
 
 Deno.serve(async (req) => {
@@ -60,119 +95,88 @@ Deno.serve(async (req) => {
   try {
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 
-    // Fetch due rows
-    const { data: rows, error: rowsErr } = await admin
-      .from("whatsapp_queue")
-      .select("*")
-      .eq("status", "pending")
-      .lte("scheduled_at", new Date().toISOString())
-      .order("scheduled_at", { ascending: true })
-      .limit(BATCH);
+    // 1) Self-heal: return rows stuck in 'sending' back to 'pending'.
+    const { data: reaped } = await admin.rpc("reap_stuck_campaign_messages", {
+      p_cutoff_s: STUCK_CUTOFF_S,
+    });
 
-    if (rowsErr) return json({ error: rowsErr.message }, 500);
-    if (!rows || rows.length === 0) return json({ ok: true, processed: 0 });
+    // 2) Claim at most one due message per workspace (gate-paced, atomic).
+    const { data: claimed, error: claimErr } = await admin.rpc("claim_campaign_messages", {
+      p_max_workspaces: BATCH,
+      p_min_delay_s: MIN_DELAY_S,
+      p_max_delay_s: MAX_DELAY_S,
+    });
+    if (claimErr) return json({ error: claimErr.message }, 500);
 
-    // Group by campaign for shared instance/template lookup
-    const campaignCache = new Map<string, { template: string; workspace_id: string }>();
-    const instanceCache = new Map<string, { id: string; instance_token: string; status: string } | null>();
+    const rows = (claimed ?? []) as ClaimedRow[];
+    if (rows.length === 0) return json({ ok: true, processed: 0, reaped: reaped ?? 0 });
 
-    let processed = 0;
+    const templateCache = new Map<string, string>();
     let sent = 0;
     let failed = 0;
 
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i] as QueueRow;
-
-      // Mark as sending to avoid double pick-up by concurrent runs
-      const { error: lockErr } = await admin
-        .from("whatsapp_queue")
-        .update({ status: "sending" })
-        .eq("id", row.id)
-        .eq("status", "pending");
-      if (lockErr) {
-        console.error("[campaign] lock error", lockErr.message);
-        continue;
-      }
-
+    for (const row of rows) {
       try {
-        // Load campaign template
-        let campaign = campaignCache.get(row.campaign_id);
-        if (!campaign) {
+        // Campaign template (cached per invocation).
+        let template = templateCache.get(row.campaign_id);
+        if (template === undefined) {
           const { data: c } = await admin
             .from("whatsapp_campaigns")
-            .select("message_template, workspace_id")
+            .select("message_template")
             .eq("id", row.campaign_id)
             .maybeSingle();
           if (!c) throw new Error("campaign not found");
-          campaign = { template: c.message_template ?? "", workspace_id: c.workspace_id };
-          campaignCache.set(row.campaign_id, campaign);
+          template = c.message_template ?? "";
+          templateCache.set(row.campaign_id, template);
         }
 
-        // Load workspace instance
-        let instance = instanceCache.get(row.workspace_id);
-        if (instance === undefined) {
-          const { data: ins } = await admin
-            .from("whatsapp_instances")
-            .select("id, instance_token, status")
-            .eq("workspace_id", row.workspace_id)
-            .maybeSingle();
-          instance = ins ?? null;
-          instanceCache.set(row.workspace_id, instance);
-        }
-        if (!instance || instance.status !== "connected") {
-          throw new Error("instance not connected");
-        }
-
-        const text = renderTemplate(campaign.template, row.variables, row.recipient_name);
+        const text = renderTemplate(template, row.variables, row.recipient_name);
         const cleanPhone = String(row.phone).replace(/\D/g, "");
         if (!cleanPhone) throw new Error("invalid phone");
 
-        // Simulate typing (anti-ban)
+        // Short typing presence (bounded; not the old 30-90s loop).
         const typingMs = rand(TYPING_MIN_MS, TYPING_MAX_MS);
         try {
           await fetch(`${UAZ_BASE}/send/presence`, {
             method: "POST",
-            headers: { "Content-Type": "application/json", token: instance.instance_token },
+            headers: { "Content-Type": "application/json", token: row.instance_token },
             body: JSON.stringify({ number: cleanPhone, presence: "composing", delay: typingMs }),
           });
         } catch { /* best effort */ }
         await sleep(typingMs);
 
-        // Send
         const sendRes = await fetch(`${UAZ_BASE}/send/text`, {
           method: "POST",
-          headers: { "Content-Type": "application/json", token: instance.instance_token },
+          headers: { "Content-Type": "application/json", token: row.instance_token },
           body: JSON.stringify({ number: cleanPhone, text }),
         });
         const sendText = await sendRes.text();
-
-        if (!sendRes.ok) {
-          throw new Error(`uazapi ${sendRes.status}: ${sendText.slice(0, 200)}`);
-        }
+        if (!sendRes.ok) throw new Error(`uazapi ${sendRes.status}: ${sendText.slice(0, 200)}`);
 
         let sendData: Record<string, unknown> = {};
         try { sendData = JSON.parse(sendText); } catch { /* keep */ }
         const waMessageId = (sendData.messageid as string) || (sendData.id as string) || null;
 
-        // Log as outbound message + ensure conversation exists
+        // Ensure conversation + log outbound message.
         const { data: conv } = await admin
           .from("whatsapp_conversations")
           .select("id")
-          .eq("instance_id", instance.id)
+          .eq("instance_id", row.instance_id)
           .eq("contact_phone", cleanPhone)
           .maybeSingle();
 
         let conversationId = conv?.id as string | undefined;
+        const nowIso = new Date().toISOString();
         if (!conversationId) {
           const { data: newConv } = await admin
             .from("whatsapp_conversations")
             .insert({
               workspace_id: row.workspace_id,
-              instance_id: instance.id,
+              instance_id: row.instance_id,
               contact_phone: cleanPhone,
               contact_name: row.recipient_name,
               last_message: text,
-              last_message_at: new Date().toISOString(),
+              last_message_at: nowIso,
               unread_count: 0,
               status: "open",
             })
@@ -182,15 +186,15 @@ Deno.serve(async (req) => {
         } else {
           await admin.from("whatsapp_conversations").update({
             last_message: text,
-            last_message_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
+            last_message_at: nowIso,
+            updated_at: nowIso,
           }).eq("id", conversationId);
         }
 
         if (conversationId) {
-          await admin.from("whatsapp_messages").insert({
+          await admin.from("whatsapp_messages").upsert({
             workspace_id: row.workspace_id,
-            instance_id: instance.id,
+            instance_id: row.instance_id,
             conversation_id: conversationId,
             wa_message_id: waMessageId,
             direction: "outbound",
@@ -198,25 +202,17 @@ Deno.serve(async (req) => {
             content: text,
             body: text,
             status: "sent",
-            timestamp: new Date().toISOString(),
-          });
+            timestamp: nowIso,
+          }, { onConflict: "instance_id,wa_message_id", ignoreDuplicates: true });
         }
 
         await admin.from("whatsapp_queue").update({
           status: "sent",
-          sent_at: new Date().toISOString(),
+          sent_at: nowIso,
+          locked_at: null,
         }).eq("id", row.id);
 
-        await admin.rpc("update_timestamp"); // no-op safety; ignore if not callable
-        await admin.from("whatsapp_campaigns").update({
-          sent_contacts: (await admin
-            .from("whatsapp_queue")
-            .select("id", { count: "exact", head: true })
-            .eq("campaign_id", row.campaign_id)
-            .eq("status", "sent")).count ?? 0,
-          status: "running",
-        }).eq("id", row.campaign_id);
-
+        await refreshCampaignCounts(admin, row.campaign_id);
         sent++;
       } catch (e) {
         const msg = (e as Error).message ?? String(e);
@@ -224,39 +220,20 @@ Deno.serve(async (req) => {
         await admin.from("whatsapp_queue").update({
           status: "failed",
           error_message: msg.slice(0, 500),
+          locked_at: null,
         }).eq("id", row.id);
-        await admin.from("whatsapp_campaigns").update({
-          failed_contacts: (await admin
-            .from("whatsapp_queue")
-            .select("id", { count: "exact", head: true })
-            .eq("campaign_id", row.campaign_id)
-            .eq("status", "failed")).count ?? 0,
-        }).eq("id", row.campaign_id);
+        await refreshCampaignCounts(admin, row.campaign_id);
         failed++;
       }
-
-      processed++;
-
-      // Anti-ban random gap between sends (except after the last one)
-      if (i < rows.length - 1) {
-        await sleep(rand(MIN_DELAY_MS, MAX_DELAY_MS));
-      }
     }
 
-    // Mark campaigns as completed when no pending rows remain
+    // Mark drained campaigns completed.
     const campaignIds = Array.from(new Set(rows.map((r) => r.campaign_id)));
     for (const cid of campaignIds) {
-      const { count: pendingCount } = await admin
-        .from("whatsapp_queue")
-        .select("id", { count: "exact", head: true })
-        .eq("campaign_id", cid)
-        .in("status", ["pending", "sending"]);
-      if ((pendingCount ?? 0) === 0) {
-        await admin.from("whatsapp_campaigns").update({ status: "completed" }).eq("id", cid);
-      }
+      await completeIfDrained(admin, cid);
     }
 
-    return json({ ok: true, processed, sent, failed });
+    return json({ ok: true, processed: rows.length, sent, failed, reaped: reaped ?? 0 });
   } catch (e) {
     console.error("[campaign] fatal", e);
     return json({ error: (e as Error).message }, 500);
