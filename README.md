@@ -1,3 +1,3 @@
-# Welcome to your Lovable project
+# Kora Hub
 
-TODO: Document your project here
+Gestão e produtividade completa para agências, estúdios e empresas.

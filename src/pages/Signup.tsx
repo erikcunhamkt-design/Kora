@@ -66,7 +66,7 @@ export default function Signup() {
             <div className="h-11 w-11 rounded-xl orbit-gradient flex items-center justify-center shadow-[0_0_24px_hsl(263_84%_58%/0.3)]">
               <Orbit className="h-5 w-5 text-white" />
             </div>
-            <span className="text-2xl font-bold orbit-gradient-text">Orbit</span>
+            <span className="text-2xl font-bold orbit-gradient-text">Kora Hub</span>
           </div>
           <p className="text-muted-foreground text-[0.9375rem]">Crie sua conta e comece agora</p>
         </div>

@@ -36,9 +36,9 @@ export default function ForgotPassword() {
         <div className="text-center space-y-2">
           <div className="inline-flex items-center gap-2">
             <div className="h-10 w-10 rounded-xl orbit-gradient flex items-center justify-center">
-              <span className="text-white font-bold text-lg">O</span>
+              <span className="text-white font-bold text-lg">K</span>
             </div>
-            <span className="text-2xl font-bold text-foreground">Orbit</span>
+            <span className="text-2xl font-bold text-foreground">Kora Hub</span>
           </div>
         </div>
 

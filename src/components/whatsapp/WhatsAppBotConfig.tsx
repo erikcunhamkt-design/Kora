@@ -528,7 +528,7 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
                     <Textarea
                       value={activeNode.properties.instruction}
                       onChange={(e) => updateNodeProperty("node-ai", "instruction", e.target.value)}
-                      placeholder="Ex: Você é a Sofia, atendente da Orbit. Seja conciso e cordal..."
+                      placeholder="Ex: Você é a Sofia, atendente da Kora Hub. Seja conciso e cordal..."
                       className="min-h-[100px] text-xs bg-background/30"
                     />
                   </div>

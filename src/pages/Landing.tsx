@@ -69,8 +69,8 @@ const benefits = [
 ];
 
 const testimonials = [
-  { name: "Lucas Mendes", role: "Designer UI/UX", avatar: "LM", text: "O Orbit mudou completamente minha rotina. Antes eu vivia perdido entre planilhas e mensagens. Agora tenho tudo em um lugar só." },
-  { name: "Camila Rocha", role: "Designer Freelancer", avatar: "CR", text: "Finalmente consigo ver quanto realmente faturei no mês. O financeiro do Orbit é um game changer pra quem trabalha sozinho." },
+  { name: "Lucas Mendes", role: "Designer UI/UX", avatar: "LM", text: "O Kora Hub mudou completamente minha rotina. Antes eu vivia perdido entre planilhas e mensagens. Agora tenho tudo em um lugar só." },
+  { name: "Camila Rocha", role: "Designer Freelancer", avatar: "CR", text: "Finalmente consigo ver quanto realmente faturei no mês. O financeiro do Kora Hub é um game changer pra quem trabalha sozinho." },
   { name: "Rafael Souza", role: "Diretor de Arte", avatar: "RS", text: "O CRM me ajudou a fechar 3 projetos que eu teria esquecido. Melhor investimento que já fiz no meu negócio." },
 ];
 
@@ -174,7 +174,7 @@ const Landing = () => {
               <span className="w-3 h-3 rounded-full bg-[hsl(0_84%_60%/0.8)]" />
               <span className="w-3 h-3 rounded-full bg-[hsl(45_93%_47%/0.8)]" />
               <span className="w-3 h-3 rounded-full bg-[hsl(142_71%_45%/0.8)]" />
-              <span className="ml-4 text-xs text-muted-foreground/60 font-medium">Orbit — Dashboard</span>
+              <span className="ml-4 text-xs text-muted-foreground/60 font-medium">Kora Hub — Dashboard</span>
             </div>
             {/* mock dashboard */}
             <div className="p-6 md:p-8 space-y-5">
@@ -249,7 +249,7 @@ const Landing = () => {
             <div className="space-y-4">
               <p className="text-sm font-semibold text-primary uppercase tracking-wider">A solução</p>
               <h2 className="text-3xl md:text-4xl font-bold">Tudo que você precisa, em um só lugar</h2>
-              <p className="text-muted-foreground max-w-xl mx-auto">O Orbit reúne todos os módulos que um designer precisa para trabalhar com profissionalismo.</p>
+              <p className="text-muted-foreground max-w-xl mx-auto">O Kora Hub reúne todos os módulos que um designer precisa para trabalhar com profissionalismo.</p>
             </div>
           </Reveal>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -277,7 +277,7 @@ const Landing = () => {
           <Reveal>
             <div className="space-y-4">
               <p className="text-sm font-semibold text-primary uppercase tracking-wider">Conheça o sistema</p>
-              <h2 className="text-3xl md:text-4xl font-bold">Veja o Orbit em ação</h2>
+              <h2 className="text-3xl md:text-4xl font-bold">Veja o Kora Hub em ação</h2>
             </div>
           </Reveal>
           <div className="grid sm:grid-cols-2 gap-5">
@@ -309,7 +309,7 @@ const Landing = () => {
           <Reveal>
             <div className="space-y-4">
               <p className="text-sm font-semibold text-primary uppercase tracking-wider">Benefícios</p>
-              <h2 className="text-3xl md:text-4xl font-bold">Por que designers escolhem o Orbit</h2>
+              <h2 className="text-3xl md:text-4xl font-bold">Por que designers escolhem o Kora Hub</h2>
             </div>
           </Reveal>
           <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-6">
@@ -338,7 +338,7 @@ const Landing = () => {
             <div className="space-y-4">
               <p className="text-sm font-semibold text-primary uppercase tracking-wider">Depoimentos</p>
               <h2 className="text-3xl md:text-4xl font-bold">Quem usa, recomenda</h2>
-              <p className="text-muted-foreground">+2.000 designers já usam o Orbit</p>
+              <p className="text-muted-foreground">+2.000 designers já usam o Kora Hub</p>
             </div>
           </Reveal>
           <div className="grid md:grid-cols-3 gap-5">
@@ -439,7 +439,7 @@ const Landing = () => {
                 <Sparkles className="h-8 w-8 text-primary-foreground" />
               </div>
               <h2 className="text-3xl md:text-4xl font-bold">Comece a organizar seu trabalho hoje</h2>
-              <p className="text-muted-foreground max-w-lg mx-auto text-lg">Junte-se a milhares de designers que já transformaram sua rotina com o Orbit.</p>
+              <p className="text-muted-foreground max-w-lg mx-auto text-lg">Junte-se a milhares de designers que já transformaram sua rotina com o Kora Hub.</p>
               <Button
                 size="lg"
                 className="orbit-gradient border-0 h-13 px-12 text-base font-semibold shadow-[0_0_30px_hsl(263_84%_58%/0.3)] hover:shadow-[0_0_40px_hsl(263_84%_58%/0.4)]"
@@ -473,7 +473,7 @@ const Landing = () => {
               <span className="cursor-default hover:text-foreground transition-colors">Contato</span>
             </div>
           </div>
-          <p className="text-sm text-muted-soft">© {new Date().getFullYear()} Orbit. Todos os direitos reservados.</p>
+          <p className="text-sm text-muted-soft">© {new Date().getFullYear()} Kora Hub. Todos os direitos reservados.</p>
         </div>
       </footer>
     </div>
