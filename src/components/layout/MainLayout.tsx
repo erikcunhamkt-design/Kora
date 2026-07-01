@@ -3,6 +3,7 @@ import { AppSidebar } from "./AppSidebar";
 import { TopBar } from "./TopBar";
 import { Footer } from "./Footer";
 import { AccessibilityOnboardingDialog } from "@/components/accessibility/AccessibilityOnboardingDialog";
+import { PageErrorBoundary } from "@/components/error/PageErrorBoundary";
 import { useWhatsAppUnansweredAlert } from "@/hooks/useWhatsAppUnansweredAlert";
 
 export function MainLayout({ children }: { children: React.ReactNode }) {
@@ -16,7 +17,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
           <TopBar />
           <main className="flex-1 overflow-y-auto overflow-x-hidden flex flex-col justify-between">
             <div className="mx-auto w-full max-w-[1600px] p-6 w-full flex-1">
-              {children}
+              <PageErrorBoundary>{children}</PageErrorBoundary>
             </div>
             <Footer />
           </main>

@@ -13,6 +13,8 @@ import { OnboardingGate } from "@/components/onboarding/OnboardingGate";
 import { PaywallModal } from "@/components/plan/PaywallModal";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { FocusSpotlightProvider } from "@/components/accessibility/FocusSpotlightProvider";
+import { ErrorBoundary } from "@/components/error/ErrorBoundary";
+import { RootErrorFallback } from "@/components/error/RootErrorFallback";
 import Index from "./pages/Index";
 import Portfolio from "./pages/Portfolio";
 import Clientes from "./pages/Clientes";
@@ -44,6 +46,7 @@ import WhatsAppPage from "./pages/WhatsApp";
 const queryClient = new QueryClient();
 
 const App = () => (
+  <ErrorBoundary fallback={({ error }) => <RootErrorFallback error={error} />}>
   <QueryClientProvider client={queryClient}>
     <LanguageProvider>
       <AccessibilityProvider>
@@ -100,6 +103,7 @@ const App = () => (
     </AccessibilityProvider>
    </LanguageProvider>
   </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;
