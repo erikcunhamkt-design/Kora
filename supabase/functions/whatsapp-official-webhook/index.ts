@@ -118,7 +118,7 @@ Deno.serve(async (req) => {
         const preview = text?.slice(0, 200) ?? `[${msg.type}]`;
         const convId = await upsertConversation(cred.workspace_id, instanceId, from, preview, ts);
         if (!convId) continue;
-        await admin.from("whatsapp_messages").insert({
+        await admin.from("whatsapp_messages").upsert({
           workspace_id: cred.workspace_id,
           instance_id: instanceId,
           conversation_id: convId,
@@ -130,7 +130,7 @@ Deno.serve(async (req) => {
           status: "received",
           timestamp: ts,
           raw_payload: msg,
-        });
+        }, { onConflict: "instance_id,wa_message_id", ignoreDuplicates: true });
       }
     }
   }

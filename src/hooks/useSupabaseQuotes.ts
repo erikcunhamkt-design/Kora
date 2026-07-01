@@ -20,16 +20,13 @@ export function useSupabaseQuotes() {
     setError(null);
     try {
       const supabaseQuotes = await quotesRepository.listQuotes(workspaceId);
-      const localQuotes = supabaseQuotes.map(mapSupabaseQuoteToLocalQuote);
-      // For each quote, fetch its items
-      const promises = supabaseQuotes.map(async (sq) => {
-        const items = await quotesRepository.listQuoteItems(workspaceId, sq.id);
-        return { sq, items };
-      });
-      const results = await Promise.all(promises);
-      const enriched = results.map(({ sq, items }) => {
+      const itemsByQuoteId = await quotesRepository.listQuoteItemsForQuotes(
+        workspaceId,
+        supabaseQuotes.map((sq) => sq.id),
+      );
+      const enriched = supabaseQuotes.map((sq) => {
         const q = mapSupabaseQuoteToLocalQuote(sq);
-        q.items = items.map(mapSupabaseQuoteItemToLocalItem);
+        q.items = (itemsByQuoteId[sq.id] ?? []).map(mapSupabaseQuoteItemToLocalItem);
         return q;
       });
       setQuotes(enriched);

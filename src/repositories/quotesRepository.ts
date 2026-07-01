@@ -116,6 +116,21 @@ export const quotesRepository = {
     return data as SupabaseQuoteItem[];
   },
 
+  async listQuoteItemsForQuotes(workspaceId: string, quoteIds: string[]) {
+    if (!quoteIds.length) return {} as Record<string, SupabaseQuoteItem[]>;
+    const { data, error } = await supabase
+      .from("quote_items")
+      .select("*")
+      .in("quote_id", quoteIds)
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    const grouped: Record<string, SupabaseQuoteItem[]> = {};
+    for (const row of data as SupabaseQuoteItem[]) {
+      (grouped[row.quote_id] ||= []).push(row);
+    }
+    return grouped;
+  },
+
   async replaceQuoteItems(workspaceId: string, quoteId: string, items: Omit<SupabaseQuoteItem, "id" | "quote_id" | "created_at" | "updated_at">[]) {
     // Delete existing items for the quote
     await supabase.from("quote_items").delete().eq("quote_id", quoteId);

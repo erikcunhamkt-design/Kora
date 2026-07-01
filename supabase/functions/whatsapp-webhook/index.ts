@@ -547,7 +547,17 @@ Deno.serve(async (req) => {
       raw_payload: payload,
     }).select().single();
 
-    if (dbMsgErr) throw dbMsgErr;
+    if (dbMsgErr) {
+      // 23505 = unique_violation: concurrent webhook retry raced past the SELECT-first
+      // dedup above and hit the (instance_id, wa_message_id) UNIQUE. Treat as benign.
+      if ((dbMsgErr as { code?: string }).code === "23505") {
+        return new Response(JSON.stringify({ ok: true, deduped: true }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      throw dbMsgErr;
+    }
 
     if (extracted && dbMsg) {
       const { error: mediaErr } = await admin
