@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { supabase } from "@/integrations/supabase/client";
+import { normalizeSupabaseError } from "@/lib/supabase/errors";
 
 export interface SupabaseTask {
   id: string;
@@ -33,7 +34,7 @@ export const tasksRepository = {
       .order("sort_order", { ascending: true })
       .order("created_at", { ascending: true });
 
-    if (error) throw error;
+    if (error) throw normalizeSupabaseError(error);
     return (data as SupabaseTask[]) || [];
   },
 
@@ -50,7 +51,7 @@ export const tasksRepository = {
       )
       .select();
 
-    if (error) throw error;
+    if (error) throw normalizeSupabaseError(error);
     return (data as SupabaseTask[]) || [];
   },
 
@@ -63,7 +64,7 @@ export const tasksRepository = {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) throw normalizeSupabaseError(error);
     return data as SupabaseTask;
   },
 
@@ -80,7 +81,7 @@ export const tasksRepository = {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) throw normalizeSupabaseError(error);
     return data as SupabaseTask;
   },
 };

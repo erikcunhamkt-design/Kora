@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { normalizeSupabaseError } from "@/lib/supabase/errors";
 
 export interface SupabaseClientInput {
   name: string;
@@ -47,7 +48,7 @@ export const clientsRepository = {
       .eq("workspace_id", workspaceId)
       .order("created_at", { ascending: false });
 
-    if (error) throw error;
+    if (error) throw normalizeSupabaseError(error);
     return data;
   },
 
@@ -61,7 +62,7 @@ export const clientsRepository = {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) throw normalizeSupabaseError(error);
     return data;
   },
 
@@ -74,7 +75,7 @@ export const clientsRepository = {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) throw normalizeSupabaseError(error);
     return data;
   },
 
@@ -87,7 +88,7 @@ export const clientsRepository = {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) throw normalizeSupabaseError(error);
     return data;
   },
 
@@ -98,7 +99,7 @@ export const clientsRepository = {
       .eq("id", clientId)
       .eq("workspace_id", workspaceId);
 
-    if (error) throw error;
+    if (error) throw normalizeSupabaseError(error);
     return true;
   },
 
@@ -110,7 +111,7 @@ export const clientsRepository = {
       .eq("client_id", clientId)
       .order("created_at", { ascending: true });
 
-    if (error) throw error;
+    if (error) throw normalizeSupabaseError(error);
     return data;
   },
 
@@ -125,7 +126,7 @@ export const clientsRepository = {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) throw normalizeSupabaseError(error);
     return data;
   },
 
@@ -138,7 +139,7 @@ export const clientsRepository = {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) throw normalizeSupabaseError(error);
     return data;
   },
 
@@ -149,7 +150,7 @@ export const clientsRepository = {
       .eq("id", contactId)
       .eq("workspace_id", workspaceId);
 
-    if (error) throw error;
+    if (error) throw normalizeSupabaseError(error);
     return true;
   },
 };

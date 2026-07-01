@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { normalizeSupabaseError } from "@/lib/supabase/errors";
 
 export interface SupabaseOpportunity {
   id: string;
@@ -85,7 +86,7 @@ export const crmOpportunitiesRepository = {
 
     const { data, error } = await query.order("created_at", { ascending: false });
 
-    if (error) throw error;
+    if (error) throw normalizeSupabaseError(error);
     return data;
   },
 
@@ -97,7 +98,7 @@ export const crmOpportunitiesRepository = {
       .eq("workspace_id", workspaceId)
       .single();
 
-    if (error) throw error;
+    if (error) throw normalizeSupabaseError(error);
     return data;
   },
 
@@ -111,7 +112,7 @@ export const crmOpportunitiesRepository = {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) throw normalizeSupabaseError(error);
     return data;
   },
 
@@ -124,7 +125,7 @@ export const crmOpportunitiesRepository = {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) throw normalizeSupabaseError(error);
     return data;
   },
 
@@ -180,7 +181,7 @@ export const crmOpportunitiesRepository = {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) throw normalizeSupabaseError(error);
     return data;
   },
 
@@ -199,7 +200,7 @@ export const crmOpportunitiesRepository = {
       .eq("workspace_id", workspaceId)
       .select()
       .single();
-    if (error) throw error;
+    if (error) throw normalizeSupabaseError(error);
     return data;
   },
 
@@ -216,7 +217,7 @@ export const crmOpportunitiesRepository = {
       .eq("workspace_id", workspaceId)
       .select()
       .single();
-    if (error) throw error;
+    if (error) throw normalizeSupabaseError(error);
     return data;
   },
 
@@ -227,6 +228,6 @@ export const crmOpportunitiesRepository = {
       .eq("id", opportunityId)
       .eq("workspace_id", workspaceId);
 
-    if (error) throw error;
+    if (error) throw normalizeSupabaseError(error);
   },
 };

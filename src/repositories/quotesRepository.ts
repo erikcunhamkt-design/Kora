@@ -1,6 +1,7 @@
 // @ts-nocheck
 // Repository for Quotes (Supabase)
 import { supabase } from "@/integrations/supabase/client";
+import { normalizeSupabaseError } from "@/lib/supabase/errors";
 // Removed unused import of local Quote types
 
 export interface SupabaseQuote {
@@ -42,7 +43,7 @@ export const quotesRepository = {
       .select("*")
       .eq("workspace_id", workspaceId)
       .order("created_at", { ascending: false });
-    if (error) throw error;
+    if (error) throw normalizeSupabaseError(error);
     return data as SupabaseQuote[];
   },
 
@@ -53,7 +54,7 @@ export const quotesRepository = {
       .eq("id", quoteId)
       .eq("workspace_id", workspaceId)
       .single();
-    if (error) throw error;
+    if (error) throw normalizeSupabaseError(error);
     return data as SupabaseQuote;
   },
 
@@ -63,7 +64,7 @@ export const quotesRepository = {
       .insert({ workspace_id: workspaceId, ...input })
       .select()
       .single();
-    if (error) throw error;
+    if (error) throw normalizeSupabaseError(error);
     return data as SupabaseQuote;
   },
 
@@ -75,7 +76,7 @@ export const quotesRepository = {
       .eq("workspace_id", workspaceId)
       .select()
       .single();
-    if (error) throw error;
+    if (error) throw normalizeSupabaseError(error);
     return data as SupabaseQuote;
   },
 
@@ -87,7 +88,7 @@ export const quotesRepository = {
       .eq("workspace_id", workspaceId)
       .select()
       .single();
-    if (error) throw error;
+    if (error) throw normalizeSupabaseError(error);
     return data as SupabaseQuote;
   },
 
@@ -101,7 +102,7 @@ export const quotesRepository = {
       .eq("workspace_id", workspaceId)
       .select()
       .single();
-    if (error) throw error;
+    if (error) throw normalizeSupabaseError(error);
     return data as SupabaseQuote;
   },
 
@@ -112,7 +113,7 @@ export const quotesRepository = {
       .select("*")
       .eq("quote_id", quoteId)
       .order("created_at", { ascending: false });
-    if (error) throw error;
+    if (error) throw normalizeSupabaseError(error);
     return data as SupabaseQuoteItem[];
   },
 
@@ -123,7 +124,7 @@ export const quotesRepository = {
       .select("*")
       .in("quote_id", quoteIds)
       .order("created_at", { ascending: false });
-    if (error) throw error;
+    if (error) throw normalizeSupabaseError(error);
     const grouped: Record<string, SupabaseQuoteItem[]> = {};
     for (const row of data as SupabaseQuoteItem[]) {
       (grouped[row.quote_id] ||= []).push(row);
@@ -137,7 +138,7 @@ export const quotesRepository = {
     // Insert new items
     const toInsert = items.map((it) => ({ ...it, quote_id: quoteId }));
     const { data, error } = await supabase.from("quote_items").insert(toInsert).select();
-    if (error) throw error;
+    if (error) throw normalizeSupabaseError(error);
     return data as SupabaseQuoteItem[];
   },
 
@@ -149,7 +150,7 @@ export const quotesRepository = {
       .eq("opportunity_id", opportunityId)
       .is("deleted_at", null)
       .order("created_at", { ascending: false });
-    if (error) throw error;
+    if (error) throw normalizeSupabaseError(error);
     return data as SupabaseQuote[];
   },
 
@@ -166,7 +167,7 @@ export const quotesRepository = {
       .is("deleted_at", null)
       .select()
       .single();
-    if (error) throw error;
+    if (error) throw normalizeSupabaseError(error);
     return data as SupabaseQuote;
   },
 
@@ -183,7 +184,7 @@ export const quotesRepository = {
       .is("deleted_at", null)
       .select()
       .single();
-    if (error) throw error;
+    if (error) throw normalizeSupabaseError(error);
     return data as SupabaseQuote;
   },
 };

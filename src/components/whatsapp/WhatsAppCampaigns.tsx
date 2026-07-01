@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { toastError } from "@/lib/supabase/errors";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { CampaignModeBanner } from "@/components/whatsapp/campaigns/CampaignModeBanner";
@@ -44,7 +45,7 @@ export function WhatsAppCampaigns({ workspaceId }: { workspaceId: string }) {
       if (error) throw error;
       setCampaigns(data || []);
     } catch (e) {
-      toast.error("Erro ao carregar campanhas", { description: (e as Error).message });
+      toastError(e, "Erro ao carregar campanhas");
     } finally {
       setLoading(false);
     }
@@ -110,7 +111,7 @@ export function WhatsAppCampaigns({ workspaceId }: { workspaceId: string }) {
       setContactsText("");
       loadCampaigns();
     } catch (e) {
-      toast.error("Falha ao criar campanha", { description: (e as Error).message });
+      toastError(e, "Falha ao criar campanha");
     } finally {
       setCreating(false);
     }
@@ -138,7 +139,7 @@ export function WhatsAppCampaigns({ workspaceId }: { workspaceId: string }) {
       toast.success("Disparo iniciado!");
       triggerProcessing(campaignId);
     } catch (e) {
-      toast.error("Erro ao iniciar disparo", { description: (e as Error).message });
+      toastError(e, "Erro ao iniciar disparo");
     }
   };
 
@@ -152,7 +153,7 @@ export function WhatsAppCampaigns({ workspaceId }: { workspaceId: string }) {
       toast.success("Campanha pausada!");
       loadCampaigns();
     } catch (e) {
-      toast.error("Erro ao pausar campanha", { description: (e as Error).message });
+      toastError(e, "Erro ao pausar campanha");
     }
   };
 

@@ -2,6 +2,7 @@
 // Não cria clientes automaticamente. Sempre filtra por workspace.
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { normalizeSupabaseError } from "@/lib/supabase/errors";
 import {
   normalizeBrazilianPhone,
   validateBrazilianPhone,
@@ -47,7 +48,7 @@ export async function listAudiences(workspaceId: string): Promise<WhatsAppAudien
     .eq("workspace_id", workspaceId)
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
-  if (error) throw error;
+  if (error) throw normalizeSupabaseError(error);
   return (data ?? []) as WhatsAppAudience[];
 }
 
@@ -67,7 +68,7 @@ export async function createAudience(
     })
     .select()
     .single();
-  if (error) throw error;
+  if (error) throw normalizeSupabaseError(error);
   return data as WhatsAppAudience;
 }
 
@@ -77,7 +78,7 @@ export async function archiveAudience(workspaceId: string, audienceId: string): 
     .update({ archived: true, status: "archived" })
     .eq("workspace_id", workspaceId)
     .eq("id", audienceId);
-  if (error) throw error;
+  if (error) throw normalizeSupabaseError(error);
 }
 
 export async function deleteAudience(workspaceId: string, audienceId: string): Promise<void> {
@@ -86,7 +87,7 @@ export async function deleteAudience(workspaceId: string, audienceId: string): P
     .update({ deleted_at: new Date().toISOString() })
     .eq("workspace_id", workspaceId)
     .eq("id", audienceId);
-  if (error) throw error;
+  if (error) throw normalizeSupabaseError(error);
 }
 
 export async function listAudienceContacts(
@@ -100,7 +101,7 @@ export async function listAudienceContacts(
     .eq("audience_id", audienceId)
     .is("deleted_at", null)
     .order("created_at", { ascending: true });
-  if (error) throw error;
+  if (error) throw normalizeSupabaseError(error);
   return (data ?? []) as WhatsAppAudienceContact[];
 }
 
@@ -250,7 +251,7 @@ export async function importAudienceContacts(
   for (let i = 0; i < rows.length; i += 500) {
     const slice = rows.slice(i, i + 500);
     const { error } = await supabase.from("whatsapp_audience_contacts").insert(slice);
-    if (error) throw error;
+    if (error) throw normalizeSupabaseError(error);
   }
 
   // 6. atualiza contadores na audiência
@@ -287,6 +288,6 @@ export async function removeAudienceContacts(
   if (filter.optOut) q = q.eq("opt_out", true);
 
   const { data, error } = await q.select("id");
-  if (error) throw error;
+  if (error) throw normalizeSupabaseError(error);
   return data?.length ?? 0;
 }

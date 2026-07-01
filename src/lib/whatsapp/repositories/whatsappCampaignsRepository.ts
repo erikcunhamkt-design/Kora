@@ -2,6 +2,7 @@
 // Esta fase: cria campanha + recipients. Envio real desabilitado.
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { normalizeSupabaseError } from "@/lib/supabase/errors";
 
 export type WhatsAppCampaignV2 =
   Database["public"]["Tables"]["whatsapp_campaigns_v2"]["Row"];
@@ -33,7 +34,7 @@ export async function listCampaigns(workspaceId: string): Promise<WhatsAppCampai
     .eq("workspace_id", workspaceId)
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
-  if (error) throw error;
+  if (error) throw normalizeSupabaseError(error);
   return (data ?? []) as WhatsAppCampaignV2[];
 }
 
@@ -48,7 +49,7 @@ export async function createCampaign(
     .eq("workspace_id", workspaceId)
     .eq("id", input.templateId)
     .single();
-  if (tplErr) throw tplErr;
+  if (tplErr) throw normalizeSupabaseError(tplErr);
   if (tpl.deleted_at) {
     throw new Error("Selecione um modelo de mensagem ativo para continuar.");
   }
@@ -73,7 +74,7 @@ export async function createCampaign(
     })
     .select()
     .single();
-  if (error) throw error;
+  if (error) throw normalizeSupabaseError(error);
   return data as WhatsAppCampaignV2;
 }
 
@@ -97,7 +98,7 @@ export async function prepareCampaignRecipients(
     .eq("workspace_id", workspaceId)
     .eq("audience_id", audienceId)
     .is("deleted_at", null);
-  if (error) throw error;
+  if (error) throw normalizeSupabaseError(error);
 
   const rows = (contacts ?? []).map((c) => {
     let status: string = "pending";
@@ -135,7 +136,7 @@ export async function prepareCampaignRecipients(
     const { error: insErr } = await supabase
       .from("whatsapp_campaign_recipients")
       .insert(slice);
-    if (insErr) throw insErr;
+    if (insErr) throw normalizeSupabaseError(insErr);
   }
 
   await supabase
@@ -158,7 +159,7 @@ export async function listCampaignRecipients(
     .eq("campaign_id", campaignId)
     .is("deleted_at", null)
     .order("created_at", { ascending: true });
-  if (error) throw error;
+  if (error) throw normalizeSupabaseError(error);
   return (data ?? []) as WhatsAppCampaignRecipient[];
 }
 
@@ -172,7 +173,7 @@ export async function updateCampaignStatus(
     .update({ status })
     .eq("workspace_id", workspaceId)
     .eq("id", campaignId);
-  if (error) throw error;
+  if (error) throw normalizeSupabaseError(error);
 }
 
 export async function deleteCampaign(
@@ -184,7 +185,7 @@ export async function deleteCampaign(
     .update({ deleted_at: new Date().toISOString() })
     .eq("workspace_id", workspaceId)
     .eq("id", campaignId);
-  if (error) throw error;
+  if (error) throw normalizeSupabaseError(error);
 }
 
 export interface SenderBatchResult {
@@ -211,7 +212,7 @@ export async function invokeCampaignSenderBatch(
     "whatsapp-campaign-v2-sender",
     { body: { workspaceId, campaignId, action } },
   );
-  if (error) throw error;
+  if (error) throw normalizeSupabaseError(error);
   if (!data) throw new Error("Resposta vazia do sender.");
   return data;
 }
@@ -240,7 +241,7 @@ export async function listCampaignSendLogs(
     .eq("campaign_id", campaignId)
     .order("created_at", { ascending: false })
     .limit(limit);
-  if (error) throw error;
+  if (error) throw normalizeSupabaseError(error);
   return (data ?? []) as CampaignSendLog[];
 }
 

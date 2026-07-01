@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { supabase } from "@/integrations/supabase/client";
+import { normalizeSupabaseError } from "@/lib/supabase/errors";
 
 export interface SupabaseTechnicalSheetInput {
   branding?: Record<string, unknown>;
@@ -21,7 +22,7 @@ export const clientTechnicalSheetsRepository = {
       .eq("client_id", clientId)
       .maybeSingle();
 
-    if (error) throw error;
+    if (error) throw normalizeSupabaseError(error);
     return data;
   },
 
@@ -43,7 +44,7 @@ export const clientTechnicalSheetsRepository = {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) throw normalizeSupabaseError(error);
     return data;
   },
 
@@ -54,7 +55,7 @@ export const clientTechnicalSheetsRepository = {
       .eq("workspace_id", workspaceId)
       .eq("client_id", clientId);
 
-    if (error) throw error;
+    if (error) throw normalizeSupabaseError(error);
     return true;
   },
 };

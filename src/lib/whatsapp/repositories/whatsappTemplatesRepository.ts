@@ -2,6 +2,7 @@
 // Repository de Templates WhatsApp
 import { supabase } from "@/integrations/supabase/client";
 import type { Database, Json } from "@/integrations/supabase/types";
+import { normalizeSupabaseError } from "@/lib/supabase/errors";
 
 export type WhatsAppTemplate = Database["public"]["Tables"]["whatsapp_templates"]["Row"];
 export type TemplateCategory = "marketing" | "utility" | "authentication" | "service";
@@ -24,7 +25,7 @@ export async function listTemplates(workspaceId: string): Promise<WhatsAppTempla
     .eq("workspace_id", workspaceId)
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
-  if (error) throw error;
+  if (error) throw normalizeSupabaseError(error);
   return (data ?? []) as WhatsAppTemplate[];
 }
 
@@ -47,7 +48,7 @@ export async function createTemplate(
     })
     .select()
     .single();
-  if (error) throw error;
+  if (error) throw normalizeSupabaseError(error);
   return data as WhatsAppTemplate;
 }
 
@@ -72,7 +73,7 @@ export async function updateTemplate(
     .eq("id", templateId)
     .select()
     .single();
-  if (error) throw error;
+  if (error) throw normalizeSupabaseError(error);
   return data as WhatsAppTemplate;
 }
 
@@ -89,7 +90,7 @@ async function setStatus(
     .eq("id", templateId)
     .select()
     .single();
-  if (error) throw error;
+  if (error) throw normalizeSupabaseError(error);
   return data as WhatsAppTemplate;
 }
 
@@ -124,7 +125,7 @@ export async function deleteTemplate(workspaceId: string, templateId: string): P
     .update({ deleted_at: new Date().toISOString() })
     .eq("workspace_id", workspaceId)
     .eq("id", templateId);
-  if (error) throw error;
+  if (error) throw normalizeSupabaseError(error);
 }
 
 /** Renderiza preview do corpo substituindo {{var}} pelos sample_values. */

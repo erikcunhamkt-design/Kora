@@ -1,6 +1,7 @@
 // @ts-nocheck
 // Repository for Financial Transactions (Supabase)
 import { supabase } from "@/integrations/supabase/client";
+import { normalizeSupabaseError } from "@/lib/supabase/errors";
 
 export interface SupabaseFinancialTransaction {
   id: string;
@@ -34,7 +35,7 @@ export const financeRepository = {
       .eq("type", "receivable")
       .is("deleted_at", null);
 
-    if (error) throw error;
+    if (error) throw normalizeSupabaseError(error);
     return data as SupabaseFinancialTransaction[];
   },
 
@@ -51,7 +52,7 @@ export const financeRepository = {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) throw normalizeSupabaseError(error);
     return data as SupabaseFinancialTransaction;
   },
 
@@ -66,7 +67,7 @@ export const financeRepository = {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) throw normalizeSupabaseError(error);
     return data as SupabaseFinancialTransaction;
   },
 
@@ -78,7 +79,7 @@ export const financeRepository = {
       .is("deleted_at", null)
       .order("created_at", { ascending: false });
 
-    if (error) throw error;
+    if (error) throw normalizeSupabaseError(error);
     return data as SupabaseFinancialTransaction[];
   },
 };

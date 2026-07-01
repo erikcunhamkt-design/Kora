@@ -1,6 +1,7 @@
 // @ts-nocheck
 // Repository for Projects (Supabase)
 import { supabase } from "@/integrations/supabase/client";
+import { normalizeSupabaseError } from "@/lib/supabase/errors";
 
 export interface SupabaseProject {
   id: string;
@@ -32,7 +33,7 @@ export const projectsRepository = {
       .eq("source", "quote")
       .is("deleted_at", null);
 
-    if (error) throw error;
+    if (error) throw normalizeSupabaseError(error);
     return data as SupabaseProject[];
   },
 
@@ -48,7 +49,7 @@ export const projectsRepository = {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) throw normalizeSupabaseError(error);
     return data as SupabaseProject;
   },
 
@@ -63,7 +64,7 @@ export const projectsRepository = {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) throw normalizeSupabaseError(error);
     return data as SupabaseProject;
   },
 
@@ -75,7 +76,7 @@ export const projectsRepository = {
       .is("deleted_at", null)
       .order("created_at", { ascending: false });
 
-    if (error) throw error;
+    if (error) throw normalizeSupabaseError(error);
     return data as SupabaseProject[];
   },
 };
