@@ -100,10 +100,12 @@ Deno.serve(async (req) => {
         .maybeSingle();
       if (!cred) continue;
 
-      if (cred.app_secret) {
-        const ok = await verifySignature(raw, req.headers.get("x-hub-signature-256"), cred.app_secret);
-        if (!ok) { console.warn("invalid signature", phoneNumberId); continue; }
+      if (!cred.app_secret) {
+        console.warn("missing app_secret; refusing webhook entry", phoneNumberId);
+        continue;
       }
+      const ok = await verifySignature(raw, req.headers.get("x-hub-signature-256"), cred.app_secret);
+      if (!ok) { console.warn("invalid signature", phoneNumberId); continue; }
 
       const instanceId = await ensureOfficialInstance(cred.workspace_id);
       if (!instanceId) continue;
