@@ -60,6 +60,11 @@ const translations: Record<Language, Record<string, string>> = {
     "settings.language": "Idioma",
     "settings.appearance": "Aparência",
     "settings.accessibility": "Acessibilidade",
+
+    "error.page.title": "Algo deu errado nesta página",
+    "error.page.body": "Não foi possível carregar esta seção. Você pode tentar novamente ou voltar ao início.",
+    "error.page.retry": "Tentar novamente",
+    "error.page.home": "Voltar ao início",
   },
   "pt-PT": {
     "sidebar.dashboard": "Painel",
@@ -110,6 +115,11 @@ const translations: Record<Language, Record<string, string>> = {
     "settings.language": "Idioma",
     "settings.appearance": "Aparência",
     "settings.accessibility": "Acessibilidade",
+
+    "error.page.title": "Algo correu mal nesta página",
+    "error.page.body": "Não foi possível carregar esta secção. Pode tentar novamente ou voltar ao início.",
+    "error.page.retry": "Tentar novamente",
+    "error.page.home": "Voltar ao início",
   },
   "en": {
     "sidebar.dashboard": "Dashboard",
@@ -160,6 +170,11 @@ const translations: Record<Language, Record<string, string>> = {
     "settings.language": "Language",
     "settings.appearance": "Appearance",
     "settings.accessibility": "Accessibility",
+
+    "error.page.title": "Something went wrong on this page",
+    "error.page.body": "This section couldn't be loaded. You can try again or go back home.",
+    "error.page.retry": "Try again",
+    "error.page.home": "Back to home",
   },
   "es": {
     "sidebar.dashboard": "Inicio",
@@ -210,6 +225,11 @@ const translations: Record<Language, Record<string, string>> = {
     "settings.language": "Idioma",
     "settings.appearance": "Apariencia",
     "settings.accessibility": "Accesibilidad",
+
+    "error.page.title": "Algo salió mal en esta página",
+    "error.page.body": "No se pudo cargar esta sección. Puedes intentarlo de nuevo o volver al inicio.",
+    "error.page.retry": "Intentar de nuevo",
+    "error.page.home": "Volver al inicio",
   }
 };
 

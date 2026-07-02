@@ -1,9 +1,8 @@
 // Full-screen fallback for the top-level boundary. This renders when the crash
 // may have taken out the provider tree itself (router, contexts), so it must
 // NOT depend on any of them — no hooks, no context, no router. It reads the
-// saved language straight from localStorage to stay localized.
-
-type Lang = "pt-BR" | "pt-PT" | "en" | "es";
+// saved language straight from localStorage (shared resolver) to stay localized.
+import { resolveLang, type Lang } from "@/lib/i18n/locale";
 
 const COPY: Record<Lang, { title: string; body: string; reload: string; home: string }> = {
   "pt-BR": {
@@ -31,18 +30,6 @@ const COPY: Record<Lang, { title: string; body: string; reload: string; home: st
     home: "Ir al inicio",
   },
 };
-
-function resolveLang(): Lang {
-  try {
-    const saved = localStorage.getItem("kora.language.v1");
-    if (saved === "pt-BR" || saved === "pt-PT" || saved === "en" || saved === "es") {
-      return saved;
-    }
-  } catch {
-    /* ignore */
-  }
-  return "pt-BR";
-}
 
 export function RootErrorFallback({ error }: { error: Error }) {
   const t = COPY[resolveLang()];
