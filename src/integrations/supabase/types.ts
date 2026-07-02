@@ -2072,26 +2072,35 @@ export type Database = {
       workspaces: {
         Row: {
           created_at: string
+          currency: string
           id: string
+          locale: string
           name: string
           owner_id: string
           slug: string | null
+          timezone: string | null
           updated_at: string
         }
         Insert: {
           created_at?: string
+          currency?: string
           id?: string
+          locale?: string
           name: string
           owner_id: string
           slug?: string | null
+          timezone?: string | null
           updated_at?: string
         }
         Update: {
           created_at?: string
+          currency?: string
           id?: string
+          locale?: string
           name?: string
           owner_id?: string
           slug?: string | null
+          timezone?: string | null
           updated_at?: string
         }
         Relationships: [
