@@ -1,48 +1,38 @@
-import { useCallback, useEffect, useState } from "react";
+// Supabase project tasks — React Query (A2). Public API unchanged.
+import { useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { tasksRepository, type SupabaseTask } from "@/repositories/tasksRepository";
+import { getFriendlyMessage } from "@/lib/supabase/errors";
 
 export function useSupabaseProjectTasks(projectId?: string) {
   const { workspace } = useCurrentWorkspace();
-  const [tasks, setTasks] = useState<SupabaseTask[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
   const workspaceId = workspace?.id ?? "";
+  const queryClient = useQueryClient();
 
-  const fetchTasks = useCallback(async () => {
-    if (!workspaceId || !projectId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await tasksRepository.listTasksByProject(workspaceId, projectId);
-      setTasks(data);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Erro ao carregar tarefas do projeto");
-    } finally {
-      setLoading(false);
-    }
-  }, [workspaceId, projectId]);
+  const query = useQuery({
+    queryKey: ["supabase-project-tasks", workspaceId, projectId ?? null],
+    queryFn: () => tasksRepository.listTasksByProject(workspaceId, projectId!),
+    enabled: !!workspaceId && !!projectId,
+    staleTime: 30_000,
+  });
 
-  useEffect(() => {
-    fetchTasks();
-  }, [fetchTasks]);
-
-  const updateStatus = useCallback(async (taskId: string, status: "todo" | "in_progress" | "done") => {
-    if (!workspaceId) throw new Error("Workspace ativo ausente");
-    try {
+  const updateStatus = useCallback(
+    async (taskId: string, status: "todo" | "in_progress" | "done") => {
+      if (!workspaceId) throw new Error("Workspace ativo ausente");
       await tasksRepository.updateTaskStatus(workspaceId, taskId, status);
-      await fetchTasks();
-    } catch (e: unknown) {
-      throw new Error(e instanceof Error ? e.message : "Erro ao atualizar status da tarefa");
-    }
-  }, [workspaceId, fetchTasks]);
+      await queryClient.invalidateQueries({
+        queryKey: ["supabase-project-tasks", workspaceId, projectId ?? null],
+      });
+    },
+    [workspaceId, projectId, queryClient],
+  );
 
   return {
-    tasks,
-    loading,
-    error,
-    refresh: fetchTasks,
+    tasks: (query.data ?? []) as SupabaseTask[],
+    loading: query.isLoading || query.isFetching,
+    error: query.error ? getFriendlyMessage(query.error) : null,
+    refresh: () => query.refetch(),
     updateStatus,
   };
 }
