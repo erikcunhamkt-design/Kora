@@ -32,7 +32,7 @@ export function PerformanceChart() {
                 boxShadow: "0 8px 32px hsl(0 0% 0% / 0.4), inset 0 1px 0 hsl(0 0% 100% / 0.03)",
                 padding: "12px 16px",
               }}
-              formatter={(value: number) => [`R$ ${value.toLocaleString("pt-BR")}`, "Faturamento"]}
+              formatter={(value) => [`R$ ${Number(value).toLocaleString("pt-BR")}`, "Faturamento"] as [string, string]}
             />
             <Bar dataKey="valor" fill="url(#chartGradientPremium)" radius={[8, 8, 0, 0]} />
             <defs>

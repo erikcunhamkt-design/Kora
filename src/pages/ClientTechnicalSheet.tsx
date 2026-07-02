@@ -287,6 +287,7 @@ export default function ClientTechnicalSheetPage() {
   const persist = async (next: ClientTechnicalSheet) => {
     setSheet(next);
     if (activeDataSource === "local") {
+      if (!client) return;
       updateClient(client.id, { technicalSheet: next });
     } else if (activeDataSource === "supabase" && autosaveEnabled) {
       if (!workspace?.id || !supabaseClientId) {

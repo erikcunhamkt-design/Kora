@@ -50,6 +50,7 @@ export function useCurrentWorkspace() {
     }
 
     async function fetchWorkspaceData() {
+      if (!user) return;
       const seq = ++requestSeq.current;
       setLoading(true);
       setError(null);

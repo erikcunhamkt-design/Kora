@@ -259,7 +259,7 @@ export function CampaignSendDialog({ open, workspaceId, campaign, onClose, onUpd
                           {l.error_message ? `: ${l.error_message}` : ""}
                         </span>
                         <span className="text-muted-foreground font-mono text-[10px] shrink-0">
-                          {formatPhoneBR(l.phone)}
+                          {formatPhoneBR(l.phone ?? "")}
                         </span>
                       </li>
                     ))}

@@ -221,7 +221,7 @@ function ServicesTab() {
     );
     return m;
   }, [quotes]);
-  const mostUsed = useMemo(() => {
+  const mostUsed = useMemo<{ name: string; count: number } | null>(() => {
     let best: { name: string; count: number } | null = null;
     usageMap.forEach((count, id) => {
       const s = services.find((x) => x.id === id);

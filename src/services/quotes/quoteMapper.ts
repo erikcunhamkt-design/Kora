@@ -25,6 +25,7 @@ export function mapSupabaseQuoteToLocalQuote(sq: SupabaseQuote): Quote {
     id: sq.id,
     clientName: sq.client_name ?? "",
     clientEmail: sq.client_email ?? "",
+    clientWhatsapp: "",
     title: sq.title,
     description: sq.description ?? "",
     items: [], // items will be fetched separately via listQuoteItems
