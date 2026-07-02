@@ -9,6 +9,12 @@ export interface Workspace {
   owner_id: string;
   created_at: string;
   updated_at: string;
+  /** ISO 4217 currency for money formatting (default BRL). */
+  currency: string;
+  /** BCP-47 locale for number/date formatting (default pt-BR). */
+  locale: string;
+  /** IANA time zone, or null = client/browser local. */
+  timezone: string | null;
 }
 
 export interface WorkspaceMember {

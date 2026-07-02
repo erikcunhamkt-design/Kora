@@ -43,6 +43,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { SettingsNav, type SettingsNavItem } from "@/components/settings/SettingsNav";
 import { SettingsSection } from "@/components/settings/SettingsSection";
 import { SettingsCard } from "@/components/settings/SettingsCard";
+import { WorkspaceLocalizationCard } from "@/components/settings/WorkspaceLocalizationCard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -520,6 +521,8 @@ const Configuracoes = () => {
                   />
                 </div>
               </SettingsCard>
+
+              <WorkspaceLocalizationCard />
             </SettingsSection>
           )}
 
