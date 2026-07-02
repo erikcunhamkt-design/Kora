@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# Variaveis de ambiente — nunca versionar segredos. Mantemos apenas o template.
+.env
+.env.*
+!.env.example
+
 # Supabase CLI local cache
 supabase/.temp/
 
