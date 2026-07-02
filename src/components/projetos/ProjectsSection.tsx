@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { formatCurrency as intlCurrency, formatDate as intlDate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,8 +32,8 @@ const priorityBadge: Record<ProjectPriority, string> = {
   low: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
 };
 
-const fmtBRL = (v?: number) => (v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0 });
-const fmtDate = (iso?: string) => (iso ? new Date(iso).toLocaleDateString("pt-BR") : "—");
+const fmtBRL = (v?: number) => intlCurrency(v ?? 0, { minimumFractionDigits: 0 });
+const fmtDate = (iso?: string) => (iso ? intlDate(iso) : "—");
 
 export function ProjectsSection() {
   const { projects, addProject } = useProjects();

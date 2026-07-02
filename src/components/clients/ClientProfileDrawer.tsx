@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { formatCurrency as intlCurrency, formatDate as intlDate } from "@/lib/format";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -58,13 +59,12 @@ const tempConfig: Record<ClientTemperature, { icon: any; cls: string }> = {
   Quente: { icon: Flame, cls: "text-primary" },
 };
 
-const fmtBRL = (v: number) =>
-  v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0 });
+const fmtBRL = (v: number) => intlCurrency(v, { minimumFractionDigits: 0 });
 
 const fmtDateLong = (iso?: string) => {
   if (!iso) return "";
   try {
-    return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
+    return intlDate(iso, { day: "2-digit", month: "short", year: "numeric" });
   } catch { return ""; }
 };
 

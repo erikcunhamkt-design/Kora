@@ -50,6 +50,7 @@ import { PageToolbar } from "@/components/layout/PageToolbar";
 import { ClientProfileDrawer } from "@/components/clients/ClientProfileDrawer";
 import { cn } from "@/lib/utils";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { formatCurrency as intlCurrency, formatDate as intlDate } from "@/lib/format";
 
 // ---------- Static configs ----------
 
@@ -72,13 +73,12 @@ const tempConfig: Record<ClientTemperature, { icon: typeof Flame; cls: string; l
   Quente: { icon: Flame, cls: "text-primary", label: "Quente" },
 };
 
-const fmtBRL = (v: number) =>
-  v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0 });
+const fmtBRL = (v: number) => intlCurrency(v, { minimumFractionDigits: 0 });
 
 const fmtDate = (iso?: string) => {
   if (!iso) return "";
   try {
-    return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+    return intlDate(iso, { day: "2-digit", month: "short" });
   } catch {
     return "";
   }

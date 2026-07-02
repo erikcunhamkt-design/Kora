@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect, useCallback } from "react";
+import { formatDate as intlDate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,9 +40,9 @@ const APPROVALS: ContentApproval[] = ["draft", "in_production", "in_review", "aw
 
 const ALL_CLIENTS = "__all__";
 
-const monthLabel = (d: Date) => d.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+const monthLabel = (d: Date) => intlDate(d, { month: "long", year: "numeric" });
 const isoOf = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-const fmtDateShort = (iso?: string) => iso ? new Date(iso + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }) : "—";
+const fmtDateShort = (iso?: string) => iso ? intlDate(iso + "T00:00:00", { day: "2-digit", month: "short" }) : "—";
 
 const initialsOf = (name: string) => name.split(" ").map(p => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?";
 
@@ -876,7 +877,7 @@ const ContentDetailSheet = ({ item, onClose, onUpdate, onDelete, onDuplicate }: 
           )}
 
           <p className="text-[10px] text-muted-foreground border-t border-border pt-3">
-            Criado em {new Date(item.createdAt).toLocaleDateString("pt-BR")}. Conteúdo armazenado localmente — sem publicação real.
+            Criado em {intlDate(item.createdAt)}. Conteúdo armazenado localmente — sem publicação real.
           </p>
         </div>
       </SheetContent>

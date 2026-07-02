@@ -52,6 +52,7 @@ import { useClientTypes } from "@/hooks/useClientTypes";
 import { NewClientTypeDialog } from "@/components/clientes/NewClientTypeDialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { formatCurrency as intlCurrency } from "@/lib/format";
 
 const priorityStyles: Record<Priority, string> = {
   alta: "bg-destructive/10 text-destructive border-destructive/20",
@@ -93,8 +94,7 @@ const daysSince = (s?: string): number | null => {
 const NEW_TYPE_VALUE = "__new_type__";
 const origins = ["Indicação", "Instagram", "LinkedIn", "Site", "WhatsApp", "Outro"];
 
-const formatCurrency = (v: number) =>
-  v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0 });
+const formatCurrency = (v: number) => intlCurrency(v, { minimumFractionDigits: 0 });
 
 const SummaryCard = ({ icon: Icon, label, value, sub, accent }: { icon: any; label: string; value: string; sub?: string; accent?: "primary" | "success" | "danger" | "muted" }) => {
   const tone =

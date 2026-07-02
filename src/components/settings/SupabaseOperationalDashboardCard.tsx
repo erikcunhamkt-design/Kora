@@ -6,6 +6,7 @@ import { useSupabaseFinancialSummary } from "@/hooks/useSupabaseFinancialSummary
 import { useSupabaseProjectsSummary } from "@/hooks/useSupabaseProjectsSummary";
 import { useSupabaseProjectTasks } from "@/hooks/useSupabaseProjectTasks";
 import { SettingsCard } from "@/components/settings/SettingsCard";
+import { formatCurrency as intlCurrency } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, FileText, TrendingUp, DollarSign, Briefcase, Activity, CheckSquare } from "lucide-react";
@@ -348,9 +349,7 @@ export function SupabaseOperationalDashboardCard() {
     );
   }
 
-  const formatBRL = (val: number) => {
-    return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(val);
-  };
+  const formatBRL = (val: number) => intlCurrency(val, { maximumFractionDigits: 0 });
 
   return (
     <SettingsCard 

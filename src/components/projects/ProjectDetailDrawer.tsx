@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { formatCurrency as intlCurrency, formatDate as intlDate } from "@/lib/format";
 import { toast } from "sonner";
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
@@ -30,9 +31,8 @@ interface ProjectDetailDrawerProps {
   onOpenChange: (v: boolean) => void;
 }
 
-const fmtBRL = (v?: number) =>
-  (v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0 });
-const fmtDate = (iso?: string) => (iso ? new Date(iso).toLocaleDateString("pt-BR") : "—");
+const fmtBRL = (v?: number) => intlCurrency(v ?? 0, { minimumFractionDigits: 0 });
+const fmtDate = (iso?: string) => (iso ? intlDate(iso) : "—");
 
 const STATUS_STYLE: Record<ProjectStatus, string> = {
   planning: "bg-muted text-foreground border-border",

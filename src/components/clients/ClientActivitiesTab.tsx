@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { formatCurrency as intlCurrency, formatDate as intlDate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -78,12 +79,11 @@ type ClientActivityEvent = InferredEvent | ManualEvent;
 
 // ---------- Helpers ----------
 
-const fmtBRL = (v: number) =>
-  v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0 });
+const fmtBRL = (v: number) => intlCurrency(v, { minimumFractionDigits: 0 });
 
 const fmtDate = (iso: string) => {
   try {
-    return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
+    return intlDate(iso, { day: "2-digit", month: "short", year: "numeric" });
   } catch {
     return iso;
   }
@@ -386,7 +386,7 @@ function manualToEvent(m: ClientManualActivity): ManualEvent {
     description: [
       m.description,
       m.outcome && `Resultado: ${m.outcome}`,
-      m.nextStep && `Próximo passo: ${m.nextStep}${m.nextStepDate ? ` (${new Date(m.nextStepDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })})` : ""}`,
+      m.nextStep && `Próximo passo: ${m.nextStep}${m.nextStepDate ? ` (${intlDate(m.nextStepDate, { day: "2-digit", month: "short" })})` : ""}`,
     ].filter(Boolean).join(" · ") || undefined,
     date: m.date,
     tone: manualTone[m.type],
