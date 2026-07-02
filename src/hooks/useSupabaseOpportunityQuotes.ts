@@ -1,43 +1,30 @@
-import { useCallback, useEffect, useState } from "react";
+// Quotes linked to a CRM opportunity — React Query backed (A2 pilot).
+// Public API unchanged: { quotes, loading, error, refresh }.
+import { useQuery } from "@tanstack/react-query";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { quotesRepository } from "@/repositories/quotesRepository";
 import { mapSupabaseQuoteToLocalQuote } from "@/services/quotes/quoteMapper";
+import { getFriendlyMessage } from "@/lib/supabase/errors";
 import type { Quote } from "@/hooks/useQuotes";
 
 export function useSupabaseOpportunityQuotes(opportunityId?: string) {
   const { workspace } = useCurrentWorkspace();
-  const [quotes, setQuotes] = useState<Quote[]>([]);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
-
   const workspaceId = workspace?.id ?? "";
 
-  const fetchQuotes = useCallback(async () => {
-    if (!workspaceId || !opportunityId) {
-      setQuotes([]);
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const supabaseQuotes = await quotesRepository.listQuotesByOpportunity(workspaceId, opportunityId);
-      const localQuotes = supabaseQuotes.map(mapSupabaseQuoteToLocalQuote);
-      setQuotes(localQuotes);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Erro ao carregar orçamentos");
-    } finally {
-      setLoading(false);
-    }
-  }, [workspaceId, opportunityId]);
-
-  useEffect(() => {
-    fetchQuotes();
-  }, [fetchQuotes]);
+  const query = useQuery({
+    queryKey: ["supabase-opportunity-quotes", workspaceId, opportunityId ?? null],
+    queryFn: async (): Promise<Quote[]> => {
+      const supabaseQuotes = await quotesRepository.listQuotesByOpportunity(workspaceId, opportunityId!);
+      return supabaseQuotes.map(mapSupabaseQuoteToLocalQuote);
+    },
+    enabled: !!workspaceId && !!opportunityId,
+    staleTime: 30_000,
+  });
 
   return {
-    quotes,
-    loading,
-    error,
-    refresh: fetchQuotes,
+    quotes: query.data ?? [],
+    loading: query.isLoading || query.isFetching,
+    error: query.error ? getFriendlyMessage(query.error) : null,
+    refresh: () => query.refetch(),
   };
 }

@@ -1,120 +1,120 @@
 // @ts-nocheck
-// Hook for Supabase Quotes
-import { useCallback, useEffect, useState } from "react";
+// Hook for Supabase Quotes — backed by React Query (pilot for A2).
+//
+// Public API is unchanged from the previous useState/useEffect version, so
+// consumers (SupabaseQuotesViewerCard, SupabaseOperationalDashboardCard) need
+// no edits. Internally React Query now provides caching, request dedup,
+// background refetch and automatic invalidation after mutations.
+import { useCallback } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { quotesRepository } from "@/repositories/quotesRepository";
-import { mapLocalQuoteToSupabaseQuote, mapSupabaseQuoteToLocalQuote, mapLocalQuoteItemToSupabaseItem, mapSupabaseQuoteItemToLocalItem } from "@/services/quotes/quoteMapper";
+import {
+  mapLocalQuoteToSupabaseQuote,
+  mapSupabaseQuoteToLocalQuote,
+  mapLocalQuoteItemToSupabaseItem,
+  mapSupabaseQuoteItemToLocalItem,
+} from "@/services/quotes/quoteMapper";
+import { getFriendlyMessage } from "@/lib/supabase/errors";
 import type { Quote, QuoteItem } from "@/hooks/useQuotes";
+
+async function fetchQuotesWithItems(workspaceId: string): Promise<Quote[]> {
+  const supabaseQuotes = await quotesRepository.listQuotes(workspaceId);
+  const itemsByQuoteId = await quotesRepository.listQuoteItemsForQuotes(
+    workspaceId,
+    supabaseQuotes.map((sq) => sq.id),
+  );
+  return supabaseQuotes.map((sq) => {
+    const q = mapSupabaseQuoteToLocalQuote(sq);
+    q.items = (itemsByQuoteId[sq.id] ?? []).map(mapSupabaseQuoteItemToLocalItem);
+    return q;
+  });
+}
 
 export function useSupabaseQuotes() {
   const { workspace } = useCurrentWorkspace();
-  const [quotes, setQuotes] = useState<Quote[]>([]);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
-
   const workspaceId = workspace?.id ?? "";
+  const queryClient = useQueryClient();
+  const queryKey = ["supabase-quotes", workspaceId];
 
-  const fetchQuotes = useCallback(async () => {
-    if (!workspaceId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const supabaseQuotes = await quotesRepository.listQuotes(workspaceId);
-      const itemsByQuoteId = await quotesRepository.listQuoteItemsForQuotes(
-        workspaceId,
-        supabaseQuotes.map((sq) => sq.id),
-      );
-      const enriched = supabaseQuotes.map((sq) => {
-        const q = mapSupabaseQuoteToLocalQuote(sq);
-        q.items = (itemsByQuoteId[sq.id] ?? []).map(mapSupabaseQuoteItemToLocalItem);
-        return q;
-      });
-      setQuotes(enriched);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Error loading quotes");
-    } finally {
-      setLoading(false);
-    }
-  }, [workspaceId]);
+  const query = useQuery({
+    queryKey,
+    queryFn: () => fetchQuotesWithItems(workspaceId),
+    enabled: !!workspaceId,
+    staleTime: 30_000,
+  });
 
-  useEffect(() => {
-    fetchQuotes();
-  }, [fetchQuotes]);
+  const invalidate = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: ["supabase-quotes", workspaceId] }),
+    [queryClient, workspaceId],
+  );
 
-  const refresh = fetchQuotes;
+  const createMutation = useMutation({
+    mutationFn: (quote: Quote) =>
+      quotesRepository.createQuote(workspaceId, mapLocalQuoteToSupabaseQuote(quote)),
+    onSuccess: invalidate,
+  });
 
-  // CRUD wrappers
-  const createQuote = useCallback(async (quote: Quote) => {
-    if (!workspaceId) return;
-    const supa = await quotesRepository.createQuote(workspaceId, mapLocalQuoteToSupabaseQuote(quote));
-    const newQuote = mapSupabaseQuoteToLocalQuote(supa);
-    newQuote.items = [];
-    setQuotes((prev) => [newQuote, ...prev]);
-    return newQuote;
-  }, [workspaceId]);
+  const updateMutation = useMutation({
+    mutationFn: ({ quoteId, patch }: { quoteId: string; patch: Partial<Quote> }) => {
+      const supaPatch: Record<string, unknown> = {};
+      if (patch.title) supaPatch.title = patch.title;
+      if (patch.description) supaPatch.description = patch.description;
+      if (patch.status) supaPatch.status = patch.status;
+      return quotesRepository.updateQuote(workspaceId, quoteId, supaPatch);
+    },
+    onSuccess: invalidate,
+  });
 
-  const updateQuote = useCallback(async (quoteId: string, patch: Partial<Quote>) => {
-    if (!workspaceId) return;
-    // Map patch to Supabase fields (only include defined properties)
-    const supaPatch: Partial<SupabaseQuote> = {};
-    if (patch.title) supaPatch.title = patch.title;
-    if (patch.description) supaPatch.description = patch.description;
-    if (patch.status) supaPatch.status = patch.status;
-    // ... add other fields as needed
-    const updated = await quotesRepository.updateQuote(workspaceId, quoteId, supaPatch);
-    const local = mapSupabaseQuoteToLocalQuote(updated);
-    setQuotes((prev) => prev.map((q) => (q.id === quoteId ? { ...q, ...local } : q)));
-  }, [workspaceId]);
+  const archiveMutation = useMutation({
+    mutationFn: ({ quoteId, archived }: { quoteId: string; archived: boolean }) =>
+      quotesRepository.archiveQuote(workspaceId, quoteId, archived),
+    onSuccess: invalidate,
+  });
 
-  const archiveQuote = useCallback(async (quoteId: string, archived: boolean) => {
-    if (!workspaceId) return;
-    const updated = await quotesRepository.archiveQuote(workspaceId, quoteId, archived);
-    const local = mapSupabaseQuoteToLocalQuote(updated);
-    setQuotes((prev) => prev.map((q) => (q.id === quoteId ? { ...q, ...local } : q)));
-  }, [workspaceId]);
+  const softDeleteMutation = useMutation({
+    mutationFn: ({ quoteId, reason }: { quoteId: string; reason?: string }) =>
+      quotesRepository.softDeleteQuote(workspaceId, quoteId, reason),
+    onSuccess: invalidate,
+  });
 
-  const softDeleteQuote = useCallback(async (quoteId: string, reason?: string) => {
-    if (!workspaceId) return;
-    const deleted = await quotesRepository.softDeleteQuote(workspaceId, quoteId, reason);
-    // Mark as deleted locally (could add a flag)
-    setQuotes((prev) => prev.map((q) => (q.id === quoteId ? { ...q, status: "arquivado" as const } : q)));
-  }, [workspaceId]);
+  const replaceItemsMutation = useMutation({
+    mutationFn: ({ quoteId, items }: { quoteId: string; items: QuoteItem[] }) =>
+      quotesRepository.replaceQuoteItems(workspaceId, quoteId, items.map(mapLocalQuoteItemToSupabaseItem)),
+    onSuccess: invalidate,
+  });
 
-  const replaceQuoteItems = useCallback(async (quoteId: string, items: QuoteItem[]) => {
-    if (!workspaceId) return;
-    const supaItems = items.map(mapLocalQuoteItemToSupabaseItem);
-    const updated = await quotesRepository.replaceQuoteItems(workspaceId, quoteId, supaItems);
-    const localItems = updated.map(mapSupabaseQuoteItemToLocalItem);
-    setQuotes((prev) =>
-      prev.map((q) => (q.id === quoteId ? { ...q, items: localItems } : q))
-    );
-  }, [workspaceId]);
+  const approveMutation = useMutation({
+    mutationFn: (quoteId: string) => quotesRepository.approveQuote(workspaceId, quoteId),
+    onSuccess: invalidate,
+  });
 
-  const approveQuote = useCallback(async (quoteId: string) => {
-    if (!workspaceId) return;
-    const updated = await quotesRepository.approveQuote(workspaceId, quoteId);
-    const local = mapSupabaseQuoteToLocalQuote(updated);
-    setQuotes((prev) => prev.map((q) => (q.id === quoteId ? { ...q, ...local } : q)));
-  }, [workspaceId]);
-
-  const rejectQuote = useCallback(async (quoteId: string) => {
-    if (!workspaceId) return;
-    const updated = await quotesRepository.rejectQuote(workspaceId, quoteId);
-    const local = mapSupabaseQuoteToLocalQuote(updated);
-    setQuotes((prev) => prev.map((q) => (q.id === quoteId ? { ...q, ...local } : q)));
-  }, [workspaceId]);
+  const rejectMutation = useMutation({
+    mutationFn: (quoteId: string) => quotesRepository.rejectQuote(workspaceId, quoteId),
+    onSuccess: invalidate,
+  });
 
   return {
-    quotes,
-    loading,
-    error,
-    refresh,
-    createQuote,
-    updateQuote,
-    archiveQuote,
-    softDeleteQuote,
-    replaceQuoteItems,
-    approveQuote,
-    rejectQuote,
+    quotes: query.data ?? [],
+    loading: query.isLoading || query.isFetching,
+    error: query.error ? getFriendlyMessage(query.error) : null,
+    refresh: () => query.refetch(),
+
+    createQuote: async (quote: Quote) => {
+      const supa = await createMutation.mutateAsync(quote);
+      const newQuote = mapSupabaseQuoteToLocalQuote(supa);
+      newQuote.items = [];
+      return newQuote;
+    },
+    updateQuote: (quoteId: string, patch: Partial<Quote>) =>
+      updateMutation.mutateAsync({ quoteId, patch }),
+    archiveQuote: (quoteId: string, archived: boolean) =>
+      archiveMutation.mutateAsync({ quoteId, archived }),
+    softDeleteQuote: (quoteId: string, reason?: string) =>
+      softDeleteMutation.mutateAsync({ quoteId, reason }),
+    replaceQuoteItems: (quoteId: string, items: QuoteItem[]) =>
+      replaceItemsMutation.mutateAsync({ quoteId, items }),
+    approveQuote: (quoteId: string) => approveMutation.mutateAsync(quoteId),
+    rejectQuote: (quoteId: string) => rejectMutation.mutateAsync(quoteId),
   };
 }
