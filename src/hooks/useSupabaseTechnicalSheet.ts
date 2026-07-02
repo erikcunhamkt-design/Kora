@@ -1,4 +1,6 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+// Supabase client technical sheet — React Query (A2). Public API unchanged.
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { clientTechnicalSheetsRepository } from "@/repositories/clientTechnicalSheetsRepository";
 
@@ -22,11 +24,9 @@ export interface SupabaseTechnicalSheetData {
 
 export function useSupabaseTechnicalSheet(localClientId: string | number | undefined) {
   const { workspace } = useCurrentWorkspace();
-  const [sheet, setSheet] = useState<SupabaseTechnicalSheetData | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
+  const workspaceId = workspace?.id ?? "";
 
-  // Retrieve supabaseClientId from importedMap
+  // Resolve the Supabase client UUID from the local→remote import map.
   const supabaseClientId = useMemo(() => {
     if (!localClientId) return null;
     try {
@@ -42,39 +42,21 @@ export function useSupabaseTechnicalSheet(localClientId: string | number | undef
     return null;
   }, [localClientId]);
 
-  const loadSheet = useCallback(async () => {
-    if (!workspace?.id || !supabaseClientId) {
-      setSheet(null);
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const data = await clientTechnicalSheetsRepository.getTechnicalSheet(
-        workspace.id,
-        supabaseClientId
-      );
-      // Casting the returned row from Supabase to SupabaseTechnicalSheetData
-      setSheet((data as unknown as SupabaseTechnicalSheetData) || null);
-    } catch (err) {
-      console.error("Error loading Supabase technical sheet:", err);
-      setError(err instanceof Error ? err : new Error(String(err)));
-    } finally {
-      setLoading(false);
-    }
-  }, [workspace?.id, supabaseClientId]);
-
-  useEffect(() => {
-    loadSheet();
-  }, [loadSheet]);
+  const query = useQuery({
+    queryKey: ["supabase-technical-sheet", workspaceId, supabaseClientId],
+    queryFn: async (): Promise<SupabaseTechnicalSheetData | null> => {
+      const data = await clientTechnicalSheetsRepository.getTechnicalSheet(workspaceId, supabaseClientId!);
+      return (data as unknown as SupabaseTechnicalSheetData) || null;
+    },
+    enabled: !!workspaceId && !!supabaseClientId,
+    staleTime: 30_000,
+  });
 
   return {
     supabaseClientId,
-    sheet,
-    loading,
-    error,
-    refresh: loadSheet,
+    sheet: (query.data ?? null) as SupabaseTechnicalSheetData | null,
+    loading: query.isLoading || query.isFetching,
+    error: (query.error ?? null) as Error | null,
+    refresh: () => query.refetch(),
   };
 }
