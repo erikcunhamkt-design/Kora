@@ -1,6 +1,9 @@
-import { useEffect, useState, useCallback } from "react";
+// Client signup requests — React Query (A2). Public API unchanged.
+import { useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { normalizeSupabaseError } from "@/lib/supabase/errors";
 
 export type SignupRequestStatus = "pending" | "approved" | "archived" | "converted" | "lead";
 
@@ -23,49 +26,65 @@ export interface SignupRequest {
 
 export function useSignupRequests() {
   const { user } = useAuth();
-  const [requests, setRequests] = useState<SignupRequest[]>([]);
-  const [loading, setLoading] = useState(false);
+  const userId = user?.id ?? "";
+  const queryClient = useQueryClient();
 
-  const refresh = useCallback(async () => {
-    if (!user) { setRequests([]); return; }
-    setLoading(true);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase as any)
-      .from("client_signup_requests")
-      .select("*")
-      .eq("owner_id", user.id)
-      .order("created_at", { ascending: false });
-    if (!error && data) setRequests(data as SignupRequest[]);
-    setLoading(false);
-  }, [user]);
+  const query = useQuery({
+    queryKey: ["signup-requests", userId],
+    queryFn: async (): Promise<SignupRequest[]> => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from("client_signup_requests")
+        .select("*")
+        .eq("owner_id", userId)
+        .order("created_at", { ascending: false });
+      if (error) throw normalizeSupabaseError(error);
+      return (data as SignupRequest[]) ?? [];
+    },
+    enabled: !!userId,
+    staleTime: 30_000,
+  });
 
-  useEffect(() => { refresh(); }, [refresh]);
+  const invalidate = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: ["signup-requests", userId] }),
+    [queryClient, userId],
+  );
 
-  const updateStatus = useCallback(async (id: string, status: SignupRequestStatus) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase as any)
-      .from("client_signup_requests")
-      .update({ status })
-      .eq("id", id);
-    if (!error) {
-      setRequests((prev) => prev.map((r) => (r.id === id ? { ...r, status } : r)));
-    }
-    return !error;
-  }, []);
+  const updateStatus = useCallback(
+    async (id: string, status: SignupRequestStatus) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any)
+        .from("client_signup_requests")
+        .update({ status })
+        .eq("id", id);
+      if (!error) await invalidate();
+      return !error;
+    },
+    [invalidate],
+  );
 
-  const deleteRequest = useCallback(async (id: string) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase as any)
-      .from("client_signup_requests")
-      .delete()
-      .eq("id", id);
-    if (!error) {
-      setRequests((prev) => prev.filter((r) => r.id !== id));
-    }
-    return !error;
-  }, []);
+  const deleteRequest = useCallback(
+    async (id: string) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any)
+        .from("client_signup_requests")
+        .delete()
+        .eq("id", id);
+      if (!error) await invalidate();
+      return !error;
+    },
+    [invalidate],
+  );
 
+  const requests = query.data ?? [];
   const pendingCount = requests.filter((r) => r.status === "pending").length;
 
-  return { requests, loading, refresh, updateStatus, deleteRequest, pendingCount };
+  return {
+    requests,
+    loading: query.isLoading || query.isFetching,
+    refresh: () => query.refetch(),
+    updateStatus,
+    deleteRequest,
+    pendingCount,
+  };
 }
