@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { emitNotification } from "@/lib/notify";
+import { formatCurrency, formatDate } from "@/lib/format";
 
 export type TxType = "income" | "expense";
 export type TxStatus = "pending" | "paid" | "overdue" | "canceled";
@@ -241,7 +242,7 @@ export function useFinance() {
       if (tx && tx.status !== "paid" && status === "paid") {
         emitNotification({
           title: tx.type === "income" ? "Pagamento recebido" : "Despesa quitada",
-          description: `${tx.title} · R$ ${tx.amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+          description: `${tx.title} · ${formatCurrency(tx.amount, { minimumFractionDigits: 2 })}`,
           category: "finance",
           type: "success",
           priority: tx.amount >= 1000 ? "high" : "medium",
@@ -323,14 +324,18 @@ export function useFinance() {
 // ============================================================
 // Formatters
 // ============================================================
-export const formatBRL = (v: number) =>
-  v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0 });
+// Locale/currency-aware now (Batch 5). Name kept for its ~45 call sites; it no
+// longer implies BRL — it renders in the active workspace currency. Whole-value
+// by default (minimumFractionDigits: 0), matching the previous output.
+export const formatBRL = (v: number) => formatCurrency(v, { minimumFractionDigits: 0 });
 
+// Date-only ISO (yyyy-mm-dd) rendered in the active locale's order. UTC pins the
+// calendar day so a due date never shifts across time zones.
 export const formatDateBR = (iso?: string) => {
   if (!iso) return "—";
-  const [y, m, d] = iso.split("-");
-  if (!y || !m || !d) return iso;
-  return `${d}/${m}/${y.slice(2)}`;
+  return (
+    formatDate(iso, { day: "2-digit", month: "2-digit", year: "2-digit", timeZone: "UTC" }) || iso
+  );
 };
 
 // ============================================================
@@ -385,7 +390,7 @@ export function useMonthlySeries(transactions: Transaction[], months = 6) {
     for (let i = months - 1; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      const label = d.toLocaleDateString("pt-BR", { month: "short" }).replace(".", "");
+      const label = formatDate(d, { month: "short" }).replace(".", "");
       const receita = transactions
         .filter((t) => t.type === "income" && t.status === "paid" && (t.paidDate || t.dueDate).startsWith(ym))
         .reduce((s, t) => s + t.amount, 0);

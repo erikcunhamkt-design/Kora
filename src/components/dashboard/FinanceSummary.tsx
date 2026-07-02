@@ -1,10 +1,13 @@
 import { Progress } from "@/components/ui/progress";
 import { ArrowUpRight } from "lucide-react";
+import { useFormat } from "@/hooks/useFormat";
 
 export function FinanceSummary() {
+  const { currencyFmt } = useFormat();
   const revenue = 6500;
   const target = 10000;
   const pct = Math.round((revenue / target) * 100);
+  const money = (v: number) => currencyFmt(v, { minimumFractionDigits: 0 });
 
   return (
     <div className="orbit-card p-6 animate-fade-up relative overflow-hidden">
@@ -13,8 +16,8 @@ export function FinanceSummary() {
         <h3 className="text-base font-semibold text-foreground mb-1">Resumo Financeiro</h3>
         <p className="text-[0.8125rem] text-muted-foreground mb-5">Faturamento vs Meta</p>
         <div className="flex items-baseline gap-2.5 mb-1">
-          <span className="text-[2.25rem] font-bold text-foreground tracking-tight leading-none">R$ {revenue.toLocaleString("pt-BR")}</span>
-          <span className="text-[0.9375rem] text-muted-foreground">/ R$ {target.toLocaleString("pt-BR")}</span>
+          <span className="text-[2.25rem] font-bold text-foreground tracking-tight leading-none">{money(revenue)}</span>
+          <span className="text-[0.9375rem] text-muted-foreground">/ {money(target)}</span>
         </div>
         <Progress value={pct} className="h-2 bg-muted mt-3" />
         <div className="flex items-center justify-between mt-3">
@@ -23,9 +26,9 @@ export function FinanceSummary() {
         </div>
         <div className="grid grid-cols-3 gap-4 mt-5 pt-5 border-t border-divider">
           {[
-            { label: "Receita", val: "R$ 8.200", color: "text-emerald-400" },
-            { label: "Despesas", val: "R$ 1.700", color: "text-destructive" },
-            { label: "Lucro", val: "R$ 6.500", color: "text-primary" },
+            { label: "Receita", val: money(8200), color: "text-emerald-400" },
+            { label: "Despesas", val: money(1700), color: "text-destructive" },
+            { label: "Lucro", val: money(6500), color: "text-primary" },
           ].map((s) => (
             <div key={s.label} className="text-center">
               <p className="text-[0.8125rem] text-muted-foreground mb-1">{s.label}</p>

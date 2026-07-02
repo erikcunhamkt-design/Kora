@@ -27,6 +27,7 @@ import {
   type Transaction, type TxType, type TxStatus, type PaymentMethod,
   type FinanceCategory, type Supplier, type RecurringEntry, type CashAccount, type PixSettings, type RecurFreq, type CashAccountType, type PixKeyType,
 } from "@/hooks/useFinance";
+import { useFormat } from "@/hooks/useFormat";
 import { useClients } from "@/hooks/useClients";
 import { toast } from "sonner";
 
@@ -1304,6 +1305,7 @@ const ReportsTab = ({ fin, chartData, metrics }: any) => {
 const QuickSaleDialog = ({ open, onOpenChange, fin, clients }: {
   open: boolean; onOpenChange: (v: boolean) => void; fin: ReturnType<typeof useFinance>; clients: ReturnType<typeof useClients>["clients"];
 }) => {
+  const { currency } = useFormat();
   const incCats = fin.categories.filter((c) => c.type === "income");
   const [form, setForm] = useState({
     title: "", description: "", amount: "", clientName: "",
@@ -1342,7 +1344,7 @@ const QuickSaleDialog = ({ open, onOpenChange, fin, clients }: {
             <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Ex: Projeto de branding" />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">Valor (R$) *</Label>
+            <Label className="text-xs">Valor ({currency}) *</Label>
             <Input type="number" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
           </div>
           <div className="space-y-1.5">
@@ -1417,6 +1419,7 @@ const QuickSaleDialog = ({ open, onOpenChange, fin, clients }: {
 // EXPENSE DIALOG
 // ============================================================
 const ExpenseDialog = ({ open, onOpenChange, fin }: { open: boolean; onOpenChange: (v: boolean) => void; fin: ReturnType<typeof useFinance> }) => {
+  const { currency } = useFormat();
   const expCats = fin.categories.filter((c) => c.type === "expense");
   const [form, setForm] = useState({
     title: "", description: "", amount: "", supplierId: "",
@@ -1455,7 +1458,7 @@ const ExpenseDialog = ({ open, onOpenChange, fin }: { open: boolean; onOpenChang
             <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">Valor (R$) *</Label>
+            <Label className="text-xs">Valor ({currency}) *</Label>
             <Input type="number" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
           </div>
           <div className="space-y-1.5">
