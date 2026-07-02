@@ -1,10 +1,17 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import React, { createContext, useContext, useState, useCallback } from "react";
+import { CURRENCY_STORAGE_KEY, TIMEZONE_STORAGE_KEY, LANG_CURRENCY } from "@/lib/format";
 
 export type Language = "pt-BR" | "pt-PT" | "en" | "es";
 
 interface LanguageContextProps {
   language: Language;
   setLanguage: (lang: Language) => void;
+  /** Active ISO 4217 currency for money formatting (workspace-level). */
+  currency: string;
+  setCurrency: (currency: string) => void;
+  /** Active IANA time zone, or undefined = browser local. */
+  timeZone: string | undefined;
+  setTimeZone: (timeZone: string | undefined) => void;
   t: (key: string, defaultValue?: string) => string;
 }
 
@@ -246,6 +253,24 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return "pt-BR";
   });
 
+  const [currency, setCurrencyState] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem(CURRENCY_STORAGE_KEY);
+      if (saved) return saved;
+    } catch {
+      // Ignore
+    }
+    return LANG_CURRENCY[language] ?? "BRL";
+  });
+
+  const [timeZone, setTimeZoneState] = useState<string | undefined>(() => {
+    try {
+      return localStorage.getItem(TIMEZONE_STORAGE_KEY) || undefined;
+    } catch {
+      return undefined;
+    }
+  });
+
   const setLanguage = useCallback((lang: Language) => {
     try {
       localStorage.setItem("kora.language.v1", lang);
@@ -255,13 +280,34 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setLanguageState(lang);
   }, []);
 
+  const setCurrency = useCallback((next: string) => {
+    try {
+      localStorage.setItem(CURRENCY_STORAGE_KEY, next);
+    } catch {
+      // Ignore
+    }
+    setCurrencyState(next);
+  }, []);
+
+  const setTimeZone = useCallback((next: string | undefined) => {
+    try {
+      if (next) localStorage.setItem(TIMEZONE_STORAGE_KEY, next);
+      else localStorage.removeItem(TIMEZONE_STORAGE_KEY);
+    } catch {
+      // Ignore
+    }
+    setTimeZoneState(next);
+  }, []);
+
   const t = useCallback((key: string, defaultValue?: string): string => {
     const dict = translations[language];
     return dict[key] || defaultValue || key;
   }, [language]);
 
   return (
-    <LanguageContext.Provider value={{ language, setLanguage, t }}>
+    <LanguageContext.Provider
+      value={{ language, setLanguage, currency, setCurrency, timeZone, setTimeZone, t }}
+    >
       {children}
     </LanguageContext.Provider>
   );
