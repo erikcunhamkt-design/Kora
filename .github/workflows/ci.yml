@@ -1,0 +1,43 @@
+name: CI
+
+# Rede de segurança (Etapa 0): roda em todo push e pull request.
+# Garante que o código não regride: type-check limpo, lint sem aumentar a
+# dívida existente (e sem `any` novo) e testes de fumaça passando.
+
+on:
+  push:
+  pull_request:
+
+# Cancela execuções antigas do mesmo ref quando um novo push chega.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Type-check, lint gate & tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      # .npmrc define legacy-peer-deps=true (conflitos de peer do vite@8).
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check (tsc --noEmit)
+        run: npx tsc --noEmit
+
+      # Gate autoritativo de lint: reporta a contagem e falha se erros OU
+      # `no-explicit-any` aumentarem vs ci/lint-baseline.json.
+      - name: Lint gate (no regression, no new any)
+        run: node scripts/lint-gate.mjs
+
+      - name: Unit tests (vitest)
+        run: npm run test
