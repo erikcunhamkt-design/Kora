@@ -52,7 +52,16 @@ export const financeRepository = {
       .select()
       .single();
 
-    if (error) throw normalizeSupabaseError(error);
+    if (error) {
+      // 23505 = unique_violation do índice ux_ft_receivable_from_quote (Etapa 3 S5).
+      // Corrida perdedora: o recebível deste orçamento já existe -> idempotente,
+      // devolve o existente em vez de propagar o erro.
+      if (error.code === "23505" && input.quote_id) {
+        const existing = await financeRepository.findReceivableByQuote(workspaceId, input.quote_id);
+        if (existing[0]) return existing[0];
+      }
+      throw normalizeSupabaseError(error);
+    }
     return data as SupabaseFinancialTransaction;
   },
 
