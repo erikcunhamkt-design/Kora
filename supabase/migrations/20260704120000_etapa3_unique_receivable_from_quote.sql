@@ -1,0 +1,46 @@
+-- ============================================================================
+-- Etapa 3 · S5 — UNIQUE anti-race: recebível gerado a partir de orçamento
+-- ============================================================================
+-- Contexto (código real):
+--   src/repositories/financeRepository.ts
+--     findReceivableByQuote(): SELECT ... WHERE workspace_id, quote_id,
+--       source='quote', type='receivable', deleted_at IS NULL
+--     createReceivableFromQuote(): INSERT (type='receivable', source='quote', ...)
+--   A deduplicação é feita no app (SELECT-depois-INSERT) em
+--   src/components/crm/CreateReceivableDialog.tsx e
+--   src/components/vendas/QuoteToReceivableDialog.tsx.
+--   Sob duplo-clique / requisição concorrente, dois SELECTs veem "vazio" e ambos
+--   inserem -> 2 recebíveis para o mesmo orçamento. Este índice único parcial
+--   torna a duplicidade impossível no banco (backstop da checagem do app).
+--
+-- Invariante reforçada: no máximo UM recebível VIVO (deleted_at IS NULL) de
+--   source='quote' por quote_id. Soft-delete (deleted_at setado) sai do índice
+--   parcial -> é possível recriar depois de excluir, igual ao comportamento atual.
+--   quote_id é globalmente único (FK -> quotes.id), então a chave (quote_id) basta
+--   (não precisa de workspace_id na constraint).
+--
+-- >>> APLICAÇÃO (IMPORTANTE): CREATE INDEX CONCURRENTLY NÃO pode rodar dentro de
+--     uma transação. Este arquivo NÃO contém BEGIN/COMMIT (nenhum controle de
+--     transação). Aplique em AUTOCOMMIT:
+--       - Supabase Dashboard > SQL Editor (roda em autocommit), OU
+--       - psql em autocommit:  psql "$DATABASE_URL" -f <este arquivo>
+--     NÃO aplique via `supabase db push` (ele pode envolver o arquivo em transação
+--     e o CONCURRENTLY falharia).
+--
+-- >>> PRÉ-REQUISITO: rodar ANTES a checagem de duplicatas
+--     (docs/database/etapa-3-duplicate-checks.sql, query 1). Só criar o índice se
+--     ela retornar 0 linhas. Se o CONCURRENTLY falhar (ex.: duplicata pré-existente),
+--     ele deixa um índice INVÁLIDO -> rode `DROP INDEX IF EXISTS
+--     public.ux_ft_receivable_from_quote;` e limpe as duplicatas (com aprovação)
+--     antes de recriar.
+--
+-- >>> ATENÇÃO (código): com este UNIQUE, um INSERT concorrente perdedor recebe erro
+--     23505 (unique_violation). Hoje createReceivableFromQuote apenas propaga o erro
+--     (normalizeSupabaseError). Recomenda-se, como mudança de código à parte e
+--     aprovada, tratar 23505 como "já existe" (buscar e devolver o recebível
+--     existente) para não exibir erro ao usuário. NÃO incluído nesta migration.
+-- ============================================================================
+
+CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS ux_ft_receivable_from_quote
+  ON public.financial_transactions (quote_id)
+  WHERE source = 'quote' AND type = 'receivable' AND deleted_at IS NULL;
