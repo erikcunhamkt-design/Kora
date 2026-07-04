@@ -46,7 +46,7 @@ O dashboard consolida em cards e listas as seguintes informações de forma pura
 
 ## Modo Somente Leitura e Ações Bloqueadas
 * Não há botões de escrita, formulários de criação, edição ou remoção de CRM, Orçamentos, Financeiro ou Projetos.
-* O painel permite **gerar tarefas base no Supabase** a partir da listagem experimental de projetos remotos, controlada pela flag `kora.projects.supabaseCreateBaseTasks.enabled` (veja [SUPABASE-PROJECT-TASKS.md](./SUPABASE-PROJECT-TASKS.md)). Outros cronogramas, calendários e edições de tarefas continuam bloqueados.
+* O painel permite **gerar tarefas base no Supabase** a partir da listagem experimental de projetos remotos, controlada pela flag `kora.projects.supabaseCreateBaseTasks.enabled` (veja [SUPABASE-PROJECT-TASKS.md](../projects/SUPABASE-PROJECT-TASKS.md)). Outros cronogramas, calendários e edições de tarefas continuam bloqueados.
 * Badges claros de "Experimental" e "Somente Leitura" são exibidos no cabeçalho do painel.
 * Um botão de **Refresh** permite recarregar manualmente os dados das quatro fontes.
 

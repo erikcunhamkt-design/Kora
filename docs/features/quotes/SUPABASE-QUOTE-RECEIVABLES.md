@@ -57,7 +57,7 @@ Em caso de sucesso na transação real com o Supabase, o log é inserido no arra
 * O fluxo não cria projetos ou tarefas adicionais automaticamente.
 * Nenhum dado local financeiro (`orbyt.finance.v1`) é modificado.
 * A tela Financeiro local permanece usando o repositório em `localStorage`.
-* A contagem consolidada de recebíveis gerados remotamente é visível somente leitura no [Dashboard Operacional](./SUPABASE-OPERATIONAL-DASHBOARD.md).
+* A contagem consolidada de recebíveis gerados remotamente é visível somente leitura no [Dashboard Operacional](../dashboard/SUPABASE-OPERATIONAL-DASHBOARD.md).
 
 ## Relatório de QA
 ### Cenários Testados

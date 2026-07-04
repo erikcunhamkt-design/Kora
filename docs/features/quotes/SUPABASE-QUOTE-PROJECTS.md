@@ -55,4 +55,4 @@ Em caso de sucesso na transação real com o Supabase, o log é inserido no arra
 * Criação de tarefas automáticas, cronogramas automáticos, checklists e faturamento adicional continuam bloqueados.
 * Nenhum dado local de projetos (`orbyt.projects.v1`) ou tarefas (`orbyt.tasks.v1`) é modificado.
 * As telas locais continuam usando o `localStorage`.
-* A contagem consolidada de projetos criados remotamente é visível somente leitura no [Dashboard Operacional](./SUPABASE-OPERATIONAL-DASHBOARD.md).
+* A contagem consolidada de projetos criados remotamente é visível somente leitura no [Dashboard Operacional](../dashboard/SUPABASE-OPERATIONAL-DASHBOARD.md).
