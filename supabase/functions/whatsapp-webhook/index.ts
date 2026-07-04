@@ -5,6 +5,19 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const WEBHOOK_SECRET = Deno.env.get("UAZAPI_WEBHOOK_SECRET")!;
 
+// Constant-time comparison of the caller-supplied ?secret= against the configured
+// shared secret, to avoid leaking it through response-timing differences. Length
+// mismatch short-circuits; equal-length inputs are compared byte-by-byte with no
+// early exit.
+function timingSafeEqualStr(a: string, b: string): boolean {
+  const ab = new TextEncoder().encode(a);
+  const bb = new TextEncoder().encode(b);
+  if (ab.length !== bb.length) return false;
+  let diff = 0;
+  for (let i = 0; i < ab.length; i++) diff |= ab[i] ^ bb[i];
+  return diff === 0;
+}
+
 type AnyRec = Record<string, unknown>;
 
 function pickPhone(chat: AnyRec, message: AnyRec): string {
@@ -362,7 +375,7 @@ Deno.serve(async (req) => {
     const url = new URL(req.url);
     const secret = url.searchParams.get("secret");
     const workspaceQ = url.searchParams.get("workspace");
-    if (!secret || secret !== WEBHOOK_SECRET) {
+    if (!secret || !timingSafeEqualStr(secret, WEBHOOK_SECRET)) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
