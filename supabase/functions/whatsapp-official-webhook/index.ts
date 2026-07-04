@@ -5,9 +5,31 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+// Constant-time comparison of two byte arrays. Length mismatch short-circuits
+// (the computed HMAC length is fixed, so it is not secret-dependent); equal-length
+// inputs are compared byte-by-byte with no early exit to avoid timing leaks.
+function timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
+  return diff === 0;
+}
+
+function hexToBytes(hex: string): Uint8Array | null {
+  if (hex.length === 0 || hex.length % 2 !== 0) return null;
+  const out = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < out.length; i++) {
+    const byte = Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+    if (Number.isNaN(byte)) return null;
+    out[i] = byte;
+  }
+  return out;
+}
+
 async function verifySignature(rawBody: string, signatureHeader: string | null, appSecret: string) {
   if (!signatureHeader?.startsWith("sha256=")) return false;
-  const expected = signatureHeader.slice("sha256=".length);
+  const expected = hexToBytes(signatureHeader.slice("sha256=".length));
+  if (!expected) return false;
   const key = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(appSecret),
@@ -16,8 +38,7 @@ async function verifySignature(rawBody: string, signatureHeader: string | null, 
     ["sign"],
   );
   const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(rawBody));
-  const hex = Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, "0")).join("");
-  return hex === expected;
+  return timingSafeEqual(new Uint8Array(sig), expected);
 }
 
 async function ensureOfficialInstance(workspaceId: string): Promise<string | null> {
@@ -105,7 +126,10 @@ Deno.serve(async (req) => {
         continue;
       }
       const ok = await verifySignature(raw, req.headers.get("x-hub-signature-256"), cred.app_secret);
-      if (!ok) { console.warn("invalid signature", phoneNumberId); continue; }
+      if (!ok) {
+        console.warn("invalid signature", phoneNumberId);
+        return new Response("Unauthorized", { status: 401 });
+      }
 
       const instanceId = await ensureOfficialInstance(cred.workspace_id);
       if (!instanceId) continue;
