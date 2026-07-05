@@ -4,8 +4,9 @@
 //  por isso o arquivo estava em quarentena via vitest.config exclude.)
 // Agora: vi.mock + renderHook/act/waitFor do @testing-library/react.
 //
-// Os testes cobrem o comportamento REAL do hook hoje. Ver a nota de BUG conhecido no
-// fim (classificação de duplicados/blocked é dead-code no hook atual).
+// A dedupe (duplicate por code/título/email) e o status "blocked" voltaram a ser
+// alcançáveis após o fix no hook (status inicia como "" em vez de "new"), então
+// os cenários correspondentes agora são cobertos aqui.
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 
@@ -27,6 +28,8 @@ vi.mock("@/lib/notify", () => ({ emitNotification: vi.fn() }));
 
 const META_KEY = "kora.quotes.supabaseImport.v1";
 
+// id "1" casa com o remoto r1 (título+cliente+total) => é duplicado.
+// id "3" NÃO tem correspondente remoto => é "new" (usado nos testes de import).
 function makeLocalQuotes() {
   return [
     { id: "1", title: "Orc 1", clientName: "Cliente A", clientEmail: "a@example.com", total: 100, isDemo: false, clientId: "c1", items: [] },
@@ -79,7 +82,8 @@ describe("useLocalQuotesImport", () => {
     expect(meta.lastImportedAt).toBe("2024-01-01T00:00:00Z");
   });
 
-  it("classifica como 'imported' o que já está no importedMap e 'new' o resto", async () => {
+  it("classifica como 'imported' o que já está no importedMap (tem prioridade sobre dedupe)", async () => {
+    // id "1" está no importedMap E casaria como duplicado; 'imported' vence.
     localStorage.setItem(
       META_KEY,
       JSON.stringify({ lastImportedAt: "", importedLocalIds: [], skippedLocalIds: [], importedMap: { "1": "rX" } }),
@@ -87,21 +91,54 @@ describe("useLocalQuotesImport", () => {
     const { result } = renderHook(useLocalQuotesImport);
     await waitFor(() => expect(result.current.candidates.length).toBe(2));
     const byId = Object.fromEntries(result.current.candidates.map((c) => [c.localQuote.id, c.status]));
-    expect(byId["1"]).toBe("imported"); // já importado
+    expect(byId["1"]).toBe("imported");
     expect(byId["3"]).toBe("new");
+  });
+
+  it("classifica como 'duplicate' quando casa com o remoto por título+cliente+total", async () => {
+    const { result } = renderHook(useLocalQuotesImport);
+    await waitFor(() => expect(result.current.candidates.length).toBe(2));
+    const byId = Object.fromEntries(result.current.candidates.map((c) => [c.localQuote.id, c.status]));
+    expect(byId["1"]).toBe("duplicate"); // Orc 1 / Cliente A / 100 == remoto r1
+    expect(byId["3"]).toBe("new");
+  });
+
+  it("classifica como 'duplicate' quando existe o mesmo code no remoto", async () => {
+    const locals = makeLocalQuotes();
+    locals[2].code = "CODE123"; // id "3"
+    vi.mocked(useQuotes).mockReturnValue({ quotes: locals });
+    vi.mocked(quotesRepository.listQuotes).mockResolvedValue([
+      ...makeRemoteQuotes(),
+      { id: "r3", code: "CODE123", title: "Other", client_name: "X", client_email: "x@x.com", total: 10 },
+    ]);
+    const { result } = renderHook(useLocalQuotesImport);
+    await waitFor(() => expect(result.current.candidates.length).toBe(2));
+    const byId = Object.fromEntries(result.current.candidates.map((c) => [c.localQuote.id, c.status]));
+    expect(byId["3"]).toBe("duplicate");
+  });
+
+  it("classifica como 'blocked' um orçamento sem dados essenciais", async () => {
+    const locals = makeLocalQuotes();
+    locals[2].clientEmail = undefined; // id "3" sem email
+    vi.mocked(useQuotes).mockReturnValue({ quotes: locals });
+    const { result } = renderHook(useLocalQuotesImport);
+    await waitFor(() => expect(result.current.candidates.length).toBe(2));
+    const byId = Object.fromEntries(result.current.candidates.map((c) => [c.localQuote.id, c.status]));
+    expect(byId["3"]).toBe("blocked");
   });
 
   it("mapeia client_id e opportunity_id a partir dos mapas locais ao importar", async () => {
     localStorage.setItem("kora.clients.supabaseImport.v1", JSON.stringify({ importedMap: { c1: "supClient1" } }));
     localStorage.setItem("kora.crm.supabaseImport.v1", JSON.stringify({ importedMap: { lead99: "supOpp99" } }));
     const locals = makeLocalQuotes();
-    locals[0].leadId = "lead99";
+    locals[2].clientId = "c1"; // id "3" (não-duplicado) ganha client + lead p/ o mapeamento
+    locals[2].leadId = "lead99";
     vi.mocked(useQuotes).mockReturnValue({ quotes: locals });
 
     const { result } = renderHook(useLocalQuotesImport);
     await waitFor(() => expect(result.current.candidates.length).toBe(2));
     await act(async () => {
-      await result.current.importSelected(["1"]);
+      await result.current.importSelected(["3"]);
     });
 
     const payload = vi.mocked(quotesRepository.createQuote).mock.calls[0][1];
@@ -113,11 +150,11 @@ describe("useLocalQuotesImport", () => {
     const { result } = renderHook(useLocalQuotesImport);
     await waitFor(() => expect(result.current.candidates.length).toBe(2));
     await act(async () => {
-      await result.current.importSelected(["1"]);
+      await result.current.importSelected(["3"]); // id "3" é 'new'
     });
     const meta = JSON.parse(localStorage.getItem(META_KEY));
-    expect(meta.importedMap["1"]).toBe("new-id");
-    expect(meta.importedLocalIds).toContain("1");
+    expect(meta.importedMap["3"]).toBe("new-id");
+    expect(meta.importedLocalIds).toContain("3");
   });
 
   it("falha ao importar itens marca como skipped e não como imported", async () => {
@@ -125,29 +162,10 @@ describe("useLocalQuotesImport", () => {
     const { result } = renderHook(useLocalQuotesImport);
     await waitFor(() => expect(result.current.candidates.length).toBe(2));
     await act(async () => {
-      await result.current.importSelected(["1"]);
+      await result.current.importSelected(["3"]);
     });
     const meta = JSON.parse(localStorage.getItem(META_KEY));
-    expect(meta.importedMap["1"]).toBeUndefined();
-    expect(meta.skippedLocalIds).toContain("1");
-  });
-
-  // BUG CONHECIDO (não corrigido aqui — mudança de lógica de negócio, fica p/ commit à parte):
-  // a classificação de duplicados remotos (code/title/email) e o status "blocked" são
-  // DEAD CODE no hook. `status` é inicializado como "new" (truthy), então todos os
-  // `if (!status ...)` de dedupe nunca executam. Cenário mantido como skip até o hook
-  // ser corrigido (init "" ou reestruturação do bloco de status).
-  it.skip("classifica duplicados remotos como 'duplicate' (bloqueado por dead-code no hook)", async () => {
-    const locals = makeLocalQuotes();
-    locals[2].code = "CODE123";
-    vi.mocked(useQuotes).mockReturnValue({ quotes: locals });
-    vi.mocked(quotesRepository.listQuotes).mockResolvedValue([
-      ...makeRemoteQuotes(),
-      { id: "r3", code: "CODE123", title: "Other", client_name: "X", client_email: "x@x.com", total: 10 },
-    ]);
-    const { result } = renderHook(useLocalQuotesImport);
-    await waitFor(() => expect(result.current.candidates.length).toBe(2));
-    const byId = Object.fromEntries(result.current.candidates.map((c) => [c.localQuote.id, c.status]));
-    expect(byId["3"]).toBe("duplicate");
+    expect(meta.importedMap["3"]).toBeUndefined();
+    expect(meta.skippedLocalIds).toContain("3");
   });
 });

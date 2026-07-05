@@ -135,8 +135,10 @@ export function useLocalQuotesImport() {
         // skip demo quotes if present
         if (local.isDemo) continue;
 
-        // Determine status
-        let status: ImportStatus = "new";
+        // Determine status. Começa vazio ("") — que é falsy — para que os blocos
+        // `if (!status ...)` de dedupe/blocked abaixo sejam alcançáveis. No fim,
+        // o que sobrar sem classificação vira "new".
+        let status: ImportStatus | "" = "";
         let reason: string | undefined;
 
         // already imported?
