@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
+import { getTechnicalSheetExperimentalEnabled, setTechnicalSheetExperimentalEnabled } from "@/config/flags";
 import {
   User,
   Building2,
@@ -1691,22 +1692,11 @@ function LocalTechnicalSheetsImportCard() {
 }
 
 function SupabaseExperimentalToggleCard() {
-  const [enabled, setEnabled] = useState(() => {
-    try {
-      const saved = localStorage.getItem("kora.technicalSheets.supabaseExperimental.enabled");
-      return saved === "false" ? false : true; // Default to true
-    } catch {
-      return true;
-    }
-  });
+  const [enabled, setEnabled] = useState(() => getTechnicalSheetExperimentalEnabled());
 
   const handleToggle = () => {
     const nextVal = !enabled;
-    try {
-      localStorage.setItem("kora.technicalSheets.supabaseExperimental.enabled", String(nextVal));
-    } catch (e) {
-      console.error(e);
-    }
+    setTechnicalSheetExperimentalEnabled(nextVal);
     setEnabled(nextVal);
     toast.success(`Modo experimental da Ficha Técnica ${nextVal ? "ativado" : "desativado"}.`);
   };

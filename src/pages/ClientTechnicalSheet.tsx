@@ -28,6 +28,11 @@ import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { mapLocalToSupabaseSheet } from "@/services/technicalSheets/technicalSheetMapper";
 import { mapSupabaseToLocalSheet } from "@/services/technicalSheets/supabaseTechnicalSheetToLocalMapper";
 import { clientTechnicalSheetsRepository } from "@/repositories/clientTechnicalSheetsRepository";
+import {
+  getTechnicalSheetExperimentalEnabled,
+  getTechnicalSheetDataSource,
+  setTechnicalSheetDataSource,
+} from "@/config/flags";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -320,40 +325,18 @@ export default function ClientTechnicalSheetPage() {
   const [view, setView] = useState<ViewId>("overview");
   const [sheet, setSheet] = useState<ClientTechnicalSheet>({});
 
-  const isExperimentalEnabled = useMemo(() => {
-    try {
-      const saved = localStorage.getItem("kora.technicalSheets.supabaseExperimental.enabled");
-      return saved !== "false"; // Default to true if not set
-    } catch {
-      return true;
-    }
-  }, []);
+  const isExperimentalEnabled = useMemo(() => getTechnicalSheetExperimentalEnabled(), []);
 
-  const [dataSource, setDataSource] = useState<"local" | "supabase">(() => {
-    try {
-      const saved = localStorage.getItem("kora.technicalSheets.dataSource.v1");
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed[String(clientId)] === "local") {
-          return "local";
-        }
-      }
-    } catch {
-      // Ignore
-    }
-    return "supabase";
-  });
+  const [dataSource, setDataSource] = useState<"local" | "supabase">(
+    () => getTechnicalSheetDataSource(clientId),
+  );
 
   const activeDataSource = isExperimentalEnabled ? dataSource : "local";
 
   // Auto-promote to supabase when client has a linked supabase ID
   useEffect(() => {
-    if (supabaseClientId && dataSource === "local") {
-      const saved = localStorage.getItem("kora.technicalSheets.dataSource.v1");
-      const parsed = saved ? JSON.parse(saved) : {};
-      if (parsed[String(clientId)] !== "local") {
-        setDataSource("supabase");
-      }
+    if (supabaseClientId && dataSource === "local" && getTechnicalSheetDataSource(clientId) === "supabase") {
+      setDataSource("supabase");
     }
   }, [supabaseClientId, dataSource, clientId]);
 
@@ -364,14 +347,7 @@ export default function ClientTechnicalSheetPage() {
       toast.error("Este cliente não possui vínculo com o Supabase.");
       return;
     }
-    try {
-      const saved = localStorage.getItem("kora.technicalSheets.dataSource.v1");
-      const parsed = saved ? JSON.parse(saved) : {};
-      parsed[String(clientId)] = newSource;
-      localStorage.setItem("kora.technicalSheets.dataSource.v1", JSON.stringify(parsed));
-    } catch (e) {
-      console.error(e);
-    }
+    setTechnicalSheetDataSource(clientId, newSource);
     setDataSource(newSource);
     toast.success(`Fonte alterada para ${newSource === "supabase" ? "Supabase experimental" : "Local"}.`);
   };
