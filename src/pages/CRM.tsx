@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { useLeads, type Lead, type Priority, type StageKey, type LeadTemperature, getLeadTemperature } from "@/hooks/useLeads";
 import { usePipelines, type Pipeline, type PipelineStage } from "@/hooks/usePipelines";
 import { usePipelineAutomations } from "@/hooks/usePipelineAutomations";
+import { getBooleanFlag, getCrmDataSource, setCrmDataSource } from "@/config/flags";
 import {
   Plus, Search, TrendingUp, DollarSign, CheckCircle2, BarChart3,
   Phone, Mail, Clock, MoreHorizontal, User, Briefcase, Calendar,
@@ -161,17 +162,7 @@ const CRM = () => {
   const isRestoreArchiveEnabled = supabaseWriteEnabled;
   const isSoftDeleteEnabled = supabaseWriteEnabled;
 
-  const [dataSource, setDataSource] = useState<"local" | "supabase">(() => {
-    try {
-      const saved = localStorage.getItem("kora.crm.dataSource.v1");
-      if (saved === "local") {
-        return "local";
-      }
-    } catch {
-      // Ignore
-    }
-    return "supabase";
-  });
+  const [dataSource, setDataSource] = useState<"local" | "supabase">(() => getCrmDataSource());
 
   const activeDataSource = workspace ? dataSource : "local";
 
@@ -192,11 +183,7 @@ const CRM = () => {
 
   const handleSourceChange = (newSource: "local" | "supabase") => {
     if (!isExperimentalEnabled) return;
-    try {
-      localStorage.setItem("kora.crm.dataSource.v1", newSource);
-    } catch (e) {
-      console.error(e);
-    }
+    setCrmDataSource(newSource);
     setDataSource(newSource);
     toast.success(`Fonte do CRM alterada para ${newSource === "supabase" ? "Supabase experimental" : "Local"}.`);
   };
@@ -1283,7 +1270,7 @@ const CRM = () => {
         onOpenClient={(cid) => navigate(`/clientes?client=${cid}`)}
         onCreateQuote={() => {
           if (activeDataSource === "supabase") {
-            const createQuoteFlag = localStorage.getItem("kora.crm.supabaseCreateQuote.enabled") === "true";
+            const createQuoteFlag = getBooleanFlag("crmSupabaseCreateQuote");
             if (!createQuoteFlag) {
               toast.info("Criação de orçamento no CRM Supabase entra nesta etapa experimental. Ative em Configurações.");
               return;
