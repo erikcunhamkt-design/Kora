@@ -25,13 +25,15 @@
 export type DataSource = "local" | "supabase";
 
 /**
- * Flags booleanas "opt-in" VIVAS: ausência = desligada.
+ * Flags booleanas "opt-in" VIVAS e CONSISTENTES: ausência = desligada.
  * Leitura: `getItem(key) === "true"`. Escrita: `setItem(key, "true"|"false")`.
  * (mesma semântica das leituras soltas que este módulo substitui.)
+ *
+ * NOTA: as duas flags da FICHA TÉCNICA (supabaseAutoSave, supabaseExperimental)
+ * NÃO entram aqui — não são opt-in default-OFF. Ver TECHNICAL_SHEETS_*_KEY
+ * mais abaixo.
  */
 export const BOOLEAN_FLAG_KEYS = {
-  technicalSheetsSupabaseAutoSave: "kora.technicalSheets.supabaseAutoSave.enabled",
-  technicalSheetsSupabaseExperimental: "kora.technicalSheets.supabaseExperimental.enabled",
   quotesSupabaseExperimental: "kora.quotes.supabaseExperimental.enabled",
   quotesSupabaseCreateProject: "kora.quotes.supabaseCreateProject.enabled",
   quotesSupabaseCreateReceivable: "kora.quotes.supabaseCreateReceivable.enabled",
@@ -62,6 +64,22 @@ export const DEAD_FLAG_KEYS = {
   crmSupabaseArchive: "kora.crm.supabaseArchive.enabled",
   crmSupabaseRestoreArchive: "kora.crm.supabaseRestoreArchive.enabled",
 } as const;
+
+/**
+ * Flags booleanas da FICHA TÉCNICA — NÃO seguem o padrão opt-in default-OFF,
+ * por isso ficam FORA de BOOLEAN_FLAG_KEYS/getBooleanFlag:
+ *
+ *  - supabaseExperimental: opt-OUT (default LIGADO). Card (Configuracoes,
+ *    `=== "false" ? false : true`) e consumidor (ClientTechnicalSheet,
+ *    `!== "false"`) são CONSISTENTES. Centralizada abaixo com acessor opt-out.
+ *
+ *  - supabaseAutoSave: INCONSISTENTE hoje — o card lê `=== "true"` (default
+ *    DESLIGADO) e o consumidor lê `!== "false"` (default LIGADO). Não pode ser
+ *    centralizada num único default sem MUDAR comportamento em um dos dois
+ *    lados. Aguarda decisão; catalogada aqui, SEM acessor de propósito.
+ */
+export const TECHNICAL_SHEETS_EXPERIMENTAL_KEY = "kora.technicalSheets.supabaseExperimental.enabled";
+export const TECHNICAL_SHEETS_AUTOSAVE_KEY = "kora.technicalSheets.supabaseAutoSave.enabled";
 
 /**
  * Seletores de fonte de dados. ATENÇÃO: o default de ambos é "supabase" —
@@ -101,6 +119,17 @@ export function getBooleanFlag(name: BooleanFlagName): boolean {
 /** Grava uma flag booleana no MESMO formato de antes ("true"/"false"). */
 export function setBooleanFlag(name: BooleanFlagName, value: boolean): void {
   safeSet(BOOLEAN_FLAG_KEYS[name], String(value));
+}
+
+// ── ficha técnica · modo experimental (opt-OUT, default LIGADO) ─────────────
+
+/** Ausência ou qualquer valor ≠ "false" ⇒ true (ligado por padrão). */
+export function getTechnicalSheetExperimentalEnabled(): boolean {
+  return safeGet(TECHNICAL_SHEETS_EXPERIMENTAL_KEY) !== "false";
+}
+
+export function setTechnicalSheetExperimentalEnabled(value: boolean): void {
+  safeSet(TECHNICAL_SHEETS_EXPERIMENTAL_KEY, String(value));
 }
 
 // ── seletor de fonte do CRM (string plana; default "supabase") ──────────────

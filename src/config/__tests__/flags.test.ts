@@ -7,8 +7,12 @@ import {
   BOOLEAN_FLAG_KEYS,
   CRM_DATA_SOURCE_KEY,
   TECHNICAL_SHEETS_DATA_SOURCE_KEY,
+  TECHNICAL_SHEETS_EXPERIMENTAL_KEY,
+  TECHNICAL_SHEETS_AUTOSAVE_KEY,
   getBooleanFlag,
   setBooleanFlag,
+  getTechnicalSheetExperimentalEnabled,
+  setTechnicalSheetExperimentalEnabled,
   getCrmDataSource,
   setCrmDataSource,
   getTechnicalSheetDataSource,
@@ -56,9 +60,8 @@ describe("flags · booleanas opt-in", () => {
   });
 
   it("cada nome mapeia para a chave kora.*.enabled esperada", () => {
-    // trava anti-regressão: qualquer renomeio de chave quebra aqui
-    expect(BOOLEAN_FLAG_KEYS.technicalSheetsSupabaseAutoSave).toBe("kora.technicalSheets.supabaseAutoSave.enabled");
-    expect(BOOLEAN_FLAG_KEYS.technicalSheetsSupabaseExperimental).toBe("kora.technicalSheets.supabaseExperimental.enabled");
+    // trava anti-regressão: qualquer renomeio de chave quebra aqui.
+    // (as flags da ficha técnica NÃO estão aqui — ver bloco opt-out abaixo.)
     expect(BOOLEAN_FLAG_KEYS.quotesSupabaseExperimental).toBe("kora.quotes.supabaseExperimental.enabled");
     expect(BOOLEAN_FLAG_KEYS.quotesSupabaseCreateProject).toBe("kora.quotes.supabaseCreateProject.enabled");
     expect(BOOLEAN_FLAG_KEYS.quotesSupabaseCreateReceivable).toBe("kora.quotes.supabaseCreateReceivable.enabled");
@@ -67,6 +70,37 @@ describe("flags · booleanas opt-in", () => {
     expect(BOOLEAN_FLAG_KEYS.projectsSupabaseCreateBaseTasks).toBe("kora.projects.supabaseCreateBaseTasks.enabled");
     expect(BOOLEAN_FLAG_KEYS.tasksSupabaseStatusTransition).toBe("kora.tasks.supabaseStatusTransition.enabled");
     expect(BOOLEAN_FLAG_KEYS.supabaseOperationalDashboard).toBe("kora.supabase.operationalDashboard.enabled");
+  });
+});
+
+describe("flags · ficha técnica · experimental (opt-OUT, default LIGADO)", () => {
+  it("default é true quando a chave não existe", () => {
+    expect(getTechnicalSheetExperimentalEnabled()).toBe(true);
+  });
+
+  it("só o literal \"false\" desliga; qualquer outro valor ⇒ true", () => {
+    localStorage.setItem(TECHNICAL_SHEETS_EXPERIMENTAL_KEY, "false");
+    expect(getTechnicalSheetExperimentalEnabled()).toBe(false);
+    localStorage.setItem(TECHNICAL_SHEETS_EXPERIMENTAL_KEY, "true");
+    expect(getTechnicalSheetExperimentalEnabled()).toBe(true);
+    localStorage.setItem(TECHNICAL_SHEETS_EXPERIMENTAL_KEY, "");
+    expect(getTechnicalSheetExperimentalEnabled()).toBe(true);
+    localStorage.setItem(TECHNICAL_SHEETS_EXPERIMENTAL_KEY, "xpto");
+    expect(getTechnicalSheetExperimentalEnabled()).toBe(true);
+  });
+
+  it("grava \"true\"/\"false\" na chave certa (round-trip)", () => {
+    setTechnicalSheetExperimentalEnabled(false);
+    expect(localStorage.getItem(TECHNICAL_SHEETS_EXPERIMENTAL_KEY)).toBe("false");
+    expect(getTechnicalSheetExperimentalEnabled()).toBe(false);
+    setTechnicalSheetExperimentalEnabled(true);
+    expect(localStorage.getItem(TECHNICAL_SHEETS_EXPERIMENTAL_KEY)).toBe("true");
+    expect(getTechnicalSheetExperimentalEnabled()).toBe(true);
+  });
+
+  it("chaves catalogadas da ficha técnica batem com as strings reais", () => {
+    expect(TECHNICAL_SHEETS_EXPERIMENTAL_KEY).toBe("kora.technicalSheets.supabaseExperimental.enabled");
+    expect(TECHNICAL_SHEETS_AUTOSAVE_KEY).toBe("kora.technicalSheets.supabaseAutoSave.enabled");
   });
 });
 
