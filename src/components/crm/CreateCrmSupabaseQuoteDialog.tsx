@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { quotesRepository } from "@/repositories/quotesRepository";
 import type { Lead } from "@/hooks/useLeads";
+import { formatCurrency as intlCurrency } from "@/lib/format";
 
 interface CreateCrmSupabaseQuoteDialogProps {
   open: boolean;
@@ -271,7 +272,7 @@ export function CreateCrmSupabaseQuoteDialog({
         <div className="flex justify-between items-center text-xs mt-3 pt-3 border-t border-border/40">
           <span className="text-muted-foreground">Total Calculado:</span>
           <span className="text-base font-bold text-foreground">
-            {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(calculateTotal())}
+            {intlCurrency(calculateTotal())}
           </span>
         </div>
 

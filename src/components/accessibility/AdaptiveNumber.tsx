@@ -6,6 +6,7 @@ import {
   TooltipContent,
   TooltipProvider,
 } from "@/components/ui/tooltip";
+import { formatCurrency as intlCurrency, formatNumber as intlNumber } from "@/lib/format";
 
 interface AdaptiveNumberProps {
   value: number;
@@ -22,12 +23,9 @@ export const AdaptiveNumber: React.FC<AdaptiveNumberProps> = ({
 
   const formatExact = (val: number): string => {
     if (type === "currency") {
-      return new Intl.NumberFormat("pt-BR", {
-        style: "currency",
-        currency: "BRL",
-      }).format(val);
+      return intlCurrency(val);
     }
-    return new Intl.NumberFormat("pt-BR").format(val);
+    return intlNumber(val);
   };
 
   const formatSimplified = (val: number): string => {

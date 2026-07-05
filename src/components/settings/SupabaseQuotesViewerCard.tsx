@@ -10,6 +10,7 @@ import { CreateReceivableDialog } from "@/components/crm/CreateReceivableDialog"
 import { CreateProjectFromQuoteDialog } from "@/components/crm/CreateProjectFromQuoteDialog";
 import type { Quote } from "@/hooks/useQuotes";
 import { toast } from "sonner";
+import { formatCurrency as intlCurrency } from "@/lib/format";
 
 interface ImportMeta {
   importedMap?: Record<string, string>;
@@ -230,7 +231,7 @@ export function SupabaseQuotesViewerCard() {
                       </div>
                       <div className="text-right shrink-0 flex flex-col items-end gap-1">
                         <span className="font-bold text-foreground">
-                          {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(quote.total)}
+                          {intlCurrency(quote.total)}
                         </span>
                         <Badge variant="outline" className={`text-[10px] uppercase py-0 px-1.5 capitalize ${
                           (quote.status as string) === "approved" ? "border-emerald-500/30 text-emerald-400 bg-emerald-500/10" :

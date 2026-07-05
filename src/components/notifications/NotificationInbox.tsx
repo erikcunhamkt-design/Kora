@@ -39,6 +39,7 @@ import {
 } from "@/hooks/useNotificationsCenter";
 import type { AppNotification } from "@/hooks/useNotificationsCenter";
 import { cn } from "@/lib/utils";
+import { formatDate as intlDate } from "@/lib/format";
 
 interface NotificationInboxProps {
   open: boolean;
@@ -85,7 +86,7 @@ function relativeTime(iso: string): string {
   if (hours < 24) return `${hours}h`;
   const days = Math.floor(hours / 24);
   if (days < 7) return `${days}d`;
-  return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+  return intlDate(iso, { day: "2-digit", month: "2-digit" });
 }
 
 function groupOf(iso: string): "today" | "week" | "old" {

@@ -24,6 +24,7 @@ import {
   type SupportTicketType,
 } from "@/hooks/useSupportTickets";
 import { cn } from "@/lib/utils";
+import { formatDateTime as intlDateTime } from "@/lib/format";
 
 interface SupportDrawerProps {
   open: boolean;
@@ -276,7 +277,7 @@ export function SupportDrawer({ open, onOpenChange }: SupportDrawerProps) {
                             </Badge>
                           </div>
                           <div className="text-[0.6875rem] text-muted-foreground mt-2">
-                            {new Date(t.createdAt).toLocaleString("pt-BR", {
+                            {intlDateTime(t.createdAt, {
                               day: "2-digit",
                               month: "2-digit",
                               hour: "2-digit",

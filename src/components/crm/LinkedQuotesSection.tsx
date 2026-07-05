@@ -10,6 +10,7 @@ import { CreateReceivableDialog } from "@/components/crm/CreateReceivableDialog"
 import { CreateProjectFromQuoteDialog } from "@/components/crm/CreateProjectFromQuoteDialog";
 import type { Quote } from "@/hooks/useQuotes";
 import { toast } from "sonner";
+import { formatCurrency as intlCurrency } from "@/lib/format";
 
 interface LinkedQuotesSectionProps {
   opportunityId?: string;
@@ -182,7 +183,7 @@ export function LinkedQuotesSection({
                 </div>
                 
                 <div className="flex justify-between items-center text-muted-foreground text-[10px]">
-                  <span>Total: <strong className="text-foreground">{new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(quote.total)}</strong></span>
+                  <span>Total: <strong className="text-foreground">{intlCurrency(quote.total)}</strong></span>
                   {quote.createdAt && (
                     <span>Criado em: {new Date(quote.createdAt).toLocaleDateString()}</span>
                   )}

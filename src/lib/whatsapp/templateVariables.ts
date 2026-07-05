@@ -1,9 +1,11 @@
+import { formatDate as intlDate } from "@/lib/format";
+
 export const TEMPLATE_VARIABLES = [
   { key: "nome", label: "Nome completo", sample: "Erik Souza" },
   { key: "primeiro_nome", label: "Primeiro nome", sample: "Erik" },
   { key: "empresa", label: "Empresa", sample: "Estúdio Orbyt" },
   { key: "serviço", label: "Serviço", sample: "Branding" },
-  { key: "data", label: "Data", sample: new Date().toLocaleDateString("pt-BR") },
+  { key: "data", label: "Data", sample: intlDate(new Date()) },
   { key: "link", label: "Link", sample: "https://orbyt.studio/proposta" },
 ] as const;
 

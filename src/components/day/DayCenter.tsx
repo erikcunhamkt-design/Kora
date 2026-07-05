@@ -44,6 +44,7 @@ import {
   type DayCategory,
   type DayPriority,
 } from "@/lib/dayCenter";
+import { formatCurrency as intlCurrency, formatDate as intlDate } from "@/lib/format";
 
 
 interface Props {
@@ -99,14 +100,14 @@ const CATEGORY_ICON: Record<DayCategory, React.ComponentType<{ className?: strin
 
 function formatBR(amount?: number) {
   if (typeof amount !== "number") return undefined;
-  return `R$ ${amount.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+  return intlCurrency(amount, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
 function formatDate(iso?: string) {
   if (!iso) return undefined;
   const [y, m, d] = iso.split("-").map(Number);
   if (!y) return undefined;
-  return new Date(y, m - 1, d).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+  return intlDate(new Date(y, m - 1, d), { day: "2-digit", month: "short" });
 }
 
 export function DayCenter({ open, onOpenChange }: Props) {

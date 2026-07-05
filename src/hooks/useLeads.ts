@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { DEFAULT_PIPELINE_ID } from "./usePipelines";
+import { formatDate as intlDate } from "@/lib/format";
 
 export type Priority = "alta" | "média" | "baixa";
 export type StageKey = "lead" | "contato" | "proposta" | "negociacao" | "fechado" | "perdido";
@@ -203,9 +204,9 @@ function migrate(list: Lead[]): Lead[] {
 }
 
 const todayShort = () =>
-  new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+  intlDate(new Date(), { day: "2-digit", month: "short" });
 const todayFull = () =>
-  new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
+  intlDate(new Date(), { day: "2-digit", month: "short", year: "numeric" });
 
 export function useLeads() {
   const [leads, setLeads] = useState<Lead[]>(() => {

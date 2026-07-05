@@ -22,9 +22,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { QuoteToReceivableDialog } from "@/components/vendas/QuoteToReceivableDialog";
 import { QuoteToProjectDialog } from "@/components/vendas/QuoteToProjectDialog";
+import { formatCurrency as intlCurrency } from "@/lib/format";
 
 const BRL = (n: number) =>
-  n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2 });
+  intlCurrency(n, { minimumFractionDigits: 2 });
 
 const STATUS_LABEL: Record<QuoteStatus, string> = {
   rascunho: "Rascunho",

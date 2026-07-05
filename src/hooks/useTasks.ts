@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { playKoraSound } from "@/lib/sound/soundManager";
+import { formatDate as intlDate } from "@/lib/format";
 
 export type TaskPriority = "alta" | "média" | "baixa";
 export type TaskStatus = "a_fazer" | "em_andamento" | "revisao" | "concluido";
@@ -76,7 +77,7 @@ export function formatPtBr(iso?: string): string {
   const [y, mo, d] = iso.split("-").map(Number);
   if (!y) return "—";
   const date = new Date(y, mo - 1, d);
-  return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
+  return intlDate(date, { day: "2-digit", month: "short", year: "numeric" });
 }
 
 const rawDemo: Omit<Task, "isDemo">[] = [
@@ -124,7 +125,7 @@ export function useTasks() {
 
   const addTask = useCallback((data: Omit<Task, "id" | "isDemo" | "createdAt">) => {
     const nowIso = new Date().toISOString();
-    const display = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
+    const display = intlDate(new Date(), { day: "2-digit", month: "short", year: "numeric" });
     setTasks((prev) => [
       {
         ...data,
@@ -180,7 +181,7 @@ export function useTasks() {
       const src = prev.find((t) => t.id === id);
       if (!src) return prev;
       return [
-        { ...src, id: Date.now(), title: `${src.title} (cópia)`, isDemo: false, status: "a_fazer", createdAt: new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }), updatedAt: new Date().toISOString() },
+        { ...src, id: Date.now(), title: `${src.title} (cópia)`, isDemo: false, status: "a_fazer", createdAt: intlDate(new Date(), { day: "2-digit", month: "short", year: "numeric" }), updatedAt: new Date().toISOString() },
         ...prev,
       ];
     });

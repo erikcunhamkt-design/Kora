@@ -7,6 +7,7 @@ import { useAiCredits, type CreditTxType, type CreditTransaction } from "@/hooks
 import { usePlan } from "@/contexts/PlanContext";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { formatDateTime as intlDateTime, formatNumber as intlNumber } from "@/lib/format";
 
 interface Props {
   open: boolean;
@@ -29,8 +30,7 @@ const TYPE_META: Record<CreditTxType, { label: string; Icon: React.ComponentType
 };
 
 function formatDate(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+  return intlDateTime(iso, { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
 function formatRelative(iso: string | null) {
@@ -133,7 +133,7 @@ export function AiCreditsDrawer({ open, onOpenChange }: Props) {
                   )}
                   <div className="flex items-baseline justify-between">
                     <span className="text-[0.8125rem] font-semibold">{p.name}</span>
-                    <span className="text-[0.7rem] text-muted-foreground">{p.credits.toLocaleString("pt-BR")} cr</span>
+                    <span className="text-[0.7rem] text-muted-foreground">{intlNumber(p.credits)} cr</span>
                   </div>
                   <p className="text-[0.7rem] text-muted-foreground leading-snug min-h-[2em]">{p.hint}</p>
                   <p className="text-[0.7rem] text-muted-foreground/70 italic">{p.price}</p>

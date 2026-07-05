@@ -11,6 +11,7 @@ import {
   Inbox, Mail, Phone, Briefcase, Check, Archive, UserPlus, RefreshCw,
   Trash2, MapPin, MessageSquare,
 } from "lucide-react";
+import { formatDateTime as intlDateTime } from "@/lib/format";
 
 const statusStyle: Record<string, string> = {
   pending: "bg-amber-500/10 text-amber-400 border-amber-500/20",
@@ -214,7 +215,7 @@ const RequestRow = ({
           {req.document && (
             <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{req.document}</span>
           )}
-          <span>{new Date(req.created_at).toLocaleString("pt-BR")}</span>
+          <span>{intlDateTime(req.created_at)}</span>
         </div>
         {req.message && (
           <p className="mt-2 text-xs text-muted-foreground line-clamp-3 flex gap-1.5">

@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { formatDate as intlDate } from "@/lib/format";
 
 interface Props {
   open: boolean;
@@ -27,7 +28,7 @@ export const ScheduleMeetingDialog = ({ open, onOpenChange, onSave }: Props) => 
 
   const handleSave = () => {
     if (!date) return toast.error("Selecione uma data");
-    const dateLabel = new Date(date + "T00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+    const dateLabel = intlDate(date + "T00:00", { day: "2-digit", month: "short" });
     const summary = `Reunião em ${dateLabel}${time ? ` às ${time}` : ""}${notes ? ` — ${notes}` : ""}`;
     onSave(summary);
     toast.success("Reunião agendada localmente");

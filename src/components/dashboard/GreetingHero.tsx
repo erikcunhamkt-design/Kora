@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useDayCenterData } from "@/hooks/useDayCenterData";
 import { DAY_CATEGORY_LABEL, type DayPriority } from "@/lib/dayCenter";
+import { formatDate as intlDate } from "@/lib/format";
 
 function getGreeting() {
   const h = new Date().getHours();
@@ -14,12 +15,6 @@ function getGreeting() {
   if (h < 18) return "Boa tarde";
   return "Boa noite";
 }
-
-const weekdayLong = new Intl.DateTimeFormat("pt-BR", {
-  weekday: "long",
-  day: "2-digit",
-  month: "long",
-});
 
 const PRIORITY_LABEL: Record<DayPriority, string> = {
   critical: "Crítico",
@@ -42,7 +37,7 @@ export function GreetingHero() {
   const { profile } = useAuth();
   const { settings, updateSetting } = useAccessibility();
   const name = (profile?.display_name || "").split(" ")[0] || "por aqui";
-  const dateLabel = weekdayLong.format(new Date());
+  const dateLabel = intlDate(new Date(), { weekday: "long", day: "2-digit", month: "long" });
 
   const { topAction, counts } = useDayCenterData();
 

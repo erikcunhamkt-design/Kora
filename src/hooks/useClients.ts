@@ -14,6 +14,8 @@ export type {
   ClientTechnicalSheet, ClientContactRole, ClientContact, Client
 };
 
+import { formatDate as intlDate } from "@/lib/format";
+
 export const CLIENT_ASSET_TYPE_LABELS: Record<ClientAssetType, string> = {
   drive: "Google Drive",
   figma: "Figma",
@@ -173,7 +175,7 @@ export function useClients() {
         projects: [],
         tasks: [],
         lastProject: data.lastProject ?? "—",
-        lastInteraction: data.lastInteraction ?? new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }),
+        lastInteraction: data.lastInteraction ?? intlDate(new Date(), { day: "2-digit", month: "short", year: "numeric" }),
         createdAt: now,
         updatedAt: now,
         ...data,

@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { useAiAgents, AgentCategory, AiAgent, AgentBadge } from "@/hooks/useAiAgents";
 import { useAiCredits, openCreditsWallet } from "@/hooks/useAiCredits";
 import { cn } from "@/lib/utils";
+import { formatDate as intlDate, formatNumber as intlNumber } from "@/lib/format";
 
 const categoryLabels: Record<AgentCategory, string> = {
   strategy: "Estratégia",
@@ -211,7 +212,7 @@ export function AISection() {
             <div key={t.id} className="flex items-center justify-between text-sm border-b border-border/40 pb-2 last:border-0">
               <div className="min-w-0">
                 <p className="truncate">{t.description}</p>
-                <p className="text-[10px] text-muted-foreground">{new Date(t.createdAt).toLocaleDateString("pt-BR")}</p>
+                <p className="text-[10px] text-muted-foreground">{intlDate(t.createdAt)}</p>
               </div>
               <span className={t.amount >= 0 ? "text-emerald-400" : "text-rose-400"}>{t.amount >= 0 ? "+" : ""}{t.amount}</span>
             </div>
@@ -273,7 +274,7 @@ export function AISection() {
             {packs.map((p) => (
               <Card key={p.id} className="p-4 space-y-2 hover:border-primary/40 transition-colors">
                 <h4 className="font-semibold">{p.name}</h4>
-                <p className="text-2xl font-bold">{p.credits.toLocaleString()} <span className="text-sm font-normal text-muted-foreground">créditos</span></p>
+                <p className="text-2xl font-bold">{intlNumber(p.credits)} <span className="text-sm font-normal text-muted-foreground">créditos</span></p>
                 <p className="text-sm text-muted-foreground">{p.price}</p>
                 <Button className="w-full" onClick={() => buy(p)}>Selecionar</Button>
               </Card>

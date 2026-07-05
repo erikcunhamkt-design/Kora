@@ -30,6 +30,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { WhatsAppStatusBadge } from "./WhatsAppStatusBadge";
 import { Link } from "react-router-dom";
+import { formatCurrency as intlCurrency, formatDateTime as intlDateTime } from "@/lib/format";
 
 export interface WhatsAppContactPanelProps {
   conversationId: string;
@@ -123,7 +124,7 @@ function Section({
 
 function fmtCurrency(n: number | null | undefined) {
   if (n == null) return "—";
-  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  return intlCurrency(n, {});
 }
 
 export function WhatsAppContactPanel({
@@ -669,7 +670,7 @@ export function WhatsAppContactPanel({
                     <p className="whitespace-pre-wrap pr-5">{n.content}</p>
                     <div className="flex items-center justify-between mt-1">
                       <span className="text-[9px] text-muted-foreground">
-                        {new Date(n.created_at).toLocaleString("pt-BR")}
+                        {intlDateTime(n.created_at)}
                       </span>
                       <button
                         onClick={() => handleDeleteNote(n.id)}
@@ -687,7 +688,7 @@ export function WhatsAppContactPanel({
 
         <Section title="Última atividade" icon={FileText}>
           <p className="text-[11px] text-muted-foreground">
-            {lastActivity ? new Date(lastActivity).toLocaleString("pt-BR") : "—"}
+            {lastActivity ? intlDateTime(lastActivity) : "—"}
           </p>
         </Section>
       </div>

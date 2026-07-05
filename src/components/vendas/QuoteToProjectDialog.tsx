@@ -18,6 +18,7 @@ import {
   type ProjectStatus, type ProjectDeliverable, type Project,
 } from "@/hooks/useProjects";
 import { useTasks, formatPtBr } from "@/hooks/useTasks";
+import { formatCurrency as intlCurrency } from "@/lib/format";
 
 const addDaysISO = (base: Date, days: number) => {
   const d = new Date(base);
@@ -199,7 +200,7 @@ export function QuoteToProjectDialog({
             </div>
             <div className="space-y-1.5">
               <Label>Valor contratado</Label>
-              <Input value={quote.total.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} readOnly className="bg-muted/30" />
+              <Input value={intlCurrency(quote.total)} readOnly className="bg-muted/30" />
             </div>
           </div>
 

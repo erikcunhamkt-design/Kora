@@ -1,4 +1,5 @@
 import { Progress } from "@/components/ui/progress";
+import { formatNumber as intlNumber } from "@/lib/format";
 
 const goals = [
   { title: "Faturamento Mensal", current: 12450, target: 15000, unit: "R$" },
@@ -20,7 +21,7 @@ export function GoalsSection() {
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[0.9375rem] font-medium text-foreground">{goal.title}</span>
                 <span className="text-[0.8125rem] text-muted-foreground font-medium">
-                  {goal.unit} {goal.current.toLocaleString("pt-BR")} / {goal.unit} {goal.target.toLocaleString("pt-BR")}
+                  {goal.unit} {intlNumber(goal.current)} / {goal.unit} {intlNumber(goal.target)}
                 </span>
               </div>
               <Progress value={pct} className="h-1.5 bg-muted" />

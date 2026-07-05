@@ -10,9 +10,10 @@ import { useProducts, type Product, type ProductType, type ProductStatus } from 
 import { useCommercialPlans, type CommercialPlan, type BillingCycle, type PlanItem } from "@/hooks/useCommercialPlans";
 import { useCheckoutSettings } from "@/hooks/useCheckoutSettings";
 import { useQuotes } from "@/hooks/useQuotes";
+import { formatCurrency as intlCurrency } from "@/lib/format";
 
 const BRL = (n: number) =>
-  n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+  intlCurrency(n, { maximumFractionDigits: 0 });
 
 const BILLING_OPTIONS: BillingType[] = ["único", "mensal", "recorrente", "pacote", "personalizado"];
 const PRODUCT_TYPES: ProductType[] = ["digital", "physical", "addon", "template", "consulting"];
