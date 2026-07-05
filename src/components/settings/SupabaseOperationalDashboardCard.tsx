@@ -13,6 +13,7 @@ import { RefreshCw, FileText, TrendingUp, DollarSign, Briefcase, Activity, Check
 import { toast } from "sonner";
 import { CreateProjectBaseTasksDialog } from "@/components/projects/CreateProjectBaseTasksDialog";
 import { type SupabaseProject } from "@/repositories/projectsRepository";
+import { getBooleanFlag } from "@/config/flags";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,7 +40,7 @@ function ProjectTasksList({ projectId }: { projectId: string }) {
   useEffect(() => {
     const checkFlag = () => {
       try {
-        setTransitionEnabled(localStorage.getItem("kora.tasks.supabaseStatusTransition.enabled") === "true");
+        setTransitionEnabled(getBooleanFlag("tasksSupabaseStatusTransition"));
       } catch {
         setTransitionEnabled(false);
       }
@@ -89,7 +90,7 @@ function ProjectTasksList({ projectId }: { projectId: string }) {
     toStatus: "todo" | "in_progress" | "done",
     projId: string
   ) => {
-    const isTransitionEnabled = localStorage.getItem("kora.tasks.supabaseStatusTransition.enabled") === "true";
+    const isTransitionEnabled = getBooleanFlag("tasksSupabaseStatusTransition");
     if (!isTransitionEnabled) {
       toast.info("Transição de tarefas Supabase entra nesta etapa experimental. Ative em Configurações.");
       return;
@@ -240,7 +241,7 @@ export function SupabaseOperationalDashboardCard() {
   useEffect(() => {
     const checkFlag = () => {
       try {
-        setEnabled(localStorage.getItem("kora.supabase.operationalDashboard.enabled") === "true");
+        setEnabled(getBooleanFlag("supabaseOperationalDashboard"));
       } catch {
         setEnabled(false);
       }
@@ -269,7 +270,7 @@ export function SupabaseOperationalDashboardCard() {
 
   const handleGenerateTasksClick = (proj: SupabaseProject) => {
     try {
-      const isFlagOn = localStorage.getItem("kora.projects.supabaseCreateBaseTasks.enabled") === "true";
+      const isFlagOn = getBooleanFlag("projectsSupabaseCreateBaseTasks");
       if (!isFlagOn) {
         toast.info("A geração experimental de tarefas base está desativada. Habilite nas configurações.");
         return;

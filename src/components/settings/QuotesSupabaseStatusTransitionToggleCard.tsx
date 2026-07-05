@@ -2,23 +2,14 @@ import { useState } from "react";
 import { SettingsCard } from "@/components/settings/SettingsCard";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { getBooleanFlag, setBooleanFlag } from "@/config/flags";
 
 export function QuotesSupabaseStatusTransitionToggleCard() {
-  const [enabled, setEnabled] = useState(() => {
-    try {
-      return localStorage.getItem("kora.tasks.supabaseStatusTransition.enabled") === "true";
-    } catch {
-      return false;
-    }
-  });
+  const [enabled, setEnabled] = useState(() => getBooleanFlag("tasksSupabaseStatusTransition"));
 
   const handleToggle = () => {
     const nextVal = !enabled;
-    try {
-      localStorage.setItem("kora.tasks.supabaseStatusTransition.enabled", String(nextVal));
-    } catch (e) {
-      console.error(e);
-    }
+    setBooleanFlag("tasksSupabaseStatusTransition", nextVal);
     setEnabled(nextVal);
     toast.success(`Transição de Status de Tarefas Supabase ${nextVal ? "ativada" : "desativada"}.`);
     // Dispatch storage event to alert UI dynamically

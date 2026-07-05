@@ -2,23 +2,14 @@ import { useState } from "react";
 import { SettingsCard } from "@/components/settings/SettingsCard";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { getBooleanFlag, setBooleanFlag } from "@/config/flags";
 
 export function SupabaseOperationalDashboardToggleCard() {
-  const [enabled, setEnabled] = useState(() => {
-    try {
-      return localStorage.getItem("kora.supabase.operationalDashboard.enabled") === "true";
-    } catch {
-      return false;
-    }
-  });
+  const [enabled, setEnabled] = useState(() => getBooleanFlag("supabaseOperationalDashboard"));
 
   const handleToggle = () => {
     const nextVal = !enabled;
-    try {
-      localStorage.setItem("kora.supabase.operationalDashboard.enabled", String(nextVal));
-    } catch (e) {
-      console.error(e);
-    }
+    setBooleanFlag("supabaseOperationalDashboard", nextVal);
     setEnabled(nextVal);
     toast.success(`Visão Operacional Supabase ${nextVal ? "ativada" : "desativada"}.`);
     // Dispatch storage event to alert UI dynamically

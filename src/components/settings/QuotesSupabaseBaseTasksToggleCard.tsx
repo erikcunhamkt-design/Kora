@@ -2,23 +2,14 @@ import { useState } from "react";
 import { SettingsCard } from "@/components/settings/SettingsCard";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { getBooleanFlag, setBooleanFlag } from "@/config/flags";
 
 export function QuotesSupabaseBaseTasksToggleCard() {
-  const [enabled, setEnabled] = useState(() => {
-    try {
-      return localStorage.getItem("kora.projects.supabaseCreateBaseTasks.enabled") === "true";
-    } catch {
-      return false;
-    }
-  });
+  const [enabled, setEnabled] = useState(() => getBooleanFlag("projectsSupabaseCreateBaseTasks"));
 
   const handleToggle = () => {
     const nextVal = !enabled;
-    try {
-      localStorage.setItem("kora.projects.supabaseCreateBaseTasks.enabled", String(nextVal));
-    } catch (e) {
-      console.error(e);
-    }
+    setBooleanFlag("projectsSupabaseCreateBaseTasks", nextVal);
     setEnabled(nextVal);
     toast.success(`Geração de Tarefas Base Supabase ${nextVal ? "ativada" : "desativada"}.`);
     // Dispatch storage event to alert UI dynamically
