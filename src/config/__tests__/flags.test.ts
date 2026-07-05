@@ -1,0 +1,130 @@
+// Testes do módulo de feature flags centralizado (Etapa 4a).
+// Provam que cada acessor preserva chave, default e formato gravado das
+// leituras/escritas soltas que ele substitui.
+import { describe, it, expect, beforeEach } from "vitest";
+
+import {
+  BOOLEAN_FLAG_KEYS,
+  CRM_DATA_SOURCE_KEY,
+  TECHNICAL_SHEETS_DATA_SOURCE_KEY,
+  getBooleanFlag,
+  setBooleanFlag,
+  getCrmDataSource,
+  setCrmDataSource,
+  getTechnicalSheetDataSource,
+  setTechnicalSheetDataSource,
+} from "@/config/flags";
+
+beforeEach(() => {
+  localStorage.clear();
+});
+
+describe("flags · booleanas opt-in", () => {
+  it("default é false quando a chave não existe", () => {
+    expect(getBooleanFlag("quotesSupabaseApproval")).toBe(false);
+    expect(getBooleanFlag("supabaseOperationalDashboard")).toBe(false);
+  });
+
+  it("lê true apenas para o literal \"true\"", () => {
+    localStorage.setItem(BOOLEAN_FLAG_KEYS.quotesSupabaseApproval, "true");
+    expect(getBooleanFlag("quotesSupabaseApproval")).toBe(true);
+  });
+
+  it("lê false para \"false\", string vazia ou lixo", () => {
+    localStorage.setItem(BOOLEAN_FLAG_KEYS.quotesSupabaseApproval, "false");
+    expect(getBooleanFlag("quotesSupabaseApproval")).toBe(false);
+    localStorage.setItem(BOOLEAN_FLAG_KEYS.quotesSupabaseApproval, "");
+    expect(getBooleanFlag("quotesSupabaseApproval")).toBe(false);
+    localStorage.setItem(BOOLEAN_FLAG_KEYS.quotesSupabaseApproval, "1");
+    expect(getBooleanFlag("quotesSupabaseApproval")).toBe(false);
+    localStorage.setItem(BOOLEAN_FLAG_KEYS.quotesSupabaseApproval, "TRUE");
+    expect(getBooleanFlag("quotesSupabaseApproval")).toBe(false);
+  });
+
+  it("grava exatamente \"true\"/\"false\" na chave certa", () => {
+    setBooleanFlag("crmSupabaseCreateQuote", true);
+    expect(localStorage.getItem(BOOLEAN_FLAG_KEYS.crmSupabaseCreateQuote)).toBe("true");
+    setBooleanFlag("crmSupabaseCreateQuote", false);
+    expect(localStorage.getItem(BOOLEAN_FLAG_KEYS.crmSupabaseCreateQuote)).toBe("false");
+  });
+
+  it("round-trip: o que grava é o que lê", () => {
+    setBooleanFlag("tasksSupabaseStatusTransition", true);
+    expect(getBooleanFlag("tasksSupabaseStatusTransition")).toBe(true);
+    setBooleanFlag("tasksSupabaseStatusTransition", false);
+    expect(getBooleanFlag("tasksSupabaseStatusTransition")).toBe(false);
+  });
+
+  it("cada nome mapeia para a chave kora.*.enabled esperada", () => {
+    // trava anti-regressão: qualquer renomeio de chave quebra aqui
+    expect(BOOLEAN_FLAG_KEYS.technicalSheetsSupabaseAutoSave).toBe("kora.technicalSheets.supabaseAutoSave.enabled");
+    expect(BOOLEAN_FLAG_KEYS.technicalSheetsSupabaseExperimental).toBe("kora.technicalSheets.supabaseExperimental.enabled");
+    expect(BOOLEAN_FLAG_KEYS.quotesSupabaseExperimental).toBe("kora.quotes.supabaseExperimental.enabled");
+    expect(BOOLEAN_FLAG_KEYS.quotesSupabaseCreateProject).toBe("kora.quotes.supabaseCreateProject.enabled");
+    expect(BOOLEAN_FLAG_KEYS.quotesSupabaseCreateReceivable).toBe("kora.quotes.supabaseCreateReceivable.enabled");
+    expect(BOOLEAN_FLAG_KEYS.quotesSupabaseApproval).toBe("kora.quotes.supabaseApproval.enabled");
+    expect(BOOLEAN_FLAG_KEYS.crmSupabaseCreateQuote).toBe("kora.crm.supabaseCreateQuote.enabled");
+    expect(BOOLEAN_FLAG_KEYS.projectsSupabaseCreateBaseTasks).toBe("kora.projects.supabaseCreateBaseTasks.enabled");
+    expect(BOOLEAN_FLAG_KEYS.tasksSupabaseStatusTransition).toBe("kora.tasks.supabaseStatusTransition.enabled");
+    expect(BOOLEAN_FLAG_KEYS.supabaseOperationalDashboard).toBe("kora.supabase.operationalDashboard.enabled");
+  });
+});
+
+describe("flags · seletor de fonte do CRM (string plana, default supabase)", () => {
+  it("default é \"supabase\" quando ausente", () => {
+    expect(getCrmDataSource()).toBe("supabase");
+  });
+
+  it("só o literal \"local\" seleciona local", () => {
+    localStorage.setItem(CRM_DATA_SOURCE_KEY, "local");
+    expect(getCrmDataSource()).toBe("local");
+  });
+
+  it("\"supabase\" e qualquer lixo resolvem para \"supabase\"", () => {
+    localStorage.setItem(CRM_DATA_SOURCE_KEY, "supabase");
+    expect(getCrmDataSource()).toBe("supabase");
+    localStorage.setItem(CRM_DATA_SOURCE_KEY, "xpto");
+    expect(getCrmDataSource()).toBe("supabase");
+  });
+
+  it("grava a string plana crua na chave certa", () => {
+    setCrmDataSource("local");
+    expect(localStorage.getItem(CRM_DATA_SOURCE_KEY)).toBe("local");
+    setCrmDataSource("supabase");
+    expect(localStorage.getItem(CRM_DATA_SOURCE_KEY)).toBe("supabase");
+  });
+});
+
+describe("flags · seletor de fonte da ficha técnica (mapa JSON por cliente, default supabase)", () => {
+  it("default é \"supabase\" para qualquer cliente quando ausente", () => {
+    expect(getTechnicalSheetDataSource("c1")).toBe("supabase");
+    expect(getTechnicalSheetDataSource(42)).toBe("supabase");
+  });
+
+  it("resolve \"local\" só quando o mapa marca aquele cliente como \"local\"", () => {
+    localStorage.setItem(TECHNICAL_SHEETS_DATA_SOURCE_KEY, JSON.stringify({ c1: "local", c2: "supabase" }));
+    expect(getTechnicalSheetDataSource("c1")).toBe("local");
+    expect(getTechnicalSheetDataSource("c2")).toBe("supabase");
+    // cliente ausente do mapa ⇒ default supabase, mesmo com outros em "local"
+    expect(getTechnicalSheetDataSource("c3")).toBe("supabase");
+  });
+
+  it("JSON malformado ⇒ default \"supabase\"", () => {
+    localStorage.setItem(TECHNICAL_SHEETS_DATA_SOURCE_KEY, "{not json");
+    expect(getTechnicalSheetDataSource("c1")).toBe("supabase");
+  });
+
+  it("grava por cliente PRESERVANDO os demais", () => {
+    localStorage.setItem(TECHNICAL_SHEETS_DATA_SOURCE_KEY, JSON.stringify({ c1: "local" }));
+    setTechnicalSheetDataSource("c2", "supabase");
+    const stored = JSON.parse(localStorage.getItem(TECHNICAL_SHEETS_DATA_SOURCE_KEY) as string);
+    expect(stored.c1).toBe("local"); // preservado
+    expect(stored.c2).toBe("supabase");
+  });
+
+  it("normaliza a chave do cliente para string (número e string coincidem)", () => {
+    setTechnicalSheetDataSource(7, "local");
+    expect(getTechnicalSheetDataSource("7")).toBe("local");
+    expect(getTechnicalSheetDataSource(7)).toBe("local");
+  });
+});
