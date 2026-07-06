@@ -11,6 +11,7 @@ import { CreateProjectFromQuoteDialog } from "@/components/crm/CreateProjectFrom
 import type { Quote } from "@/hooks/useQuotes";
 import { toast } from "sonner";
 import { formatCurrency as intlCurrency, formatDate as intlDate, formatDateTime as intlDateTime } from "@/lib/format";
+import { getBooleanFlag } from "@/config/flags";
 
 interface ImportMeta {
   importedMap?: Record<string, string>;
@@ -29,7 +30,7 @@ export function SupabaseQuotesViewerCard() {
   const [receivableQuote, setReceivableQuote] = useState<Quote | null>(null);
 
   const handleCreateReceivableClick = (quote: Quote) => {
-    const flagEnabled = localStorage.getItem("kora.quotes.supabaseCreateReceivable.enabled") === "true";
+    const flagEnabled = getBooleanFlag("quotesSupabaseCreateReceivable");
     if (!flagEnabled) {
       toast.info("Geração de recebível financeiro entra nesta etapa experimental. Ative em Configurações.");
       return;
@@ -42,7 +43,7 @@ export function SupabaseQuotesViewerCard() {
   const [projectQuote, setProjectQuote] = useState<Quote | null>(null);
 
   const handleCreateProjectClick = (quote: Quote) => {
-    const flagEnabled = localStorage.getItem("kora.quotes.supabaseCreateProject.enabled") === "true";
+    const flagEnabled = getBooleanFlag("quotesSupabaseCreateProject");
     if (!flagEnabled) {
       toast.info("Geração de projeto experimental entra nesta etapa experimental. Ative em Configurações.");
       return;
@@ -74,14 +75,14 @@ export function SupabaseQuotesViewerCard() {
 
   const experimentalEnabled = useMemo(() => {
     try {
-      return localStorage.getItem("kora.quotes.supabaseExperimental.enabled") === "true";
+      return getBooleanFlag("quotesSupabaseExperimental");
     } catch {
       return false;
     }
   }, []);
 
   const handleActionClick = (quoteId: string, title: string, type: "approve" | "reject") => {
-    const flagEnabled = localStorage.getItem("kora.quotes.supabaseApproval.enabled") === "true";
+    const flagEnabled = getBooleanFlag("quotesSupabaseApproval");
     if (!flagEnabled) {
       toast.info("Aprovação de orçamentos Supabase entra nesta etapa experimental. Ative em Configurações.");
       return;

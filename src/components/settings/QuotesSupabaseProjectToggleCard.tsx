@@ -2,23 +2,14 @@ import { useState } from "react";
 import { SettingsCard } from "@/components/settings/SettingsCard";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { getBooleanFlag, setBooleanFlag } from "@/config/flags";
 
 export function QuotesSupabaseProjectToggleCard() {
-  const [enabled, setEnabled] = useState(() => {
-    try {
-      return localStorage.getItem("kora.quotes.supabaseCreateProject.enabled") === "true";
-    } catch {
-      return false;
-    }
-  });
+  const [enabled, setEnabled] = useState(() => getBooleanFlag("quotesSupabaseCreateProject"));
 
   const handleToggle = () => {
     const nextVal = !enabled;
-    try {
-      localStorage.setItem("kora.quotes.supabaseCreateProject.enabled", String(nextVal));
-    } catch (e) {
-      console.error(e);
-    }
+    setBooleanFlag("quotesSupabaseCreateProject", nextVal);
     setEnabled(nextVal);
     toast.success(`Geração Experimental de Projetos ${nextVal ? "ativada" : "desativada"}.`);
     // Dispatch storage event to alert UI dynamically

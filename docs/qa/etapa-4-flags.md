@@ -32,8 +32,8 @@ do repo):
 | `7fc41ee` | grupo ficha técnica — centraliza `experimental` (opt-out) + `dataSource` |
 | `ae8857d` | grupo projects/tasks/operacional — 3 flags opt-in |
 | `2e89a0f` | grupo CRM — `createQuote` (opt-in) + `dataSource` |
-| _(este doc)_ | relatório da Etapa 4a |
-| _pendente_ | grupo **quotes** — bloqueado pelo sweep (ver §5) |
+| _(este commit)_ | grupo **quotes** — 4 flags + 4 toggle cards + 2 consumidores (fecha a 4a) |
+| `6ccf02e` | relatório da Etapa 4a |
 
 ---
 
@@ -46,10 +46,10 @@ comparação inline; cada card reimplementava leitura+escrita (duplicação/inco
 
 | Flag (`kora.*.enabled`) | Consumidor | Toggle | Estado 4a |
 |---|---|---|---|
-| `quotes.supabaseExperimental` | SupabaseQuotesViewerCard:77 | QuotesSupabaseExperimentalToggleCard | ⏳ pendente (sweep) |
-| `quotes.supabaseCreateProject` | LinkedQuotesSection:50 · Viewer:45 | QuotesSupabaseProjectToggleCard | ⏳ pendente (sweep) |
-| `quotes.supabaseCreateReceivable` | LinkedQuotesSection:37 · Viewer:32 | QuotesSupabaseReceivableToggleCard | ⏳ pendente (sweep) |
-| `quotes.supabaseApproval` | LinkedQuotesSection:68 · Viewer:84 | QuotesSupabaseApprovalToggleCard | ⏳ pendente (sweep) |
+| `quotes.supabaseExperimental` | SupabaseQuotesViewerCard:77 | QuotesSupabaseExperimentalToggleCard | ✅ (grupo quotes) |
+| `quotes.supabaseCreateProject` | LinkedQuotesSection:50 · Viewer:45 | QuotesSupabaseProjectToggleCard | ✅ (grupo quotes) |
+| `quotes.supabaseCreateReceivable` | LinkedQuotesSection:37 · Viewer:32 | QuotesSupabaseReceivableToggleCard | ✅ (grupo quotes) |
+| `quotes.supabaseApproval` | LinkedQuotesSection:68 · Viewer:84 | QuotesSupabaseApprovalToggleCard | ✅ (grupo quotes) |
 | `crm.supabaseCreateQuote` | CRM.tsx:1286 | CrmSupabaseCreateQuoteToggleCard | ✅ `2e89a0f` |
 | `projects.supabaseCreateBaseTasks` | OperationalDashboardCard:272 | QuotesSupabaseBaseTasksToggleCard | ✅ `ae8857d` |
 | `tasks.supabaseStatusTransition` | OperationalDashboardCard:42,92 | QuotesSupabaseStatusTransitionToggleCard | ✅ `ae8857d` |
@@ -134,7 +134,13 @@ o comportamento real do autosave. Enquanto não houver decisão, `flags.ts` exp�
 
 ---
 
-## 5. Blocker 2 — grupo quotes colide com o sweep (grupo adiado)
+## 5. Blocker 2 — grupo quotes colidia com o sweep (RESOLVIDO)
+
+> **Atualização:** o sweep foi commitado como etapa própria (B5 `5c947cf` + B5b
+> `c097006`), deixando a base limpa. O grupo quotes foi então centralizado (commit
+> deste grupo): as 4 flags (`quotesSupabaseExperimental` / `CreateProject` /
+> `CreateReceivable` / `Approval`) nos 2 consumidores + os 4 toggle cards, via
+> `getBooleanFlag`/`setBooleanFlag`, com as mesmas chaves/defaults. **4a concluída.**
 
 Os dois consumidores que o grupo **quotes** precisa editar — `LinkedQuotesSection.tsx` e
 `SupabaseQuotesViewerCard.tsx` — estão entre os **23 arquivos do sweep** (alterações
@@ -194,6 +200,7 @@ Por commit, em todos os grupos:
 - [x] `git add` por caminho explícito; os 23 arquivos do sweep e o `.env` intocados.
 - [x] Flags mortas **catalogadas, não removidas** (com nota "confirmar antes").
 - [x] 4b registrada como movida para a Etapa 5, com justificativa.
-- [ ] **Grupo quotes** — pendente da resolução do sweep pelo dono do repo.
+- [x] **Grupo quotes** — concluído (sweep resolvido via B5/B5b; 4 flags + 4 toggle cards centralizados).
 
-**Status:** 4a concluída **exceto o grupo quotes** (adiado por dependência do sweep).
+**Status:** 4a **concluída** — todos os 6 grupos centralizados (o grupo quotes foi
+destravado depois que o sweep foi commitado como B5/B5b).

@@ -2,23 +2,14 @@ import { useState } from "react";
 import { SettingsCard } from "@/components/settings/SettingsCard";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { getBooleanFlag, setBooleanFlag } from "@/config/flags";
 
 export function QuotesSupabaseExperimentalToggleCard() {
-  const [enabled, setEnabled] = useState(() => {
-    try {
-      return localStorage.getItem("kora.quotes.supabaseExperimental.enabled") === "true";
-    } catch {
-      return false;
-    }
-  });
+  const [enabled, setEnabled] = useState(() => getBooleanFlag("quotesSupabaseExperimental"));
 
   const handleToggle = () => {
     const nextVal = !enabled;
-    try {
-      localStorage.setItem("kora.quotes.supabaseExperimental.enabled", String(nextVal));
-    } catch (e) {
-      console.error(e);
-    }
+    setBooleanFlag("quotesSupabaseExperimental", nextVal);
     setEnabled(nextVal);
     toast.success(`Visualização Experimental de Orçamentos ${nextVal ? "ativada" : "desativada"}.`);
     // Force a custom event or page refresh to update viewer visibility in same tab
