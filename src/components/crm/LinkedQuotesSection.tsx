@@ -10,7 +10,7 @@ import { CreateReceivableDialog } from "@/components/crm/CreateReceivableDialog"
 import { CreateProjectFromQuoteDialog } from "@/components/crm/CreateProjectFromQuoteDialog";
 import type { Quote } from "@/hooks/useQuotes";
 import { toast } from "sonner";
-import { formatCurrency as intlCurrency } from "@/lib/format";
+import { formatCurrency as intlCurrency, formatDate as intlDate, formatDateTime as intlDateTime } from "@/lib/format";
 
 interface LinkedQuotesSectionProps {
   opportunityId?: string;
@@ -185,17 +185,17 @@ export function LinkedQuotesSection({
                 <div className="flex justify-between items-center text-muted-foreground text-[10px]">
                   <span>Total: <strong className="text-foreground">{intlCurrency(quote.total)}</strong></span>
                   {quote.createdAt && (
-                    <span>Criado em: {new Date(quote.createdAt).toLocaleDateString()}</span>
+                    <span>Criado em: {intlDate(quote.createdAt)}</span>
                   )}
                 </div>
                 {quote.approvedAt && (quote.status as string) === "approved" && (
                   <p className="text-[10px] text-emerald-400 mt-0.5 truncate font-medium">
-                    Aprovado em: {new Date(quote.approvedAt).toLocaleString()}
+                    Aprovado em: {intlDateTime(quote.approvedAt, { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" })}
                   </p>
                 )}
                 {quote.rejectedAt && (quote.status as string) === "rejected" && (
                   <p className="text-[10px] text-destructive mt-0.5 truncate font-medium">
-                    Rejeitado em: {new Date(quote.rejectedAt).toLocaleString()}
+                    Rejeitado em: {intlDateTime(quote.rejectedAt, { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" })}
                   </p>
                 )}
 

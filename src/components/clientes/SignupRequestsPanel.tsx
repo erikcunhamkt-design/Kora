@@ -215,7 +215,7 @@ const RequestRow = ({
           {req.document && (
             <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{req.document}</span>
           )}
-          <span>{intlDateTime(req.created_at)}</span>
+          <span>{intlDateTime(req.created_at, { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
         </div>
         {req.message && (
           <p className="mt-2 text-xs text-muted-foreground line-clamp-3 flex gap-1.5">

@@ -10,7 +10,7 @@ import { CreateReceivableDialog } from "@/components/crm/CreateReceivableDialog"
 import { CreateProjectFromQuoteDialog } from "@/components/crm/CreateProjectFromQuoteDialog";
 import type { Quote } from "@/hooks/useQuotes";
 import { toast } from "sonner";
-import { formatCurrency as intlCurrency } from "@/lib/format";
+import { formatCurrency as intlCurrency, formatDate as intlDate, formatDateTime as intlDateTime } from "@/lib/format";
 
 interface ImportMeta {
   importedMap?: Record<string, string>;
@@ -215,17 +215,17 @@ export function SupabaseQuotesViewerCard() {
                         </p>
                         {(quote as any).validUntil && (
                           <p className="text-[10px] text-muted-foreground/80 mt-0.5 truncate">
-                            Validade: {new Date((quote as any).validUntil).toLocaleDateString()}
+                            Validade: {intlDate((quote as any).validUntil)}
                           </p>
                         )}
                         {quote.approvedAt && (quote.status as string) === "approved" && (
                           <p className="text-[10px] text-emerald-400 mt-0.5 truncate font-medium">
-                            Aprovado em: {new Date(quote.approvedAt).toLocaleString()}
+                            Aprovado em: {intlDateTime(quote.approvedAt, { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" })}
                           </p>
                         )}
                         {quote.rejectedAt && (quote.status as string) === "rejected" && (
                           <p className="text-[10px] text-destructive mt-0.5 truncate font-medium">
-                            Rejeitado em: {new Date(quote.rejectedAt).toLocaleString()}
+                            Rejeitado em: {intlDateTime(quote.rejectedAt, { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" })}
                           </p>
                         )}
                       </div>

@@ -670,7 +670,7 @@ export function WhatsAppContactPanel({
                     <p className="whitespace-pre-wrap pr-5">{n.content}</p>
                     <div className="flex items-center justify-between mt-1">
                       <span className="text-[9px] text-muted-foreground">
-                        {intlDateTime(n.created_at)}
+                        {intlDateTime(n.created_at, { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" })}
                       </span>
                       <button
                         onClick={() => handleDeleteNote(n.id)}
@@ -688,7 +688,7 @@ export function WhatsAppContactPanel({
 
         <Section title="Última atividade" icon={FileText}>
           <p className="text-[11px] text-muted-foreground">
-            {lastActivity ? intlDateTime(lastActivity) : "—"}
+            {lastActivity ? intlDateTime(lastActivity, { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "—"}
           </p>
         </Section>
       </div>
