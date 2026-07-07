@@ -2,23 +2,14 @@ import { useState } from "react";
 import { SettingsCard } from "@/components/settings/SettingsCard";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { getTechnicalSheetAutoSaveEnabled, setTechnicalSheetAutoSaveEnabled } from "@/config/flags";
 
 export function QuotesSupabaseTechnicalSheetsAutoSaveToggleCard() {
-  const [enabled, setEnabled] = useState(() => {
-    try {
-      return localStorage.getItem("kora.technicalSheets.supabaseAutoSave.enabled") === "true";
-    } catch {
-      return false;
-    }
-  });
+  const [enabled, setEnabled] = useState(() => getTechnicalSheetAutoSaveEnabled());
 
   const handleToggle = () => {
     const nextVal = !enabled;
-    try {
-      localStorage.setItem("kora.technicalSheets.supabaseAutoSave.enabled", String(nextVal));
-    } catch (e) {
-      console.error(e);
-    }
+    setTechnicalSheetAutoSaveEnabled(nextVal);
     setEnabled(nextVal);
     toast.success(`Autosave de Fichas Técnicas no Supabase ${nextVal ? "ativado" : "desativado"}.`);
     window.dispatchEvent(new Event("storage"));

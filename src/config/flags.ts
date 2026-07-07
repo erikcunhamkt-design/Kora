@@ -73,10 +73,10 @@ export const DEAD_FLAG_KEYS = {
  *    `=== "false" ? false : true`) e consumidor (ClientTechnicalSheet,
  *    `!== "false"`) são CONSISTENTES. Centralizada abaixo com acessor opt-out.
  *
- *  - supabaseAutoSave: INCONSISTENTE hoje — o card lê `=== "true"` (default
- *    DESLIGADO) e o consumidor lê `!== "false"` (default LIGADO). Não pode ser
- *    centralizada num único default sem MUDAR comportamento em um dos dois
- *    lados. Aguarda decisão; catalogada aqui, SEM acessor de propósito.
+ *  - supabaseAutoSave: era INCONSISTENTE (card lia `=== "true"` / default OFF;
+ *    consumidor lia `!== "false"` / default ON). Resolvido: unificado em opt-OUT
+ *    (default LIGADO), alinhando o card ao consumidor — o autosave já ligava por
+ *    padrão, agora o card reflete isso. Acessor opt-out abaixo.
  */
 export const TECHNICAL_SHEETS_EXPERIMENTAL_KEY = "kora.technicalSheets.supabaseExperimental.enabled";
 export const TECHNICAL_SHEETS_AUTOSAVE_KEY = "kora.technicalSheets.supabaseAutoSave.enabled";
@@ -130,6 +130,17 @@ export function getTechnicalSheetExperimentalEnabled(): boolean {
 
 export function setTechnicalSheetExperimentalEnabled(value: boolean): void {
   safeSet(TECHNICAL_SHEETS_EXPERIMENTAL_KEY, String(value));
+}
+
+// ── ficha técnica · autosave (opt-OUT, default LIGADO) ──────────────────────
+
+/** Ausência ou qualquer valor ≠ "false" ⇒ true (ligado por padrão). */
+export function getTechnicalSheetAutoSaveEnabled(): boolean {
+  return safeGet(TECHNICAL_SHEETS_AUTOSAVE_KEY) !== "false";
+}
+
+export function setTechnicalSheetAutoSaveEnabled(value: boolean): void {
+  safeSet(TECHNICAL_SHEETS_AUTOSAVE_KEY, String(value));
 }
 
 // ── seletor de fonte do CRM (string plana; default "supabase") ──────────────

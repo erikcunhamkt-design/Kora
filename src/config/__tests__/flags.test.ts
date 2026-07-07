@@ -13,6 +13,8 @@ import {
   setBooleanFlag,
   getTechnicalSheetExperimentalEnabled,
   setTechnicalSheetExperimentalEnabled,
+  getTechnicalSheetAutoSaveEnabled,
+  setTechnicalSheetAutoSaveEnabled,
   getCrmDataSource,
   setCrmDataSource,
   getTechnicalSheetDataSource,
@@ -101,6 +103,30 @@ describe("flags · ficha técnica · experimental (opt-OUT, default LIGADO)", ()
   it("chaves catalogadas da ficha técnica batem com as strings reais", () => {
     expect(TECHNICAL_SHEETS_EXPERIMENTAL_KEY).toBe("kora.technicalSheets.supabaseExperimental.enabled");
     expect(TECHNICAL_SHEETS_AUTOSAVE_KEY).toBe("kora.technicalSheets.supabaseAutoSave.enabled");
+  });
+});
+
+describe("flags · ficha técnica · autosave (opt-OUT, default LIGADO)", () => {
+  it("default é true quando a chave não existe", () => {
+    expect(getTechnicalSheetAutoSaveEnabled()).toBe(true);
+  });
+
+  it("só o literal \"false\" desliga; qualquer outro valor ⇒ true", () => {
+    localStorage.setItem(TECHNICAL_SHEETS_AUTOSAVE_KEY, "false");
+    expect(getTechnicalSheetAutoSaveEnabled()).toBe(false);
+    localStorage.setItem(TECHNICAL_SHEETS_AUTOSAVE_KEY, "true");
+    expect(getTechnicalSheetAutoSaveEnabled()).toBe(true);
+    localStorage.setItem(TECHNICAL_SHEETS_AUTOSAVE_KEY, "xpto");
+    expect(getTechnicalSheetAutoSaveEnabled()).toBe(true);
+  });
+
+  it("grava \"true\"/\"false\" na chave certa (round-trip)", () => {
+    setTechnicalSheetAutoSaveEnabled(false);
+    expect(localStorage.getItem(TECHNICAL_SHEETS_AUTOSAVE_KEY)).toBe("false");
+    expect(getTechnicalSheetAutoSaveEnabled()).toBe(false);
+    setTechnicalSheetAutoSaveEnabled(true);
+    expect(localStorage.getItem(TECHNICAL_SHEETS_AUTOSAVE_KEY)).toBe("true");
+    expect(getTechnicalSheetAutoSaveEnabled()).toBe(true);
   });
 });
 

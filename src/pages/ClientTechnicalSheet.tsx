@@ -30,6 +30,7 @@ import { mapSupabaseToLocalSheet } from "@/services/technicalSheets/supabaseTech
 import { clientTechnicalSheetsRepository } from "@/repositories/clientTechnicalSheetsRepository";
 import {
   getTechnicalSheetExperimentalEnabled,
+  getTechnicalSheetAutoSaveEnabled,
   getTechnicalSheetDataSource,
   setTechnicalSheetDataSource,
 } from "@/config/flags";
@@ -251,12 +252,7 @@ export default function ClientTechnicalSheetPage() {
   // Sync feature flag state on mount & Storage changes
   useEffect(() => {
     const checkFlag = () => {
-      try {
-        const saved = localStorage.getItem("kora.technicalSheets.supabaseAutoSave.enabled");
-        setAutosaveEnabled(saved !== "false"); // Default to true
-      } catch {
-        setAutosaveEnabled(true);
-      }
+      setAutosaveEnabled(getTechnicalSheetAutoSaveEnabled());
     };
     checkFlag();
     window.addEventListener("storage", checkFlag);
