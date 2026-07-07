@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { formatDate as intlDate } from "@/lib/format";
 import { Megaphone, Plus, Send, ShieldCheck, Users, FileText, AlertTriangle, Check, X, Trash2, BookOpen } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -199,7 +200,7 @@ export function CampaignsSection() {
                     <TableCell>{channelLabels[r.channel]}</TableCell>
                     <TableCell><span className={`text-[10px] px-2 py-0.5 rounded ${consentTone[r.consentStatus]}`}>{r.consentStatus}</span></TableCell>
                     <TableCell className="text-xs text-muted-foreground">{r.consentSource}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{new Date(r.consentDate).toLocaleDateString()}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{intlDate(r.consentDate)}</TableCell>
                     <TableCell className="text-right space-x-1">
                       <Button size="sm" variant="ghost" onClick={() => c.setConsentStatus(r.id, "opted_in")} title="Opt-in"><Check className="h-3.5 w-3.5 text-emerald-400" /></Button>
                       <Button size="sm" variant="ghost" onClick={() => c.setConsentStatus(r.id, "opted_out")} title="Opt-out"><X className="h-3.5 w-3.5 text-destructive" /></Button>

@@ -1,5 +1,6 @@
 import { PageHeader } from "@/components/layout/PageHeader";
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { formatDateTime as intlDateTime } from "@/lib/format";
 import { useSearchParams } from "react-router-dom";
 import { usePlan } from "@/contexts/PlanContext";
 import { UsageBadge } from "@/components/plan/UsageBadge";
@@ -820,7 +821,7 @@ const TaskRow = ({
           {task.reminderEnabled && task.reminderAt && (
             <span className="inline-flex items-center gap-1 text-[10px] text-primary">
               <BellRing className="h-3 w-3" />
-              {new Date(task.reminderAt).toLocaleString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+              {intlDateTime(task.reminderAt, { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
             </span>
           )}
           {task.tags.slice(0, 3).map(tg => (

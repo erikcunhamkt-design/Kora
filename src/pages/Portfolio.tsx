@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { formatDate as intlDate } from "@/lib/format";
 import { useSearchParams } from "react-router-dom";
 import { PageHeader } from "@/components/layout/PageHeader";
 
@@ -339,7 +340,7 @@ const Portfolio = () => {
                   <h2 className="text-xl font-bold text-foreground">{selectedProject.title}</h2>
                   <div className="flex flex-wrap gap-4 mt-3 text-xs text-muted-foreground">
                     <span className="flex items-center gap-1"><User className="h-3.5 w-3.5" />{selectedProject.client}</span>
-                    <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />{new Date(selectedProject.date).toLocaleDateString("pt-BR")}</span>
+                    <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />{intlDate(selectedProject.date)}</span>
                     <span className="flex items-center gap-1"><Eye className="h-3.5 w-3.5" />{selectedProject.views} visualizações</span>
                   </div>
                 </div>

@@ -6,7 +6,7 @@ import { useSupabaseFinancialSummary } from "@/hooks/useSupabaseFinancialSummary
 import { useSupabaseProjectsSummary } from "@/hooks/useSupabaseProjectsSummary";
 import { useSupabaseProjectTasks } from "@/hooks/useSupabaseProjectTasks";
 import { SettingsCard } from "@/components/settings/SettingsCard";
-import { formatCurrency as intlCurrency } from "@/lib/format";
+import { formatCurrency as intlCurrency, formatDate as intlDate } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, FileText, TrendingUp, DollarSign, Briefcase, Activity, CheckSquare } from "lucide-react";
@@ -169,7 +169,7 @@ function ProjectTasksList({ projectId }: { projectId: string }) {
                 </Badge>
               )}
               {task.due_date && (
-                <span className="text-[9px] text-muted-foreground">Prazo: {new Date(task.due_date).toLocaleDateString("pt-BR")}</span>
+                <span className="text-[9px] text-muted-foreground">Prazo: {intlDate(task.due_date)}</span>
               )}
             </div>
           </div>

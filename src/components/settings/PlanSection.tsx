@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { formatCurrency as intlCurrency } from "@/lib/format";
 import {
   Check,
   Crown,
@@ -48,7 +49,7 @@ const TEAM_SIZES = [3, 6, 10, 20];
 function fmt(value: number | null) {
   if (value === null) return "Preço a definir";
   if (value === 0) return "R$ 0";
-  return `R$ ${value.toFixed(2).replace(".", ",")}`;
+  return intlCurrency(value);
 }
 
 const showCheckoutToast = () =>
@@ -240,8 +241,8 @@ export function PlanSection() {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
             <Meta label="Preço por membro" value={`${fmt(TEAM_PER_MEMBER[billing])} /mês`} />
-            <Meta label={`Total mensal • ${teamSize} membros`} value={`R$ ${teamMonthly.toFixed(2).replace(".", ",")}`} />
-            <Meta label="Total anual" value={`R$ ${teamYearlyTotal.toFixed(2).replace(".", ",")}`} />
+            <Meta label={`Total mensal • ${teamSize} membros`} value={intlCurrency(teamMonthly)} />
+            <Meta label="Total anual" value={intlCurrency(teamYearlyTotal)} />
           </div>
 
           <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm mb-5">

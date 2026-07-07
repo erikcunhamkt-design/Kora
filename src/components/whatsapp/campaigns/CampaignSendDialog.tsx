@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Loader2, Send, AlertTriangle, Pause, Ban, Play } from "lucide-react";
+import { formatDateTime as intlDateTime } from "@/lib/format";
 import {
   Dialog,
   DialogContent,
@@ -249,7 +250,7 @@ export function CampaignSendDialog({ open, workspaceId, campaign, onClose, onUpd
                         className="grid grid-cols-[auto_1fr_auto] items-center gap-2 border-b border-border/30 pb-1 last:border-0"
                       >
                         <span className="text-muted-foreground shrink-0 tabular-nums">
-                          {new Date(l.created_at).toLocaleTimeString()}
+                          {intlDateTime(l.created_at, { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
                         </span>
                         <span
                           className={`truncate ${l.event === "failed" ? "text-destructive" : "text-foreground"}`}

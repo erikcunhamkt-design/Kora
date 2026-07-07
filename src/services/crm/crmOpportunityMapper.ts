@@ -1,5 +1,6 @@
 import type { Lead, StageKey, Priority, LeadTemperature } from "@/hooks/useLeads";
 import type { SupabaseOpportunity, SupabaseOpportunityInput } from "@/repositories/crmOpportunitiesRepository";
+import { formatDate as intlDate } from "@/lib/format";
 
 function stableNumericIdFromUuid(uuid: string): number {
   const clean = uuid.replace(/-/g, "");
@@ -53,7 +54,7 @@ export function mapSupabaseOpportunityToLocalLead(opportunity: SupabaseOpportuni
     source: opportunity.source || "",
     estimatedValue: Number(opportunity.potential_value || 0),
     priority: (opportunity.priority as Priority) || "média",
-    lastInteraction: opportunity.updated_at ? new Date(opportunity.updated_at).toLocaleDateString() : new Date().toLocaleDateString(),
+    lastInteraction: opportunity.updated_at ? intlDate(opportunity.updated_at) : intlDate(new Date()),
     stage,
     pipelineId: "default",
     stageId: stage,

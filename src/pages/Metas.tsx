@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { formatNumber as intlNumber } from "@/lib/format";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -73,7 +74,7 @@ const initialGoals: Goal[] = [
 ];
 
 function fmt(v: number, prefix: string, unit: string) {
-  if (prefix === "R$") return `R$ ${v.toLocaleString("pt-BR")}`;
+  if (prefix === "R$") return `R$ ${intlNumber(v)}`;
   return `${v}${unit}`;
 }
 

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { formatDateTime as intlDateTime } from "@/lib/format";
 import { useWhatsAppInstance } from "@/hooks/useWhatsAppInstance";
 import { useWhatsAppConversations } from "@/hooks/useWhatsAppConversations";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
@@ -14,7 +15,7 @@ import { WhatsAppConnectionCard } from "@/components/automacoes/WhatsAppConnecti
 function formatTime(iso: string | null) {
   if (!iso) return "";
   try {
-    return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return intlDateTime(iso, { hour: "2-digit", minute: "2-digit" });
   } catch { return ""; }
 }
 

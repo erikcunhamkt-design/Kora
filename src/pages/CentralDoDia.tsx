@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { formatCurrency as intlCurrency, formatDate as intlDate, formatDateTime as intlDateTime } from "@/lib/format";
 import {
   AlertTriangle,
   ArrowRight,
@@ -89,20 +90,20 @@ const CATEGORY_ICON: Record<DayCategory, React.ComponentType<{ className?: strin
 
 function formatBR(amount?: number) {
   if (typeof amount !== "number") return undefined;
-  return `R$ ${amount.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+  return intlCurrency(amount, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
 function formatDate(iso?: string) {
   if (!iso) return undefined;
   const [y, m, d] = iso.split("-").map(Number);
   if (!y) return undefined;
-  return new Date(y, m - 1, d).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+  return intlDate(new Date(y, m - 1, d), { day: "2-digit", month: "short" });
 }
 
 function formatTime(iso: string) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  return intlDateTime(d, { hour: "2-digit", minute: "2-digit" });
 }
 
 const RESOLVED_TYPE_LABEL: Record<string, string> = {

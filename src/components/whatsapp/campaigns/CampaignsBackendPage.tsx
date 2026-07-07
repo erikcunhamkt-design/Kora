@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
+import { formatDate as intlDate } from "@/lib/format";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import {
   listCampaigns,
@@ -135,7 +136,7 @@ export function CampaignsBackendPage() {
                         {base > 0 ? `${successPct}%` : "—"}
                       </td>
                       <td className="px-4 py-2 text-right text-xs text-muted-foreground">
-                        {new Date(c.created_at).toLocaleDateString()}
+                        {intlDate(c.created_at)}
                       </td>
                       <td className="px-2 flex items-center gap-1 justify-end">
                         <TooltipProvider delayDuration={150}>

@@ -2,6 +2,7 @@ import { Camera, FileText, Headphones, Mic, Sticker, Video } from "lucide-react"
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { formatMessagePreview } from "@/lib/whatsapp/formatMessagePreview";
+import { formatDate as intlDate, formatDateTime as intlDateTime } from "@/lib/format";
 
 export interface WAConvLike {
   id: string;
@@ -28,10 +29,10 @@ function formatTime(iso: string | null) {
     const d = new Date(iso);
     const now = new Date();
     const sameDay = d.toDateString() === now.toDateString();
-    if (sameDay) return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    if (sameDay) return intlDateTime(d, { hour: "2-digit", minute: "2-digit" });
     const diff = (now.getTime() - d.getTime()) / 86_400_000;
-    if (diff < 7) return d.toLocaleDateString([], { weekday: "short" });
-    return d.toLocaleDateString([], { day: "2-digit", month: "2-digit" });
+    if (diff < 7) return intlDate(d, { weekday: "short" });
+    return intlDate(d, { day: "2-digit", month: "2-digit" });
   } catch { return ""; }
 }
 

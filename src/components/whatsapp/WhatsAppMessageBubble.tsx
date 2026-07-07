@@ -4,6 +4,7 @@ import {
   Reply, Pin, Smile, PinOff, CornerUpLeft, Trash2, Forward, Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatDateTime as intlDateTime } from "@/lib/format";
 import { WhatsAppImageLightbox } from "./WhatsAppImageLightbox";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -43,7 +44,7 @@ const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏", "🔥", 
 
 function formatTime(iso: string) {
   try {
-    return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return intlDateTime(iso, { hour: "2-digit", minute: "2-digit" });
   } catch { return ""; }
 }
 

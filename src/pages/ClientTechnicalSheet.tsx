@@ -34,6 +34,7 @@ import {
   getTechnicalSheetDataSource,
   setTechnicalSheetDataSource,
 } from "@/config/flags";
+import { formatDateTime as intlDateTime } from "@/lib/format";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -200,7 +201,7 @@ function RestoreFromSupabaseDialog({
 
           <div className="text-[10px] text-muted-foreground space-y-1">
             {supabaseSheet.updated_at && (
-              <p>Última atualização Supabase: <span className="font-medium text-foreground">{new Date(supabaseSheet.updated_at).toLocaleString("pt-BR")}</span></p>
+              <p>Última atualização Supabase: <span className="font-medium text-foreground">{intlDateTime(supabaseSheet.updated_at, { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span></p>
             )}
           </div>
         </div>
@@ -693,7 +694,7 @@ export default function ClientTechnicalSheetPage() {
                 <div className="col-span-2 md:col-span-3 lg:col-span-6 flex items-center justify-end text-[10px] text-muted-foreground mt-1 gap-1">
                   <span>Última atualização no Supabase:</span>
                   <span className="font-medium text-foreground">
-                    {new Date(supabaseSheet.updated_at).toLocaleString("pt-BR")}
+                    {intlDateTime(supabaseSheet.updated_at, { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" })}
                   </span>
                 </div>
               )}

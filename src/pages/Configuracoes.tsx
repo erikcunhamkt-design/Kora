@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { getTechnicalSheetExperimentalEnabled, setTechnicalSheetExperimentalEnabled } from "@/config/flags";
+import { formatDateTime as intlDateTime } from "@/lib/format";
 import {
   User,
   Building2,
@@ -1237,7 +1238,7 @@ function LocalClientsImportCard() {
 
         {metadata?.lastImportedAt && (
           <p className="text-[11px] text-muted-foreground italic">
-            Última importação: {new Date(metadata.lastImportedAt).toLocaleString()}
+            Última importação: {intlDateTime(metadata.lastImportedAt, { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" })}
           </p>
         )}
 
@@ -1552,7 +1553,7 @@ function LocalTechnicalSheetsImportCard() {
 
         {metadata?.lastImportedAt && (
           <p className="text-[11px] text-muted-foreground italic">
-            Última importação de fichas: {new Date(metadata.lastImportedAt).toLocaleString()}
+            Última importação de fichas: {intlDateTime(metadata.lastImportedAt, { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" })}
           </p>
         )}
 
@@ -1792,7 +1793,7 @@ function LocalOpportunitiesImportCard() {
 
         {metadata?.lastImportedAt && (
           <p className="text-[11px] text-muted-foreground italic">
-            Última importação de oportunidades: {new Date(metadata.lastImportedAt).toLocaleString()}
+            Última importação de oportunidades: {intlDateTime(metadata.lastImportedAt, { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" })}
           </p>
         )}
 

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { formatDate as intlDate, formatDateTime as intlDateTime } from "@/lib/format";
 import {
   ArrowLeft,
   Check,
@@ -74,7 +75,7 @@ function dayLabel(iso: string) {
   const same = (a: Date, b: Date) => a.toDateString() === b.toDateString();
   if (same(d, today)) return "Hoje";
   if (same(d, yest)) return "Ontem";
-  return d.toLocaleDateString([], { day: "2-digit", month: "long", year: "numeric" });
+  return intlDate(d, { day: "2-digit", month: "long", year: "numeric" });
 }
 
 type Filter = "all" | "unread" | "awaiting" | "open" | "resolved";
@@ -669,7 +670,7 @@ export default function WhatsAppPage() {
                       <p className="text-[11px] text-muted-foreground truncate">
                         {selected.contact_phone}
                         {selected.last_message_at && (
-                          <span className="hidden sm:inline"> · última atividade {new Date(selected.last_message_at).toLocaleString()}</span>
+                          <span className="hidden sm:inline"> · última atividade {intlDateTime(selected.last_message_at, { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
                         )}
                       </p>
                     </div>
