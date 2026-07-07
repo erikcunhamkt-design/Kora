@@ -124,13 +124,12 @@ lê `=== "true"` → default **DESLIGADO** (mostra "Inativo" quando não setado)
 (o autosave funciona quando não setado). Num usuário novo, o card diz "Inativo" mas o
 autosave **está ativo**.
 
-Não há como centralizar num único default sem mudar o comportamento de um dos lados.
-**Decisão (dono do repo): deixar fora da 4a e catalogar.** O comportamento atual foi
-preservado 1:1 (nenhuma das duas leituras foi tocada). Fica registrado para decisão de
-produto à parte: (a) unificar em default-ON alinhando o card ao consumidor — muda o
-_display_ do card; ou (b) unificar em default-OFF alinhando o consumidor ao card — muda
-o comportamento real do autosave. Enquanto não houver decisão, `flags.ts` expõe apenas
-`TECHNICAL_SHEETS_AUTOSAVE_KEY` (constante), **sem** acessor.
+Não havia como centralizar num único default sem mudar o comportamento de um dos lados.
+**Decisão (dono do repo): unificar em default-ON, alinhando o card ao consumidor** (opção
+a). O autosave já ligava por padrão (o consumidor lia `!== "false"`); agora o card também
+lê via acessor opt-out e exibe "Ativo" por padrão — **única mudança visível; o autosave em
+si não muda**. `flags.ts` expõe `getTechnicalSheetAutoSaveEnabled`/`set...` (opt-out) e os
+dois sites (consumidor + card) usam o acessor.
 
 ---
 
@@ -158,21 +157,23 @@ misturar o sweep.
 
 Escritas por toggles inline em `Configuracoes.tsx`, mas **sem nenhuma leitura de
 comportamento** (superadas por `crm.supabaseWrite.enabled` + `crm.dataSource.v1`).
-Registradas em `DEAD_FLAG_KEYS`. **NÃO removidas nesta etapa** — remover o card é
-mudança de UI visível.
+**REMOVIDAS** (follow-up pós-4a): grep exaustivo por cada chave confirmou zero leitura de
+comportamento, então os 6 toggle cards saíram de `Configuracoes.tsx` e `DEAD_FLAG_KEYS`
+foi retirado de `flags.ts`. Mudança de UI visível (Configurações perde 6 cards), aprovada.
+Valores antigos dessas chaves no localStorage de usuários ficam órfãos (ninguém lê), sem impacto.
 
-| Flag morta | Toggle (Configuracoes.tsx) |
+| Flag morta (removida) | Toggle removido de Configuracoes.tsx |
 |---|---|
-| `crm.supabaseExperimental.enabled` | CrmSupabaseExperimentalToggleCard:1744 |
-| `crm.supabaseStageMove.enabled` | CrmSupabaseStageMoveToggleCard:1792 |
-| `crm.supabaseBasicEdit.enabled` | :1840 |
-| `crm.supabaseCreate.enabled` | :1888 |
-| `crm.supabaseArchive.enabled` | :1936 |
-| `crm.supabaseRestoreArchive.enabled` | :1984 |
+| `crm.supabaseExperimental.enabled` | CrmSupabaseExperimentalToggleCard |
+| `crm.supabaseStageMove.enabled` | CrmSupabaseStageMoveToggleCard |
+| `crm.supabaseBasicEdit.enabled` | CrmSupabaseBasicEditToggleCard |
+| `crm.supabaseCreate.enabled` | CrmSupabaseCreateToggleCard |
+| `crm.supabaseArchive.enabled` | CrmSupabaseArchiveToggleCard |
+| `crm.supabaseRestoreArchive.enabled` | CrmSupabaseRestoreArchiveToggleCard |
 
-> **Nota de remoção (etapa futura):** o **primeiro passo** antes de remover qualquer uma
-> será reconfirmar por **grep exaustivo** de cada chave que ela continua sem leitura de
-> comportamento — nunca remover com base em "suspeita".
+> **Removidas após reconfirmação:** o grep exaustivo (por cada uma das 6 chaves) retornou
+> apenas o catálogo em `flags.ts` e os próprios toggle cards — nenhuma leitura de
+> comportamento. Removidas com base nessa evidência, não em "suspeita".
 
 ---
 
@@ -183,9 +184,9 @@ Por commit, em todos os grupos:
 - `npx tsc --noEmit` → **0 erros**.
 - Lint gate (`scripts/lint-gate.mjs`) → **89 erros / 68 `no-explicit-any`**, **sem
   regressão** vs baseline (89/68). `flags.ts` é 100% tipado, sem `@ts-nocheck`.
-- Suíte Vitest → **9 arquivos / 76 testes** (o `flags.test.ts` adicionou 19: default,
-  leitura, formato de escrita, seletor CRM, mapa por cliente, JSON malformado, opt-out
-  da ficha técnica).
+- Suíte Vitest → **9 arquivos / 79 testes** (o `flags.test.ts` cobre default, leitura,
+  formato de escrita, seletor CRM, mapa por cliente, JSON malformado, e os opt-out da
+  ficha técnica — experimental e autosave).
 - **Runtime (preview):** app carrega sem erro de build/console; `import('/src/config/flags.ts')`
   no bundle rodando confirmou os defaults reais — CRM dataSource `"supabase"`, experimental
   da ficha `true` (opt-out), flag opt-in `false`.

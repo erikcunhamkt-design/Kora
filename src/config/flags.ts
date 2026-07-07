@@ -46,24 +46,12 @@ export const BOOLEAN_FLAG_KEYS = {
 
 export type BooleanFlagName = keyof typeof BOOLEAN_FLAG_KEYS;
 
-/**
- * Flags MORTAS: escritas por toggles inline em Configuracoes.tsx, mas SEM
- * leitura de comportamento (superadas por `kora.crm.supabaseWrite.enabled` +
- * `kora.crm.dataSource.v1`).
- *
- * NÃO são removidas nesta etapa — remover o card é mudança de UI visível.
- * Catalogadas aqui para remoção aprovada à parte (etapa futura), cujo PRIMEIRO
- * passo será reconfirmar por grep exaustivo cada chave (não remover por
- * "suspeita"). Este módulo NÃO expõe acesso a elas de propósito.
- */
-export const DEAD_FLAG_KEYS = {
-  crmSupabaseExperimental: "kora.crm.supabaseExperimental.enabled",
-  crmSupabaseStageMove: "kora.crm.supabaseStageMove.enabled",
-  crmSupabaseBasicEdit: "kora.crm.supabaseBasicEdit.enabled",
-  crmSupabaseCreate: "kora.crm.supabaseCreate.enabled",
-  crmSupabaseArchive: "kora.crm.supabaseArchive.enabled",
-  crmSupabaseRestoreArchive: "kora.crm.supabaseRestoreArchive.enabled",
-} as const;
+// Flags MORTAS do CRM (supabaseExperimental / StageMove / BasicEdit / Create /
+// Archive / RestoreArchive) foram REMOVIDAS: grep exaustivo confirmou ZERO
+// leitura de comportamento (eram superadas por kora.crm.supabaseWrite.enabled +
+// kora.crm.dataSource.v1). Os 6 toggle cards saíram de Configuracoes.tsx.
+// Valores antigos dessas chaves no localStorage de usuários ficam órfãos
+// (ninguém lê) — sem impacto.
 
 /**
  * Flags booleanas da FICHA TÉCNICA — NÃO seguem o padrão opt-in default-OFF,
