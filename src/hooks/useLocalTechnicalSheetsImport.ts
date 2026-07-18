@@ -1,3 +1,4 @@
+// Espelho Reversível (Etapa 5) — assistente de import de referência do padrão: ver docs/architecture/espelho-reversivel.md
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { useClients } from "@/hooks/useClients";

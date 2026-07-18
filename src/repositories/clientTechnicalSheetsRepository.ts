@@ -1,4 +1,5 @@
 // @ts-nocheck
+// Espelho Reversível (Etapa 5) — repository de referência do padrão: ver docs/architecture/espelho-reversivel.md
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeSupabaseError } from "@/lib/supabase/errors";
 
