@@ -6,9 +6,47 @@
 > a fatia é auditar + testar + homologar, não construir do zero.
 >
 > **Regra de dados:** o Code **não dispara** import nem aplica nada em produção. O disparo do
-> import é **ação do operador**, após backup/PITR (mesma regra do SQL da Etapa 3).
+> import é **ação do operador**, após o gate de segurança da Fase B.2 (**ver seção 0** — como
+> não há backup automático, o gate é **EXPORT MANUAL** + **PRINT pré-clique**).
 >
 > Diagnóstico da etapa: [`etapa-5-diagnostico.md`](etapa-5-diagnostico.md).
+
+---
+
+## 0. DECISÃO SOBRE BACKUP e gates da Fase B.2 (registro permanente)
+
+> ⚠️ **Este projeto Supabase está no plano FREE e NÃO tem backup automático ativo**
+> (`LAST BACKUP: No backups`). Logo, o gate "confirmar backup/PITR" das outras etapas
+> **não se aplica** e é substituído pelos gates 0.2 e 0.3 abaixo.
+
+### 0.1 Declaração do operador (verbatim)
+
+> "Estou ciente de que meu projeto Supabase está no plano free e não tem backup ativo.
+> Estou ciente de que, se dado for perdido durante a Etapa 5, o risco é meu e não tenho
+> como restaurar. Autorizo prosseguir mesmo assim."
+
+Decisão consciente do operador, registrada para efeito permanente. A homologação prossegue
+sob esse risco declarado.
+
+### 0.2 Gate SUBSTITUTO — EXPORT MANUAL (substitui "confirmar backup")
+
+Antes de o operador clicar em "Importar selecionadas", ele **deve**:
+1. Exportar a tabela **`client_technical_sheets`** e, por precaução, **`clients`** — via
+   `pg_dump` ou Export (CSV/SQL) do painel Supabase.
+2. Confirmar por escrito: _"exportei client_technical_sheets e clients, salvei em [caminho]"_.
+
+**Sem essa confirmação, o Code NÃO libera a homologação.**
+
+### 0.3 Gate operacional — PRINT PRÉ-CLIQUE (obrigatório)
+
+Antes de **qualquer** clique que escreva no banco, o operador manda um **print do card exato
+que vai clicar**, com os tiles de contagem visíveis. O Code só autoriza o clique após
+confirmar:
+- (a) é o card **"Importar Fichas Técnicas"** — **NÃO** o "Importar Clientes";
+- (b) os números batem: **Locais c/ Ficha ≥ 2 · Cliente na Nuvem = 1 · Prontos = 1**.
+
+Motivo: no incidente da tentativa anterior, o **card errado foi clicado por atropelamento**.
+Este gate existe para impedir a repetição.
 
 ---
 
@@ -78,10 +116,13 @@ Referências de arquivo:código abaixo.
   Supabase (sem entrada no importedMap). Serve para provar o caminho `sem_cliente`.
 
 ### 3.1 Passos (operador)
-1. Confirmar backup/PITR do projeto Supabase.
+1. **Gate EXPORT MANUAL** (seção 0.2): exportar `client_technical_sheets` + `clients` e
+   confirmar por escrito onde salvou. **Sem isso, não segue.**
 2. **Configurações → card "Importar Fichas Técnicas"** → anotar os 4 tiles
    (Locais c/ Ficha · Cliente na Nuvem · Prontos · Já Importados).
-3. "Analisar importação" → conferir o status por linha → selecionar os "pronto" →
+3. **Gate PRINT PRÉ-CLIQUE** (seção 0.3): mandar o print do card (tiles visíveis); o Code
+   confirma que é o card certo e que os números batem **antes** de autorizar o clique.
+4. "Analisar importação" → conferir o status por linha → selecionar os "pronto" →
    "Importar selecionadas" → observar o toast "N importadas".
 
 ### 3.2 Provas (queries que o operador roda) — substituir `<WS>` e `<UUID>`
