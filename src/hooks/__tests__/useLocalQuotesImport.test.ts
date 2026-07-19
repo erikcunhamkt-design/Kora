@@ -168,4 +168,15 @@ describe("useLocalQuotesImport", () => {
     expect(meta.importedMap["3"]).toBeUndefined();
     expect(meta.skippedLocalIds).toContain("3");
   });
+
+  it("Q4: marca clientOrphan quando o cliente local não está no import-map", async () => {
+    const locals = makeLocalQuotes();
+    locals[2].clientId = "c-nao-mapeado"; // id "3" (new), sem entrada em kora.clients.supabaseImport.v1
+    vi.mocked(useQuotes).mockReturnValue({ quotes: locals });
+    const { result } = renderHook(useLocalQuotesImport);
+    await waitFor(() => expect(result.current.candidates.length).toBe(2));
+    const c3 = result.current.candidates.find((c) => c.localQuote.id === "3");
+    expect(c3.clientOrphan).toBe(true);
+    expect(c3.money).toBeDefined(); // Q5: relatório monetário sempre presente
+  });
 });

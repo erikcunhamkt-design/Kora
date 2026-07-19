@@ -5,11 +5,19 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { useLocalQuotesImport } from '@/hooks/useLocalQuotesImport';
-import { useState, useEffect } from 'react';
+import { formatCurrency } from '@/lib/format';
+import { useState } from 'react';
 
 export function LocalQuotesImportCard() {
   const { candidates, loading, error, analyze, importSelected } = useLocalQuotesImport();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+  // Q4/Q5: advertências pré-clique — só entre os candidatos importáveis ("new").
+  const eligible = candidates.filter((c) => c.status === 'new');
+  const orphanCount = eligible.filter((c) => c.clientOrphan).length;
+  const moneyWarnCount = eligible.filter(
+    (c) => c.money && (c.money.totalMismatch || c.money.fractionalQuantities > 0),
+  ).length;
 
   // refresh when dialog opens
   const handleOpenChange = (open: boolean) => {
@@ -57,23 +65,66 @@ export function LocalQuotesImportCard() {
         {loading && <p className="text-sm text-muted-foreground">Carregando...</p>}
         {error && <p className="text-sm text-destructive">{error}</p>}
         {!loading && !error && (
-          <div className="space-y-4 max-h-96 overflow-y-auto mt-4">
-            {candidates.length === 0 && <p className="text-sm text-muted-foreground">Nenhum orçamento local encontrado.</p>}
-            {candidates.map((c) => (
-              <div key={c.localQuote.id} className="flex items-center justify-between p-2 border rounded-md">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    checked={selectedIds.includes(c.localQuote.id)}
-                    onCheckedChange={() => toggleSelection(c.localQuote.id)}
-                    disabled={c.status !== 'new'}
-                  />
-                  <span className="font-medium truncate max-w-xs">{c.localQuote.title}</span>
-                </div>
-                <Badge variant={c.status === 'new' ? 'success' : c.status === 'duplicate' ? 'secondary' : 'destructive'}>
-                  {c.status}
-                </Badge>
+          <div className="space-y-3 mt-4">
+            {(orphanCount > 0 || moneyWarnCount > 0) && (
+              <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-400">
+                <p className="font-medium">Antes de importar, confira:</p>
+                <ul className="list-disc pl-5 mt-1 space-y-0.5">
+                  {orphanCount > 0 && (
+                    <li>
+                      {orphanCount} orçamento(s) com cliente <strong>não vinculado</strong> — subirão com{' '}
+                      <code>client_id</code> nulo (o nome/e-mail do cliente é preservado).
+                    </li>
+                  )}
+                  {moneyWarnCount > 0 && (
+                    <li>
+                      {moneyWarnCount} orçamento(s) com <strong>divergência monetária</strong> (total ≠ Σ itens ou
+                      quantidade fracionária) — o total local é preservado; apenas confira.
+                    </li>
+                  )}
+                </ul>
               </div>
-            ))}
+            )}
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {candidates.length === 0 && (
+                <p className="text-sm text-muted-foreground">Nenhum orçamento local encontrado.</p>
+              )}
+              {candidates.map((c) => {
+                const money = c.money;
+                const showMoney = c.status === 'new' && money && (money.totalMismatch || money.fractionalQuantities > 0);
+                return (
+                  <div key={c.localQuote.id} className="flex items-start justify-between p-2 border rounded-md">
+                    <div className="flex items-start space-x-2 min-w-0">
+                      <Checkbox
+                        checked={selectedIds.includes(c.localQuote.id)}
+                        onCheckedChange={() => toggleSelection(c.localQuote.id)}
+                        disabled={c.status !== 'new'}
+                        className="mt-0.5"
+                      />
+                      <div className="min-w-0">
+                        <span className="font-medium truncate max-w-xs block">{c.localQuote.title}</span>
+                        {c.status === 'new' && c.clientOrphan && (
+                          <span className="text-xs text-amber-600 dark:text-amber-400 block">· sem cliente vinculado</span>
+                        )}
+                        {showMoney && money.totalMismatch && (
+                          <span className="text-xs text-amber-600 dark:text-amber-400 block">
+                            · total ≠ Σ itens (Δ {formatCurrency(money.diff)})
+                          </span>
+                        )}
+                        {showMoney && money.fractionalQuantities > 0 && (
+                          <span className="text-xs text-amber-600 dark:text-amber-400 block">
+                            · {money.fractionalQuantities} item(ns) com quantidade fracionária
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <Badge variant={c.status === 'new' ? 'success' : c.status === 'duplicate' ? 'secondary' : 'destructive'}>
+                      {c.status}
+                    </Badge>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
         <DialogFooter>

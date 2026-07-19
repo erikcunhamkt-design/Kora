@@ -8,6 +8,7 @@ import {
   mapLocalQuoteToSupabaseQuote,
   mapLocalQuoteItemToSupabaseItem,
 } from "@/services/quotes/quoteMapper";
+import { inspectQuoteMoney, type QuoteMoneyReport } from "@/services/quotes/quoteMoney";
 import type { Quote, QuoteItem } from "@/hooks/useQuotes";
 import type { SupabaseQuote, SupabaseQuoteItem } from "@/repositories/quotesRepository";
 import { emitNotification } from "@/lib/notify";
@@ -38,6 +39,10 @@ export interface ImportCandidate {
   localQuote: Quote;
   status: ImportStatus;
   reason?: string; // for duplicate / blocked explanations
+  /** Q4: tem clientId local mas o cliente NÃO está no import-map → subirá com client_id null. */
+  clientOrphan?: boolean;
+  /** Q5: relatório de saúde monetária (total vs Σ itens; quantidades fracionárias). */
+  money?: QuoteMoneyReport;
 }
 
 export interface ImportResult {
@@ -192,7 +197,11 @@ export function useLocalQuotesImport() {
           }
         }
         if (!status) status = "new";
-        newCandidates.push({ localQuote: local, status, reason });
+        // Q4: órfã de cliente (tem clientId local mas sem mapeamento) → importa com client_id null.
+        const clientOrphan = !!local.clientId && !clientMap[String(local.clientId)];
+        // Q5: relatório monetário (reporta divergência total vs Σ itens e quantidades fracionárias).
+        const money = inspectQuoteMoney(local);
+        newCandidates.push({ localQuote: local, status, reason, clientOrphan, money });
       }
 
       setCandidates(newCandidates);
@@ -216,19 +225,12 @@ export function useLocalQuotesImport() {
       const local = candidate.localQuote;
 
       try {
-        // Build Supabase payload using mapper
-        const supaPayloadBase = mapLocalQuoteToSupabaseQuote(local);
-        // Extend payload with optional foreign keys
-        const supaPayload = supaPayloadBase as SupabaseQuote & { client_id?: string; opportunity_id?: string };
-        // Map client_id if possible
-        if (local.clientId && clientMap[local.clientId.toString()]) {
-          supaPayload.client_id = clientMap[local.clientId.toString()];
-        }
-        // Map opportunity_id if possible
-        const leadOrOpp = (local as ExtendedLocalQuote).leadId ?? (local as ExtendedLocalQuote).opportunityId;
-        if (leadOrOpp && oppMap[leadOrOpp.toString()]) {
-          supaPayload.opportunity_id = oppMap[leadOrOpp.toString()];
-        }
+        // Q4: payload com as FKs resolvidas via import-maps (UUID ou null; NUNCA id local cru).
+        // A resolução vive no mapper (mapLocalQuoteToSupabaseQuote) — testada isoladamente.
+        const supaPayload = mapLocalQuoteToSupabaseQuote(local, {
+          clients: clientMap,
+          opportunities: oppMap,
+        });
 
         // 1. Create quote in Supabase
         if (!workspace) throw new Error("Workspace not available for import");
