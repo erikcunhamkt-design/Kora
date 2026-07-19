@@ -129,16 +129,26 @@ Cenário: 2 oportunidades de teste + 1 cliente mapeado + 1 transação fan-in.
 
 Seed, queries e limpeza: ver a entrega em chat / repetir o padrão da Fatia 1.
 
-## 9. Resultados da homologação — **PENDENTE** (operador preenche)
+## 9. Resultados da homologação — **VERDE (7/7)**
+
+Homologado pelo operador em 2026-07-18. Cenário: `TESTE-OPP-PRONTA` (local 950100, cliente
+mapeado a `50f894e9-…`/fabio) + `TESTE-OPP-ORFA` (local 950101, cliente 950999 não mapeado) +
+transação fan-in `tx-homolog-1` (opportunityId 950100). installId `e307969a-…`.
 
 | Prova | Resultado | Evidência |
 |---|---|---|
-| 1 · Import | _pendente_ | |
-| 2 · Zero perda | _pendente_ | |
-| 3 · Idempotência | _pendente_ | |
-| 4 · Reversibilidade | _pendente_ | |
-| 5 · EXPLAIN indexado | _pendente_ | |
-| 6 · Órfã de cliente (null + reportada) | _pendente_ | |
-| 7 · Fan-in não-órfão | _pendente_ | |
+| 1 · Import | ✅ | toast "2 oportunidades importadas com sucesso!" |
+| 2 · Zero perda | ✅ | PRONTA `client_id=50f894e9-c81c-4420-b673-9335ad17a6bf`; ORFA `client_id=NULL` (não id local cru); 1234/lead; `source_local_id=<installId>:950100 / :950101` |
+| 3 · Idempotência | ✅ | reanálise → **Novos 0 / Já Importados 2**; `group by (workspace_id, source_local_id) having count>1` → 0 linhas |
+| 4 · Reversibilidade | ✅ | console: `orbyt.leads.v1` mantém 950100/950101 (`true true`) |
+| 5 · Leitura indexada | ✅ | **Index Scan using ux_crm_opp_source_local** (Index Cond workspace_id; Filter deleted_at/archived; Exec 0.116 ms) |
+| 6 · Órfã de cliente | ✅ | ORFA `client_id NULL` no banco + badge "sem cliente vinculado" no painel/diálogo |
+| 7 · Fan-in não-órfão | ✅ | `tx-homolog-1.opportunityId=950100` resolve (local intacto) + `kora.crm.supabaseImport.v1.importedMap["950100"]=2096775a-…` (ponte de re-link) |
 
-**Gate export manual (crm_opportunities):** _pendente_. **Print pré-clique:** _pendente_.
+**Gate export manual (crm_opportunities):** ✅ tabela vazia no baseline (0 linhas) — nada a
+perder. **Gate print pré-clique:** ✅ card "Importar Oportunidades Locais" (2/2/0/0) + aviso
+"1 sem cliente vinculado". Flag `supabaseWrite` permaneceu **OFF**.
+
+**Validação em produção:** A1 (órfã→NULL, mapeado→UUID real), A2 (0 novos na 2ª análise),
+A3 (0 duplicatas, `source_local_id` namespacado), A4 (órfã reportada), A5 (contrato de
+re-link documentado + ponte confirmada na prova 7).
