@@ -117,7 +117,54 @@ descartar o registro.
 
 ---
 
-## 5. Guardrails invioláveis
+## 5. Variantes do molde (por tipo de entidade)
+
+A Peça 2 (idempotência) tem duas variantes conforme a entidade:
+
+### Variante A — entidade COM chave única natural
+Ex.: **ficha técnica** (`UNIQUE(client_id)` — 1 ficha por cliente). O import faz
+`upsert(onConflict: "<chave>")` direto. Duplicata impossível, zero infra extra.
+
+### Variante B — entidade SEM chave única natural (+ fan-in)
+Ex.: **opportunities** (dois negócios legítimos podem ter mesmo título/cliente → não há
+chave natural). Solução padrão, reutilizável em quotes/finance/projects/tasks:
+
+1. **`source_local_id` namespacado.** Coluna `text` guardando `${installId}:${localId}`,
+   onde `installId` é um id estável por **perfil de navegador** (`src/lib/installId.ts`,
+   chave `kora.install.id.v1`, `crypto.randomUUID()`). O namespace é por navegador porque o
+   espaço dos ids locais é o localStorage — **não** o usuário (mesmo usuário em 2
+   navegadores tem sequências independentes; `userId:localId` colidiria e fundiria linhas).
+2. **UNIQUE NÃO-parcial** `(workspace_id, source_local_id)`. Um índice parcial
+   (`WHERE ... IS NOT NULL`) quebra a inferência do arbiter no `ON CONFLICT` (precedente
+   **P8b**); NULLs distintos já cobrem as linhas legadas.
+3. **`upsert(onConflict: "workspace_id,source_local_id")`** no import → reimport do mesmo
+   registro (mesmo `installId:localId`) vira UPDATE, nunca duplicata.
+4. **Fuzzy match + guarda `new`-only (A2) como 2ª camada** para "mesma oportunidade lógica
+   vinda de 2 navegadores" (installIds diferentes → 2 linhas): o assistente marca
+   "Duplicado" e **bloqueia** a importação (só `matchStatus === "new"` é importável).
+5. **Limitação conhecida:** limpar o localStorage regenera o installId; mas o import-map
+   some junto e o fuzzy+A2 barram o reimport — sem duplicata silenciosa.
+
+Referência: [`../qa/etapa-5-fatia-2-opportunities.md`](../qa/etapa-5-fatia-2-opportunities.md) + migrations `…_source_local_id.sql`.
+
+### Contrato de RE-LINK forward (fan-in)
+Quando uma entidade FILHA referencia uma entidade já migrada por **id LOCAL** (ex.:
+`transactions.opportunity_id`, `projects.opportunity_id` guardam o id local da
+oportunidade), a migração da filha **deve traduzir** esse id local → UUID Supabase
+consultando o **import-map do pai** (`kora.<pai>.supabaseImport.v1` →
+`importedMap[String(localId)]`) — exatamente como o import de `opportunities` consome o
+`kora.clients.supabaseImport.v1` para resolver `client_id`.
+
+- **Enquanto pai e filha ficam em localStorage**, nada orfaniza (local→local resolve; o
+  `orbyt.*` do pai permanece intacto — invariante *a*).
+- **Ao migrar a filha**, se o import-map do pai não tiver a entrada → resolver para `null`
+  **e reportar**; NUNCA gravar id local cru numa coluna `uuid` (o bug do A1).
+- O import-map é **persistido** e é a ponte permanente; futuras fatias **têm de** honrá-lo,
+  senão os vínculos migram órfãos.
+
+---
+
+## 6. Guardrails invioláveis
 
 - ❌ **Nunca** limpar/sobrescrever o `localStorage` da entidade antes de confirmar a
   persistência remota. O local é a rede de segurança até a homologação.
