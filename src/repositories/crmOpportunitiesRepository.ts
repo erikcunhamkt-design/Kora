@@ -30,6 +30,8 @@ export interface SupabaseOpportunity {
   lost_reason: string | null;
   is_demo: boolean;
   archived: boolean;
+  /** Etapa 5 · Fatia 2 — chave de origem do import local (`${installId}:${localId}`). */
+  source_local_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -61,6 +63,7 @@ export interface SupabaseOpportunityInput {
   lost_reason?: string | null;
   is_demo?: boolean;
   archived?: boolean;
+  source_local_id?: string | null;
 }
 
 export const crmOpportunitiesRepository = {
@@ -109,6 +112,30 @@ export const crmOpportunitiesRepository = {
         workspace_id: workspaceId,
         ...input,
       })
+      .select()
+      .single();
+
+    if (error) throw normalizeSupabaseError(error);
+    return data;
+  },
+
+  /**
+   * Etapa 5 · Fatia 2 — upsert idempotente do IMPORT local.
+   * Usa a UNIQUE (workspace_id, source_local_id) como arbiter: reimportar o mesmo
+   * registro (mesmo installId:localId) vira UPDATE, nunca duplicata.
+   * `sourceLocalId` deve vir namespacado (`${installId}:${localId}`) — ver buildSourceLocalId.
+   */
+  async upsertImportedOpportunity(
+    workspaceId: string,
+    input: SupabaseOpportunityInput,
+    sourceLocalId: string,
+  ) {
+    const { data, error } = await supabase
+      .from("crm_opportunities")
+      .upsert(
+        { workspace_id: workspaceId, ...input, source_local_id: sourceLocalId },
+        { onConflict: "workspace_id,source_local_id" },
+      )
       .select()
       .single();
 

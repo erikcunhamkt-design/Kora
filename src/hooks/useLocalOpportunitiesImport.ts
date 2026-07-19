@@ -4,6 +4,7 @@ import { useLeads, type Lead } from "@/hooks/useLeads";
 import { useSupabaseOpportunities } from "@/hooks/useSupabaseOpportunities";
 import { crmOpportunitiesRepository, type SupabaseOpportunity, type SupabaseOpportunityInput } from "@/repositories/crmOpportunitiesRepository";
 import { mapLocalLeadToSupabaseOpportunity } from "@/services/crm/crmOpportunityMapper";
+import { getInstallId, buildSourceLocalId } from "@/lib/installId";
 import { toast } from "sonner";
 
 export interface LocalOpportunityCandidate {
@@ -143,6 +144,8 @@ export function useLocalOpportunitiesImport() {
     if (selectedCandidates.length === 0) return;
 
     setImporting(true);
+    // A3: id estável por navegador para namespacar o source_local_id (idempotência no banco).
+    const installId = getInstallId();
     const successIds: number[] = [];
     const newlyImportedMap: Record<string, string> = {};
     let failed = 0;
@@ -179,7 +182,12 @@ export function useLocalOpportunitiesImport() {
             quotes: quoteImportMap,
           });
 
-          const result = await crmOpportunitiesRepository.createOpportunity(workspace.id, opportunityInput);
+          // A3: upsert idempotente por (workspace_id, source_local_id namespacado).
+          const result = await crmOpportunitiesRepository.upsertImportedOpportunity(
+            workspace.id,
+            opportunityInput,
+            buildSourceLocalId(installId, item.id),
+          );
 
           successIds.push(item.id);
           if (result && result.id) {
