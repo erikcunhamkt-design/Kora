@@ -1729,8 +1729,9 @@ function LocalOpportunitiesImportCard() {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [isOpen, setIsOpen] = useState(false);
 
+  // A2: só "new" é selecionável/importável. "duplicate" continua visível, mas travado.
   const eligibleCandidates = useMemo(() => {
-    return candidates.filter((c) => c.matchStatus !== "imported");
+    return candidates.filter((c) => c.matchStatus === "new");
   }, [candidates]);
 
   const handleOpenDialog = () => {
@@ -1759,9 +1760,11 @@ function LocalOpportunitiesImportCard() {
   };
 
   const totalLocals = candidates.length;
-  const totalPending = eligibleCandidates.filter((c) => c.matchStatus === "new").length;
-  const totalDuplicate = eligibleCandidates.filter((c) => c.matchStatus === "duplicate").length;
+  const totalPending = candidates.filter((c) => c.matchStatus === "new").length;
+  const totalDuplicate = candidates.filter((c) => c.matchStatus === "duplicate").length;
   const totalImported = candidates.filter((c) => c.matchStatus === "imported").length;
+  // A4: quantos dos "novos" migrariam sem cliente vinculado (client_id nulo).
+  const totalClientOrphan = candidates.filter((c) => c.matchStatus === "new" && c.clientOrphan).length;
 
   if (!workspace) return null;
 
@@ -1795,6 +1798,12 @@ function LocalOpportunitiesImportCard() {
           <p className="text-[11px] text-muted-foreground italic">
             Última importação de oportunidades: {intlDateTime(metadata.lastImportedAt, { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" })}
           </p>
+        )}
+
+        {totalClientOrphan > 0 && (
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5 text-[11px] text-amber-300/90">
+            ⚠ {totalClientOrphan} oportunidade(s) nova(s) com cliente ainda não importado — serão migradas <strong>sem vínculo</strong> (client_id nulo). Importe os clientes antes para preservar o vínculo.
+          </div>
         )}
 
         <div className="rounded-lg border border-primary/20 bg-primary/[0.02] p-3 text-xs text-muted-foreground/90">
@@ -1859,7 +1868,7 @@ function LocalOpportunitiesImportCard() {
                             id={`opp-${candidate.id}`}
                             checked={isChecked || isImported}
                             onCheckedChange={() => handleToggleSelect(candidate.id)}
-                            disabled={isImported}
+                            disabled={isImported || isDuplicate}
                           />
                         </div>
                         <div className="min-w-0">
@@ -1870,6 +1879,9 @@ function LocalOpportunitiesImportCard() {
                           <p className="text-[10px] text-muted-foreground/80 truncate">
                             {candidate.email || "Sem e-mail"} {candidate.phone ? `• ${candidate.phone}` : ""}
                           </p>
+                          {candidate.clientOrphan && !isImported && (
+                            <span className="text-[9px] text-amber-400/90">· sem cliente vinculado</span>
+                          )}
                         </div>
                         <div>
                           {isImported ? (
