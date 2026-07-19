@@ -173,16 +173,25 @@ where workspace_id = '<WS>' and client_id = '<UUID>';
 
 ## 4. Resultados da homologação — **PENDENTE** (o operador preenche após rodar)
 
+**Homologado pelo operador em 2026-07-18** — cenário de teste (`TESTE-HOMOLOG-PRONTO`
+mapeado ao cliente Supabase `ad3f59a5-7513-4ca5-aaad-88ac7cf1b83f` + `TESTE-HOMOLOG-ORFAO`
+sem mapa), workspace `2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9`. **6/6 provas ✅.**
+
 | Prova | Resultado | Evidência |
 |---|---|---|
-| Zero perda (COUNT local vs remoto) | _pendente_ | _local: __ · remoto: ___ |
-| Amostra campo-a-campo (1–2 fichas) | _pendente_ | _clientes: ___ |
-| Idempotência (import 2×, 0 duplicatas) | _pendente_ | _query de duplicata: __ linhas_ |
-| Reversibilidade (flip → local intacto) | _pendente_ | _observação: ___ |
-| Ficha órfã reportada "sem_cliente" | _pendente_ | _cliente: ___ |
-| EXPLAIN usa índice (não Seq Scan) | _pendente_ | _colar plano: ___ |
+| 1 · Import | ✅ | toast "1 fichas técnicas importadas com sucesso!" |
+| 2 · Zero perda (remoto = 1, valores batem) | ✅ | `count(*)` p/ `ad3f59a5…` = **1**; `branding/persona/briefing` trazem o dummy do seed (`branding.slogan = "Slogan TESTE-HOMOLOG-PRONTO"`, `persona.name = "Persona…"`, `briefing.objectives = "Objetivo…"`) |
+| 3 · Idempotência (0 duplicatas) | ✅ | `group by client_id having count(*)>1` → **0 linhas** ("Success. No rows returned") |
+| 4 · Reversibilidade (local intacto pós-import) | ✅ | console: `local intacto? true \| slogan: Slogan TESTE-HOMOLOG-PRONTO` — import não tocou `orbyt.clients.v1` (fallback garantido) |
+| 5 · Ficha órfã reportada, não perdida | ✅ | diálogo: `ORFAO` "Cliente não importado"/Ignorar (checkbox travado); `fichas_depois = 1` (delta **+1** sobre baseline 0) → órfão **sem** linha no banco |
+| 6 · Leitura indexada (EXPLAIN) | ✅ | **`Index Scan using idx_client_technical_sheets_client`** · Index Cond `client_id` · Execution 0.126 ms |
 
-**Backup/PITR confirmado antes do import?** _pendente (operador)_.
+**Gate de segurança (substituto do backup, seção 0.2):** ✅ EXPORT MANUAL de `clients`
+(3 linhas, CSV salvo pelo operador; cópia guardada em `backups/etapa-5-ficha-tecnica/` —
+pasta `gitignore`d, contém PII). `client_technical_sheets` estava **vazia** no baseline (0),
+nada a perder.
+**Baseline pré-import:** `fichas_antes = 0`.
+**Gate PRINT PRÉ-CLIQUE (0.3):** ✅ confirmado (card "Importar Fichas Técnicas", tiles 2/1/1/0).
 
 ---
 
@@ -205,5 +214,7 @@ observação.
 - [x] Molde "Espelho Reversível" cristalizado + ponteiros nos arquivos de referência.
 - [x] Runbook de homologação escrito (não executado pelo Code).
 - [x] Flag experimental permanece (carência).
-- [ ] Resultados da homologação preenchidos pelo operador (seção 4) — **PENDENTE**.
-- [ ] Nada empurrado / push e CI são do operador — **PENDENTE**.
+- [x] Resultados da homologação preenchidos — **6/6 provas ✅** (seção 4).
+- [x] Gate substituto (EXPORT MANUAL) + PRINT pré-clique cumpridos (seção 0).
+- [ ] Limpeza do cenário de teste (Passos 3 local + 4 SQL) — **próxima ação do operador**.
+- [ ] Nada empurrado / push e CI são do operador — **do operador** (commits da fatia estão locais).
