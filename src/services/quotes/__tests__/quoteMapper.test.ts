@@ -6,6 +6,7 @@ import type {
   SupabaseQuoteItem,
 } from "@/repositories/quotesRepository";
 import {
+  EMPTY_QUOTE_IMPORT_MAPS,
   mapLocalQuoteItemToSupabaseItem,
   mapLocalQuoteToSupabaseQuote,
   mapSupabaseQuoteItemToLocalItem,
@@ -210,5 +211,57 @@ describe("quoteMapper — item", () => {
     expect(back.name).toBe(original.name);
     expect(back.quantity).toBe(original.quantity);
     expect(back.unitPrice).toBe(original.unitPrice);
+  });
+});
+
+describe("quoteMapper — fan-out de FKs (Q4)", () => {
+  it("caso 1: mapeado → UUID (client_id e opportunity_id)", () => {
+    const quote = { ...baseQuote({ clientId: 950001 }), leadId: "lead9" };
+    const out = mapLocalQuoteToSupabaseQuote(quote, {
+      clients: { "950001": "uuid-cli" },
+      opportunities: { lead9: "uuid-opp" },
+    });
+    expect(out.client_id).toBe("uuid-cli");
+    expect(out.opportunity_id).toBe("uuid-opp");
+  });
+
+  it("caso 2: não-mapeado → null, NUNCA o id local cru", () => {
+    const quote = { ...baseQuote({ clientId: 950999 }), leadId: "leadX" };
+    const out = mapLocalQuoteToSupabaseQuote(quote, { clients: { "111": "x" }, opportunities: {} });
+    expect(out.client_id).toBeNull();
+    expect(out.opportunity_id).toBeNull();
+    // garantia central: jamais o id local cru numa coluna uuid
+    expect(out.client_id).not.toBe("950999");
+    expect(out.client_id).not.toBe(950999);
+    expect(out.opportunity_id).not.toBe("leadX");
+  });
+
+  it("caso 3: sem maps (default) → null", () => {
+    const quote = { ...baseQuote({ clientId: 950001 }), leadId: "lead9" };
+    expect(mapLocalQuoteToSupabaseQuote(quote, EMPTY_QUOTE_IMPORT_MAPS).client_id).toBeNull();
+    expect(mapLocalQuoteToSupabaseQuote(quote).opportunity_id).toBeNull();
+  });
+
+  it("usa opportunityId numérico como fallback quando não há leadId", () => {
+    const out = mapLocalQuoteToSupabaseQuote(baseQuote({ opportunityId: 42 }), {
+      clients: {},
+      opportunities: { "42": "uuid-opp-42" },
+    });
+    expect(out.opportunity_id).toBe("uuid-opp-42");
+  });
+});
+
+describe("quoteMapper — precisão monetária (Q5)", () => {
+  it("quantiza dinheiro a centavos (mata artefato de float)", () => {
+    const out = mapLocalQuoteToSupabaseQuote(baseQuote({ subtotal: 0.1 + 0.2, discount: 1.005, total: 12.349 }));
+    expect(out.subtotal).toBe(0.3);
+    expect(out.discount).toBe(1.01);
+    expect(out.total).toBe(12.35);
+  });
+
+  it("coage quantity de item a inteiro e quantiza unit_price", () => {
+    const out = mapLocalQuoteItemToSupabaseItem({ id: "i", name: "Hora", quantity: 1.5, unitPrice: 10.009 } as QuoteItem);
+    expect(out.quantity).toBe(2);
+    expect(out.unit_price).toBe(10.01);
   });
 });
