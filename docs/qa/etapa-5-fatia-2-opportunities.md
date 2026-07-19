@@ -98,3 +98,47 @@ Gates: export manual + print pré-clique. Operador roda; Code verifica.
 revisada/aplicada pelo operador com export antes). A4/A5 por baixo custo. Resultado: fatia no
 nível de segurança da ficha + variante do molde "entidade com fan-in, sem UNIQUE natural"
 (reutilizável em quotes/finance/projects/tasks).
+
+---
+
+## 7. Estado B.1/B.2 (aplicado)
+
+- **B.1 (código):** `aa39267` (A1+A2+A4 dados) · `5db6679` (A2+A4 painel).
+- **B.2 (migration + código):** `27ce1a5` (migration A3) · `d15761c` (código A3) · `28b3c55` (A5 molde).
+- **Migration A3 APLICADA e válida** pelo operador (2026-07-18): `crm_opportunities.source_local_id`
+  criada; índice `ux_crm_opp_source_local` (`indisvalid=true`, `indisunique=true`); baseline `opps_antes=0`.
+- Gates: `npx tsc` = 0 · lint 89/68 · testes 100. Flag `supabaseWrite` permanece **OFF**.
+
+## 8. Runbook de homologação (B.3) — o OPERADOR roda
+
+Cenário: 2 oportunidades de teste + 1 cliente mapeado + 1 transação fan-in.
+- `TESTE-OPP-PRONTA` (id local 950100) → clientId 950001 **mapeado** a um client real → `client_id` resolve a UUID.
+- `TESTE-OPP-ORFA` (id local 950101) → clientId 950999 **não mapeado** → migra com `client_id` NULL + painel reporta.
+- Transação `tx-homolog-1` (`orbyt.finance.v1`) com `opportunityId = 950100` (fan-in).
+
+**Gates:** (0.2) EXPORT MANUAL de `crm_opportunities` antes do import · (0.3) PRINT PRÉ-CLIQUE do card **"Importar Oportunidades Locais"** (NÃO o de Clientes) com tiles Total 2 / Novos 2 / Duplicados 0 / Já Importados 0 + aviso "1 sem cliente vinculado".
+
+**As 7 provas:**
+1. Import → toast "2 oportunidades importadas".
+2. Zero perda → 2 linhas remotas; `TESTE-OPP-PRONTA.client_id = <UUID real>`, `TESTE-OPP-ORFA.client_id = NULL`; valores/stage batem; `source_local_id` = `<installId>:950100/950101`.
+3. Idempotência → 2ª análise: ambas "Já Importada"; `group by (workspace_id, source_local_id) having count>1` → 0.
+4. Reversibilidade → console: `orbyt.leads.v1` mantém 950100/950101 intactas.
+5. EXPLAIN → `where workspace_id and deleted_at is null and archived=false` (com `enable_seqscan=off`) → Index Scan (`idx_crm_opportunities_archived`).
+6. Órfã de cliente → `TESTE-OPP-ORFA.client_id IS NULL` no banco + badge "sem cliente vinculado" no painel.
+7. Fan-in não-órfão → console: Lead 950100 intacta · `tx-homolog-1.opportunityId = 950100` (link local resolve) · `kora.crm.supabaseImport.v1.importedMap["950100"]` = UUID (ponte de re-link).
+
+Seed, queries e limpeza: ver a entrega em chat / repetir o padrão da Fatia 1.
+
+## 9. Resultados da homologação — **PENDENTE** (operador preenche)
+
+| Prova | Resultado | Evidência |
+|---|---|---|
+| 1 · Import | _pendente_ | |
+| 2 · Zero perda | _pendente_ | |
+| 3 · Idempotência | _pendente_ | |
+| 4 · Reversibilidade | _pendente_ | |
+| 5 · EXPLAIN indexado | _pendente_ | |
+| 6 · Órfã de cliente (null + reportada) | _pendente_ | |
+| 7 · Fan-in não-órfão | _pendente_ | |
+
+**Gate export manual (crm_opportunities):** _pendente_. **Print pré-clique:** _pendente_.
