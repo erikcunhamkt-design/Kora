@@ -9,9 +9,36 @@ function stableNumericIdFromUuid(uuid: string): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-export function mapLocalLeadToSupabaseOpportunity(lead: Lead): SupabaseOpportunityInput {
+/**
+ * Import-maps local→Supabase usados para resolver as FKs de uma oportunidade.
+ * Chaves = `String(idLocal)`; valores = UUID do Supabase.
+ *   - clients: `kora.clients.supabaseImport.v1` (idLocal do cliente → uuid)
+ *   - quotes:  `kora.quotes.supabaseImport.v1`  (idLocal do orçamento → uuid)
+ */
+export interface OpportunityImportMaps {
+  clients: Record<string, string>;
+  quotes: Record<string, string>;
+}
+
+const EMPTY_IMPORT_MAPS: OpportunityImportMaps = { clients: {}, quotes: {} };
+
+/**
+ * Resolve um id LOCAL para o UUID Supabase via import-map (A1).
+ * Regra de segurança: mapeado → UUID; ausente/não-mapeado → `null`.
+ * NUNCA devolve o id local cru — evita `invalid input syntax for type uuid`
+ * ao inserir em colunas `uuid` (client_id / quote_id / converted_client_id).
+ */
+function resolveUuid(localId: string | number | null | undefined, map: Record<string, string>): string | null {
+  if (localId === null || localId === undefined || localId === "") return null;
+  return map[String(localId)] ?? null;
+}
+
+export function mapLocalLeadToSupabaseOpportunity(
+  lead: Lead,
+  maps: OpportunityImportMaps = EMPTY_IMPORT_MAPS,
+): SupabaseOpportunityInput {
   return {
-    client_id: lead.clientId ? String(lead.clientId) : null,
+    client_id: resolveUuid(lead.clientId, maps.clients),
     title: lead.name, // O campo 'name' do Lead local serve como o title da Opportunity
     company: lead.company || null,
     contact_name: lead.name || null,
@@ -29,9 +56,10 @@ export function mapLocalLeadToSupabaseOpportunity(lead: Lead): SupabaseOpportuni
     next_action_date: lead.nextActionDate || null,
     expected_close_date: lead.expectedCloseDate || null,
     notes: lead.notes || lead.description || null,
-    quote_id: lead.quoteId || null,
+    // A1: FKs remapeadas para UUID (ou null); NUNCA id local cru em coluna uuid.
+    quote_id: resolveUuid(lead.quoteId, maps.quotes),
     quote_title: lead.quoteTitle || null,
-    converted_client_id: lead.convertedClientId ? String(lead.convertedClientId) : null,
+    converted_client_id: resolveUuid(lead.convertedClientId, maps.clients),
     won_at: lead.wonAt || (lead.stage === "fechado" ? new Date().toISOString() : null),
     lost_at: lead.stage === "perdido" ? new Date().toISOString() : null,
     lost_reason: lead.lostReason || null,

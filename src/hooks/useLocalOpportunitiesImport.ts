@@ -16,11 +16,14 @@ export interface LocalOpportunityCandidate {
   archived: boolean;
   matchStatus: "new" | "duplicate" | "imported";
   matchedId?: string;
+  /** A4: referencia um cliente local que ainda NÃO está no Supabase → migra com client_id null. */
+  clientOrphan: boolean;
   raw: Lead;
 }
 
 const METADATA_KEY = "kora.crm.supabaseImport.v1";
 const CLIENTS_METADATA_KEY = "kora.clients.supabaseImport.v1";
+const QUOTES_METADATA_KEY = "kora.quotes.supabaseImport.v1";
 
 export function useLocalOpportunitiesImport() {
   const { workspace } = useCurrentWorkspace();
@@ -54,6 +57,20 @@ export function useLocalOpportunitiesImport() {
   const clientImportMap = useMemo<Record<string, string>>(() => {
     try {
       const raw = localStorage.getItem(CLIENTS_METADATA_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        return parsed.importedMap || {};
+      }
+    } catch {
+      // Ignore
+    }
+    return {};
+  }, []);
+
+  // A1: mapa de orçamentos local→Supabase, para re-mapear quote_id ao migrar.
+  const quoteImportMap = useMemo<Record<string, string>>(() => {
+    try {
+      const raw = localStorage.getItem(QUOTES_METADATA_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
         return parsed.importedMap || {};
@@ -103,12 +120,14 @@ export function useLocalOpportunitiesImport() {
         archived: local.archived || false,
         matchStatus,
         matchedId: matched?.id || importMetadata.importedMap[String(local.id)],
+        // A4: cliente local referenciado que ainda não está no Supabase.
+        clientOrphan: !!local.clientId && !clientImportMap[String(local.clientId)],
         raw: local,
       });
     }
 
     return list;
-  }, [localLeads, supabaseOpportunities, importMetadata]);
+  }, [localLeads, supabaseOpportunities, importMetadata, clientImportMap]);
 
   const importSelected = useCallback(async (selectedIds: number[]) => {
     if (!workspace) {
@@ -116,66 +135,80 @@ export function useLocalOpportunitiesImport() {
       return;
     }
 
-    const selectedCandidates = candidates.filter((c) => selectedIds.includes(c.id));
+    // A2 (defesa em profundidade): só candidatos "new" são importáveis. Nunca confiar
+    // apenas na UI — "duplicate"/"imported" são recusados aqui também.
+    const selectedCandidates = candidates.filter(
+      (c) => selectedIds.includes(c.id) && c.matchStatus === "new",
+    );
     if (selectedCandidates.length === 0) return;
 
     setImporting(true);
     const successIds: number[] = [];
     const newlyImportedMap: Record<string, string> = {};
+    let failed = 0;
+
+    // Candidatos não selecionados e ainda não importados = "skipped" (registro apenas).
+    const newlySkipped = candidates
+      .filter((c) => !selectedIds.includes(c.id) && c.matchStatus !== "imported")
+      .map((c) => c.id);
+
+    // A1 (atomicidade): persiste o progresso a CADA sucesso. Se um lead falhar no meio
+    // do lote, os anteriores permanecem rastreados (não viram duplicata na próxima vez).
+    const persist = () => {
+      const nextMeta = {
+        lastImportedAt: new Date().toISOString(),
+        importedLocalIds: Array.from(new Set([...importMetadata.importedLocalIds, ...successIds])),
+        skippedLocalIds: Array.from(new Set([...(importMetadata.skippedLocalIds || []), ...newlySkipped])),
+        importedMap: { ...(importMetadata.importedMap || {}), ...newlyImportedMap },
+      };
+      try {
+        localStorage.setItem(METADATA_KEY, JSON.stringify(nextMeta));
+      } catch {
+        /* quota / storage desabilitado */
+      }
+      setImportMetadata(nextMeta);
+    };
 
     try {
       for (const item of selectedCandidates) {
-        const local = item.raw;
+        try {
+          // A1: mapper re-mapeia client_id/quote_id/converted_client_id via import-maps
+          // (UUID ou null); nunca id local cru em coluna uuid.
+          const opportunityInput: SupabaseOpportunityInput = mapLocalLeadToSupabaseOpportunity(item.raw, {
+            clients: clientImportMap,
+            quotes: quoteImportMap,
+          });
 
-        // Mapper local lead -> Supabase opportunity payload
-        const opportunityInput: SupabaseOpportunityInput = mapLocalLeadToSupabaseOpportunity(local);
+          const result = await crmOpportunitiesRepository.createOpportunity(workspace.id, opportunityInput);
 
-        // Map local clientId to Supabase client UUID if client import mapping exists
-        if (local.clientId) {
-          const supabaseClientId = clientImportMap[String(local.clientId)];
-          if (supabaseClientId) {
-            opportunityInput.client_id = supabaseClientId;
-          } else {
-            opportunityInput.client_id = null;
+          successIds.push(item.id);
+          if (result && result.id) {
+            newlyImportedMap[String(item.id)] = String(result.id);
           }
-        }
-
-        // Create opportunity in Supabase
-        const result = await crmOpportunitiesRepository.createOpportunity(workspace.id, opportunityInput);
-
-        successIds.push(item.id);
-        if (result && result.id) {
-          newlyImportedMap[String(item.id)] = String(result.id);
+          persist(); // grava incrementalmente a cada sucesso
+        } catch (err) {
+          failed += 1;
+          console.error(`Falha ao importar oportunidade local ${item.id}:`, err);
+          // Não aborta o lote — segue com os demais, preservando o tracking dos que subiram.
         }
       }
 
-      // Calculate skipped: candidates that are not selected AND not already imported
-      const newlySkipped = candidates
-        .filter((c) => !selectedIds.includes(c.id) && c.matchStatus !== "imported")
-        .map((c) => c.id);
-
-      const nextImportedIds = Array.from(new Set([...importMetadata.importedLocalIds, ...successIds]));
-      const nextSkippedIds = Array.from(new Set([...(importMetadata.skippedLocalIds || []), ...newlySkipped]));
-      const nextImportedMap = { ...(importMetadata.importedMap || {}), ...newlyImportedMap };
-
-      const nextMeta = {
-        lastImportedAt: new Date().toISOString(),
-        importedLocalIds: nextImportedIds,
-        skippedLocalIds: nextSkippedIds,
-        importedMap: nextImportedMap,
-      };
-
-      localStorage.setItem(METADATA_KEY, JSON.stringify(nextMeta));
-      setImportMetadata(nextMeta);
       await refreshOpportunities();
-      toast.success(`${successIds.length} oportunidades importadas com sucesso!`);
-    } catch (err) {
-      console.error("Error during Supabase opportunities import:", err);
-      toast.error("Ocorreu um erro ao importar uma ou mais oportunidades.");
+
+      if (failed === 0) {
+        toast.success(`${successIds.length} oportunidades importadas com sucesso!`);
+      } else if (successIds.length > 0) {
+        toast.warning(
+          `${successIds.length} importada(s); ${failed} falhou(aram). O progresso foi salvo — reexecutar não duplica as que já subiram.`,
+        );
+      } else {
+        toast.error(`Nenhuma oportunidade importada (${failed} falha(s)).`);
+      }
     } finally {
+      persist(); // garante o estado final persistido
       setImporting(false);
     }
-  }, [workspace, candidates, importMetadata, clientImportMap, refreshOpportunities]);
+  }, [workspace, candidates, importMetadata, clientImportMap, quoteImportMap, refreshOpportunities]);
 
   return {
     candidates,
