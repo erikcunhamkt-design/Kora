@@ -20,6 +20,9 @@ dist-ssr
 # Supabase CLI local cache
 supabase/.temp/
 
+# Backups manuais de exports do Supabase (contem PII de cliente) — NUNCA versionar/empurrar.
+backups/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
