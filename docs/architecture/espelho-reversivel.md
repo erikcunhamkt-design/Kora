@@ -166,6 +166,11 @@ consultando o **import-map do pai** (`kora.<pai>.supabaseImport.v1` →
 
 ## 6. Guardrails invioláveis
 
+> **Gates operacionais da homologação** (export manual, print pré-clique, indisvalid
+> explícito, credenciais só pelo operador com contas QA descartáveis) e os papéis
+> Code-vs-operador estão no [`../qa/protocolo-homologacao.md`](../qa/protocolo-homologacao.md)
+> — contrato permanente, vale para toda fatia.
+
 - ❌ **Nunca** limpar/sobrescrever o `localStorage` da entidade antes de confirmar a
   persistência remota. O local é a rede de segurança até a homologação.
 - ❌ O Code **não dispara** import de dados nem aplica migração em produção. Import e SQL
