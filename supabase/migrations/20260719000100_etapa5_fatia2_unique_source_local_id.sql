@@ -1,0 +1,34 @@
+-- ============================================================================
+-- Etapa 5 · Fatia 2 (opportunities) — A3 (2/2): UNIQUE (workspace_id, source_local_id)
+-- ============================================================================
+-- Backstop de idempotência do import: no máximo UMA linha por
+--   (workspace_id, source_local_id). É o arbiter do
+--   .upsert(onConflict: "workspace_id,source_local_id") em
+--   crmOpportunitiesRepository.upsertImportedOpportunity().
+--
+-- >>> NÃO-PARCIAL de propósito: um índice único PARCIAL (WHERE source_local_id IS
+--     NOT NULL) quebra a inferência do arbiter no ON CONFLICT do upsert — mesmo
+--     problema já resolvido no P8b (wa_message_id foi convertido de parcial p/
+--     não-parcial). Como NULLs são DISTINTOS por padrão no Postgres, este índice
+--     não-parcial permite ilimitadas linhas legadas com source_local_id NULL sem
+--     conflito, e ainda serve de arbiter válido para o upsert.
+--
+-- >>> APLICAÇÃO (IMPORTANTE): CREATE INDEX CONCURRENTLY NÃO roda dentro de
+--     transação. Este arquivo NÃO contém BEGIN/COMMIT (nenhum controle de transação).
+--     Aplique em AUTOCOMMIT:
+--       - Supabase Dashboard > SQL Editor (roda em autocommit), OU
+--       - psql "$DATABASE_URL" -f <este arquivo>
+--     NÃO aplique via `supabase db push` (pode envolver o arquivo em transação e o
+--     CONCURRENTLY falharia).
+--
+-- >>> PRÉ-REQUISITO: aplicar ANTES o ALTER (…_add_source_local_id.sql) e rodar a
+--     checagem de pré-aplicação (docs/database/etapa-5-fatia-2-preaplicacao.sql,
+--     query 3): todas as linhas devem ter source_local_id IS NULL (coluna recém-criada),
+--     logo NÃO há como haver duplicata na criação do índice. Se o CONCURRENTLY falhar,
+--     ele deixa um índice INVÁLIDO → rode
+--       DROP INDEX IF EXISTS public.ux_crm_opp_source_local;
+--     e recrie. Confirme depois com pg_index (indisvalid = true, indisunique = true).
+-- ============================================================================
+
+CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS ux_crm_opp_source_local
+  ON public.crm_opportunities (workspace_id, source_local_id);
