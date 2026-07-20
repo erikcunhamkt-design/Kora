@@ -4,7 +4,7 @@ Este documento detalha o funcionamento técnico da fonte de dados de clientes, q
 
 ## Como funciona a camada de fonte de dados
 
-A alternância é gerenciada pelo hook [useClientsDataSource.ts](file:///C:/Users/erikw/.gemini/antigravity/scratch/orbit-designer-hub/src/hooks/useClientsDataSource.ts):
+A alternância é gerenciada pelo hook [useClientsDataSource.ts](../../../src/hooks/useClientsDataSource.ts):
 1. **Fonte Padrão (Local)**: Por padrão, a fonte de dados ativa é `local` e consome a persistência existente no navegador. A preferência do usuário é armazenada no `localStorage` sob a chave `kora.clients.dataSource.v1`.
 2. **Modo Supabase Experimental**: Quando selecionado, a tela de Clientes passa a renderizar os clientes cadastrados no workspace Supabase atual.
 3. **Fallback Automático**: Se o usuário perder o acesso ao workspace ou se deslogar, a fonte reverte automaticamente para a `Base Local (Padrão)`.

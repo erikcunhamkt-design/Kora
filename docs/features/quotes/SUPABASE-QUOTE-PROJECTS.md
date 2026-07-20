@@ -6,7 +6,7 @@ Este documento descreve a integração que permite gerar um projeto no Supabase 
 Permitir que usuários criem um projeto base no Supabase a partir de propostas/orçamentos aprovados de forma controlada por feature flag (`kora.quotes.supabaseCreateProject.enabled`), com confirmação explícita via modal e validação de duplicidade, mantendo os fluxos locais isolados.
 
 ## Tabela de Projetos Supabase
-A tabela criada no Supabase é a `public.projects` via a migration [20260601_030000_create_projects_schema.sql](file:///C:/Users/erikw/.gemini/antigravity/scratch/orbit-designer-hub/supabase/migrations/20260601_030000_create_projects_schema.sql):
+A tabela criada no Supabase é a `public.projects` via a migration [20260601030000_create_projects_schema.sql](../../../supabase/migrations/20260601030000_create_projects_schema.sql):
 * `id` UUID PRIMARY KEY.
 * `workspace_id` UUID referenciando `workspaces(id)` com cascata.
 * `client_id` UUID referenciando `clients(id)` com set null.
@@ -31,7 +31,7 @@ Habilitado **Row Level Security (RLS)** restringindo a leitura e gravação a me
 * **Ativação**: Pode ser ligada/desligada em *Configurações > Empresa > Orçamentos Supabase - Gerar Projeto Experimental*.
 
 ## Repositório
-As funções estão implementadas em [projectsRepository.ts](file:///C:/Users/erikw/.gemini/antigravity/scratch/orbit-designer-hub/src/repositories/projectsRepository.ts):
+As funções estão implementadas em [projectsRepository.ts](../../../src/repositories/projectsRepository.ts):
 * `findProjectByQuote(workspaceId, quoteId)`: Busca projetos existentes para evitar duplicidade.
 * `createProjectFromQuote(workspaceId, input)`: Insere o projeto base associando `quote_id`, `client_id`, `opportunity_id` com status `'active'` e source `'quote'`.
 * `softDeleteProject(workspaceId, projectId)`: Executa deleção lógica do projeto definindo `deleted_at`.
@@ -41,7 +41,7 @@ As funções estão implementadas em [projectsRepository.ts](file:///C:/Users/er
 * **Locais**:
   1. No card de visualização experimental em Configurações (`SupabaseQuotesViewerCard.tsx`).
   2. Na seção de orçamentos vinculados no drawer de CRM (`LinkedQuotesSection.tsx`).
-* **Modal de Entrada**: O modal [CreateProjectFromQuoteDialog.tsx](file:///C:/Users/erikw/.gemini/antigravity/scratch/orbit-designer-hub/src/components/crm/CreateProjectFromQuoteDialog.tsx) pré-preenche título, orçamento/budget e IDs vinculados, permitindo editar título, orçamento, vencimento, data de início e descrição.
+* **Modal de Entrada**: O modal [CreateProjectFromQuoteDialog.tsx](../../../src/components/crm/CreateProjectFromQuoteDialog.tsx) pré-preenche título, orçamento/budget e IDs vinculados, permitindo editar título, orçamento, vencimento, data de início e descrição.
 
 ## Regra de Duplicidade
 Antes de efetuar a gravação, o sistema verifica se já existe um projeto com `quote_id` idêntico, `source = 'quote'` e `deleted_at IS NULL`. Se encontrado, o fluxo é cancelado e um toast de erro é disparado: *"Este orçamento já possui um projeto vinculado."*

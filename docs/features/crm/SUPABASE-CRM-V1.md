@@ -6,7 +6,7 @@ Este documento descreve a modelagem, as regras de segurança e a arquitetura té
 
 ## 1. Tabela Criada e Modelagem
 
-A tabela `public.crm_opportunities` foi criada através da migração SQL no arquivo [20260530050000_create_crm_opportunities.sql](file:///C:/Users/erikw/.gemini/antigravity/scratch/orbit-designer-hub/supabase/migrations/20260530050000_create_crm_opportunities.sql).
+A tabela `public.crm_opportunities` foi criada através da migração SQL no arquivo [20260530050000_create_crm_opportunities.sql](../../../supabase/migrations/20260530050000_create_crm_opportunities.sql).
 
 ### Definição dos Campos
 A estrutura foi modelada para refletir fielmente a interface do Lead do frontend local, agregando chaves multi-tenant e integridade relacional:
@@ -64,14 +64,14 @@ Isso garante isolamento completo:
 
 ## 3. Repositório e Mappers
 
-- **Repository**: Desenvolvido de forma puramente agnóstica de UI em [crmOpportunitiesRepository.ts](file:///C:/Users/erikw/.gemini/antigravity/scratch/orbit-designer-hub/src/repositories/crmOpportunitiesRepository.ts). Expõe métodos tipados para `listOpportunities`, `getOpportunity`, `createOpportunity`, `updateOpportunity`, `moveOpportunityStage` (que gerencia triggers de timestamps `won_at`/`lost_at` e status), `archiveOpportunity` e `deleteOpportunity`.
-- **Mapper**: Criado em [crmOpportunityMapper.ts](file:///C:/Users/erikw/.gemini/antigravity/scratch/orbit-designer-hub/src/services/crm/crmOpportunityMapper.ts) contendo `mapLocalLeadToSupabaseOpportunity` e `mapSupabaseOpportunityToLocalLead` para garantir total interoperabilidade sem corromper as estruturas de memória do frontend legado.
+- **Repository**: Desenvolvido de forma puramente agnóstica de UI em [crmOpportunitiesRepository.ts](../../../src/repositories/crmOpportunitiesRepository.ts). Expõe métodos tipados para `listOpportunities`, `getOpportunity`, `createOpportunity`, `updateOpportunity`, `moveOpportunityStage` (que gerencia triggers de timestamps `won_at`/`lost_at` e status), `archiveOpportunity` e `deleteOpportunity`.
+- **Mapper**: Criado em [crmOpportunityMapper.ts](../../../src/services/crm/crmOpportunityMapper.ts) contendo `mapLocalLeadToSupabaseOpportunity` e `mapSupabaseOpportunityToLocalLead` para garantir total interoperabilidade sem corromper as estruturas de memória do frontend legado.
 
 ---
 
 ## 4. Hook de Integração Isolado
 
-O hook [useSupabaseOpportunities.ts](file:///C:/Users/erikw/.gemini/antigravity/scratch/orbit-designer-hub/src/hooks/useSupabaseOpportunities.ts) foi disponibilizado no sistema.
+O hook [useSupabaseOpportunities.ts](../../../src/hooks/useSupabaseOpportunities.ts) foi disponibilizado no sistema.
 - Ele detecta o workspace ativo atual usando `useCurrentWorkspace`.
 - Gerencia de forma reativa os estados de carregamento (`loading`), erro (`error`) e lista de oportunidades (`opportunities`).
 - Expõe métodos envelopados de escrita que disparam toasts automáticos do `sonner`.

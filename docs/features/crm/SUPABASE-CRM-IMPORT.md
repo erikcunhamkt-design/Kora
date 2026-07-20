@@ -6,7 +6,7 @@ Este documento descreve o funcionamento técnico, o fluxo de mapeamento e as pol
 
 ## 1. Como Funciona o Fluxo de Importação
 
-A importação é mediada pela interface gráfica em Configurações (área da Empresa) sob o card **"Importar Oportunidades Locais"** e executada por meio do React Hook [useLocalOpportunitiesImport.ts](file:///C:/Users/erikw/.gemini/antigravity/scratch/orbit-designer-hub/src/hooks/useLocalOpportunitiesImport.ts):
+A importação é mediada pela interface gráfica em Configurações (área da Empresa) sob o card **"Importar Oportunidades Locais"** e executada por meio do React Hook [useLocalOpportunitiesImport.ts](../../../src/hooks/useLocalOpportunitiesImport.ts):
 
 1. **Obtenção de Leads Locais**: Recupera a lista de leads atualmente salvos na chave `orbyt.leads.v1` do navegador (utilizada pelo hook `useLeads`). Leads marcados com a flag `isDemo === true` (dados de demonstração fornecidos pelo sistema) são **descartados** e ignorados.
 2. **Obtenção de Oportunidades Remotas**: Consulta as oportunidades existentes no Supabase pertencentes ao Workspace ativo selecionado.

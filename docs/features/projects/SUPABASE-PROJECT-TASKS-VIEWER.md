@@ -6,7 +6,7 @@ Este documento descreve a implementação da visualização passiva e somente le
 Permitir que os usuários visualizem de forma estruturada e ordenada a lista de tarefas associadas a cada projeto Supabase diretamente na Visão Operacional do Dashboard. O fluxo é puramente passivo e não altera dados locais de projetos/tarefas.
 
 ## Hook Isolado
-Foi criado o hook [useSupabaseProjectTasks.ts](file:///C:/Users/erikw/.gemini/antigravity/scratch/orbit-designer-hub/src/hooks/useSupabaseProjectTasks.ts):
+Foi criado o hook [useSupabaseProjectTasks.ts](../../../src/hooks/useSupabaseProjectTasks.ts):
 * **Parâmetro**: `projectId?: string`.
 * **Comportamento**: Obtém o workspace ativo e consome o repositório `tasksRepository.listTasksByProject(workspaceId, projectId)`.
 * **Retornos**:
