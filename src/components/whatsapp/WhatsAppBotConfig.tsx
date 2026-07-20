@@ -13,17 +13,47 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import type { Database } from "@/integrations/supabase/types";
+import type { Database, Json } from "@/integrations/supabase/types";
 
 type BotSettings = Database["public"]["Tables"]["whatsapp_bot_settings"]["Row"];
+type BotSettingsInsert = Database["public"]["Tables"]["whatsapp_bot_settings"]["Insert"];
 
-interface WorkflowNode {
+interface WorkflowNodeBase {
   id: string;
-  type: "trigger" | "ai" | "send" | "handover";
   title: string;
   enabled: boolean;
-  properties: Record<string, any>;
 }
+
+interface TriggerWorkflowNode extends WorkflowNodeBase {
+  type: "trigger";
+  properties: { respondAll: boolean };
+}
+
+interface AiWorkflowNode extends WorkflowNodeBase {
+  type: "ai";
+  properties: {
+    instruction: string;
+    model: string;
+    provider: string;
+    geminiApiKey: string;
+    gcpProjectId: string;
+    gcpRegion: string;
+    gcpServiceAccount: string;
+    customModelName: string;
+  };
+}
+
+interface SendWorkflowNode extends WorkflowNodeBase {
+  type: "send";
+  properties: { template: string };
+}
+
+interface HandoverWorkflowNode extends WorkflowNodeBase {
+  type: "handover";
+  properties: { assignTo: string };
+}
+
+type WorkflowNode = TriggerWorkflowNode | AiWorkflowNode | SendWorkflowNode | HandoverWorkflowNode;
 
 export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
   const [settings, setSettings] = useState<BotSettings | null>(null);
@@ -103,34 +133,40 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
         setIsActive(data.is_active || false);
         
         // Try parsing flow_data from DB
-        const savedFlow = (data as any).flow_data;
+        const savedFlow = data.flow_data;
         if (savedFlow && Array.isArray(savedFlow)) {
           setNodes(savedFlow as WorkflowNode[]);
         } else {
           // Fallback legacy conversion
           const legacyInstruction = data.system_instruction || "Você é o atendente virtual do KORA Hub. Seja prestativo, educado e conciso.";
           const legacyModel = data.model_name || "gemini-2.5-flash";
-          const legacyProvider = (data as any).provider || "lovable";
-          const legacyApiKey = (data as any).gemini_api_key || "";
-          const legacyProjectId = (data as any).gcp_project_id || "";
-          const legacyRegion = (data as any).gcp_region || "us-central1";
-          const legacySA = (data as any).gcp_service_account || "";
-          const legacyRespondAll = (data as any).respond_all ?? true;
+          const legacyProvider = data.provider || "lovable";
+          const legacyApiKey = data.gemini_api_key || "";
+          const legacyProjectId = data.gcp_project_id || "";
+          const legacyRegion = data.gcp_region || "us-central1";
+          const legacySA = data.gcp_service_account || "";
+          const legacyRespondAll = data.respond_all ?? true;
 
           const updated = [...nodes];
           // Update trigger
-          updated[0].properties.respondAll = legacyRespondAll;
+          const triggerNode = updated[0];
+          if (triggerNode.type === "trigger") {
+            triggerNode.properties.respondAll = legacyRespondAll;
+          }
           // Update AI
-          updated[1].properties = {
-            instruction: legacyInstruction,
-            model: legacyModel === "custom" ? "custom" : legacyModel,
-            provider: legacyProvider,
-            geminiApiKey: legacyApiKey,
-            gcpProjectId: legacyProjectId,
-            gcpRegion: legacyRegion,
-            gcpServiceAccount: legacySA,
-            customModelName: !["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"].includes(legacyModel) && legacyModel !== "custom" ? legacyModel : ""
-          };
+          const aiNode = updated[1];
+          if (aiNode.type === "ai") {
+            aiNode.properties = {
+              instruction: legacyInstruction,
+              model: legacyModel === "custom" ? "custom" : legacyModel,
+              provider: legacyProvider,
+              geminiApiKey: legacyApiKey,
+              gcpProjectId: legacyProjectId,
+              gcpRegion: legacyRegion,
+              gcpServiceAccount: legacySA,
+              customModelName: !["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"].includes(legacyModel) && legacyModel !== "custom" ? legacyModel : ""
+            };
+          }
           setNodes(updated);
         }
       }
@@ -150,7 +186,7 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [simMessages]);
 
-  const updateNodeProperty = (nodeId: string, key: string, value: any) => {
+  const updateNodeProperty = (nodeId: string, key: string, value: string | boolean) => {
     setNodes(prev => prev.map(node => {
       if (node.id === nodeId) {
         return {
@@ -159,7 +195,7 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
             ...node.properties,
             [key]: value
           }
-        };
+        } as WorkflowNode;
       }
       return node;
     }));
@@ -177,10 +213,11 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
   };
 
   const handleSaveSettings = async () => {
-    setSaving(true);
-
     const triggerNode = nodes[0];
     const aiNode = nodes[1];
+    if (triggerNode.type !== "trigger" || aiNode.type !== "ai") return;
+
+    setSaving(true);
 
     let activeGcpProjectId = aiNode.properties.gcpProjectId;
     if (!activeGcpProjectId && aiNode.properties.gcpServiceAccount) {
@@ -199,7 +236,7 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
       : aiNode.properties.model;
 
     try {
-      const payload: any = {
+      const payload: BotSettingsInsert = {
         workspace_id: workspaceId,
         is_active: isActive,
         system_instruction: aiNode.properties.instruction,
@@ -210,7 +247,7 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
         gcp_region: aiNode.properties.gcpRegion || null,
         gcp_service_account: aiNode.properties.gcpServiceAccount || null,
         respond_all: triggerNode.properties.respondAll,
-        flow_data: nodes, // Save visual workflow JSON structures
+        flow_data: nodes as unknown as Json, // Save visual workflow JSON structures
       };
 
       if (settings?.id) {
@@ -254,7 +291,8 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
 
     try {
       const aiNode = nodes[1];
-      const activeModelName = aiNode.properties.model === "custom" 
+      if (aiNode.type !== "ai") return;
+      const activeModelName = aiNode.properties.model === "custom"
         ? aiNode.properties.customModelName 
         : aiNode.properties.model;
       
