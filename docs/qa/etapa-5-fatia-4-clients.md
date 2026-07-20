@@ -6,12 +6,15 @@
 > homologação, migration ou escrita em banco/localStorage foi executada.** Nada disto está
 > aprovado — é proposta, para revisão.
 >
-> **Achado que muda o enquadramento da fatia, registrado já no topo:** ao contrário de
-> `opportunities` (Fatia 2) e `quotes` (Fatia 3), `clients` **não é greenfield**. Existe um
-> caminho de leitura/escrita direto pra Supabase **já ativo em produção**, construído **antes**
-> da Etapa 5 e **fora** do molde Espelho Reversível — ver §1, invariante (e)/P5. A fatia,
-> portanto, não é "migrar clients pro Supabase" — é "blindar e formalizar, sob o protocolo, um
-> import legado que convive com um CRUD que já é Supabase-first".
+> **Enquadramento (adendo 2026-07-20): Fatia 4 é REGULARIZAÇÃO, não migração clássica.** Ao
+> contrário de `opportunities` (Fatia 2) e `quotes` (Fatia 3), `clients` **não é greenfield**.
+> Existe um caminho de leitura/escrita direto pra Supabase **já ativo em produção**, construído
+> **antes** da Etapa 5 e **fora** do molde Espelho Reversível — ver §1, invariante (e)/P5. A
+> fatia, portanto, não é "migrar clients pro Supabase" — é "blindar e formalizar, sob o
+> protocolo, um import legado que convive com um CRUD que já é Supabase-first". Essa mudança de
+> enquadramento obriga a reler (a) e (d) fora do sentido clássico (ver §1) — "local" não é mais a
+> fonte ativa que esses dois invariantes originalmente protegiam, é um snapshot congelado de
+> antes do cutover.
 
 ---
 
@@ -100,16 +103,117 @@ JSON.parse(localStorage.getItem("kora.clients.supabaseImport.v1") || '{"imported
 bruto. Sem esses números o veredito de risco (§2) e o dimensionamento das migrations (§3) ficam
 provisórios.
 
+### 0.3 DIFF local ↔ nuvem (por email/nome — não há `source_local_id` ainda)
+
+**Esta é a medição que decide C6.** Sem `source_local_id`, não existe chave exata pra cruzar as
+duas listas — o diff abaixo usa o mesmo critério que o próprio código de import já usa hoje
+(email; se vazio, nome+empresa), então mede exatamente o que o card de import classificaria como
+"novo" em cada direção. **Ressalva de precisão, registrada por honestidade:** é heurístico, não
+exato — um client com e-mail preenchido no local mas `NULL` na nuvem não casa por e-mail e cai
+como "ausente" mesmo que seja o mesmo registro; inspecionar os resultados antes de tratá-los como
+verdade absoluta.
+
+**Passo 1 — no console do navegador, gera e copia o array normalizado dos locais reais:**
+
+```js
+// (11) copia pro clipboard — cole no lugar de <<COLAR_AQUI_O_JSON_COPIADO>> nas 4 queries abaixo
+copy(JSON.stringify(
+  JSON.parse(localStorage.getItem("orbyt.clients.v1"))
+    .filter(c => !c.isDemo)
+    .map(c => ({
+      email: (c.email || "").toLowerCase().trim(),
+      name: (c.name || "").toLowerCase().trim(),
+      company: (c.company || "").toLowerCase().trim(),
+    }))
+))
+```
+
+**Passo 2 — no SQL Editor, cola o mesmo array nas 4 queries (mesma sessão, roda as 4):**
+
+```sql
+-- (12) direção 1: locais reais SEM correspondência na nuvem — candidatos reais ao import
+with local_clients as (
+  select * from jsonb_to_recordset('<<COLAR_AQUI_O_JSON_COPIADO>>'::jsonb)
+    as x(email text, name text, company text)
+)
+select lc.email, lc.name, lc.company
+from local_clients lc
+where not exists (
+  select 1 from public.clients c
+  where c.workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9'
+    and (
+      (lc.email <> '' and lower(trim(c.email)) = lc.email)
+      or (lc.email = '' and lower(trim(c.name)) = lc.name and lower(trim(coalesce(c.company, ''))) = lc.company)
+    )
+);
+```
+
+```sql
+-- (13) contagem da direção 1
+with local_clients as (
+  select * from jsonb_to_recordset('<<COLAR_AQUI_O_JSON_COPIADO>>'::jsonb)
+    as x(email text, name text, company text)
+)
+select count(*) from local_clients lc
+where not exists (
+  select 1 from public.clients c
+  where c.workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9'
+    and (
+      (lc.email <> '' and lower(trim(c.email)) = lc.email)
+      or (lc.email = '' and lower(trim(c.name)) = lc.name and lower(trim(coalesce(c.company, ''))) = lc.company)
+    )
+);
+```
+
+```sql
+-- (14) direção 2: clients NA NUVEM sem correspondência local — nasceram via CRUD
+--      Supabase-first já ativo, ou são legado sem contrapartida local íntegra
+with local_clients as (
+  select * from jsonb_to_recordset('<<COLAR_AQUI_O_JSON_COPIADO>>'::jsonb)
+    as x(email text, name text, company text)
+)
+select c.id, c.name, c.email, c.company, c.is_demo, c.created_at
+from public.clients c
+where c.workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9'
+  and not exists (
+    select 1 from local_clients lc
+    where (lc.email <> '' and lc.email = lower(trim(c.email)))
+       or (lc.email = '' and lc.name = lower(trim(c.name)) and lc.company = lower(trim(coalesce(c.company, ''))))
+  )
+order by c.created_at;
+```
+
+```sql
+-- (15) contagem da direção 2
+with local_clients as (
+  select * from jsonb_to_recordset('<<COLAR_AQUI_O_JSON_COPIADO>>'::jsonb)
+    as x(email text, name text, company text)
+)
+select count(*) from public.clients c
+where c.workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9'
+  and not exists (
+    select 1 from local_clients lc
+    where (lc.email <> '' and lc.email = lower(trim(c.email)))
+       or (lc.email = '' and lc.name = lower(trim(c.name)) and lc.company = lower(trim(coalesce(c.company, ''))))
+  );
+```
+
+**Por que decide C6:** se a direção 2 (nuvem sem local) vier **grande**, é evidência forte de que
+o CRUD Supabase-first já é o dia a dia real — regularizar é a única opção sensata, reverter pra
+carência quebraria uso corrente. Se vier **~0**, o CRUD direto pode ainda não ter sido usado de
+fato (só existe no código), e a decisão C6 tem mais espaço. A direção 1 (local sem nuvem) mede o
+volume real que o import legado ainda precisa cobrir — dimensiona o risco de C1-C3.
+
 ---
 
 ## 1. Auditoria por invariante (Fase A)
 
 | Inv. | Ponto | Veredito |
 |---|---|---|
-| (a) | Não apaga local antes do remoto | ✅ OK |
+| (a) | Não apaga local antes do remoto | ✅ OK — **sentido redefinido**, ver texto |
 | (b) | Idempotência | ⛔ **BLOQUEANTE** — sem backstop no banco, dedupe só heurístico client-side |
 | (c) | Leitura server-side | 🟡 OK, sem paginação (mesmo padrão adiado das Fatias 2/3) |
-| (d) | Reversibilidade (local nunca destruído) | ✅ OK |
+| (d) | Reversibilidade | 🟡 **REINTERPRETADO** — rollback ao vivo não existe mais, só integridade do snapshot congelado |
 | (e) | Disparo consciente / flag em carência (P5) | ⛔ **JÁ VIOLADO, pré-existente** — ver abaixo |
 | + | FK / dependentes de `clients` | 🟡 mapeados, ver abaixo |
 | + | Atomicidade pai-filho (`clients`→`client_contacts`) | ⛔ **BLOQUEANTE** — import não-atômico |
@@ -117,12 +221,23 @@ provisórios.
 | + | Drift schema-vs-código | ✅ **sem drift** nas colunas base (contraste com a Fatia 3) |
 | + | Legado sem `source_local_id` | 🟡 **a reconciliar** — ver abaixo |
 
-### (a) Não apaga o local — ✅ OK
+### (a) Não apaga o local — ✅ OK, mas o sentido do invariante mudou (REINTERPRETADO)
 
-`useLocalClientsImport.ts` só escreve na chave de metadado `kora.clients.supabaseImport.v1`
-(`localStorage.setItem` na linha 184); nunca `removeItem`/`clear`/overwrite de
-`orbyt.clients.v1`. `useClients.ts` (hook local) idem — não há caminho de código que apague o
-local a partir do fluxo de import.
+Nas Fatias 2/3, (a) protegia um local que era **a fonte ativa** durante a janela de transição —
+não apagar antes do remoto confirmar garantia que nada se perdia numa migração em andamento. Para
+`clients`, o local (`orbyt.clients.v1`) **já não é a fonte ativa** para quem tem workspace — é um
+**snapshot congelado** de antes do cutover (ver (d) e (e) abaixo): ninguém grava nele mais via o
+CRUD do dia a dia, só o fluxo de import legado ainda o lê. O que (a) garante hoje é mais estreito:
+esse snapshot congelado — o único registro que resta de qualquer client local pré-cutover ainda
+não reconciliado com a nuvem (é exatamente o que o diff da seção 0.3 mede) — não pode ser apagado
+sem que esse dado suma de vez, sem nenhuma cópia em lugar nenhum.
+
+Verificado nesta leitura: `useLocalClientsImport.ts` só escreve na chave de metadado
+`kora.clients.supabaseImport.v1` (`localStorage.setItem` na linha 184); nunca
+`removeItem`/`clear`/overwrite de `orbyt.clients.v1`. `useClients.ts` (hook local) idem — não há
+caminho de código que apague o local a partir do fluxo de import. **OK no sentido estreito**
+("nada apaga o arquivo histórico"), não no sentido amplo original ("o local segue sendo a fonte
+protegida durante a transição") — esse segundo sentido não se sustenta mais para `clients`.
 
 ### (b) Idempotência — ⛔ BLOQUEANTE
 
@@ -151,6 +266,25 @@ no banco.
 `useSupabaseClients.ts` já está em React Query (comentário no topo do arquivo confirma: "A2").
 `listClients` faz `select("*")` sem `.range()`/`.limit()` — mesma lacuna já adiada (Q7-style) nas
 Fatias 2/3. Não bloqueante no volume atual.
+
+### (d) Reversibilidade — 🟡 REINTERPRETADO, não mais "✅ OK" no sentido clássico
+
+Nas Fatias 2/3, (d) significa: flipar a flag de volta pra `"local"` mostra o local **intacto e
+atual** — prova de que a escrita na nuvem nunca mutilou nem perdeu dado local, uma rede de
+segurança viva durante a homologação. **Esse sentido já não se aplica a `clients`.** Como (e)
+mostra, a flag já está em `"supabase"` por padrão sempre que há workspace — não existe mais um
+caminho de escrita que espelhe no local o que é criado/editado/arquivado direto na nuvem. Flipar
+a flag de volta pra `"local"` hoje não mostraria "o mesmo dado, só que da fonte local" — mostraria
+o **snapshot congelado de antes do cutover**, sem nenhum dos clients criados ou editados via CRUD
+Supabase-first desde então. Reversibilidade como rollback ao vivo **não existe mais** para esse
+dado.
+
+O que continua verdadeiro, e é o que a leitura de código desta Fase A consegue afirmar: nenhum
+código de import ou de migration **corrompeu ou apagou** o snapshot congelado
+(`orbyt.clients.v1`) — ele segue legível e consistente com o que existia antes do cutover. Essa é
+uma garantia mais fraca que "reversível" no sentido original do protocolo, por isso o veredito
+muda de ✅ para 🟡: não é uma rede de segurança para o dado novo, é a integridade de um arquivo
+histórico. Rebaixado deliberadamente, não é o mesmo "OK" que as Fatias 2/3 reportam.
 
 ### (e) Disparo consciente / P5 (flag em carência) — ⛔ JÁ VIOLADO, condição pré-existente
 
@@ -260,6 +394,14 @@ existente" do protocolo (gate reforçado, aprovação por statement).
 ---
 
 ## 3. Recomendação de ajustes — PROPOSTA, aguardando aprovação (nenhuma fase liberada)
+
+> ⛔ **Nenhum item desta tabela é uma recomendação de EXECUTAR import — nem C3, nem C6.** C1-C7
+> são propostas de **desenho**, condicionadas ao resultado do diff (§0.3): o dimensionamento de
+> C1-C3 (quanto risco, qual urgência) e a própria decisão C6 (regularizar vs tratar como
+> incidente) não têm número por trás enquanto as queries (12)-(15) não rodarem. Escrever essa
+> tabela antes do diff é possível porque o desenho não depende da escala — mas **aprovar** B.1/B.2
+> em cima dela, sem o diff, seria aprovar às cegas o tamanho do problema que C1-C3 propõem
+> resolver.
 
 | # | Item | Fase | Resumo |
 |---|---|---|---|
