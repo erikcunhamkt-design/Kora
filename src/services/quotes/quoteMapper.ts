@@ -37,10 +37,21 @@ export function resolveQuoteFk(
 /** Orçamento local aceito na migração (inclui `leadId`, usado como id da oportunidade). */
 type LocalQuoteForImport = Quote & { leadId?: string | number };
 
-/** Payload de import de um orçamento — inclui as FKs resolvidas (UUID ou null). */
+/**
+ * Payload de import de um orçamento — inclui as FKs resolvidas (UUID ou null).
+ * Campos exigidos aqui são exatamente os que mapLocalQuoteToSupabaseQuote sempre
+ * atribui (nunca undefined) — compatível estruturalmente com
+ * ImportQuoteWithItemsInput (quotesRepository.ts) para a chamada ao RPC (B.3).
+ */
 export interface SupabaseQuoteImportPayload extends Partial<SupabaseQuote> {
   client_id: string | null;
   opportunity_id: string | null;
+  title: string;
+  subtotal: number;
+  discount: number;
+  total: number;
+  status: string;
+  archived: boolean;
 }
 
 /** Convert a local Quote to a shape suitable for Supabase insertion/update. */
