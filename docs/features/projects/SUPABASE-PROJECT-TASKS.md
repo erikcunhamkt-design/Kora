@@ -6,7 +6,7 @@ Este documento descreve a integração que permite gerar um checklist inicial de
 Permitir que os usuários gerem um conjunto de tarefas padrão (checklist de kickoff, planejamento e entrega) associado a um projeto Supabase, com confirmação explícita via modal e validação de duplicidade, mantendo os fluxos locais e o localStorage intactos.
 
 ## Tabela de Tarefas Supabase
-A tabela criada no Supabase é a `public.tasks` via a migration [20260601_040000_create_tasks_schema.sql](file:///C:/Users/erikw/.gemini/antigravity/scratch/orbit-designer-hub/supabase/migrations/20260601_040000_create_tasks_schema.sql):
+A tabela criada no Supabase é a `public.tasks` via a migration [20260601040000_create_tasks_schema.sql](../../../supabase/migrations/20260601040000_create_tasks_schema.sql):
 * `id` UUID PRIMARY KEY.
 * `workspace_id` UUID referenciando `workspaces(id)` com cascata.
 * `project_id` UUID referenciando `projects(id)` com cascata.
@@ -34,7 +34,7 @@ Habilitado **Row Level Security (RLS)** restringindo a leitura e gravação a me
 * **Ativação**: Pode ser ligada/desligada em *Configurações > Empresa/Supabase > Projetos Supabase - Gerar Tarefas Base Experimental*.
 
 ## Repositório
-As funções estão implementadas em [tasksRepository.ts](file:///C:/Users/erikw/.gemini/antigravity/scratch/orbit-designer-hub/src/repositories/tasksRepository.ts):
+As funções estão implementadas em [tasksRepository.ts](../../../src/repositories/tasksRepository.ts):
 * `listTasksByProject(workspaceId, projectId)`: Retorna as tarefas ativas vinculadas ao projeto.
 * `createProjectBaseTasks(workspaceId, tasks)`: Insere em lote as tarefas fornecidas para o workspace ativo.
 * `softDeleteTask(workspaceId, taskId)`: Executa deleção lógica de uma tarefa definindo `deleted_at`.
@@ -42,7 +42,7 @@ As funções estão implementadas em [tasksRepository.ts](file:///C:/Users/erikw
 ## Interface do Usuário (UI)
 * **Ação**: O botão "Gerar tarefas base" é exibido ao lado de cada projeto listado no painel da *Visão Operacional Supabase*.
 * **Regra de Flag**: Clicar no botão com a flag desativada dispara um toast informativo bloqueando o fluxo.
-* **Modal**: O modal [CreateProjectBaseTasksDialog.tsx](file:///C:/Users/erikw/.gemini/antigravity/scratch/orbit-designer-hub/src/components/projects/CreateProjectBaseTasksDialog.tsx) apresenta as 9 tarefas pré-configuradas em um checklist confirmável, permitindo editar individualmente títulos, prazos, prioridades e descrições.
+* **Modal**: O modal [CreateProjectBaseTasksDialog.tsx](../../../src/components/projects/CreateProjectBaseTasksDialog.tsx) apresenta as 9 tarefas pré-configuradas em um checklist confirmável, permitindo editar individualmente títulos, prazos, prioridades e descrições.
 * **Visualização**: O botão "Ver tarefas" abre uma listagem recolhível somente leitura das tarefas Supabase associadas ao projeto (veja [SUPABASE-PROJECT-TASKS-VIEWER.md](./SUPABASE-PROJECT-TASKS-VIEWER.md)).
 
 ## Tarefas Padrão

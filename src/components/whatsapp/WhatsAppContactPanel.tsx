@@ -56,6 +56,12 @@ interface Note {
   author_id: string | null;
 }
 
+interface WorkspaceMemberQueryRow {
+  user_id: string;
+  role: string;
+  users: { email: string | null; raw_user_meta_data: { name?: string | null } | null } | null;
+}
+
 interface ClientLite {
   id: string;
   name: string;
@@ -170,7 +176,7 @@ export function WhatsAppContactPanel({
       .eq("workspace_id", workspaceId)
       .then(({ data }) => {
         if (!active || !data) return;
-        const list = (data as any[]).map((d) => ({
+        const list = (data as unknown as WorkspaceMemberQueryRow[]).map((d) => ({
           id: d.user_id as string,
           name: (d.users?.raw_user_meta_data?.name ?? d.users?.email ?? "") as string | null,
           email: (d.users?.email ?? "") as string | null,

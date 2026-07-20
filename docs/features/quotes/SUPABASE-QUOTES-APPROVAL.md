@@ -16,12 +16,12 @@ O fluxo só funciona se:
 2. A flag de aprovação experimental estiver ativada (`kora.quotes.supabaseApproval.enabled` = `true`).
 
 ## Repository
-No arquivo [quotesRepository.ts](file:///C:/Users/erikw/.gemini/antigravity/scratch/orbit-designer-hub/src/repositories/quotesRepository.ts), foram atualizadas as seguintes funções de transição de status:
+No arquivo [quotesRepository.ts](../../../src/repositories/quotesRepository.ts), foram atualizadas as seguintes funções de transição de status:
 * `approveQuote(workspaceId, quoteId)`: Define `status = 'approved'`, preenche `approved_at = now()`, limpa `rejected_at = null`, filtra por `workspace_id` e ignora registros onde `deleted_at` não seja nulo.
 * `rejectQuote(workspaceId, quoteId)`: Define `status = 'rejected'`, preenche `rejected_at = now()`, limpa `approved_at = null`, filtra por `workspace_id` e ignora registros onde `deleted_at` não seja nulo.
 
 ## Hook
-Os métodos estão expostos no hook [useSupabaseQuotes.ts](file:///C:/Users/erikw/.gemini/antigravity/scratch/orbit-designer-hub/src/hooks/useSupabaseQuotes.ts):
+Os métodos estão expostos no hook [useSupabaseQuotes.ts](../../../src/hooks/useSupabaseQuotes.ts):
 * `approveQuote(quoteId)`
 * `rejectQuote(quoteId)`
 Ambos os métodos atualizam o estado local de orçamentos de forma reativa e executam o `refresh` da listagem.

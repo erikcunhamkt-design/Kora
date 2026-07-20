@@ -67,7 +67,7 @@ Com as flags `kora.crm.supabaseExperimental.enabled` e `kora.crm.supabaseCreate.
 
 ### Bugs Encontrados & Corrigidos:
 - *Ausência de Workspace Ativo*: O seletor de fonte permitia alternar para o Supabase sem um workspace carregado, resultando em chamadas de API inválidas com `null` ou `undefined`. **Corrigido**: Desabilitado o botão de transição para o Supabase experimental no seletor de fonte caso `workspace` esteja ausente no contexto de autenticação, forçando o retorno seguro para Local.
-- *Mensagem de Empty State Divergente*: O texto de pipeline vazio estava desalinhado com o esperado pelo cliente. **Corrigido**: Alterado no [CRM.tsx](file:///C:/Users/erikw/.gemini/antigravity/scratch/orbit-designer-hub/src/pages/CRM.tsx#L725) para exibir a mensagem descritiva literal estipulada.
+- *Mensagem de Empty State Divergente*: O texto de pipeline vazio estava desalinhado com o esperado pelo cliente. **Corrigido**: Alterado no [CRM.tsx](../../src/pages/CRM.tsx#L725) para exibir a mensagem descritiva literal estipulada.
 
 ### Limitações Conhecidas nesta Etapa:
 - **IDs Híbridos (Mapeamento)**: O CRM local utiliza chaves numéricas incrementais. As oportunidades gravadas no Supabase utilizam UUIDs. A conversão de leads e buscas relativas por link direto `?lead=<id>` utilizam IDs locais no `localStorage`.
