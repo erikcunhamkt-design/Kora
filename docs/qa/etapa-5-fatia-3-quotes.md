@@ -198,8 +198,8 @@ verdes**, sem falha de `CONCURRENTLY`, sem retry.
 | 5 · `001350` | `quantity` → `numeric` confirmado |
 | 6 · `001400` | RPC existe, `prosecdef=f` (INVOKER), `search_path=public, pg_temp` |
 
-**Pendência atualizada:** `quotesRepository`/`useLocalQuotesImport` ainda **não chamam** o RPC —
-código puro, zero risco de dado, é o próximo passo (início da B.3).
+**Pendência resolvida (B.3 passo 1, commits `e082c5f`·`0bf9141`·`13805b7`·`a7b5f52`):**
+`quotesRepository`/`useLocalQuotesImport` agora chamam `import_quote_with_items` — ver seção 8.
 **Ação do operador (checklist de sign-off, emenda §8):** rotacionar a senha do banco usada
 nesta rodada.
 
@@ -258,12 +258,200 @@ como "o dado provou que precisava" — não provou; foi antecipação deliberada
 - Testes atualizados/adicionados cobrindo fração preservada, quantização a 3 casas e
   regressão de quantidade inteira. Suíte 118/118, `tsc` 0, lint sem regressão.
 
-**Nota lateral registrada, fora de escopo desta decisão:** o relatório `fractionalQuantities`
-(`QuoteMoneyReport`, `LocalQuotesImportCard.tsx`) continua sinalizando quantidade fracionária
-no card de import como um aviso — semântica que ficou **desatualizada** (fracionário deixou de
-ser lossy). Não foi tocado nesta rodada por não estar no pedido explícito; fica como observação
-para uma fatia/ajuste futuro caso o operador queira recalibrar a UI.
+**Nota lateral — resolvida em B.3 passo 1 (commit `a7b5f52`):** o aviso de quantidade
+fracionária foi **removido** do card (deixou de ser algo que exige conferência do operador).
+Ver seção 8 para a justificativa completa.
 
 ---
 
-## 7. Runbook + resultados — **PENDENTE** (preenchido em B.3)
+## 8. B.3 · Passo 1 — import ligado ao RPC (código puro, zero risco de dado)
+
+| Commit | Camada |
+|---|---|
+| `e082c5f` | Repository: `quotesRepository.importQuoteWithItems` (chama o RPC) + `SupabaseQuote`/`ImportQuoteWithItemsInput` |
+| `0bf9141` | Mapper: `SupabaseQuoteImportPayload` tipado para casar estruturalmente com o input do RPC |
+| `13805b7` | Hook: `importSelected` chama o RPC único; `source_local_id` via `buildSourceLocalId(getInstallId(), local.id)`; persist incremental do `importedMap` (mesma disciplina da Fatia 2 — A5) |
+| `a7b5f52` | UI: remove aviso obsoleto de fração + adiciona `toast.warning` de falha parcial |
+
+**Gates:** `tsc` 0 · suíte **120/120** (subiu de 118) · lint 89/68 sem regressão.
+
+**Decisão registrada — item 3 (aviso de quantidade fracionária): REMOVIDO, não neutralizado.**
+Justificativa: desde a promoção de `quote_items.quantity` a `numeric` (Q5b), fração é
+preservada sem perda — o aviso não representa mais uma decisão ou conferência que o operador
+precise fazer. Um indicador "sem ação necessária" dilui o sinal dos avisos que **continuam**
+relevantes (cliente órfão, total ≠ Σ itens). `fractionalQuantities` continua computado em
+`QuoteMoneyReport` (`quoteMoney.ts`) — só parou de ser **exibido** nesta tela; pode voltar a
+ser usado (ex. um dashboard interno) sem custo de recomputação.
+
+**Disciplina de import-map (mesma da Fatia 2):** gravado **somente após sucesso** do RPC;
+erro → nada gravado, candidato marcado como falho. Persist movido para **dentro do loop**
+(por item) em vez de uma vez só no fim — evita perder o rastro de sucessos anteriores se o
+lote for interrompido no meio (o reimport seria seguro de qualquer forma, via o `UNIQUE` do
+RPC, mas persistir incremental evita reimportar à toa).
+
+---
+
+## 9. Runbook de homologação (B.3 · Passo 2) — **PROPOSTO, aguardando aprovação**
+
+> **Nenhuma rodada executa sem aprovação explícita.** Workspace de teste:
+> `2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9` (mesmo das Fatias 1-2).
+
+### 9.1 Rodada 1 — semeada (6 casos)
+
+**Pré-requisito:** um cliente e uma oportunidade **já migrados** no workspace de teste.
+Descubra via SQL:
+```sql
+select id, name from public.clients where workspace_id='2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' order by created_at desc limit 5;
+select id, title from public.crm_opportunities where workspace_id='2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' order by created_at desc limit 5;
+```
+
+**Seed (console do navegador, origem de produção)** — preserva o que já existe em
+`orbyt.quotes.v1`; cole os UUIDs reais nos dois primeiros `const`:
+
+```js
+const CLIENT_UUID = "<COLE_UM_CLIENT_ID_REAL_JA_MIGRADO>";
+const OPP_UUID = "<COLE_UMA_OPPORTUNITY_ID_REAL_JA_MIGRADA>";
+
+const clientMap = JSON.parse(localStorage["kora.clients.supabaseImport.v1"] || '{"importedMap":{}}');
+clientMap.importedMap["960001"] = CLIENT_UUID;
+localStorage.setItem("kora.clients.supabaseImport.v1", JSON.stringify(clientMap));
+
+const oppMap = JSON.parse(localStorage["kora.crm.supabaseImport.v1"] || '{"importedMap":{}}');
+oppMap.importedMap["960101"] = OPP_UUID;
+localStorage.setItem("kora.crm.supabaseImport.v1", JSON.stringify(oppMap));
+
+const base = { paymentCondition: "", deliveryDeadline: "", validityDays: 0, createdAt: "2026-07-19", isDemo: false, description: "" };
+const testQuotes = [
+  // (a) básica, com itens, cliente mapeado — prova zero perda
+  { ...base, id: "960001", title: "TESTE-QUOTE-A-basica", clientName: "Cliente Pronto", clientEmail: "pronto@teste.com",
+    clientId: 960001, items: [{ id: "i1", name: "Item 1", quantity: 2, unitPrice: 50 }, { id: "i2", name: "Item 2", quantity: 1, unitPrice: 30 }],
+    subtotal: 130, discount: 0, total: 130, status: "enviado" },
+  // (b) ligada a oportunidade migrada
+  { ...base, id: "960002", title: "TESTE-QUOTE-B-opp", clientName: "Cliente Pronto", clientEmail: "pronto@teste.com",
+    clientId: 960001, leadId: "960101", items: [{ id: "i3", name: "Item Opp", quantity: 1, unitPrice: 200 }],
+    subtotal: 200, discount: 0, total: 200, status: "enviado" },
+  // (c) cliente NÃO-mapeado — órfã, reportada, importa com client_id null
+  { ...base, id: "960003", title: "TESTE-QUOTE-C-orfao", clientName: "Cliente Orfao", clientEmail: "orfao@teste.com",
+    clientId: 960999, items: [{ id: "i4", name: "Item Orfao", quantity: 1, unitPrice: 80 }],
+    subtotal: 80, discount: 0, total: 80, status: "enviado" },
+  // (e) total != Σ itens (divergência proposital: soma=100, total local=85) — prova de precisão
+  { ...base, id: "960004", title: "TESTE-QUOTE-E-divergente", clientName: "Cliente Pronto", clientEmail: "pronto@teste.com",
+    clientId: 960001, items: [{ id: "i5", name: "Item Div", quantity: 2, unitPrice: 50 }],
+    subtotal: 100, discount: 0, total: 85, status: "enviado" },
+  // (f) FALHA SIMULADA — item com name NULL (viola NOT NULL de quote_items.name no Postgres)
+  { ...base, id: "960005", title: "TESTE-QUOTE-F-falha", clientName: "Cliente Pronto", clientEmail: "pronto@teste.com",
+    clientId: 960001, items: [{ id: "i6", name: null, quantity: 1, unitPrice: 10 }],
+    subtotal: 10, discount: 0, total: 10, status: "enviado" },
+];
+const existing = JSON.parse(localStorage["orbyt.quotes.v1"] || "[]");
+localStorage.setItem("orbyt.quotes.v1", JSON.stringify([...existing, ...testQuotes]));
+console.log("✅ Seed ok. F5 e abra Configurações → \"Importar orçamentos locais\".");
+```
+
+**Como a falha (caso f) é induzida — importante, não é mock:** o item da quote
+`TESTE-QUOTE-F-falha` tem `name: null`. `quote_items.name` é `text NOT NULL` no schema
+(`create_quotes_schema.sql:29`). A UI local não valida isso (a seed grava direto no
+`localStorage`, sem passar pelo formulário); o mapper (`mapLocalQuoteItemToSupabaseItem`)
+não sanitiza `name` (passa `item.name` verbatim). O RPC recebe `"name": null` no jsonb de
+itens; `item->>'name'` vira `NULL` no SQL; o `INSERT` em `quote_items` viola a constraint
+`NOT NULL` → **exceção real do Postgres**, não uma falha simulada em JS. Como a exceção
+acontece **dentro** da mesma chamada de função que já fez o upsert do pai, TUDO reverte
+(prova de atomicidade genuína — não um teste que confia em mock).
+
+**Passos (operador):**
+1. Gate 1 (export manual) — mesmo com `quotes`/`quote_items` vazias hoje, exportar e
+   confirmar por escrito (nada a perder, mas o gate é cumprido pela constatação).
+2. Rodar o seed acima.
+3. Abrir o card **"Importar orçamentos locais"** → conferir os 5 candidatos "new" (A, B, C, E, F)
+   → **Gate 2 (print pré-clique)**: mandar o print com os candidatos visíveis, incluindo o
+   marcador "· sem cliente vinculado" em C e "· total ≠ Σ itens (Δ R$ 15,00)" em E.
+4. Selecionar **todos os 5** → "Importar selecionados".
+5. Esperado na UI: toast de sucesso para 4 (A, B, C, E) + `toast.warning` "1 orçamento(s)
+   falharam ao importar" (F).
+
+**Provas (SQL, `<WS>` = `2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9`):**
+
+```sql
+-- (a) zero perda — campo a campo
+select id, client_id, opportunity_id, client_name, client_email, title, subtotal, discount, total, status, source_local_id
+from public.quotes where workspace_id='<WS>' and title='TESTE-QUOTE-A-basica';
+select name, quantity, unit_price from public.quote_items
+where quote_id = (select id from public.quotes where workspace_id='<WS>' and title='TESTE-QUOTE-A-basica');
+-- esperado: client_id = CLIENT_UUID; subtotal=130, discount=0, total=130; 2 itens batendo com o local.
+
+-- (b) opportunity_id resolvida
+select opportunity_id from public.quotes where workspace_id='<WS>' and title='TESTE-QUOTE-B-opp';
+-- esperado: = OPP_UUID (não null).
+
+-- (c) órfã: client_id NULL, linha existe (nunca id local 960999 cru, nunca descartada)
+select client_id, client_name from public.quotes where workspace_id='<WS>' and title='TESTE-QUOTE-C-orfao';
+-- esperado: client_id IS NULL; client_name = 'Cliente Orfao' (preservado).
+
+-- (e) precisão: total local preservado, NÃO recalculado
+select subtotal, discount, total from public.quotes where workspace_id='<WS>' and title='TESTE-QUOTE-E-divergente';
+-- esperado: total = 85 (não 100 — o sistema reporta, nunca "conserta" em silêncio).
+
+-- (f) falha simulada: ZERO rastro (prova o rollback do pai junto com os filhos)
+select count(*) from public.quotes where workspace_id='<WS>' and title='TESTE-QUOTE-F-falha';
+select count(*) from public.quote_items qi join public.quotes q on q.id=qi.quote_id
+where q.workspace_id='<WS>' and q.title='TESTE-QUOTE-F-falha';
+-- esperado: 0 e 0 — nem a quote nem os itens existem; upsert do pai foi revertido junto.
+```
+
+**Idempotência (prova de nível de banco, não só da guarda client-side)** — a UI já impede
+reimportar pelo `importedMap` + fuzzy match; para provar o **arbiter no banco** (o que
+realmente impede duplicata se algo tentasse de novo), chamar o RPC diretamente 2ª vez com o
+**mesmo** `source_local_id` do caso (a):
+
+```js
+// no console: pegue o installId usado no seed
+console.log(localStorage["kora.install.id.v1"]);
+```
+```sql
+-- troque <INSTALL_ID> pelo valor acima; observe o title mudando para RETRY
+select (import_quote_with_items(
+  '<WS>'::uuid, '<INSTALL_ID>:960001', '<CLIENT_UUID>'::uuid, null,
+  'Cliente Pronto', 'pronto@teste.com', 'TESTE-QUOTE-A-basica-RETRY', '',
+  130, 0, 130, 'enviado', false,
+  '[{"name":"Item 1","quantity":2,"unit_price":50},{"name":"Item 2","quantity":1,"unit_price":30}]'::jsonb
+)).*;
+select count(*) from public.quotes where workspace_id='<WS>' and source_local_id = '<INSTALL_ID>:960001';
+select title from public.quotes where workspace_id='<WS>' and source_local_id = '<INSTALL_ID>:960001';
+-- esperado: count = 1 (não 2 — UPDATE, não duplicata); title = '...-RETRY' (confirma que
+-- foi a MESMA linha atualizada, não uma nova).
+```
+
+**Reimport conserta (caso f, depois da prova de falha):**
+```js
+const quotes = JSON.parse(localStorage["orbyt.quotes.v1"]);
+const q = quotes.find(x => x.id === "960005");
+q.items[0].name = "Item Falha Corrigido";
+localStorage.setItem("orbyt.quotes.v1", JSON.stringify(quotes));
+console.log("✅ corrigido. F5 e reimporte 'TESTE-QUOTE-F-falha' (deve continuar 'new').");
+```
+Reimportar → esperado: sucesso; `select count(*) ... title='TESTE-QUOTE-F-falha'` agora = 1,
+com 1 item.
+
+### 9.2 Rodada 2 — real (3 quotes reais), só após 6/6 verde na Rodada 1
+
+1. **Gate 1 (export manual)** de `quotes`+`quote_items`.
+2. **Backup do JSON local ANTES** (console): `copy(localStorage["orbyt.quotes.v1"])` →
+   colar em `backups/etapa-5-fatia-3-quotes/orbyt-quotes-pre-import.json`.
+3. **Gate 2 (print pré-clique)** do card mostrando as 3 quotes reais.
+4. Importar as 3.
+5. **Conferência campo a campo DEPOIS**: comparar cada uma das 3 (cliente, título,
+   subtotal/discount/total, status, itens) entre o backup do JSON e as linhas no Supabase.
+6. Confirmar que a leitura do app **continua vindo do local** (flag em carência) — nada muda
+   visualmente para o usuário; a Rodada 2 é só escrita de import.
+
+### 9.3 Critério de aceite
+
+- [ ] Rodada 1: 6/6 casos verdes (a, b, c, d-idempotência, e, f).
+- [ ] Rodada 2: 3/3 quotes reais migradas, zero perda, backup salvo antes.
+- [ ] Limpeza do cenário semeado (Rodada 1) — local + SQL `delete`.
+- [ ] Flag de leitura de quotes permanece **local** (carência) após a Rodada 2.
+- [ ] Ação de sign-off pendente (emenda §8 do protocolo): rotacionar a senha do banco.
+
+---
+
+## 10. Runbook + resultados — **PENDENTE** (preenchido após execução da Rodada 1/2)
