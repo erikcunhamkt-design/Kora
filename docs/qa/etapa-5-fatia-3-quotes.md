@@ -169,7 +169,7 @@ write-through pontual, não muda a fonte de leitura do app.
 
 ---
 
-## 6. B.2 — migrations + RPC (escritos, NÃO aplicados)
+## 6. B.2 — migrations + RPC (escritos e **APLICADOS** em 2026-07-19)
 
 | Arquivo | Conteúdo |
 |---|---|
@@ -183,6 +183,25 @@ write-through pontual, não muda a fonte de leitura do app.
 
 **Ordem de aplicação (6 arquivos):** `20260719001000` → `001100` → `001200` → `001300` →
 `001350` (Q5b) → `001400` (RPC, por último — depende de todos os anteriores).
+
+**Aplicação real — 2026-07-19, via `psql` (emenda [`protocolo-homologacao.md` §8](protocolo-homologacao.md#8-emenda-2026-07-19--aplicação-de-ddl-pelo-code-sob-runbook-aprovado)):**
+Code aplicou os 6 arquivos, um por vez, com checagem de marco entre cada um. **6/6 marcos
+verdes**, sem falha de `CONCURRENTLY`, sem retry.
+
+| Marco | Resultado |
+|---|---|
+| Baseline | `quotes`=0, `quote_items`=0, colunas ausentes, `quantity`=integer, RPC ausente |
+| 1 · `001000` | `client_id`/`opportunity_id` existem, 0 preenchidos |
+| 2 · `001100` | `idx_quotes_client`/`idx_quotes_opportunity` `indisvalid=t` |
+| 3 · `001200` | `source_local_id` existe, 0 preenchidos |
+| 4 · `001300` | `ux_quotes_source_local` `indisvalid=t`, `indisunique=t` |
+| 5 · `001350` | `quantity` → `numeric` confirmado |
+| 6 · `001400` | RPC existe, `prosecdef=f` (INVOKER), `search_path=public, pg_temp` |
+
+**Pendência atualizada:** `quotesRepository`/`useLocalQuotesImport` ainda **não chamam** o RPC —
+código puro, zero risco de dado, é o próximo passo (início da B.3).
+**Ação do operador (checklist de sign-off, emenda §8):** rotacionar a senha do banco usada
+nesta rodada.
 
 **Decisão de segurança do RPC (Q3): `SECURITY INVOKER`.** O chamador já tem INSERT/UPDATE/
 DELETE em `quotes`/`quote_items` do próprio workspace via as policies RLS existentes; o RPC
