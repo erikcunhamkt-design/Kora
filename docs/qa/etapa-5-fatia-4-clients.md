@@ -509,12 +509,99 @@ entrar em `protocolo-homologacao.md`**:
 > > `clients` está coberta por esta emenda — um cutover Supabase-first descoberto em outra
 > > entidade exige o mesmo tratamento explícito, não herda esta emenda por analogia.
 
-**Este texto está proposto, não escrito no protocolo.** Incorporar como §10 real depende de
-aprovação explícita separada desta entrega.
+**Este texto está proposto.** Incorporação ao protocolo real é tratada como commit separado desta
+entrega (§10 de `protocolo-homologacao.md`), após aprovação.
+
+### 4.4 Design de C8 — correção do fluxo `client_contacts` (DESIGN, nenhum código escrito ainda)
+
+**Achado adicional desta rodada de design, por precisão:** ao investigar como fica o "estado
+depois de corrigido", achei que o problema não é só de escrita. `mapSupabaseClientToLocalClient`
+(`src/hooks/useClientsDataSource.ts:9-41`) retorna `contacts: []` **fixo**, sempre — e
+`listClientContacts` (já existe em `clientsRepository.ts:107`) **nunca é chamado em lugar
+nenhum** do código. Ou seja: pra client Supabase, a leitura de contatos também nunca acontece hoje
+— não é só que salvar não persiste, é que a aba "Contatos" nunca mostraria um contato real da
+nuvem mesmo que existisse um. O design abaixo cobre leitura e escrita; corrigir só a escrita
+deixaria a leitura quebrada do mesmo jeito.
+
+#### (a) Decisão: operações individuais por contato, não patch com reconciliação de array
+
+**Escolhido: operações individuais (create/update/delete direto por contato).**
+
+Por quê:
+1. A UI já opera um contato por vez. `ContactsTab.save(c)` recebe **um** `ClientContact`;
+   `remove(id)` recebe **um** id. O "array inteiro" que hoje sobe via `onUpdateContacts` é
+   artefato do modelo antigo (contacts como campo local aninhado), não uma necessidade da UX —
+   não existe hoje nenhuma tela de edição em lote de vários contatos ao mesmo tempo.
+2. Reconciliação de array (diffar o array novo contra o último conhecido pra decidir
+   create/update/delete por item) só adicionaria uma camada de diff **em cima** do que operações
+   individuais já fazem direto — sem ganhar atomicidade real, porque Postgres não tem "patch de
+   array" nativo pra tabela filha sem uma RPC dedicada (e se for construir uma RPC, é o mesmo
+   trabalho que C2' já cataloga pro import — aplicado ao caminho que não precisa).
+3. Superfície de mudança menor: só a aba Contatos + um hook novo. Não mexe no `updateClient`
+   genérico nem no patch-building que os outros campos de `clients` já usam e funcionam.
+4. Cada operação individual já é atômica por ser uma linha só — não há "pai+filhos" numa única
+   ação de contato, é sempre "um contato".
+
+**Risco do caminho escolhido:** se a UI um dia ganhar edição em lote de vários contatos numa tela
+só, este desenho vira N chamadas de rede sequenciais sem atomicidade entre elas — precisaria ser
+revisitado então (não é grátis pra sempre, é a escolha certa pro formato de UI atual).
+
+**Risco do caminho não escolhido (reconciliação):** mais código, mais superfície de bug (diff
+errado apagando o contato certo), sem ganho de atomicidade sem RPC — e RPC pra isso seria esforço
+duplicado do C2' catalogado.
+
+**Arquivos afetados:**
+
+| Arquivo | Mudança |
+|---|---|
+| `src/hooks/useSupabaseClientContacts.ts` (**novo**) | Hook React Query no molde de `useSupabaseClients.ts`: `useQuery` pra `listClientContacts(workspaceId, clientId)`; `useMutation` pra `createClientContact`/`updateClientContact`/`deleteClientContact`, cada uma invalidando a query própria no sucesso. |
+| `src/components/clients/ClientProfileDrawer.tsx` | `ContactsTab` passa a receber a origem (`source`) ou os handlers já resolvidos. Quando `supabase`: usa o hook novo pra ler (corrige o gap de leitura) e escrever contato a contato. Quando `local`: **comportamento inalterado** — `onUpdateContacts` como hoje, zero regressão. |
+| `src/pages/Clientes.tsx` | Passa `source` pra baixo (ou substitui `onUpdateContacts` por um conjunto de handlers condicionais equivalente ao que já faz pra `addClient`/`updateClient`/etc.). Caminho local idêntico ao atual. |
+| `src/repositories/clientsRepository.ts` | **Sem mudança de assinatura** — os 3 métodos já existem e já são usados pelo import legado; ganham um segundo chamador. |
+
+**Gotcha registrado, pra não ser descoberto em produção:** `mapSupabaseClientToLocalClient`
+(`useClientsDataSource.ts:9`) faz `id: s.id as unknown as number` — o `client.id` de um client
+Supabase é, em runtime, uma **string** (UUID) mascarada de `number` pelo TypeScript. Qualquer
+chamada nova a `clientsRepository.*ClientContact(workspaceId, clientId, ...)` precisa
+`String(client.id)`, nunca o valor cru — risco de bug silencioso (`"[object Object]"` ou UUID
+malformado na query) se o cast for esquecido.
+
+#### (b) Estado intermediário se uma operação de lote falhar (3 contatos, a 2ª falha)
+
+Com a escolha de (a), **Fluxo B (UI viva) nunca emite mais de 1 escrita em `client_contacts` por
+ação do usuário** — o cenário "3 contatos editados, 2ª falha numa mesma operação" **não existe
+nesse desenho, por construção**: cada save/remove é uma chamada isolada, com sucesso ou erro
+imediato e visível (toast), sem lote. Editar 3 contatos = 3 ações do usuário = 3 chamadas
+independentes; se a 2ª falhar, a 1ª já persistiu (correta) e a 3ª nunca foi disparada (usuário vê
+o erro da 2ª e decide se tenta de novo) — sem inconsistência, porque não há "operação composta"
+nenhuma pra ficar pela metade.
+
+A pergunta continua válida pro **Fluxo A** (import legado, catalogado — fora do escopo de C8,
+resposta registrada aqui pra quando a RPC C2' for desenhada):
+- **Hoje, sem C2':** client é criado, depois um loop cria contato 1, 2, 3 — se o 3º falhar, o
+  client **já existe na nuvem com 2 dos 3 contatos**. O usuário vê um toast de erro genérico
+  ("Ocorreu um erro ao importar um ou mais clientes"), sem saber quantos contatos entraram. O que
+  persiste: client completo + contatos 1 e 2; contato 3 nunca existiu. Estado inconsistente, sem
+  rollback — a mesma classe de "cliente com contatos decapitados" já registrada na Fase A.
+- **Com C2' (RPC transacional, catalogada, não construída):** a falha do contato 3 reverteria
+  tudo (client + contatos 1 e 2 também) — mesmo padrão já provado em `import_quote_with_items` na
+  Fatia 3, 0/0 nunca parcial.
+
+#### (c) Testes que provariam a correção
+
+| # | Caso | Prova |
+|---|---|---|
+| 1 | **Caso do bug atual, como pedido:** criar contato novo num client Supabase → simular refetch (reinvalidar a query / remontar o componente) → contato **persiste**, com um UUID real (não o `ct-<timestamp>-<random>` temporário do form). | Fecha a perda de dado silenciosa — é o teste que hoje **falharia** contra o código atual e passaria depois de C8. |
+| 2 | Editar um contato existente → refetch → alteração persiste (não duplica, não reverte). | Confirma o branch UPDATE do hook novo. |
+| 3 | Remover um contato → refetch → não reaparece. | Confirma o branch DELETE. |
+| 4 | Client **local** (`source === "local"`) → fluxo de contatos 100% inalterado, sem chamada nenhuma ao Supabase. | Regressão zero no caminho que já funciona. |
+| 5 | Erro de rede/validação numa operação individual → toast de erro específico daquele contato; os **outros** contatos da lista permanecem intocados (não somem, não duplicam). | Prova que não há efeito colateral cruzado entre contatos — reforça (b). |
+| 6 | `client.id` (Supabase) chega como string no repository, não como o `number` que o TS afirma. | Regressão pro gotcha do cast — pega o bug antes de produção. |
+| 7 | (Homologação manual, não unitário) Abrir a aba Contatos de um client real na nuvem, adicionar um contato, fechar o drawer, reabrir → contato ainda lá. | Prova end-to-end do que hoje falha silenciosamente. |
 
 ---
 
-**PARADO aqui.** Nada de §4 foi aplicado ou executado — C8 (código) e a emenda §10 (protocolo)
-seguem como proposta escrita, aguardando "vai" literal do revisor colado neste chat pelo operador.
-Sem isso, nenhuma fase B começa, nenhuma rodada de homologação executa, nenhuma migration é
-escrita ou aplicada.
+**PARADO aqui.** §4.4 é design — nenhum arquivo de código foi criado ou editado (`useSupabaseClientContacts.ts`
+não existe ainda). A emenda §10 do protocolo segue como commit separado, tratado a seguir nesta
+mesma entrega. Depois dos dois commits, aguardando "vai" literal do revisor colado neste chat pelo
+operador antes de qualquer linha de código ou aplicação de migration.
