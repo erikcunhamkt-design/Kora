@@ -86,6 +86,19 @@ AS $$
 DECLARE
   v_quote public.quotes;
 BEGIN
+  -- 0) Guarda de NULL (revisão): sem source_local_id não-vazio, o upsert abaixo
+  --    NUNCA colide contra ux_quotes_source_local (NULLs são DISTINTOS no
+  --    Postgres — é exatamente essa propriedade que permite linhas legadas
+  --    conviverem com o índice, mas ela também significa que um source_local_id
+  --    NULL passa DIRETO pelo ON CONFLICT sempre como INSERT novo). Sem esta
+  --    guarda, qualquer chamador que falhe em resolver o source_local_id (bug
+  --    no cliente, chamada manual, etc.) criaria uma quote NOVA a cada retry —
+  --    o oposto do que Q2/Q3 existem para garantir. Falha explícita > duplicata
+  --    silenciosa.
+  IF p_workspace_id IS NULL OR p_source_local_id IS NULL OR p_source_local_id = '' THEN
+    RAISE EXCEPTION 'import_quote_with_items: workspace_id e source_local_id são obrigatórios (arbiter da idempotência)';
+  END IF;
+
   -- 1) Upsert do PAI. Arbiter: UNIQUE (workspace_id, source_local_id)
   --    (ux_quotes_source_local, não-parcial — precedente P8b / Fatia 2).
   INSERT INTO public.quotes (
