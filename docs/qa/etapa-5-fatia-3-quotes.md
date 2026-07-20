@@ -296,29 +296,32 @@ RPC, mas persistir incremental evita reimportar à toa).
 > **Nenhuma rodada executa sem aprovação explícita.** Workspace de teste:
 > `2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9` (mesmo das Fatias 1-2).
 
-### 9.1 Rodada 1 — semeada (6 casos)
+### 9.1 Rodada 1 — semeada (5 casos + idempotência; caso "b" adiado)
 
-**Pré-requisito:** um cliente e uma oportunidade **já migrados** no workspace de teste.
-Descubra via SQL:
-```sql
-select id, name from public.clients where workspace_id='2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' order by created_at desc limit 5;
-select id, title from public.crm_opportunities where workspace_id='2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' order by created_at desc limit 5;
-```
+**Descoberta rodada em 2026-07-19:** o workspace de teste tem clientes (`fabio` =
+`50f894e9-c81c-4420-b673-9335ad17a6bf`, `tttt` = `8e82500a-3d12-4a84-bc74-c74c91b86487`) mas
+**0 oportunidades** em `crm_opportunities`. **Decisão:** caso (b) — "ligada a oportunidade
+migrada" — fica **fora** desta rodada (não bloqueante para os outros 5); o snippet abaixo já
+inclui essa lógica condicional (`OPP_UUID = null` → caso b não é gerado). Se depois quiser
+cobrir o caso (b), crie uma oportunidade pelo CRM, pegue o `id`, sete `OPP_UUID` e rode o seed
+de novo (é idempotente — soma ao array existente).
 
 **Seed (console do navegador, origem de produção)** — preserva o que já existe em
-`orbyt.quotes.v1`; cole os UUIDs reais nos dois primeiros `const`:
+`orbyt.quotes.v1`; `CLIENT_UUID` já preenchido com o cliente real encontrado:
 
 ```js
-const CLIENT_UUID = "<COLE_UM_CLIENT_ID_REAL_JA_MIGRADO>";
-const OPP_UUID = "<COLE_UMA_OPPORTUNITY_ID_REAL_JA_MIGRADA>";
+const CLIENT_UUID = "50f894e9-c81c-4420-b673-9335ad17a6bf"; // "fabio"
+const OPP_UUID = null; // nenhuma oportunidade no workspace ainda — caso (b) fica de fora
 
 const clientMap = JSON.parse(localStorage["kora.clients.supabaseImport.v1"] || '{"importedMap":{}}');
 clientMap.importedMap["960001"] = CLIENT_UUID;
 localStorage.setItem("kora.clients.supabaseImport.v1", JSON.stringify(clientMap));
 
-const oppMap = JSON.parse(localStorage["kora.crm.supabaseImport.v1"] || '{"importedMap":{}}');
-oppMap.importedMap["960101"] = OPP_UUID;
-localStorage.setItem("kora.crm.supabaseImport.v1", JSON.stringify(oppMap));
+if (OPP_UUID) {
+  const oppMap = JSON.parse(localStorage["kora.crm.supabaseImport.v1"] || '{"importedMap":{}}');
+  oppMap.importedMap["960101"] = OPP_UUID;
+  localStorage.setItem("kora.crm.supabaseImport.v1", JSON.stringify(oppMap));
+}
 
 const base = { paymentCondition: "", deliveryDeadline: "", validityDays: 0, createdAt: "2026-07-19", isDemo: false, description: "" };
 const testQuotes = [
@@ -326,10 +329,6 @@ const testQuotes = [
   { ...base, id: "960001", title: "TESTE-QUOTE-A-basica", clientName: "Cliente Pronto", clientEmail: "pronto@teste.com",
     clientId: 960001, items: [{ id: "i1", name: "Item 1", quantity: 2, unitPrice: 50 }, { id: "i2", name: "Item 2", quantity: 1, unitPrice: 30 }],
     subtotal: 130, discount: 0, total: 130, status: "enviado" },
-  // (b) ligada a oportunidade migrada
-  { ...base, id: "960002", title: "TESTE-QUOTE-B-opp", clientName: "Cliente Pronto", clientEmail: "pronto@teste.com",
-    clientId: 960001, leadId: "960101", items: [{ id: "i3", name: "Item Opp", quantity: 1, unitPrice: 200 }],
-    subtotal: 200, discount: 0, total: 200, status: "enviado" },
   // (c) cliente NÃO-mapeado — órfã, reportada, importa com client_id null
   { ...base, id: "960003", title: "TESTE-QUOTE-C-orfao", clientName: "Cliente Orfao", clientEmail: "orfao@teste.com",
     clientId: 960999, items: [{ id: "i4", name: "Item Orfao", quantity: 1, unitPrice: 80 }],
@@ -342,10 +341,14 @@ const testQuotes = [
   { ...base, id: "960005", title: "TESTE-QUOTE-F-falha", clientName: "Cliente Pronto", clientEmail: "pronto@teste.com",
     clientId: 960001, items: [{ id: "i6", name: null, quantity: 1, unitPrice: 10 }],
     subtotal: 10, discount: 0, total: 10, status: "enviado" },
+  // (b) OPCIONAL — só entra se OPP_UUID estiver preenchido acima
+  ...(OPP_UUID ? [{ ...base, id: "960002", title: "TESTE-QUOTE-B-opp", clientName: "Cliente Pronto", clientEmail: "pronto@teste.com",
+    clientId: 960001, leadId: "960101", items: [{ id: "i3", name: "Item Opp", quantity: 1, unitPrice: 200 }],
+    subtotal: 200, discount: 0, total: 200, status: "enviado" }] : []),
 ];
 const existing = JSON.parse(localStorage["orbyt.quotes.v1"] || "[]");
 localStorage.setItem("orbyt.quotes.v1", JSON.stringify([...existing, ...testQuotes]));
-console.log("✅ Seed ok. F5 e abra Configurações → \"Importar orçamentos locais\".");
+console.log(`✅ Seed ok (${testQuotes.length} quotes). F5 e abra Configurações → "Importar orçamentos locais".`);
 ```
 
 **Como a falha (caso f) é induzida — importante, não é mock:** o item da quote
@@ -362,11 +365,11 @@ acontece **dentro** da mesma chamada de função que já fez o upsert do pai, TU
 1. Gate 1 (export manual) — mesmo com `quotes`/`quote_items` vazias hoje, exportar e
    confirmar por escrito (nada a perder, mas o gate é cumprido pela constatação).
 2. Rodar o seed acima.
-3. Abrir o card **"Importar orçamentos locais"** → conferir os 5 candidatos "new" (A, B, C, E, F)
+3. Abrir o card **"Importar orçamentos locais"** → conferir os 4 candidatos "new" (A, C, E, F)
    → **Gate 2 (print pré-clique)**: mandar o print com os candidatos visíveis, incluindo o
    marcador "· sem cliente vinculado" em C e "· total ≠ Σ itens (Δ R$ 15,00)" em E.
-4. Selecionar **todos os 5** → "Importar selecionados".
-5. Esperado na UI: toast de sucesso para 4 (A, B, C, E) + `toast.warning` "1 orçamento(s)
+4. Selecionar **todos os 4** → "Importar selecionados".
+5. Esperado na UI: toast de sucesso para 3 (A, C, E) + `toast.warning` "1 orçamento(s)
    falharam ao importar" (F).
 
 **Provas (SQL, `<WS>` = `2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9`):**
@@ -379,7 +382,7 @@ select name, quantity, unit_price from public.quote_items
 where quote_id = (select id from public.quotes where workspace_id='<WS>' and title='TESTE-QUOTE-A-basica');
 -- esperado: client_id = CLIENT_UUID; subtotal=130, discount=0, total=130; 2 itens batendo com o local.
 
--- (b) opportunity_id resolvida
+-- (b) OPCIONAL — só roda se OPP_UUID foi preenchido e o seed re-rodado com o caso B
 select opportunity_id from public.quotes where workspace_id='<WS>' and title='TESTE-QUOTE-B-opp';
 -- esperado: = OPP_UUID (não null).
 
@@ -432,7 +435,7 @@ console.log("✅ corrigido. F5 e reimporte 'TESTE-QUOTE-F-falha' (deve continuar
 Reimportar → esperado: sucesso; `select count(*) ... title='TESTE-QUOTE-F-falha'` agora = 1,
 com 1 item.
 
-### 9.2 Rodada 2 — real (3 quotes reais), só após 6/6 verde na Rodada 1
+### 9.2 Rodada 2 — real (3 quotes reais), só após 5/5 verde na Rodada 1
 
 1. **Gate 1 (export manual)** de `quotes`+`quote_items`.
 2. **Backup do JSON local ANTES** (console): `copy(localStorage["orbyt.quotes.v1"])` →
@@ -446,7 +449,7 @@ com 1 item.
 
 ### 9.3 Critério de aceite
 
-- [ ] Rodada 1: 6/6 casos verdes (a, b, c, d-idempotência, e, f).
+- [ ] Rodada 1: 5/5 casos verdes (a, c, d-idempotência, e, f). Caso (b) adiado — ver 9.1.
 - [ ] Rodada 2: 3/3 quotes reais migradas, zero perda, backup salvo antes.
 - [ ] Limpeza do cenário semeado (Rodada 1) — local + SQL `delete`.
 - [ ] Flag de leitura de quotes permanece **local** (carência) após a Rodada 2.
