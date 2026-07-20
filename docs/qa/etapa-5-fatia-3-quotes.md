@@ -177,8 +177,12 @@ write-through pontual, não muda a fonte de leitura do app.
 | `20260719001100_etapa5_fatia3_quotes_fk_indexes.sql` | Q1 (2/2): índices parciais `CONCURRENTLY` dos 2 FKs |
 | `20260719001200_etapa5_fatia3_quotes_source_local_id.sql` | Q2 (1/2): `quotes.source_local_id text`, transacional |
 | `20260719001300_etapa5_fatia3_quotes_unique_source_local_id.sql` | Q2 (2/2): UNIQUE **não-parcial** `(workspace_id, source_local_id)` `CONCURRENTLY` |
-| `20260719001400_etapa5_fatia3_import_quote_with_items_rpc.sql` | Q3: RPC `import_quote_with_items` — upsert do pai + reposição atômica dos filhos |
+| `20260719001350_etapa5_fatia3_quote_items_quantity_numeric.sql` | Q5b: `quote_items.quantity` `integer` → `numeric` (promovida — ver seção Q5b) |
+| `20260719001400_etapa5_fatia3_import_quote_with_items_rpc.sql` | Q3: RPC `import_quote_with_items` — upsert do pai + reposição atômica dos filhos (guarda de NULL + `search_path=public,pg_temp` + cast `::numeric` de Q5b) |
 | `docs/database/etapa-5-fatia-3-preaplicacao.sql` | 7 queries de checagem (baseline → pós-cada-passo) |
+
+**Ordem de aplicação (6 arquivos):** `20260719001000` → `001100` → `001200` → `001300` →
+`001350` (Q5b) → `001400` (RPC, por último — depende de todos os anteriores).
 
 **Decisão de segurança do RPC (Q3): `SECURITY INVOKER`.** O chamador já tem INSERT/UPDATE/
 DELETE em `quotes`/`quote_items` do próprio workspace via as policies RLS existentes; o RPC
@@ -188,8 +192,15 @@ aplica automaticamente ao `ON CONFLICT DO UPDATE` e ao delete/insert dos itens �
 tentando importar para workspace alheio recebe "row violates row-level security policy" e a
 chamada inteira aborta. `SECURITY DEFINER` bypassaria essa RLS e exigiria reimplementar a
 checagem manualmente (segunda fonte de verdade, pode divergir das policies reais). Fixado
-`SET search_path = public` em qualquer caso (hardening padrão do projeto). Justificativa
-completa no cabeçalho da migration `20260719001400`.
+`SET search_path = public, pg_temp` em qualquer caso (`pg_temp` explícito por último —
+neutraliza a busca implícita em `pg_temp` antes do `search_path` declarado, defesa em
+profundidade; revisão). Justificativa completa no cabeçalho da migration `20260719001400`.
+
+**Correção de revisão aplicada ao RPC (commits `dbb4145`/`8834140`):** guarda de NULL
+(`p_workspace_id`/`p_source_local_id`) logo após o `BEGIN` — sem ela, um `source_local_id`
+NULL nunca colidiria contra `ux_quotes_source_local` (NULLs distintos), e cada chamada mal-
+formada criaria uma quote nova em vez de falhar; `RAISE EXCEPTION` explícito fecha essa
+lacuna.
 
 **Q6:** contrato RE-LINK forward estendido em [`espelho-reversivel.md §5`](../architecture/espelho-reversivel.md#5-variantes-do-molde-por-tipo-de-entidade)
 — caso especial do fan-in contra o UNIQUE **parcial** `ux_ft_receivable_from_quote`: o futuro
@@ -200,52 +211,39 @@ import do financeiro deve reaproveitar `findReceivableByQuote`/catch-`23505`
 ainda **não chamam** o RPC — isso é código puro (zero risco de dado) e será a primeira coisa da
 B.3, depois que as migrations estiverem aplicadas e confirmadas.
 
-## Q5b — decisão pendente: `quantity` integer vs numeric
+## Q5b — decisão: `quantity` integer → numeric
 
-> **Status: ABERTO.** Nada se aplica antes deste veredito.
+> **Status: DECIDIDA (2026-07-19). Decisão A — PROMOVER.**
 
-O Q5 (B.1) trata quantidade fracionária local **arredondando para inteiro** na entrada
-(`coerceQuantity`) + **reportando** a divergência no card — nunca perde o dado silenciosamente,
-mas achata a fração. A alternativa é alargar `quote_items.quantity` de `integer` para
-`numeric` (migration candidata, **não aplicada, não versionada em `supabase/migrations/`**:
-[`docs/database/etapa-5-fatia-3-candidata-quantity-numeric.sql`](../database/etapa-5-fatia-3-candidata-quantity-numeric.sql)),
-preservando a fração sem arredondar em nenhuma camada.
+O Q5 (B.1) tratava quantidade fracionária local **arredondando para inteiro** na entrada
+(`coerceQuantity`) + **reportando** a divergência no card — nunca perdia o dado
+silenciosamente, mas achatava a fração. A decisão foi alargar `quote_items.quantity` de
+`integer` para `numeric`, preservando a fração sem arredondar em nenhuma camada.
 
-**Critério do veredito:** o dado **real** do operador (3 quotes em `orbyt.quotes.v1`) tem
-algum item com quantidade fracionária?
+**Resultado do grep** (console do navegador, origem de produção, sobre as 3 quotes reais em
+`orbyt.quotes.v1`): **5 itens verificados, 0 fracionários.**
 
-- **NÃO acontece na prática** → manter Q5 como está (coerce+report). Alargar o schema seria
-  complexidade sem benefício (YAGNI). Migration candidata arquivada, não promovida.
-- **ACONTECE** (ex.: cobrança por hora fracionária "1,5h") → promover a migration candidata
-  para `supabase/migrations/` **e** ajustar em conjunto: o cast `::integer` no RPC
-  `import_quote_with_items` (linha do INSERT dos itens) → `::numeric`; e
-  `mapLocalQuoteItemToSupabaseItem` (`quoteMapper.ts`) → trocar `coerceQuantity` por
-  `roundMoney` (ou remover o arredondamento). Esses três ajustes **não** foram feitos —
-  ficam condicionados ao veredito.
+**Veredito final: decisão de PRODUTO, não de dado.** O grep **não mandou** promover — hoje
+nenhum item real é fracionário. A equipe decidiu alargar o schema mesmo assim (custo zero,
+`quote_items` vazia em produção) para não reabrir esta discussão quando cobrança por hora
+fracionária (ex.: "1,5h") aparecer. Registrado explicitamente para não ser lido, no futuro,
+como "o dado provou que precisava" — não provou; foi antecipação deliberada.
 
-**Grep para o operador rodar** (console do navegador, origem de produção):
+**Executado (commits `6de59c6` · `8834140`):**
+- Migration promovida: [`20260719001350_etapa5_fatia3_quote_items_quantity_numeric.sql`](../../supabase/migrations/20260719001350_etapa5_fatia3_quote_items_quantity_numeric.sql)
+  (candidata original removida). Posicionada entre Q2 e Q3 — não depende de Q1/Q2 (tabela
+  diferente), mas precede Q3 (RPC), cujo cast assume a coluna já numeric.
+- RPC: cast `(item->>'quantity')::integer` → `::numeric`.
+- Mapper: `coerceQuantity` renomeada para `roundQuantity` (quantiza a 3 casas em vez de
+  arredondar a inteiro); `mapLocalQuoteItemToSupabaseItem` usa a nova função.
+- Testes atualizados/adicionados cobrindo fração preservada, quantização a 3 casas e
+  regressão de quantidade inteira. Suíte 118/118, `tsc` 0, lint sem regressão.
 
-```js
-const quotes = JSON.parse(localStorage["orbyt.quotes.v1"] || "[]");
-const fracionarios = [];
-for (const q of quotes) {
-  for (const it of q.items || []) {
-    const n = Number(it.quantity);
-    if (Number.isFinite(n) && !Number.isInteger(n)) {
-      fracionarios.push({ quote: q.title, item: it.name, quantity: it.quantity, isDemo: !!q.isDemo });
-    }
-  }
-}
-console.log({
-  quotes_verificadas: quotes.length,
-  itens_verificados: quotes.reduce((s, q) => s + (q.items?.length || 0), 0),
-  itens_fracionarios: fracionarios.length,
-  detalhe: fracionarios,
-});
-```
-
-**Resultado do grep (preencher quando o operador rodar):** _pendente_.
-**Veredito final (preencher após o resultado):** _pendente_.
+**Nota lateral registrada, fora de escopo desta decisão:** o relatório `fractionalQuantities`
+(`QuoteMoneyReport`, `LocalQuotesImportCard.tsx`) continua sinalizando quantidade fracionária
+no card de import como um aviso — semântica que ficou **desatualizada** (fracionário deixou de
+ser lossy). Não foi tocado nesta rodada por não estar no pedido explícito; fica como observação
+para uma fatia/ajuste futuro caso o operador queira recalibrar a UI.
 
 ---
 
