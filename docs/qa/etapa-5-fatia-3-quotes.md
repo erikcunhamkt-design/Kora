@@ -200,4 +200,53 @@ import do financeiro deve reaproveitar `findReceivableByQuote`/catch-`23505`
 ainda **não chamam** o RPC — isso é código puro (zero risco de dado) e será a primeira coisa da
 B.3, depois que as migrations estiverem aplicadas e confirmadas.
 
+## Q5b — decisão pendente: `quantity` integer vs numeric
+
+> **Status: ABERTO.** Nada se aplica antes deste veredito.
+
+O Q5 (B.1) trata quantidade fracionária local **arredondando para inteiro** na entrada
+(`coerceQuantity`) + **reportando** a divergência no card — nunca perde o dado silenciosamente,
+mas achata a fração. A alternativa é alargar `quote_items.quantity` de `integer` para
+`numeric` (migration candidata, **não aplicada, não versionada em `supabase/migrations/`**:
+[`docs/database/etapa-5-fatia-3-candidata-quantity-numeric.sql`](../database/etapa-5-fatia-3-candidata-quantity-numeric.sql)),
+preservando a fração sem arredondar em nenhuma camada.
+
+**Critério do veredito:** o dado **real** do operador (3 quotes em `orbyt.quotes.v1`) tem
+algum item com quantidade fracionária?
+
+- **NÃO acontece na prática** → manter Q5 como está (coerce+report). Alargar o schema seria
+  complexidade sem benefício (YAGNI). Migration candidata arquivada, não promovida.
+- **ACONTECE** (ex.: cobrança por hora fracionária "1,5h") → promover a migration candidata
+  para `supabase/migrations/` **e** ajustar em conjunto: o cast `::integer` no RPC
+  `import_quote_with_items` (linha do INSERT dos itens) → `::numeric`; e
+  `mapLocalQuoteItemToSupabaseItem` (`quoteMapper.ts`) → trocar `coerceQuantity` por
+  `roundMoney` (ou remover o arredondamento). Esses três ajustes **não** foram feitos —
+  ficam condicionados ao veredito.
+
+**Grep para o operador rodar** (console do navegador, origem de produção):
+
+```js
+const quotes = JSON.parse(localStorage["orbyt.quotes.v1"] || "[]");
+const fracionarios = [];
+for (const q of quotes) {
+  for (const it of q.items || []) {
+    const n = Number(it.quantity);
+    if (Number.isFinite(n) && !Number.isInteger(n)) {
+      fracionarios.push({ quote: q.title, item: it.name, quantity: it.quantity, isDemo: !!q.isDemo });
+    }
+  }
+}
+console.log({
+  quotes_verificadas: quotes.length,
+  itens_verificados: quotes.reduce((s, q) => s + (q.items?.length || 0), 0),
+  itens_fracionarios: fracionarios.length,
+  detalhe: fracionarios,
+});
+```
+
+**Resultado do grep (preencher quando o operador rodar):** _pendente_.
+**Veredito final (preencher após o resultado):** _pendente_.
+
+---
+
 ## 7. Runbook + resultados — **PENDENTE** (preenchido em B.3)
