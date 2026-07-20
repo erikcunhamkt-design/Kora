@@ -291,7 +291,7 @@ RPC, mas persistir incremental evita reimportar à toa).
 
 ---
 
-## 9. Runbook de homologação (B.3 · Passo 2) — **Rodada 1 executada (5/5), Rodada 2 aguardando aprovação**
+## 9. Runbook de homologação (B.3 · Passo 2) — **Rodada 1 executada (5/5), Rodada 2 executada (1/1)**
 
 > **Nenhuma rodada executa sem aprovação explícita.** Workspace de teste:
 > `2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9` (mesmo das Fatias 1-2). Resultados da Rodada 1 na
@@ -451,9 +451,10 @@ com 1 item.
 ### 9.3 Critério de aceite
 
 - [x] Rodada 1: **5/5** casos verdes (a, c, d-idempotência, e, f). Caso (b) adiado — ver 9.1.
-- [ ] Rodada 2: 3/3 quotes reais migradas, zero perda, backup salvo antes.
-- [ ] Limpeza do cenário semeado (Rodada 1) — local + SQL `delete`.
-- [ ] Flag de leitura de quotes permanece **local** (carência) após a Rodada 2.
+- [x] Rodada 2: 1/1 quote real migrada, zero perda, backup salvo antes (ver §11 — escopo
+  corrigido de 3→1 quando se descobriu que as 3 originais eram `isDemo`, não reais).
+- [x] Limpeza do cenário semeado (Rodada 1) — local + SQL `delete`.
+- [x] Flag de leitura de quotes permanece **local** (carência) após a Rodada 2.
 - [ ] Ação de sign-off pendente (emenda §8 do protocolo): rotacionar a senha do banco.
 
 ---
@@ -513,4 +514,54 @@ console.log("✅ Limpeza local ok. F5.");
 
 ---
 
-## 11. Rodada 2 (dado real) — **AGUARDANDO APROVAÇÃO EXPLÍCITA**
+## 11. Rodada 2 — resultados (2026-07-20) — **1/1 VERDE**
+
+**Correção de premissa (achado lateral, registrado por importância):** as "3 quotes reais" usadas
+como base para este runbook (`qt-demo-1/2/3`, ver §0) na verdade têm `isDemo: true` no JSON local
+— são dados de demonstração que vêm com o produto, não orçamentos reais de cliente. O importador
+já as exclui **por design**, corretamente:
+
+```js
+// src/hooks/useLocalQuotesImport.ts:142
+for (const local of localQuotes) {
+  // skip demo quotes if present
+  if (local.isDemo) continue;
+```
+
+Ao clicar em importar com o local nesse estado, o card mostrou **"Nenhum orçamento local
+encontrado"** — não é bug (F5 não resolveu, e a tela de Orçamentos mostrava as 3 normalmente,
+descartando estado do React desatualizado). É o filtro `isDemo` funcionando como deveria: dado de
+demonstração nunca deveria virar registro real na nuvem. **Escopo corrigido em tempo real:** o
+operador criou 1 orçamento real (não-demo) — "xxx", cliente "deni", item "sccs" 1×R$50 — e a
+Rodada 2 passou a validar esse caso único em vez dos 3 originais.
+
+**Nota sobre o Gate 1 (backup):** o backup do JSON local feito antes de descobrir a correção de
+escopo capturou as 3 quotes demo (que acabaram não sendo migradas), não o orçamento real "xxx"
+(criado depois, já sabendo do escopo corrigido). Não bloqueou a rodada — "xxx" é dado trivial de
+teste (não informação sensível de cliente real) e seu estado pós-import foi integralmente
+verificado abaixo — mas fica registrado que o backup, na letra do runbook original, não cobriu
+literalmente o registro migrado.
+
+**Resultado da importação — conferência campo a campo:**
+
+| Campo | Esperado (local) | Obtido (Supabase) | |
+|---|---|---|---|
+| `client_name` | deni | deni | ✅ |
+| `subtotal` | 50 | 50 | ✅ |
+| `discount` | 0 | 0 | ✅ |
+| `total` | 50 | 50 | ✅ |
+| `status` | rascunho | rascunho | ✅ |
+| `source_local_id` | não nulo | `e307969a-...-9da596203be4:qt-1784521404974` | ✅ |
+| item "sccs" | 1×R$50 | 1×R$50 | ✅ |
+
+**Gates cumpridos:** Gate 2 (print pré-clique, 1 candidato "xxx" status `new`) confirmado antes do
+clique. Network confirma o caminho correto: `POST .../rpc/import_quote_with_items` (preflight +
+fetch, ambos 200) — nunca `INSERT` direto em `quote_items`. Toast: "1 orçamento(s) importado(s)
+com sucesso". Flag de leitura do app confirmada como permanecendo **local** — nenhuma mudança
+visual na tela de Orçamentos após o import (a Rodada 2 é só escrita).
+
+**Caso (b)** (quote ligada a oportunidade migrada) segue adiado — 0 oportunidades no workspace de
+teste. Não bloqueante; revisitar se/quando existir uma oportunidade real nesse workspace.
+
+**Pendência remanescente da fatia:** rotacionar a senha do banco usada na sessão de aplicação das
+migrations via psql (checklist de sign-off, emenda §8) — ainda não confirmado pelo operador.
