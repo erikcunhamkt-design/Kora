@@ -170,3 +170,29 @@ Regra dura, sem exceção — vale inclusive para QA:
 5. **Demais gates permanentes (seções 0–7) inalterados** — export manual, print pré-clique,
    indisvalid explícito, contas QA descartáveis, sequência canônica e provas mínimas continuam
    valendo integralmente.
+
+---
+
+## 9. Emenda 2026-07-20 — Autorização de rodada de homologação exige "vai" literal do revisor
+
+> **Motivada por:** Etapa 5 · Fatia 3, Rodada 2 — executada sobre um "vai" digitado pelo
+> **operador** em chat casual (resposta a uma pergunta do Code), não sobre um "vai" com
+> proveniência explícita do **revisor**. Resultado técnico da rodada foi verde (zero perda,
+> conferência batendo), mas a autorização não seguiu o padrão exigido. Registrado como Desvio #3
+> em [`etapa-5-fatia-3-quotes.md` §11.5](etapa-5-fatia-3-quotes.md#115-desvio-de-processo--registrado-sem-suavizar).
+
+1. **Toda rodada de homologação (semeada ou real) só executa mediante "vai" literal do revisor,
+   colado no chat do Code pelo operador.** Não conta: um "vai" (ou equivalente — "pode", "ok",
+   "manda") digitado pelo operador em nome próprio; uma aprovação inferida do tom da conversa;
+   uma resposta a pergunta de múltipla escolha do Code (`AskUserQuestion` ou similar) tratada
+   como se fosse a autorização da rodada.
+2. **O Code nunca aprova rodada própria, sob nenhuma hipótese.** Isso inclui: interpretar
+   contexto ambíguo a favor de prosseguir; tratar uma correção de escopo descoberta **durante**
+   a execução (ex.: candidatos previstos que na prática não existem, e um novo escopo é montado
+   ali mesmo) como coberta pelo "vai" original. **Mudança de escopo em runtime PARA a rodada** e
+   aguarda um novo "vai" do revisor, específico para o escopo revisado, antes de continuar.
+3. **Todo prompt de runbook que descreve uma rodada de homologação termina com uma linha de
+   proibição explícita**, no formato: _"NADA EXECUTA sem o 'vai' literal do revisor, colado
+   neste chat pelo operador."_ — não basta a rodada estar "proposta" ou "aguardando aprovação"
+   no doc da fatia; a proibição precisa estar no texto que efetivamente aciona a execução.
+4. **Demais gates permanentes (seções 0–8) inalterados.**
