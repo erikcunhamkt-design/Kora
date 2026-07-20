@@ -3,10 +3,11 @@
 // Q4 (Etapa 5 · Fatia 3) — as FKs de saída (client_id / opportunity_id) são resolvidas via
 // import-maps local→UUID: mapeado → UUID, ausente/não-mapeado → null. NUNCA o id local cru
 // entra numa coluna `uuid` (evita "invalid input syntax for type uuid" — o bug A1 da Fatia 2).
-// Q5 — dinheiro quantizado a centavos e quantidade coagida a inteiro na entrada (quoteMoney.ts).
+// Q5 — dinheiro quantizado a centavos; quantidade quantizada a 3 casas (Q5b: quote_items.quantity
+// é numeric desde 2026-07-19, preserva fração — ver quoteMoney.ts).
 import type { Quote, QuoteItem } from "@/hooks/useQuotes";
 import type { SupabaseQuote, SupabaseQuoteItem } from "@/repositories/quotesRepository";
-import { roundMoney, coerceQuantity } from "@/services/quotes/quoteMoney";
+import { roundMoney, roundQuantity } from "@/services/quotes/quoteMoney";
 
 /**
  * Import-maps local→Supabase usados para resolver as FKs de um orçamento.
@@ -98,8 +99,8 @@ export function mapLocalQuoteItemToSupabaseItem(
   return {
     service_id: undefined,
     name: item.name,
-    // Q5: quantity é integer NOT NULL no schema; unit_price quantizado a centavos.
-    quantity: coerceQuantity(item.quantity),
+    // Q5b: quantity é numeric no schema (promovido de integer) — preserva fração, quantizada a 3 casas.
+    quantity: roundQuantity(item.quantity),
     unit_price: roundMoney(item.unitPrice),
   };
 }

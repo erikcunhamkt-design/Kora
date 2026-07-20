@@ -79,9 +79,13 @@
 --
 -- Transacional (CREATE FUNCTION é DDL simples) — não toca dado existente, seguro
 -- aplicar mesmo com quotes populada.
--- >>> PRÉ-REQUISITO: as migrations 20260719001000 a 20260719001300 já aplicadas
+-- >>> PRÉ-REQUISITO: as migrations 20260719001000 a 20260719001350 já aplicadas
 --     (colunas client_id/opportunity_id/source_local_id + UNIQUE
---     ux_quotes_source_local, que é o arbiter do ON CONFLICT abaixo).
+--     ux_quotes_source_local, que é o arbiter do ON CONFLICT abaixo + Q5b,
+--     quote_items.quantity numeric, para o cast ::numeric abaixo preservar
+--     fração — sem ela, o cast ainda funciona mas o cast de atribuição
+--     numeric->integer no INSERT ARREDONDA (não trunca) ao gravar numa coluna
+--     ainda integer, perdendo a fração mesmo assim).
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION public.import_quote_with_items(
@@ -98,7 +102,8 @@ CREATE OR REPLACE FUNCTION public.import_quote_with_items(
   p_total numeric,
   p_status text,
   p_archived boolean,
-  -- Array de itens: [{ "name": "...", "quantity": 1, "unit_price": 10.5, "service_id": null }, ...]
+  -- Array de itens: [{ "name": "...", "quantity": 1.5, "unit_price": 10.5, "service_id": null }, ...]
+  -- quantity é numeric (Q5b, 20260719001350) — aceita fração (ex.: horas).
   p_items jsonb
 )
 RETURNS public.quotes
@@ -160,7 +165,7 @@ BEGIN
       v_quote.id,
       NULLIF(item->>'service_id', '')::uuid,
       item->>'name',
-      (item->>'quantity')::integer,
+      (item->>'quantity')::numeric,
       (item->>'unit_price')::numeric
     FROM jsonb_array_elements(p_items) AS item;
   END IF;

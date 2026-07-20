@@ -259,9 +259,19 @@ describe("quoteMapper — precisão monetária (Q5)", () => {
     expect(out.total).toBe(12.35);
   });
 
-  it("coage quantity de item a inteiro e quantiza unit_price", () => {
+  it("preserva quantity fracionária (Q5b: schema é numeric) e quantiza unit_price", () => {
     const out = mapLocalQuoteItemToSupabaseItem({ id: "i", name: "Hora", quantity: 1.5, unitPrice: 10.009 } as QuoteItem);
-    expect(out.quantity).toBe(2);
+    expect(out.quantity).toBe(1.5); // NÃO arredonda mais a inteiro (Q5b)
     expect(out.unit_price).toBe(10.01);
+  });
+
+  it("quantiza quantity a 3 casas quando a fração local tem mais precisão", () => {
+    const out = mapLocalQuoteItemToSupabaseItem({ id: "i", name: "Consultoria", quantity: 1.23456, unitPrice: 10 } as QuoteItem);
+    expect(out.quantity).toBe(1.235);
+  });
+
+  it("mantém quantity inteira intacta (regressão)", () => {
+    const out = mapLocalQuoteItemToSupabaseItem({ id: "i", name: "Peça", quantity: 3, unitPrice: 10 } as QuoteItem);
+    expect(out.quantity).toBe(3);
   });
 });

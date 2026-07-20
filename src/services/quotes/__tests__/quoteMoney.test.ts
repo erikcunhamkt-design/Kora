@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   roundMoney,
-  coerceQuantity,
+  roundQuantity,
   isFractionalQuantity,
   sumItemsTotal,
   inspectQuoteMoney,
@@ -26,13 +26,14 @@ describe("roundMoney", () => {
   });
 });
 
-describe("coerceQuantity", () => {
-  it("coage a inteiro (schema exige integer)", () => {
-    expect(coerceQuantity(1.5)).toBe(2);
-    expect(coerceQuantity(2.4)).toBe(2);
-    expect(coerceQuantity(3)).toBe(3);
-    expect(coerceQuantity("4")).toBe(4);
-    expect(coerceQuantity(NaN)).toBe(0);
+describe("roundQuantity", () => {
+  it("preserva fração, quantizada a 3 casas (Q5b: schema é numeric)", () => {
+    expect(roundQuantity(1.5)).toBe(1.5);
+    expect(roundQuantity(2.4)).toBe(2.4);
+    expect(roundQuantity(1.23456)).toBe(1.235); // arredonda na 3ª casa
+    expect(roundQuantity(3)).toBe(3);
+    expect(roundQuantity("4.5")).toBe(4.5);
+    expect(roundQuantity(NaN)).toBe(0);
   });
 });
 
