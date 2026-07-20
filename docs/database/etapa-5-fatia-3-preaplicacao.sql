@@ -1,8 +1,9 @@
 -- ============================================================================
--- Etapa 5 · Fatia 3 (quotes) — checagens de PRÉ-APLICAÇÃO das migrations Q1+Q2+Q3
+-- Etapa 5 · Fatia 3 (quotes) — checagens de PRÉ-APLICAÇÃO das migrations Q1+Q2+Q5b+Q3
 -- ============================================================================
 -- Rode ANTES de aplicar (e DEPOIS do export manual de quotes + quote_items, gate
--- 1 do protocolo). Ajuste <WS> para o workspace de teste. Sequência de aplicação:
+-- 1 do protocolo). Ajuste <WS> para o workspace de teste. Sequência de aplicação
+-- (6 arquivos):
 --   (1)(2) antes de tudo
 --   -> aplicar 20260719001000 (ALTER: client_id/opportunity_id)
 --   (3) confere as colunas
@@ -13,8 +14,10 @@
 --       conflito na criação do UNIQUE)
 --   -> aplicar 20260719001300 (UNIQUE INDEX CONCURRENTLY: ux_quotes_source_local)
 --   (6) confere indisvalid + indisunique
+--   -> aplicar 20260719001350 (ALTER: quote_items.quantity integer -> numeric, Q5b)
+--   (7) confere o tipo da coluna
 --   -> aplicar 20260719001400 (CREATE FUNCTION: import_quote_with_items)
---   (7) confere que o RPC existe e é SECURITY INVOKER (prosecdef = false)
+--   (8) confere que o RPC existe e é SECURITY INVOKER (prosecdef = false)
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
@@ -77,11 +80,21 @@ from pg_index
 where indexrelid = 'public.ux_quotes_source_local'::regclass;
 
 -- ----------------------------------------------------------------------------
--- (7) PÓS-RPC — confirma que import_quote_with_items existe e é SECURITY
+-- (7) PÓS 20260719001350 — quote_items.quantity alargada para numeric (Q5b).
+--     Esperado: data_type = 'numeric' (precision/scale NULL = sem limite
+--     declarado, como o ALTER foi escrito).
+-- ----------------------------------------------------------------------------
+select column_name, data_type, numeric_precision, numeric_scale
+from information_schema.columns
+where table_name = 'quote_items' and column_name = 'quantity';
+
+-- ----------------------------------------------------------------------------
+-- (8) PÓS-RPC — confirma que import_quote_with_items existe e é SECURITY
 --     INVOKER (prosecdef = false), com search_path fixo (proconfig mostra
---     'search_path=public'). Confere a decisão de segurança do Q3.
+--     'search_path=public, pg_temp'). Confere a decisão de segurança do Q3 +
+--     o hardening de pg_temp da revisão.
 -- ----------------------------------------------------------------------------
 select proname, prosecdef, proconfig
 from pg_proc
 where proname = 'import_quote_with_items';
--- esperado: prosecdef = false (INVOKER); proconfig contém 'search_path=public'.
+-- esperado: prosecdef = false (INVOKER); proconfig contém 'search_path=public, pg_temp'.
