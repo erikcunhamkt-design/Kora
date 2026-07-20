@@ -13,11 +13,12 @@ export function LocalQuotesImportCard() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   // Q4/Q5: advertências pré-clique — só entre os candidatos importáveis ("new").
+  // Q5b: quantidade fracionária NÃO entra mais aqui — desde a promoção de
+  // quote_items.quantity a numeric (2026-07-19) ela é preservada sem perda,
+  // deixou de ser algo que o operador precise conferir antes do clique.
   const eligible = candidates.filter((c) => c.status === 'new');
   const orphanCount = eligible.filter((c) => c.clientOrphan).length;
-  const moneyWarnCount = eligible.filter(
-    (c) => c.money && (c.money.totalMismatch || c.money.fractionalQuantities > 0),
-  ).length;
+  const moneyWarnCount = eligible.filter((c) => c.money?.totalMismatch).length;
 
   // refresh when dialog opens
   const handleOpenChange = (open: boolean) => {
@@ -38,7 +39,14 @@ export function LocalQuotesImportCard() {
       return;
     }
     const result = await importSelected(selectedIds);
-    toast.success(`${result.successIds.length} orçamento(s) importado(s) com sucesso`);
+    if (result.successIds.length > 0) {
+      toast.success(`${result.successIds.length} orçamento(s) importado(s) com sucesso`);
+    }
+    if (result.failedIds.length > 0) {
+      // Mesma disciplina da Fatia 2: falha parcial é sinalizada, não escondida
+      // atrás de um toast de sucesso genérico.
+      toast.warning(`${result.failedIds.length} orçamento(s) falharam ao importar — nada foi gravado para eles.`);
+    }
     setSelectedIds([]);
   };
 
@@ -78,8 +86,8 @@ export function LocalQuotesImportCard() {
                   )}
                   {moneyWarnCount > 0 && (
                     <li>
-                      {moneyWarnCount} orçamento(s) com <strong>divergência monetária</strong> (total ≠ Σ itens ou
-                      quantidade fracionária) — o total local é preservado; apenas confira.
+                      {moneyWarnCount} orçamento(s) com <strong>divergência monetária</strong> (total ≠ Σ itens) — o
+                      total local é preservado; apenas confira.
                     </li>
                   )}
                 </ul>
@@ -91,7 +99,7 @@ export function LocalQuotesImportCard() {
               )}
               {candidates.map((c) => {
                 const money = c.money;
-                const showMoney = c.status === 'new' && money && (money.totalMismatch || money.fractionalQuantities > 0);
+                const showMoney = c.status === 'new' && money?.totalMismatch;
                 return (
                   <div key={c.localQuote.id} className="flex items-start justify-between p-2 border rounded-md">
                     <div className="flex items-start space-x-2 min-w-0">
@@ -106,14 +114,9 @@ export function LocalQuotesImportCard() {
                         {c.status === 'new' && c.clientOrphan && (
                           <span className="text-xs text-amber-600 dark:text-amber-400 block">· sem cliente vinculado</span>
                         )}
-                        {showMoney && money.totalMismatch && (
+                        {showMoney && (
                           <span className="text-xs text-amber-600 dark:text-amber-400 block">
                             · total ≠ Σ itens (Δ {formatCurrency(money.diff)})
-                          </span>
-                        )}
-                        {showMoney && money.fractionalQuantities > 0 && (
-                          <span className="text-xs text-amber-600 dark:text-amber-400 block">
-                            · {money.fractionalQuantities} item(ns) com quantidade fracionária
                           </span>
                         )}
                       </div>
