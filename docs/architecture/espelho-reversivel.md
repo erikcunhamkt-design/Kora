@@ -162,6 +162,31 @@ consultando o **import-map do pai** (`kora.<pai>.supabaseImport.v1` →
 - O import-map é **persistido** e é a ponte permanente; futuras fatias **têm de** honrá-lo,
   senão os vínculos migram órfãos.
 
+### Caso especial: fan-in contra um UNIQUE **PARCIAL** já existente (recebível de quote)
+
+A ponte `kora.quotes.supabaseImport.v1.importedMap` (Fatia 3) tem uma obrigação **extra**
+que as anteriores não tinham: quando o **financeiro** migrar (fatia futura) e precisar
+traduzir `Transaction.quoteId` local → UUID da quote, o recebível resultante em
+`financial_transactions` colide com o **UNIQUE PARCIAL** da Etapa 3,
+`ux_ft_receivable_from_quote (quote_id) WHERE source='quote' AND type='receivable' AND
+deleted_at IS NULL`:
+
+- ❌ **NÃO** usar `upsert(onConflict: "quote_id")` contra esse índice — sendo **parcial**,
+  ele **não é um arbiter válido** para `ON CONFLICT` (mesma quebra do precedente P8b: um
+  índice `WHERE ...` só arbitra linhas que satisfazem o predicado, e o Postgres recusa
+  inferir o arbiter quando a condição do índice não é redundante com a cláusula de
+  conflito).
+- ✅ **Usar o padrão já implementado** em `financeRepository.createReceivableFromQuote`
+  (`src/repositories/financeRepository.ts:42-66`): tentar o `INSERT`; se vier `23505`
+  (unique_violation), chamar `findReceivableByQuote(workspaceId, quoteId)` e devolver o
+  registro existente — idempotência via **catch + re-consulta**, não via upsert.
+- O import do financeiro (fatia futura) deve **reaproveitar esse mesmo par de funções**,
+  não reinventar um upsert novo contra `ux_ft_receivable_from_quote`.
+
+Referência: [`../qa/etapa-5-fatia-3-quotes.md`](../qa/etapa-5-fatia-3-quotes.md) (ponto 6 do
+diagnóstico) + [`../qa/etapa-3-performance-db.md`](../qa/etapa-3-performance-db.md) (origem do
+índice parcial).
+
 ---
 
 ## 6. Guardrails invioláveis

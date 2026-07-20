@@ -169,4 +169,35 @@ write-through pontual, não muda a fonte de leitura do app.
 
 ---
 
-## 6. Runbook + resultados — **PENDENTE** (preenchido em B.2/B.3)
+## 6. B.2 — migrations + RPC (escritos, NÃO aplicados)
+
+| Arquivo | Conteúdo |
+|---|---|
+| `20260719001000_etapa5_fatia3_quotes_add_fk_columns.sql` | Q1 (1/2): `quotes.client_id`/`opportunity_id` (`uuid … ON DELETE SET NULL`), transacional |
+| `20260719001100_etapa5_fatia3_quotes_fk_indexes.sql` | Q1 (2/2): índices parciais `CONCURRENTLY` dos 2 FKs |
+| `20260719001200_etapa5_fatia3_quotes_source_local_id.sql` | Q2 (1/2): `quotes.source_local_id text`, transacional |
+| `20260719001300_etapa5_fatia3_quotes_unique_source_local_id.sql` | Q2 (2/2): UNIQUE **não-parcial** `(workspace_id, source_local_id)` `CONCURRENTLY` |
+| `20260719001400_etapa5_fatia3_import_quote_with_items_rpc.sql` | Q3: RPC `import_quote_with_items` — upsert do pai + reposição atômica dos filhos |
+| `docs/database/etapa-5-fatia-3-preaplicacao.sql` | 7 queries de checagem (baseline → pós-cada-passo) |
+
+**Decisão de segurança do RPC (Q3): `SECURITY INVOKER`.** O chamador já tem INSERT/UPDATE/
+DELETE em `quotes`/`quote_items` do próprio workspace via as policies RLS existentes; o RPC
+só resolve **atomicidade** (uma chamada = uma transação PostgREST), não pede privilégio
+extra. Rodando como o chamador, a RLS de `quotes_insert`/`quotes_update`/`quote_items_*` se
+aplica automaticamente ao `ON CONFLICT DO UPDATE` e ao delete/insert dos itens — um chamador
+tentando importar para workspace alheio recebe "row violates row-level security policy" e a
+chamada inteira aborta. `SECURITY DEFINER` bypassaria essa RLS e exigiria reimplementar a
+checagem manualmente (segunda fonte de verdade, pode divergir das policies reais). Fixado
+`SET search_path = public` em qualquer caso (hardening padrão do projeto). Justificativa
+completa no cabeçalho da migration `20260719001400`.
+
+**Q6:** contrato RE-LINK forward estendido em [`espelho-reversivel.md §5`](../architecture/espelho-reversivel.md#5-variantes-do-molde-por-tipo-de-entidade)
+— caso especial do fan-in contra o UNIQUE **parcial** `ux_ft_receivable_from_quote`: o futuro
+import do financeiro deve reaproveitar `findReceivableByQuote`/catch-`23505`
+(`financeRepository.ts:42-66`), nunca `upsert(onConflict)` contra índice parcial.
+
+**Pendência explícita para depois do B.2 aplicado:** o `quotesRepository`/`useLocalQuotesImport`
+ainda **não chamam** o RPC — isso é código puro (zero risco de dado) e será a primeira coisa da
+B.3, depois que as migrations estiverem aplicadas e confirmadas.
+
+## 7. Runbook + resultados — **PENDENTE** (preenchido em B.3)
