@@ -14,14 +14,14 @@ import { useLocalQuotesImport } from "@/hooks/useLocalQuotesImport";
 import { useQuotes } from "@/hooks/useQuotes";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { quotesRepository } from "@/repositories/quotesRepository";
+import { getInstallId } from "@/lib/installId";
 
 vi.mock("@/hooks/useQuotes", () => ({ useQuotes: vi.fn() }));
 vi.mock("@/hooks/useCurrentWorkspace", () => ({ useCurrentWorkspace: vi.fn() }));
 vi.mock("@/repositories/quotesRepository", () => ({
   quotesRepository: {
     listQuotes: vi.fn(),
-    createQuote: vi.fn(),
-    replaceQuoteItems: vi.fn(),
+    importQuoteWithItems: vi.fn(),
   },
 }));
 vi.mock("@/lib/notify", () => ({ emitNotification: vi.fn() }));
@@ -51,8 +51,9 @@ beforeEach(() => {
   vi.mocked(useQuotes).mockReturnValue({ quotes: makeLocalQuotes() });
   vi.mocked(useCurrentWorkspace).mockReturnValue({ workspace: { id: "ws1" } });
   vi.mocked(quotesRepository.listQuotes).mockResolvedValue(makeRemoteQuotes());
-  vi.mocked(quotesRepository.createQuote).mockImplementation(async (_ws, payload) => ({ id: "new-id", ...payload }));
-  vi.mocked(quotesRepository.replaceQuoteItems).mockResolvedValue([]);
+  vi.mocked(quotesRepository.importQuoteWithItems).mockImplementation(
+    async (_ws, _sourceLocalId, quote) => ({ id: "new-id", ...quote }),
+  );
 });
 
 describe("useLocalQuotesImport", () => {
@@ -127,7 +128,7 @@ describe("useLocalQuotesImport", () => {
     expect(byId["3"]).toBe("blocked");
   });
 
-  it("mapeia client_id e opportunity_id a partir dos mapas locais ao importar", async () => {
+  it("mapeia client_id e opportunity_id a partir dos mapas locais ao chamar o RPC", async () => {
     localStorage.setItem("kora.clients.supabaseImport.v1", JSON.stringify({ importedMap: { c1: "supClient1" } }));
     localStorage.setItem("kora.crm.supabaseImport.v1", JSON.stringify({ importedMap: { lead99: "supOpp99" } }));
     const locals = makeLocalQuotes();
@@ -141,12 +142,25 @@ describe("useLocalQuotesImport", () => {
       await result.current.importSelected(["3"]);
     });
 
-    const payload = vi.mocked(quotesRepository.createQuote).mock.calls[0][1];
-    expect(payload.client_id).toBe("supClient1");
-    expect(payload.opportunity_id).toBe("supOpp99");
+    // Assinatura do RPC: (workspaceId, sourceLocalId, quote, items).
+    const call = vi.mocked(quotesRepository.importQuoteWithItems).mock.calls[0];
+    const quote = call[2];
+    expect(quote.client_id).toBe("supClient1");
+    expect(quote.opportunity_id).toBe("supOpp99");
   });
 
-  it("import bem-sucedido registra importedMap + importedLocalIds", async () => {
+  it("monta source_local_id namespacado por installId ao chamar o RPC (B.3)", async () => {
+    const { result } = renderHook(useLocalQuotesImport);
+    await waitFor(() => expect(result.current.candidates.length).toBe(2));
+    await act(async () => {
+      await result.current.importSelected(["3"]);
+    });
+    const call = vi.mocked(quotesRepository.importQuoteWithItems).mock.calls[0];
+    expect(call[0]).toBe("ws1"); // workspaceId
+    expect(call[1]).toBe(`${getInstallId()}:3`); // sourceLocalId = installId:localId
+  });
+
+  it("import bem-sucedido (via RPC) registra importedMap + importedLocalIds", async () => {
     const { result } = renderHook(useLocalQuotesImport);
     await waitFor(() => expect(result.current.candidates.length).toBe(2));
     await act(async () => {
@@ -157,8 +171,8 @@ describe("useLocalQuotesImport", () => {
     expect(meta.importedLocalIds).toContain("3");
   });
 
-  it("falha ao importar itens marca como skipped e não como imported", async () => {
-    vi.mocked(quotesRepository.replaceQuoteItems).mockRejectedValue(new Error("items fail"));
+  it("falha no RPC marca como skipped e não como imported (nada gravado no map)", async () => {
+    vi.mocked(quotesRepository.importQuoteWithItems).mockRejectedValue(new Error("rpc fail"));
     const { result } = renderHook(useLocalQuotesImport);
     await waitFor(() => expect(result.current.candidates.length).toBe(2));
     await act(async () => {
@@ -167,6 +181,20 @@ describe("useLocalQuotesImport", () => {
     const meta = JSON.parse(localStorage.getItem(META_KEY));
     expect(meta.importedMap["3"]).toBeUndefined();
     expect(meta.skippedLocalIds).toContain("3");
+  });
+
+  it("preserva quantidade fracionária no payload de itens enviado ao RPC (Q5b)", async () => {
+    const locals = makeLocalQuotes();
+    locals[2].items = [{ id: "it1", name: "Consultoria", quantity: 1.5, unitPrice: 100 }];
+    vi.mocked(useQuotes).mockReturnValue({ quotes: locals });
+    const { result } = renderHook(useLocalQuotesImport);
+    await waitFor(() => expect(result.current.candidates.length).toBe(2));
+    await act(async () => {
+      await result.current.importSelected(["3"]);
+    });
+    const call = vi.mocked(quotesRepository.importQuoteWithItems).mock.calls[0];
+    const items = call[3];
+    expect(items[0].quantity).toBe(1.5); // NÃO arredonda mais a inteiro (Q5b)
   });
 
   it("Q4: marca clientOrphan quando o cliente local não está no import-map", async () => {

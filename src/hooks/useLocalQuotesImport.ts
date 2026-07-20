@@ -9,6 +9,7 @@ import {
   mapLocalQuoteItemToSupabaseItem,
 } from "@/services/quotes/quoteMapper";
 import { inspectQuoteMoney, type QuoteMoneyReport } from "@/services/quotes/quoteMoney";
+import { getInstallId, buildSourceLocalId } from "@/lib/installId";
 import type { Quote, QuoteItem } from "@/hooks/useQuotes";
 import type { SupabaseQuote, SupabaseQuoteItem } from "@/repositories/quotesRepository";
 import { emitNotification } from "@/lib/notify";
@@ -231,19 +232,27 @@ export function useLocalQuotesImport() {
           clients: clientMap,
           opportunities: oppMap,
         });
-
-        // 1. Create quote in Supabase
-        if (!workspace) throw new Error("Workspace not available for import");
-        const created = await quotesRepository.createQuote(workspace.id, supaPayload);
-        const supabaseQuoteId = created.id;
-
-        // 2. Import items
         const supaItems = local.items.map(mapLocalQuoteItemToSupabaseItem);
-        await quotesRepository.replaceQuoteItems(workspace.id, supabaseQuoteId, supaItems);
 
-        // 3. Update metadata
-        meta.importedMap[local.id] = supabaseQuoteId;
+        // Q3 (RPC, B.3): upsert do pai + reposição atômica dos itens filhos numa
+        // única chamada — nunca fica quote sem itens (import_quote_with_items).
+        // source_local_id namespacado por instalação, arbiter da idempotência.
+        if (!workspace) throw new Error("Workspace not available for import");
+        const sourceLocalId = buildSourceLocalId(getInstallId(), local.id);
+        const created = await quotesRepository.importQuoteWithItems(
+          workspace.id,
+          sourceLocalId,
+          supaPayload,
+          supaItems,
+        );
+
+        // Metadata só é gravada APÓS sucesso do RPC (mesma disciplina da Fatia 2) —
+        // persistida incrementalmente para não perder o rastro em caso de crash
+        // no meio do lote (reimport é seguro de qualquer forma: upsert idempotente).
+        meta.importedMap[local.id] = created.id;
         meta.importedLocalIds = [...meta.importedLocalIds, local.id];
+        meta.lastImportedAt = new Date().toISOString();
+        writeMeta(meta);
         result.successIds.push(local.id);
         emitNotification({
           title: "Orçamento importado",
@@ -252,8 +261,10 @@ export function useLocalQuotesImport() {
           type: "success",
         });
       } catch (e: unknown) {
+        // Erro do RPC = candidato marcado com erro; NADA é gravado no importedMap.
         result.failedIds.push(id);
         meta.skippedLocalIds = [...(meta.skippedLocalIds || []), id];
+        writeMeta(meta);
         emitNotification({
           title: "Falha ao importar orçamento",
           description: local.title,
@@ -262,9 +273,6 @@ export function useLocalQuotesImport() {
         });
       }
     }
-    // Record timestamp
-    meta.lastImportedAt = new Date().toISOString();
-    writeMeta(meta);
     // Refresh candidates to reflect newly imported ones
     await analyze();
     return result;
