@@ -48,10 +48,33 @@
 --     própria) para decidir se o USUÁRIO ATUAL pertence ao workspace; aqui não
 --     há essa necessidade.
 --
---   • SET search_path = public (sempre, INVOKER ou DEFINER): hardening padrão do
---     projeto (mesmo padrão de is_workspace_member, update_timestamp, etc.) —
---     evita que um search_path malicioso na sessão do chamador resolva nomes de
---     tabela/função não-qualificados para objetos de outro schema.
+--   • SET search_path = public, pg_temp (sempre, INVOKER ou DEFINER): hardening
+--     padrão do projeto — evita que um search_path malicioso na sessão do
+--     chamador resolva nomes de tabela/função não-qualificados para objetos de
+--     outro schema.
+-- ----------------------------------------------------------------------------
+--
+-- ----------------------------------------------------------------------------
+-- CORREÇÃO DE REVISÃO: guarda de NULL (workspace_id / source_local_id)
+-- ----------------------------------------------------------------------------
+-- NULLs são DISTINTOS no UNIQUE não-parcial ux_quotes_source_local (mesma
+-- propriedade que permite linhas legadas conviverem com o índice — ver
+-- 20260719001300). Isso significa que um source_local_id NULL NUNCA colide no
+-- ON CONFLICT: cada chamada com o parâmetro ausente/vazio criaria uma quote
+-- NOVA a cada retry, matando a idempotência em silêncio — o oposto do que
+-- Q2/Q3 existem para garantir. O corpo da função agora falha explicitamente
+-- (RAISE EXCEPTION) se p_workspace_id ou p_source_local_id vierem NULL/vazios,
+-- ANTES de qualquer INSERT (passo 0, abaixo) — falha alta e visível bate
+-- duplicata silenciosa.
+--
+-- Também alinhado nesta revisão (aprovado como reforço opcional):
+-- SET search_path = public, pg_temp — pg_temp é implicitamente pesquisado
+-- ANTES do search_path explícito a menos que seja listado nele; listar
+-- pg_temp por último neutraliza esse comportamento implícito (defesa contra
+-- shadowing de objetos não-qualificados por uma tabela temporária maliciosa
+-- na sessão do chamador). Como todo objeto no corpo já é referenciado com
+-- `public.` explícito, o risco prático aqui já era baixo — isto é defesa em
+-- profundidade, não uma correção de uma falha explorável identificada.
 -- ----------------------------------------------------------------------------
 --
 -- Transacional (CREATE FUNCTION é DDL simples) — não toca dado existente, seguro
@@ -81,7 +104,7 @@ CREATE OR REPLACE FUNCTION public.import_quote_with_items(
 RETURNS public.quotes
 LANGUAGE plpgsql
 SECURITY INVOKER
-SET search_path = public
+SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_quote public.quotes;
