@@ -211,15 +211,15 @@ volume real que o import legado ainda precisa cobrir — dimensiona o risco de C
 | Inv. | Ponto | Veredito |
 |---|---|---|
 | (a) | Não apaga local antes do remoto | ✅ OK — **sentido redefinido**, ver texto |
-| (b) | Idempotência | ⛔ **BLOQUEANTE** — sem backstop no banco, dedupe só heurístico client-side |
+| (b) | Idempotência (de import) | 🗄️ **CATALOGADO, não bloqueante** — decisão C6 (§4.1): 0 clients reais no local, nada a importar hoje |
 | (c) | Leitura server-side | 🟡 OK, sem paginação (mesmo padrão adiado das Fatias 2/3) |
-| (d) | Reversibilidade | 🟡 **REINTERPRETADO** — rollback ao vivo não existe mais, só integridade do snapshot congelado |
-| (e) | Disparo consciente / flag em carência (P5) | ⛔ **JÁ VIOLADO, pré-existente** — ver abaixo |
+| (d) | Reversibilidade (de import) | 🗄️ **CATALOGADO, não bloqueante** — decisão C6 (§4.1), mesmo motivo de (b) |
+| (e) | Disparo consciente / flag em carência (P5) | ⛔→🗄️ **JÁ VIOLADO, mas agora REGULARIZADO por decisão do revisor** — ver §4.3 |
 | + | FK / dependentes de `clients` | 🟡 mapeados, ver abaixo |
-| + | Atomicidade pai-filho (`clients`→`client_contacts`) | ⛔ **BLOQUEANTE** — import não-atômico |
+| + | Atomicidade pai-filho (`clients`→`client_contacts`) | ⛔ **BLOQUEANTE — achado revisado em §4.2**: não é o import (catalogado), é um bug ativo no CRUD vivo |
 | + | Precisão de campos monetários | 🟡 ajuste — sem arredondamento antes de gravar |
 | + | Drift schema-vs-código | ✅ **sem drift** nas colunas base (contraste com a Fatia 3) |
-| + | Legado sem `source_local_id` | 🟡 **a reconciliar** — ver abaixo |
+| + | Legado sem `source_local_id` | 🗄️ **CATALOGADO** — mesma lógica de (b)/(d), ver §4.1 |
 
 ### (a) Não apaga o local — ✅ OK, mas o sentido do invariante mudou (REINTERPRETADO)
 
@@ -393,32 +393,128 @@ existente" do protocolo (gate reforçado, aprovação por statement).
 
 ---
 
-## 3. Recomendação de ajustes — PROPOSTA, aguardando aprovação (nenhuma fase liberada)
+## 3. Recomendação de ajustes — histórico da proposta original (SUPERADA por §4, ver abaixo)
 
-> ⛔ **Nenhum item desta tabela é uma recomendação de EXECUTAR import — nem C3, nem C6.** C1-C7
-> são propostas de **desenho**, condicionadas ao resultado do diff (§0.3): o dimensionamento de
-> C1-C3 (quanto risco, qual urgência) e a própria decisão C6 (regularizar vs tratar como
-> incidente) não têm número por trás enquanto as queries (12)-(15) não rodarem. Escrever essa
-> tabela antes do diff é possível porque o desenho não depende da escala — mas **aprovar** B.1/B.2
-> em cima dela, sem o diff, seria aprovar às cegas o tamanho do problema que C1-C3 propõem
-> resolver.
+> ⚠️ Esta tabela foi escrita **antes** do diff (§0.3) rodar e da decisão C6. Mantida por
+> histórico — não apagar uma leitura anterior sem nota, mesmo quando o resultado muda o
+> encaminhamento. **Status atual de cada item está em §4, não aqui.**
 
-| # | Item | Fase | Resumo |
+| # | Item | Fase (como proposta originalmente) | Resumo |
 |---|---|---|---|
-| C1 | Coluna `clients.source_local_id` (text, nullable) + índice **não-parcial** `UNIQUE (workspace_id, source_local_id)` | B.2 (migration, operador aplica) | Mesmo padrão de Q1/Q2 das Fatias 2/3 — arbiter de idempotência real no banco. |
-| C2 | RPC `import_client_with_contacts` (`SECURITY INVOKER`, `search_path` hardened, guarda de NULL) | B.2 (migration) + B.1 (código) | Upsert atômico do pai + insert dos filhos numa transação — fecha o achado "atomicidade pai-filho". Justificar INVOKER vs DEFINER no mesmo raciocínio da Fatia 3 (RLS já cobre o caller). |
-| C3 | `useLocalClientsImport.ts` chama a nova RPC em vez de `createClient`+loop de `createClientContact` | B.3 Passo 1 (código puro) | Mesma reescrita que `useLocalQuotesImport.ts` já passou. |
-| C4 | `roundMoney` em `potentialValue`/`totalRevenue` antes do payload | B.1 (código, zero risco) | Fecha o gap de precisão monetária. |
-| C5 | Preservar o contrato de `kora.clients.supabaseImport.v1` **byte a byte** (chave, shape do `importedMap`) | Restrição de design, não uma fase | Fatia 2 e Fatia 3 já homologadas dependem disso — qualquer C1-C3 precisa provar que não quebra o fan-in. |
-| C6 | **Decisão do revisor, não uma fase de código:** o que fazer com o CRUD Supabase-first já ativo (`useClientsDataSource`) — aceitar como fato consumado (P5 já rompido, formalizar o resto em cima) ou tratar como incidente à parte | Pré-requisito antes de aprovar B.1/B.2 | Ver §1 (e). Sem essa decisão, o desenho de C1/C2 fica ambíguo (a RPC atômica cobre só o import legado, ou também o CRUD direto do dia a dia?). |
-| C7 | Extensão do contrato de fan-in monetário/documental — checar se `client_contacts` tem algum consumidor forward (nenhum encontrado nesta leitura, mas registrar por paridade com o Q6 da Fatia 3) | B.1 (documentação) | Baixo risco — nenhum `INSERT`/`upsert` em `client_contacts` fora do import foi encontrado nesta Fase A. |
-
-**Nenhuma destas fases está liberada.** Fase B.1 começaria só após aprovação de design (em
-particular de C6, que muda o escopo de C2); Fase B.2 só após export manual (Gate 1) do dado real
-já existente em `clients`/`client_contacts` na nuvem — que, ao contrário das Fatias 2/3, **já não
-está vazio**.
+| C1 | Coluna `clients.source_local_id` + índice **não-parcial** `UNIQUE (workspace_id, source_local_id)` | B.2 — **agora catalogado, não bloqueante** (§4.1) | Mesmo padrão de Q1/Q2 das Fatias 2/3 — arbiter de idempotência real no banco. |
+| C2 | RPC `import_client_with_contacts` | B.2+B.1 — **substituído por C8** (§4.2) | O achado de atomicidade pai-filho não é mais sobre o import (catalogado) — é sobre o CRUD vivo. |
+| C3 | `useLocalClientsImport.ts` chama a nova RPC | B.3 Passo 1 — **catalogado, não bloqueante** (§4.1) | Sem dado real pra importar hoje (C6). |
+| C4 | `roundMoney` em `potentialValue`/`totalRevenue` | B.1 — **segue válido, não bloqueante** | Continua um ajuste de qualidade pendente, independente do C6. |
+| C5 | Preservar o contrato de `kora.clients.supabaseImport.v1` byte a byte | restrição de design | Segue valendo, mesmo com o import catalogado — não desmontar o contrato que Fatia 2/3 usam. |
+| C6 | Decisão do revisor sobre o CRUD Supabase-first | pré-requisito | **DECIDIDA — ver §4.1/§4.3.** |
+| C7 | Fan-in de `client_contacts` — nenhum consumidor forward encontrado | B.1 (documentação) | Sem mudança. |
 
 ---
 
-**PARADO aqui.** Sem "vai" literal do revisor colado neste chat pelo operador, nenhuma fase B
-começa, nenhuma rodada de homologação executa, nenhuma migration é escrita ou aplicada.
+## 4. Decisão C6 (revisor, 2026-07-20) e redefinição da Fase B — escrita apenas, nada aplicado
+
+### 4.1 C6 registrada — REGULARIZAÇÃO SEM MIGRAÇÃO DE DADO
+
+**Medições do operador (§0):**
+
+| Medida | Valor |
+|---|---|
+| Clients reais no local | **0** |
+| Clients demo no local | **8** |
+| Clients reais na nuvem | **2** |
+
+**Cenário (i): nuvem ⊇ local.** Não existe nenhum client real vivendo só no local que precise
+subir pra nuvem — a direção 1 do diff (§0.3, query 12/13) é vazia por definição, já que não há
+candidato algum. Os 2 clients reais da nuvem não foram (e não podem ter sido, com local real = 0)
+trazidos por nenhum import a partir do estado atual do local — nasceram direto na nuvem, via o
+CRUD Supabase-first já ativo (§1 (e)), ou foram inseridos manualmente durante a preparação das
+Fatias 2/3 (consistente com o client "fabio" usado no seed da Fatia 3, embora este documento não
+tenha rodado a query (4)/(10) pra confirmar a origem exata — registrado como consistente, não
+como fato verificado).
+
+**Reclassificação da fatia:** de "migração local→nuvem" para **REGULARIZAÇÃO SEM MIGRAÇÃO DE
+DADO**. Não há dado a mover. O trabalho que resta é formalizar, sob o protocolo, uma condição de
+fato já em produção (§4.3) e corrigir o que estiver genuinamente quebrado nela (§4.2) — não
+construir um pipeline de import para dado que não existe.
+
+**Consequência sobre os invariantes de import** (b, d parcial, C1-C3, "legado sem
+`source_local_id`"): viram **CATALOGADOS para instalação futura**, não bloqueantes. Ficam
+descritos e prontos-pra-construir (mesmo padrão Q1/Q2/RPC das Fatias 2/3, nada novo a desenhar
+quando chegar a hora), mas nada disso impede o fechamento desta fatia hoje. Gatilho de
+reabertura: se um dia existir de novo um client real só no local (ex.: uso offline antes de
+workspace existir), a query (12)/(13) volta a apontar isso e o catálogo vira execução.
+
+### 4.2 Bloqueante remanescente: `client_contacts` — dois fluxos distintos, um deles quebrado agora
+
+A Fase A original (§1, "Atomicidade pai-filho") tratou isso como um problema do **import**. Não é
+— o import está catalogado (4.1), moot pra dado real hoje. Investigando mais a fundo pra responder
+com precisão (não presumir), existem **dois fluxos de código separados** que tocam
+`client_contacts`, com riscos completamente diferentes:
+
+**Fluxo A — import legado (`useLocalClientsImport.ts:143-160`).** `createClient` seguido de um
+loop `createClientContact` por contato, sem transação — a mesma classe de "cliente com contatos
+decapitados" já registrada na Fase A. **Risco: catalogado, não ativo** — não roda hoje porque não
+há candidato de import (4.1). Se um dia isso mudar, o risco reaparece junto.
+
+**Fluxo B — aba "Contatos" da ficha do cliente, uso corrente (achado novo desta leitura).**
+Existe uma UI **ativa e visível** hoje: `ClientProfileDrawer.tsx` renderiza uma aba "Contatos"
+(`ContactsTab`, linha ~468) com adicionar/editar/remover contato, que chama
+`onUpdateContacts(clientId, contacts)`. Em `src/pages/Clientes.tsx:834-837`, isso vira
+`updateClient(id, { contacts })`. **O problema:** a função `updateClient` (linhas 196-232),
+quando `source === "supabase"`, monta um `patch` a partir de uma lista explícita de campos
+(`name`, `company`, `email`, ... — linhas 200-220) — **`contacts` não está nessa lista**. Não há
+coluna `contacts` em `public.clients` (contatos vivem em `client_contacts`, tabela separada) e
+nada nesse caminho chama `clientsRepository.createClientContact`/`updateClientContact`/
+`deleteClientContact`. Resultado: `supabaseUpdate` é chamado com um patch que **não contém a
+mudança de contato nenhuma**, o toast diz "Cliente atualizado no Supabase", e o estado React
+local (`setSelectedClient`) reflete o contato como salvo — **mas nada foi persistido**. No próximo
+refetch, `mapSupabaseClientToLocalClient` (linha 38) sempre devolve `contacts: []` — o contato
+desaparece. **Isso não é uma questão de atomicidade — é perda de dado silenciosa, ativa, hoje**,
+pra qualquer usuário com workspace (o caso normal) que tente usar a aba Contatos. Mais severo que
+o achado original da Fase A.
+
+**Por que a nuvem provavelmente mostra ~0 `client_contacts`:** consistente com esse bug — ninguém
+que tentou adicionar um contato pela aba viu isso persistir de fato. (Não confirmado por query
+nesta leitura — a contagem (2) da seção 0 mede isso; se vier 0, corrobora.)
+
+**Correção proposta — dois itens, severidade diferente:**
+
+| # | Item | Fase | Por quê |
+|---|---|---|---|
+| **C8** | Corrigir Fluxo B: `updateClient`/um hook dedicado (`useSupabaseClientContacts`?) passa a chamar `clientsRepository.createClientContact`/`updateClientContact`/`deleteClientContact` diretamente por contato. **Não precisa de RPC transacional** — `save()`/`remove()` do `ContactsTab` já operam um contato por vez; cada chamada já é atômica por ser uma única linha. | B.1 (código) — **prioridade alta, bug ativo** | Fecha perda de dado silenciosa em uso corrente. Mais simples que C2 original (RPC): é fiação faltando, não uma transação faltando. |
+| **C2'** (era C2) | RPC `import_client_with_contacts` transacional, só pro Fluxo A | catalogado junto com 4.1 | Continua correta como desenho para quando o import voltar a ser relevante — não urgente hoje. |
+
+Nenhum dos dois foi escrito ainda (código ou migration) — isto é diagnóstico + proposta.
+
+### 4.3 Proposta de texto para o protocolo — regularização de P5 (NÃO incorporada ainda)
+
+Data do cutover, apurada por `git log` (não estimada): `src/hooks/useClientsDataSource.ts:47` (a
+linha que decide `source: "local" | "supabase"`) foi introduzida em **2026-06-15**, commit
+`7ab2367`. Texto proposto, no molde das emendas §8/§9, **para aprovação do revisor antes de
+entrar em `protocolo-homologacao.md`**:
+
+> ## 10. Emenda [data de aprovação] — Regularização de P5 para `clients` (dívida assumida, sem
+> > homologação retroativa)
+> >
+> > A nuvem (Supabase) é fonte oficial de leitura e escrita de `clients` desde **2026-06-15**
+> > (commit `7ab2367`, `src/hooks/useClientsDataSource.ts:47`) — decisão do operador, anterior à
+> > Etapa 5, fora do molde Espelho Reversível e sem nenhuma rodada de homologação sob este
+> > protocolo. A Fatia 4 (Etapa 5) **não reverte** esse cutover — reverter quebraria uso corrente
+> > já em produção. Esta emenda **regulariza o fato consumado**, registrado como **dívida
+> > assumida**, não como violação corrigida: P5 ("flag em carência até homologar") não foi
+> > cumprido para `clients` e não será cumprido retroativamente. O que a Fatia 4 entrega em troca:
+> > (1) correção do bug ativo de perda de dado em `client_contacts` (C8); (2) catalogação
+> > explícita, pronta-pra-construir, dos invariantes de import (idempotência, RPC atômica) para o
+> > dia em que voltarem a ser relevantes (§4.1 da Fatia 4). Nenhuma outra entidade além de
+> > `clients` está coberta por esta emenda — um cutover Supabase-first descoberto em outra
+> > entidade exige o mesmo tratamento explícito, não herda esta emenda por analogia.
+
+**Este texto está proposto, não escrito no protocolo.** Incorporar como §10 real depende de
+aprovação explícita separada desta entrega.
+
+---
+
+**PARADO aqui.** Nada de §4 foi aplicado ou executado — C8 (código) e a emenda §10 (protocolo)
+seguem como proposta escrita, aguardando "vai" literal do revisor colado neste chat pelo operador.
+Sem isso, nenhuma fase B começa, nenhuma rodada de homologação executa, nenhuma migration é
+escrita ou aplicada.
