@@ -23,6 +23,27 @@ export interface SupabaseQuote {
   deleted_by?: string | null;
   approved_at?: string | null;
   rejected_at?: string | null;
+  /** Etapa 5 · Fatia 3 (Q1): cliente Supabase vinculado (fan-out). */
+  client_id?: string | null;
+  /** Etapa 5 · Fatia 3 (Q1): oportunidade Supabase vinculada (fan-out). */
+  opportunity_id?: string | null;
+  /** Etapa 5 · Fatia 3 (Q2): chave de idempotência do import (installId:localId). */
+  source_local_id?: string | null;
+}
+
+/** Payload do orçamento para o RPC import_quote_with_items — ver mapLocalQuoteToSupabaseQuote. */
+export interface ImportQuoteWithItemsInput {
+  client_id: string | null;
+  opportunity_id: string | null;
+  client_name?: string | null;
+  client_email?: string | null;
+  title: string;
+  description?: string | null;
+  subtotal: number;
+  discount: number;
+  total: number;
+  status: string;
+  archived: boolean;
 }
 
 export interface SupabaseQuoteItem {
@@ -140,6 +161,39 @@ export const quotesRepository = {
     const { data, error } = await supabase.from("quote_items").insert(toInsert).select();
     if (error) throw normalizeSupabaseError(error);
     return data as SupabaseQuoteItem[];
+  },
+
+  /**
+   * Etapa 5 · Fatia 3 (Q3, B.3 passo 1): import atômico via RPC
+   * import_quote_with_items — upsert do pai (arbiter: UNIQUE workspace_id,
+   * source_local_id) + reposição atômica dos itens filhos, numa única
+   * transação PostgREST. Substitui createQuote+replaceQuoteItems no caminho
+   * de import (nunca fica quote sem itens; ver migration 20260719001400).
+   */
+  async importQuoteWithItems(
+    workspaceId: string,
+    sourceLocalId: string,
+    quote: ImportQuoteWithItemsInput,
+    items: Omit<SupabaseQuoteItem, "id" | "quote_id" | "created_at" | "updated_at">[],
+  ) {
+    const { data, error } = await supabase.rpc("import_quote_with_items", {
+      p_workspace_id: workspaceId,
+      p_source_local_id: sourceLocalId,
+      p_client_id: quote.client_id,
+      p_opportunity_id: quote.opportunity_id,
+      p_client_name: quote.client_name ?? null,
+      p_client_email: quote.client_email ?? null,
+      p_title: quote.title,
+      p_description: quote.description ?? null,
+      p_subtotal: quote.subtotal,
+      p_discount: quote.discount,
+      p_total: quote.total,
+      p_status: quote.status,
+      p_archived: quote.archived,
+      p_items: items,
+    });
+    if (error) throw normalizeSupabaseError(error);
+    return data as SupabaseQuote;
   },
 
   async listQuotesByOpportunity(workspaceId: string, opportunityId: string) {
