@@ -196,3 +196,30 @@ Regra dura, sem exceção — vale inclusive para QA:
    neste chat pelo operador."_ — não basta a rodada estar "proposta" ou "aguardando aprovação"
    no doc da fatia; a proibição precisa estar no texto que efetivamente aciona a execução.
 4. **Demais gates permanentes (seções 0–8) inalterados.**
+
+---
+
+## 10. Emenda 2026-07-20 — Regularização de P5 para `clients` (dívida assumida, sem homologação retroativa)
+
+> **Motivada por:** Etapa 5 · Fatia 4 (`clients`), Fase A + decisão C6 do revisor — descoberta de
+> que a nuvem já é fonte oficial de leitura/escrita de `clients` desde antes da Etapa 5, fora do
+> molde Espelho Reversível, sem nenhuma rodada de homologação sob este protocolo. Detalhamento
+> completo em [`etapa-5-fatia-4-clients.md`](etapa-5-fatia-4-clients.md) §4.
+
+1. **Fato registrado:** a nuvem (Supabase) é fonte oficial de leitura e escrita de `clients`
+   desde **2026-06-15** (commit `7ab2367`, `src/hooks/useClientsDataSource.ts:47`) — decisão do
+   operador, anterior à Etapa 5.
+2. **Não é revertido.** A Fatia 4 não desfaz esse cutover — reverter quebraria uso corrente já em
+   produção. Esta emenda regulariza o fato consumado, não o desfaz.
+3. **Registrado como dívida assumida, não como violação corrigida.** P5 ("flag de
+   escrita/experimental fica OFF/carência até a homologação fechar") não foi cumprido para
+   `clients` e não será cumprido retroativamente — não há como homologar algo que já rodou.
+4. **Contrapartida entregue pela Fatia 4** em troca de regularizar, não reverter: (a) correção do
+   bug ativo de perda de dado silenciosa em `client_contacts` (C8 — ver
+   `etapa-5-fatia-4-clients.md` §4.2/§4.4); (b) catalogação explícita, pronta-pra-construir, dos
+   invariantes de import (idempotência, RPC atômica de import) para o dia em que voltarem a ser
+   relevantes (mesmo doc, §4.1).
+5. **Escopo estreito, não um precedente geral.** Esta emenda cobre só `clients`. Um cutover
+   Supabase-first descoberto em outra entidade exige o mesmo tratamento explícito nesta seção —
+   não herda esta emenda por analogia, mesmo que o padrão de achado se repita.
+6. **Demais gates permanentes (seções 0–9) inalterados.**

@@ -509,8 +509,10 @@ entrar em `protocolo-homologacao.md`**:
 > > `clients` está coberta por esta emenda — um cutover Supabase-first descoberto em outra
 > > entidade exige o mesmo tratamento explícito, não herda esta emenda por analogia.
 
-**Este texto está proposto.** Incorporação ao protocolo real é tratada como commit separado desta
-entrega (§10 de `protocolo-homologacao.md`), após aprovação.
+**Incorporado.** Texto acima foi levado, sem alteração de conteúdo (só formatação em lista
+numerada pra bater com o estilo de §8/§9), para
+[`protocolo-homologacao.md` §10](protocolo-homologacao.md#10-emenda-2026-07-20--regularização-de-p5-para-clients-dívida-assumida-sem-homologação-retroativa),
+em commit separado desta mesma entrega.
 
 ### 4.4 Design de C8 — correção do fluxo `client_contacts` (DESIGN, nenhum código escrito ainda)
 
