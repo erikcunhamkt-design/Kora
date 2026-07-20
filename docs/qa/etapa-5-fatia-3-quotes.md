@@ -291,10 +291,11 @@ RPC, mas persistir incremental evita reimportar à toa).
 
 ---
 
-## 9. Runbook de homologação (B.3 · Passo 2) — **PROPOSTO, aguardando aprovação**
+## 9. Runbook de homologação (B.3 · Passo 2) — **Rodada 1 executada (5/5), Rodada 2 aguardando aprovação**
 
 > **Nenhuma rodada executa sem aprovação explícita.** Workspace de teste:
-> `2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9` (mesmo das Fatias 1-2).
+> `2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9` (mesmo das Fatias 1-2). Resultados da Rodada 1 na
+> seção 10.
 
 ### 9.1 Rodada 1 — semeada (5 casos + idempotência; caso "b" adiado)
 
@@ -449,7 +450,7 @@ com 1 item.
 
 ### 9.3 Critério de aceite
 
-- [ ] Rodada 1: 5/5 casos verdes (a, c, d-idempotência, e, f). Caso (b) adiado — ver 9.1.
+- [x] Rodada 1: **5/5** casos verdes (a, c, d-idempotência, e, f). Caso (b) adiado — ver 9.1.
 - [ ] Rodada 2: 3/3 quotes reais migradas, zero perda, backup salvo antes.
 - [ ] Limpeza do cenário semeado (Rodada 1) — local + SQL `delete`.
 - [ ] Flag de leitura de quotes permanece **local** (carência) após a Rodada 2.
@@ -457,4 +458,59 @@ com 1 item.
 
 ---
 
-## 10. Runbook + resultados — **PENDENTE** (preenchido após execução da Rodada 1/2)
+## 10. Rodada 1 — resultados (2026-07-20) — **5/5 VERDE**
+
+**Achado lateral, registrado por importância:** a primeira tentativa desta rodada rodou contra
+um **bundle desatualizado** do dev server (código pré-B.3-Passo-1) e reproduziu **ao vivo** o
+bug exato que o RPC existe para prevenir: `TESTE-QUOTE-F-falha` foi criada (via `createQuote`
+antigo) e ficou **sem itens** quando o INSERT direto falhou (400) — a "quota decapitada". Todas
+as 4 linhas dessa tentativa tinham `source_local_id IS NULL` (assinatura inequívoca do caminho
+antigo). Banco e import-map local foram limpos; dev server reiniciado (processo novo, sem
+cache/HMR); a partir daí, todas as chamadas foram confirmadas como POST em
+`.../rpc/import_quote_with_items` (nunca mais INSERT direto em `quote_items`).
+
+| Caso | Prova | Resultado |
+|---|---|---|
+| **(a)** zero perda | `quotes`: `client_id`=`50f894e9-...`, `subtotal/discount/total`=130/0/130, `source_local_id` populado. `quote_items`: Item 1 (2×50), Item 2 (1×30) — idênticos ao local. | ✅ |
+| **(c)** órfã | `client_id IS NULL`, `client_name`="Cliente Orfao" preservado, linha existe (nunca o id local `960999` cru), `source_local_id` populado. | ✅ |
+| **(e)** precisão | `subtotal`=100, `total`=**85** — total local preservado, NÃO recalculado para a soma dos itens. | ✅ |
+| **(f)** falha simulada → rollback atômico | 1ª tentativa (`name: null`) → RPC 400 → `quotes` count=0 **e** `quote_items` count=0 (upsert do pai revertido junto). 2ª tentativa (retry acidental, mesmo estado React em memória) → 400 de novo → **0/0 de novo** (rollback consistente, não foi sorte da 1ª vez). | ✅ |
+| **(f) reimport corrige** | Corrigido `name` no local + F5 (estado React precisa recarregar — `useQuotes` não observa mudança externa no `localStorage`) → reimport → RPC 200 → nova linha (`a2f58928-...`), 1 item ("Item Falha Corrigido", 1×10). | ✅ |
+| **Idempotência** (nível banco, não só guarda da UI) | Chamada direta ao RPC com o **mesmo** `source_local_id` do caso (a) (`e307969a-...-9da596203be4:960001`) → **mesmo `id`** de linha (`d01fa770-...`), `title` virou `...-RETRY` — UPDATE via `ON CONFLICT`, nunca duplicata. | ✅ |
+| **(b)** oportunidade migrada | **Adiado** — 0 oportunidades no workspace de teste no momento da rodada. Não bloqueou os demais. | — |
+
+**Gates cumpridos:** Gate 1 (export manual) e Gate 2 (print pré-clique) confirmados antes do
+clique. Nenhum dado real tocado — só as 5 quotes `TESTE-QUOTE-*` semeadas.
+
+**Pendências para fechar a fatia:**
+1. Limpeza do cenário semeado (Rodada 1) — SQL abaixo + limpeza local.
+2. Rotacionar a senha do banco (checklist de sign-off, emenda §8) — segue pendente desde a
+   aplicação das migrations.
+3. Aprovação explícita para a Rodada 2 (dado real) — **nada executa sem esse sinal**.
+
+**Limpeza do cenário semeado:**
+```sql
+delete from public.quotes
+where workspace_id='2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9'
+  and title like 'TESTE-QUOTE-%';
+select count(*) from public.quotes where workspace_id='2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and title like 'TESTE-QUOTE-%';
+-- esperado: 0
+```
+```js
+const existing = JSON.parse(localStorage["orbyt.quotes.v1"] || "[]").filter(q => !q.title?.startsWith("TESTE-QUOTE-"));
+localStorage.setItem("orbyt.quotes.v1", JSON.stringify(existing));
+const meta = JSON.parse(localStorage["kora.quotes.supabaseImport.v1"] || '{"importedMap":{}}');
+["960001","960002","960003","960004","960005"].forEach(id => delete meta.importedMap[id]);
+localStorage.setItem("kora.quotes.supabaseImport.v1", JSON.stringify(meta));
+
+// remove o mapeamento fake criado só para este teste (960001 -> cliente real usado no seed)
+const clientMeta = JSON.parse(localStorage["kora.clients.supabaseImport.v1"] || '{"importedMap":{}}');
+delete clientMeta.importedMap["960001"];
+localStorage.setItem("kora.clients.supabaseImport.v1", JSON.stringify(clientMeta));
+
+console.log("✅ Limpeza local ok. F5.");
+```
+
+---
+
+## 11. Rodada 2 (dado real) — **AGUARDANDO APROVAÇÃO EXPLÍCITA**
