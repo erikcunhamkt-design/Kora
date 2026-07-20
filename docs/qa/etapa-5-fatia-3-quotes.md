@@ -291,7 +291,7 @@ RPC, mas persistir incremental evita reimportar à toa).
 
 ---
 
-## 9. Runbook de homologação (B.3 · Passo 2) — **Rodada 1 executada (5/5), Rodada 2 executada (1/1)**
+## 9. Runbook de homologação (B.3 · Passo 2) — **Rodada 1 executada (5/5), Rodada 2 executada (1/1) — FATIA ENCERRADA**
 
 > **Nenhuma rodada executa sem aprovação explícita.** Workspace de teste:
 > `2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9` (mesmo das Fatias 1-2). Resultados da Rodada 1 na
@@ -455,7 +455,7 @@ com 1 item.
   corrigido de 3→1 quando se descobriu que as 3 originais eram `isDemo`, não reais).
 - [x] Limpeza do cenário semeado (Rodada 1) — local + SQL `delete`.
 - [x] Flag de leitura de quotes permanece **local** (carência) após a Rodada 2.
-- [ ] Ação de sign-off pendente (emenda §8 do protocolo): rotacionar a senha do banco.
+- [x] Ação de sign-off pendente (emenda §8 do protocolo): rotacionar a senha do banco.
 
 ---
 
@@ -563,5 +563,8 @@ visual na tela de Orçamentos após o import (a Rodada 2 é só escrita).
 **Caso (b)** (quote ligada a oportunidade migrada) segue adiado — 0 oportunidades no workspace de
 teste. Não bloqueante; revisitar se/quando existir uma oportunidade real nesse workspace.
 
-**Pendência remanescente da fatia:** rotacionar a senha do banco usada na sessão de aplicação das
-migrations via psql (checklist de sign-off, emenda §8) — ainda não confirmado pelo operador.
+**Sign-off (emenda §8):** senha do banco usada na sessão de aplicação das migrations via psql foi
+rotacionada e confirmada pelo operador em 2026-07-20. Checklist de sign-off fechado.
+
+**Fatia 3 — ENCERRADA.** Rodada 1 (5/5) + Rodada 2 (1/1) + limpeza + flag de leitura local + senha
+rotacionada. Sem pendências.
