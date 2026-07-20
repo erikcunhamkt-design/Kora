@@ -13,7 +13,10 @@
 >
 > **Fonte da verdade dos papéis:** o **Code** diagnostica, escreve código/migration/queries e
 > **confere**; o **operador** exporta, aplica migration, dispara import e digita credenciais.
-> O Code **nunca** faz essas quatro coisas.
+> O Code **nunca** faz essas quatro coisas — **exceto** a aplicação de DDL aditiva sob a
+> exceção estreita e datada da [seção 8](#8-emenda-2026-07-19--aplicação-de-ddl-pelo-code-sob-runbook-aprovado)
+> (credencial só via variável de ambiente; dado e proibições absolutas continuam fora do escopo
+> dessa exceção).
 >
 > Padrão de migração: [`../architecture/espelho-reversivel.md`](../architecture/espelho-reversivel.md).
 > Primeira aplicação registrada: [`etapa-5-ficha-tecnica.md`](etapa-5-ficha-tecnica.md) (seção 0).
@@ -101,8 +104,8 @@ Regra dura, sem exceção — vale inclusive para QA:
 | # | Regra |
 |---|---|
 | P1 | O Code **não dispara** import de dado (o botão é do operador, após gates 1–2). |
-| P2 | O Code **não aplica** migration em produção (o operador aplica, após export). |
-| P3 | O Code **não lê nem digita** credencial (gate 4). |
+| P2 | O Code **não aplica** migration em produção (o operador aplica, após export). **Exceção estreita, datada e registrada:** ver [seção 8](#8-emenda-2026-07-19--aplicação-de-ddl-pelo-code-sob-runbook-aprovado). |
+| P3 | O Code **não lê nem digita** credencial (gate 4). Emenda da seção 8 não abre exceção a P3 — o Code referencia a credencial só via variável de ambiente (`$DATABASE_URL`), nunca vê/imprime o valor. |
 | P4 | O Code **não apaga/sobrescreve** o `localStorage` da entidade (invariante *a* do molde). |
 | P5 | A **flag de escrita/experimental** da entidade fica **OFF/carência** até a homologação fechar. |
 | P6 | `git add` por **caminho explícito** — nunca `git add .`. Push/CI são **do operador**. |
@@ -135,3 +138,35 @@ Regra dura, sem exceção — vale inclusive para QA:
       id local cru numa coluna `uuid`, nunca registro descartado.
 - [ ] **Gate 1 (export)** e **Gate 2 (print pré-clique)** cumpridos e registrados.
 - [ ] **Gate 3 (indisvalid = t)** para todo índice `CONCURRENTLY` da fatia.
+
+---
+
+## 8. Emenda 2026-07-19 — Aplicação de DDL pelo Code sob runbook aprovado
+
+> **Decidida pelo operador, registrada pelo revisor.** Exceção **estreita** ao gate P2 (Code
+> não aplica migration em produção) — não revoga P2 como regra padrão; abre um caminho
+> alternativo, sob controles próprios, quando o operador explicitamente autorizar. Primeira
+> aplicação: Etapa 5 · Fatia 3 (`quotes`/`quote_items`), 2026-07-19 — 6 migrations, 6/6 marcos
+> verdes, sem incidente.
+
+1. **Aplicação de DDL pelo Code via `psql`, sob runbook aprovado pelo revisor:** um arquivo
+   por vez, na ordem definida no runbook; **output bruto** da checagem de cada marco colado na
+   resposta; **parada obrigatória** em qualquer resultado divergente do esperado — nunca
+   prossegue ao arquivo seguinte com um marco vermelho.
+2. **Credencial de sessão:** fornecida pelo **operador**, fora do repositório (variável de
+   ambiente persistente, ex. `setx`) — **nunca** persistida em arquivo do projeto, commit, log
+   ou output do Code. O Code referencia exclusivamente `$DATABASE_URL` (símbolo), nunca lê nem
+   imprime o valor. **Item de checklist do sign-off:** a senha do banco usada na rodada é
+   **rotacionada** (reset) ao final dessa rodada — independente de ter havido qualquer
+   incidente.
+3. **Dado existente exige gate reforçado**, mesmo sob esta emenda: aprovação do revisor **por
+   statement** que toque dado (não só schema) + export prévio (gate 1) quando houver linha a
+   perder. A emenda cobre **DDL aditiva sobre schema**, não abre caminho para o Code manipular
+   dado de produção.
+4. **Proibições absolutas, sob qualquer runbook, sem exceção:** `DROP TABLE`, `TRUNCATE`,
+   `DELETE` sem `WHERE`, `DROP COLUMN`. Nenhuma autorização do operador nesta emenda cobre
+   essas operações — pedido explícito de qualquer uma delas exige um runbook **novo e
+   separado**, não uma extensão desta emenda.
+5. **Demais gates permanentes (seções 0–7) inalterados** — export manual, print pré-clique,
+   indisvalid explícito, contas QA descartáveis, sequência canônica e provas mínimas continuam
+   valendo integralmente.
