@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { clientAssetsStorage } from "@/services/storage/clientAssetsStorage";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
+import { useSupabaseClientContacts } from "@/hooks/useSupabaseClientContacts";
 import { cn } from "@/lib/utils";
 import {
   type Client, type ClientStatus, type ClientTemperature,
@@ -140,7 +141,7 @@ export const ClientProfileDrawer = ({
   client, onClose, onEdit, onWhats, onArchive, onRestore,
   onCreateOpportunity, onCreateQuote,
   onUpdateAssets, onUpdateTechnicalSheet, onUpdateContacts, onUpdateAvatar,
-  initialTab, highlightedActivityId,
+  initialTab, highlightedActivityId, source,
 }: {
   client: Client | null;
   onClose: () => void;
@@ -156,6 +157,9 @@ export const ClientProfileDrawer = ({
   onUpdateAvatar?: (clientId: number, avatarUrl: string | null) => void;
   initialTab?: string;
   highlightedActivityId?: string;
+  /** "supabase" liga a aba Contatos em client_contacts real (C8); default "local" preserva o
+   * comportamento antigo (array em memória via onUpdateContacts) para quem ainda não migrou. */
+  source?: "local" | "supabase";
 }) => {
   const navigate = useNavigate();
   const { workspace } = useCurrentWorkspace();
@@ -313,7 +317,7 @@ export const ClientProfileDrawer = ({
             </TabsContent>
 
             <TabsContent value="contacts" className="mt-0">
-              <ContactsTab client={client} onUpdateContacts={onUpdateContacts} />
+              <ContactsTab client={client} onUpdateContacts={onUpdateContacts} source={source ?? "local"} />
             </TabsContent>
 
             <TabsContent value="commercial" className="mt-0">
@@ -465,18 +469,45 @@ const emptyContact = (): ClientContact => ({
   createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
 });
 
-const ContactsTab = ({
-  client, onUpdateContacts,
+export const ContactsTab = ({
+  client, onUpdateContacts, source,
 }: {
   client: Client;
   onUpdateContacts?: (clientId: number, contacts: ClientContact[]) => void;
+  source: "local" | "supabase";
 }) => {
   const [editing, setEditing] = useState<ClientContact | null>(null);
   const [deleting, setDeleting] = useState<ClientContact | null>(null);
-  const contacts = client.contacts ?? [];
+  const { workspace } = useCurrentWorkspace();
+  const isSupabase = source === "supabase";
 
-  const save = (c: ClientContact) => {
+  // client.id de um client Supabase é uma UUID string mascarada de `number` pelo cast em
+  // useClientsDataSource.ts:9 — conversão explícita aqui, nunca client.id cru pro repository.
+  const {
+    contacts: supabaseContacts,
+    createContact,
+    updateContact,
+    deleteContact,
+  } = useSupabaseClientContacts(isSupabase ? workspace?.id : undefined, isSupabase ? String(client.id) : undefined);
+
+  const contacts = isSupabase ? supabaseContacts : (client.contacts ?? []);
+
+  const save = async (c: ClientContact) => {
     const exists = contacts.some((x) => x.id === c.id);
+    if (isSupabase) {
+      try {
+        if (exists) {
+          await updateContact(c);
+        } else {
+          await createContact(c);
+        }
+        toast.success(exists ? "Contato atualizado" : "Contato adicionado");
+        setEditing(null);
+      } catch (err) {
+        toast.error(`Erro ao salvar contato: ${err instanceof Error ? err.message : "desconhecido"}`);
+      }
+      return;
+    }
     const next = exists
       ? contacts.map((x) => (x.id === c.id ? { ...c, updatedAt: new Date().toISOString() } : x))
       : [...contacts, c];
@@ -485,7 +516,17 @@ const ContactsTab = ({
     setEditing(null);
   };
 
-  const remove = (id: string) => {
+  const remove = async (id: string) => {
+    if (isSupabase) {
+      try {
+        await deleteContact(id);
+        toast.success("Contato removido");
+        setDeleting(null);
+      } catch (err) {
+        toast.error(`Erro ao remover contato: ${err instanceof Error ? err.message : "desconhecido"}`);
+      }
+      return;
+    }
     onUpdateContacts?.(client.id, contacts.filter((c) => c.id !== id));
     toast.success("Contato removido");
     setDeleting(null);
