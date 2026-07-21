@@ -463,30 +463,190 @@ reescrito, só o call site do dialog volta a apontar pra onde apontava antes.
 
 ---
 
-## 10. Runbook proposto — Rodada única (semeada; sem Rodada 2 real, per §5)
+## 10. Runbook — Rodada única (semeada; sem Rodada 2 real, per §5) — PRONTO PARA EXECUÇÃO
 
-Workspace de teste: `2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9`. Reaproveita entidades já reais desse
-workspace: cliente "fabio" (`50f894e9-c81c-4420-b673-9335ad17a6bf`), quote "xxx"
-(`fd9053a2-b55e-47ab-b425-00df7e59264d`, `source_local_id`
-`e307969a-619b-4891-bfbf-9da596203be4:qt-1784521404974`). Sem oportunidade real confirmada no
-workspace ainda — caso de fan-out de `opportunityId` fica condicional, mesmo padrão adiável da
-Fatia 3 (9.1).
+> **Nota de versão:** esta seção substitui a tabela de 5 casos proposta antes da implementação
+> (letras e conteúdo redefinidos pelo revisor nesta rodada — não é o mesmo (a)-(e) de antes; não
+> apagar a diferença sem nota). **Nada foi executado ainda** — os artefatos abaixo (seed, SQL,
+> limpeza) estão prontos para colar, aguardando o "vai" literal do revisor.
 
-**Prefixo de limpeza:** todo título semeado começa com `TESTE-FT-`, para a limpeza final poder
-filtrar com segurança (`WHERE title LIKE 'TESTE-FT-%'`), mesmo padrão `TESTE-QUOTE-*` da Fatia 3.
+Workspace de teste: `2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9`. Reaproveita entidades **já reais**
+desse workspace (não semeadas por esta fatia): cliente "fabio"
+(`50f894e9-c81c-4420-b673-9335ad17a6bf`) e a quote real "xxx"
+(`fd9053a2-b55e-47ab-b425-00df7e59264d`, id local `qt-1784521404974`, já mapeada de verdade em
+`kora.quotes.supabaseImport.v1` desde a Rodada 2 da Fatia 3 — nenhum seed novo precisa disso).
 
-| Caso | O que prova | Como |
-|---|---|---|
-| **(a) idempotência via arbiter novo** | Rodar o import 2× com o mesmo `source_local_id` → mesma linha, `UPDATE` via `ON CONFLICT`, nunca duplicata | Seed `TESTE-FT-idempotencia` (manual/expense, sem `quoteId`) → importar → importar de novo (chamada dupla direta ao upsert, mesmo padrão de prova da Fatia 3) → conferir 1 linha só, mesmo `id` |
-| **(b) fan-out dos 3 maps** | `client_id`/`quote_id`/`opportunity_id` viram UUID real ou `null`, nunca id cru | Seed `TESTE-FT-fanout` com `clientId` apontando pro local do "fabio" e `quoteId` apontando pro local da quote "xxx" → importar → conferir `client_id`/`quote_id` = UUIDs reais na linha |
-| **(c) coexistência com o índice parcial** | Import de uma transação quote-linked **reconhece** um recebível já existente pra essa quote em vez de duplicar | Setup: criar via SQL um recebível pré-existente pra `quote_id = fd9053a2-...` (simula "CRM já criou um"). Depois: seed `TESTE-FT-coexistencia` local com o mesmo `quoteId` da quote "xxx" → importar → conferir **1 única linha viva** pra esse `quote_id` (não 2), e que a linha existente recebeu o `source_local_id` da transação local (backfill) |
-| **(d) precisão monetária** | `amount` quantizado a centavos; divergência vs `quotes.total` (quando quote-linked) é reportada, não corrigida em silêncio | Seed `TESTE-FT-precisao` com `amount` tipo `99.995` (artefato de float) e, separadamente, um `quoteId` cujo `amount` diverge > R$0,01 do `quotes.total` correspondente → conferir `amount` gravado com 2 casas E um aviso reportado pro segundo caso |
-| **(e) tipo sem fan-in** (controle) | Transação comum (manual, sem `quoteId`) usa só o arbiter geral, nunca toca o índice parcial | Seed `TESTE-FT-manual` (`type=expense`, `source=manual`) → importar → confirmar via `EXPLAIN` que a leitura de idempotência usa o índice novo, não o de quote |
+**Prefixo de identificação:** id local com prefixo `seedF6-` (ex.: `seedF6-a-basica`) **e** título
+com prefixo `TESTE-FT-` — dois marcadores redundantes, mesmo espírito de excesso de cautela já
+usado nas Fatias 3/4 (não depender de um único sinal pra limpeza).
+
+**Nota de escopo — por que não há um 6º caso de precisão monetária aqui:** a lógica de
+quantização e de report de divergência (`inspectFinanceMoney`) já tem 5 casos de teste
+automatizados dedicados em `financeMapper.test.ts` (sem quote / bate / diverge / limiar exato de
+1 centavo / quote desconhecida) — repetir isso na rodada semeada só provaria a mesma lógica pela
+segunda vez, sem testar nada de integração novo. Os 5 casos abaixo focam no que só a integração
+real prova: rede, banco, os dois arbiters coexistindo.
+
+### 10.1 Seed (console do navegador, produção) — cobre os 5 casos
+
+```js
+// Etapa 5 · Fatia 6 (finance) — SEED da rodada semeada (5 casos). Preserva o que já
+// existe em orbyt.finance.v1. Prefixo "seedF6-" no id local + "TESTE-FT-" no título.
+
+// --- mapeamento de apoio (client fan-out) — "fabio" já é real na nuvem, mas não há
+// nenhum client LOCAL real hoje (Fatia 4, F6) pra apontar pra ele; criamos o mapeamento
+// sintético só pra esta rodada, com uma chave local claramente de teste.
+const clientMap = JSON.parse(localStorage["kora.clients.supabaseImport.v1"] || '{"importedMap":{}}');
+clientMap.importedMap["960100"] = "50f894e9-c81c-4420-b673-9335ad17a6bf"; // "fabio"
+localStorage.setItem("kora.clients.supabaseImport.v1", JSON.stringify(clientMap));
+
+// --- transações semeadas ---
+const existing = JSON.parse(localStorage["orbyt.finance.v1"] || "[]");
+const now = new Date().toISOString();
+const dueDate = new Date(Date.now() + 15 * 86400000).toISOString().slice(0, 10);
+
+const seeds = [
+  { // (a) básica — sem fan-in nenhum, prova upsert + arbiter geral novo
+    id: "seedF6-a-basica", type: "expense", title: "TESTE-FT-a-basica",
+    amount: 123.45, category: "Ferramentas e Software", dueDate,
+    status: "pending", paymentMethod: "card", recurrence: "none",
+    source: "manual", createdAt: now, isDemo: false,
+  },
+  { // (b) fan-out — clientId mapeado -> deve virar client_id = uuid real (não "960100" cru)
+    id: "seedF6-b-fanout", type: "expense", title: "TESTE-FT-b-fanout",
+    amount: 77.77, category: "Marketing e Tráfego", dueDate,
+    status: "pending", paymentMethod: "pix", recurrence: "none",
+    source: "manual", createdAt: now, isDemo: false,
+    clientId: 960100,
+  },
+  { // (c) órfã — clientId presente mas SEM mapeamento -> client_id = null + reporte na UI
+    id: "seedF6-c-orfa", type: "expense", title: "TESTE-FT-c-orfa",
+    amount: 42, category: "Impostos e Taxas", dueDate,
+    status: "pending", paymentMethod: "boleto", recurrence: "none",
+    source: "manual", createdAt: now, isDemo: false,
+    clientId: 960199, // deliberadamente NÃO mapeado
+  },
+  { // (d) coexistência — quote-linked, mesma quote real "xxx". amount=50 bate com o
+    // total real da quote (evita disparar aviso monetário, foco só na coexistência).
+    // REQUER o setup SQL de 10.2 passo 4 ANTES de importar este.
+    id: "seedF6-d-coexistencia", type: "income", title: "TESTE-FT-d-coexistencia",
+    amount: 50, category: "Serviços", dueDate,
+    status: "pending", paymentMethod: "pix", recurrence: "none",
+    source: "quote", createdAt: now, isDemo: false,
+    quoteId: "qt-1784521404974", // id local da quote real "xxx", já mapeada de verdade
+  },
+];
+
+localStorage.setItem("orbyt.finance.v1", JSON.stringify([...existing, ...seeds]));
+console.log("✅ Seed F6 gravado:", seeds.map(s => s.id));
+```
+
+*(Caso (e) — idempotência — não precisa de seed próprio: reimporta o caso (a) já semeado, via
+SQL direto, passo 10.2.9.)*
+
+### 10.2 Passos do operador, em ordem
+
+1. Rodar o **seed JS** (10.1) no console, origem de produção.
+2. **F5** (recarregar a página) — `useFinance`/`useQuotes` não observam mudança externa no
+   `localStorage` (mesma lição já vista nas Fatias 3/4).
+3. Abrir **Configurações → Importar lançamentos financeiros locais**.
+4. **Setup SQL do caso (d)** — rodar ANTES de selecionar/importar (simula "CRM já gerou um
+   recebível pra essa quote"):
+   ```sql
+   insert into public.financial_transactions
+     (workspace_id, client_id, quote_id, type, status, source, title, amount, due_date, is_demo, archived)
+   values
+     ('2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9', '50f894e9-c81c-4420-b673-9335ad17a6bf',
+      'fd9053a2-b55e-47ab-b425-00df7e59264d', 'receivable', 'pending', 'quote',
+      'TESTE-FT-preexistente-d', 50, current_date + 15, false, false)
+   returning id, quote_id, source_local_id;
+   -- guarde o id — esperado: source_local_id IS NULL (criado direto por SQL, não por import)
+   ```
+5. **Gate 2 (print pré-clique):** print do card mostrando os candidatos **antes** de qualquer
+   clique. Esperado: **4 candidatos novos** (a/b/c/d) — só **(c)** com aviso "vínculo não
+   encontrado"; **nenhum** com aviso de divergência monetária (o amount de (d) foi escolhido pra
+   bater com o total da quote).
+6. Selecionar os 4 candidatos → **Importar selecionados**.
+7. Print do toast + aba Network — esperado: chamadas a `financial_transactions` incluindo pelo
+   menos um `SELECT` (o `findReceivableByQuote` do caso (d), antes de decidir upsert vs backfill).
+8. Rodar as **provas SQL 10.3.a-d**.
+9. Rodar a **prova de idempotência 10.3.e** (usa o `source_local_id` real gravado no passo 8a).
+10. Rodar a **limpeza 10.4** (nuvem + local) — só depois de todas as provas confirmadas.
+
+### 10.3 Provas SQL por caso
+
+```sql
+-- (a) básica: sem fan-in nenhum
+select id, title, client_id, quote_id, opportunity_id, amount, source_local_id
+from public.financial_transactions
+where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and title = 'TESTE-FT-a-basica';
+-- esperado: 1 linha; client_id/quote_id/opportunity_id NULL; amount=123.45;
+-- source_local_id preenchido (contém "seedF6-a-basica") — GUARDE esse valor pro passo (e).
+```
+
+```sql
+-- (b) fan-out: client_id vira uuid real, nunca "960100" cru
+select id, title, client_id, amount
+from public.financial_transactions
+where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and title = 'TESTE-FT-b-fanout';
+-- esperado: client_id = '50f894e9-c81c-4420-b673-9335ad17a6bf'
+```
+
+```sql
+-- (c) órfã: client_id vira null, não "960199" cru, não erro
+select id, title, client_id, amount
+from public.financial_transactions
+where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and title = 'TESTE-FT-c-orfa';
+-- esperado: 1 linha, client_id IS NULL
+```
+
+```sql
+-- (d) coexistência: 1 única linha viva pra essa quote (não 2 — não duplicou)
+select count(*) as linhas_vivas
+from public.financial_transactions
+where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9'
+  and quote_id = 'fd9053a2-b55e-47ab-b425-00df7e59264d'
+  and source = 'quote' and type = 'receivable' and deleted_at is null;
+-- esperado: 1
+
+select id, title, source_local_id
+from public.financial_transactions
+where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9'
+  and quote_id = 'fd9053a2-b55e-47ab-b425-00df7e59264d'
+  and source = 'quote' and type = 'receivable' and deleted_at is null;
+-- esperado: é a linha do SETUP (título "TESTE-FT-preexistente-d", MESMO id do passo 10.2.4) —
+-- NÃO virou "TESTE-FT-d-coexistencia" (o import reconheceu a existente, não criou nova) — e
+-- source_local_id agora preenchido (backfill), contém "seedF6-d-coexistencia".
+```
+
+```sql
+-- (e) idempotência — cole o source_local_id real obtido na prova (a) acima no lugar de
+-- <SOURCE_LOCAL_ID_DO_CASO_A>. Chamada DIRETA ao mesmo upsert que o app faz — bypassa a
+-- UI de propósito (que já desabilitaria o checkbox de quem virou "imported"), pra provar
+-- que o backstop é do BANCO (índice), não só da guarda da tela.
+insert into public.financial_transactions
+  (workspace_id, source_local_id, type, status, source, title, amount, due_date, is_demo, archived)
+values
+  ('2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9', '<SOURCE_LOCAL_ID_DO_CASO_A>', 'payable', 'pending',
+   'manual', 'TESTE-FT-a-basica-RETRY', 123.45, current_date + 15, false, false)
+on conflict (workspace_id, source_local_id) do update set title = excluded.title
+returning id, title, source_local_id;
+-- esperado: MESMO id da linha (a) original; title virou "...-RETRY" — UPDATE via ON CONFLICT,
+-- nunca um INSERT novo.
+
+select count(*) from public.financial_transactions
+where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9'
+  and source_local_id = '<SOURCE_LOCAL_ID_DO_CASO_A>';
+-- esperado: 1 (nunca 2)
+```
 
 **Não há caso de atomicidade parcial/rollback a testar** — ausência de filhos (§7) torna esse tipo
 de prova (como o "quota decapitada" da Fatia 3) inaplicável aqui; registrado, não esquecido.
 
-**Limpeza do cenário semeado (SQL, ao final):**
+### 10.4 Limpeza — escrita para APROVAÇÃO do revisor ANTES da rodada (nada executado ainda)
+
+**Nuvem** — um único filtro por título cobre os 4 seeds + o setup do caso (d) + o retry do caso
+(e), porque todos começam com `TESTE-FT-`:
 ```sql
 delete from public.financial_transactions
 where workspace_id='2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9'
@@ -496,13 +656,36 @@ where workspace_id='2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and title like 'TESTE-
 -- esperado: 0
 ```
 
-**Critério de aceite:** 5/5 casos verdes (b/c ficam condicionados aos maps reais disponíveis no
-workspace — se não houver oportunidade real, essa parte de (b) fica documentada como adiada,
-mesmo padrão da Fatia 3).
+**Local:**
+```js
+const existing = JSON.parse(localStorage["orbyt.finance.v1"] || "[]")
+  .filter(t => !String(t.id).startsWith("seedF6-"));
+localStorage.setItem("orbyt.finance.v1", JSON.stringify(existing));
+
+const meta = JSON.parse(localStorage["kora.finance.supabaseImport.v1"] || '{"importedMap":{}}');
+["seedF6-a-basica", "seedF6-b-fanout", "seedF6-c-orfa", "seedF6-d-coexistencia"].forEach(
+  (id) => delete meta.importedMap[id]
+);
+meta.importedLocalIds = (meta.importedLocalIds || []).filter((id) => !id.startsWith("seedF6-"));
+localStorage.setItem("kora.finance.supabaseImport.v1", JSON.stringify(meta));
+
+// remove o mapeamento fake criado só para esta rodada (960100 -> "fabio")
+const clientMap = JSON.parse(localStorage["kora.clients.supabaseImport.v1"] || '{"importedMap":{}}');
+delete clientMap.importedMap["960100"];
+localStorage.setItem("kora.clients.supabaseImport.v1", JSON.stringify(clientMap));
+
+console.log("✅ Limpeza local F6 ok. F5.");
+```
+
+**Este statement de limpeza está aqui para aprovação — não foi executado.** Só roda depois de
+todas as provas de 10.3 confirmadas (passo 10.2.10), e só com a rodada em si já aprovada e
+executada primeiro (nada disto existe ainda hoje).
+
+**Critério de aceite:** 5/5 casos verdes.
 
 ---
 
-**PARADO aqui.** Design (§6-§10) escrito para revisão — nenhuma migration foi aplicada, nenhuma
-rodada de homologação executou, nenhum código de import/mapper foi implementado ainda (isso seria
-uma fase de código separada, após aprovação deste design). Sem "vai" literal do revisor colado
-neste chat pelo operador, nada disso executa.
+**PARADO aqui.** Runbook pronto para execução (seed, passos, provas, limpeza) — **nada foi
+executado**: nenhuma transação semeada, nenhum import disparado, nenhuma limpeza rodada. Aguarda
+"vai" literal do revisor colado neste chat pelo operador antes de qualquer ação sobre dado (seed
+inclusive — semear já é escrever, mesmo em cenário de teste).
