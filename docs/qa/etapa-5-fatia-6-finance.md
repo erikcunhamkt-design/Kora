@@ -448,6 +448,19 @@ homologação própria. **Não implementado nesta entrega** — é uma proposta 
 (trocar a chamada de `financeRepository.createReceivableFromQuote` por `useFinance().addTransaction`
 dentro de `CreateReceivableDialog.tsx`), que dependeria de aprovação e fase de código separada.
 
+**Adendo (revisor, 2026-07-21) — precisão de linguagem, aprovado com esta ressalva:**
+**"desativado até o cutover", não "abandonado".** A opção (b) troca **só** o call site dentro de
+`CreateReceivableDialog.tsx` — nenhuma linha de `financeRepository.ts` é removida, alterada ou
+depreciada. `findReceivableByQuote`/`createReceivableFromQuote` continuam existindo, e **o
+contrato que eles implementam (`ux_ft_receivable_from_quote`) permanece vivo e ativamente
+exercitado** — não pelo diálogo (temporariamente), mas pelo **próprio import desta fatia**: é
+exatamente o caminho que o runbook (§10, caso "coexistência") prova, chamando
+`findReceivableByQuote` a partir do mapper de import sempre que uma transação local resolver pra
+uma quote com recebível já existente. "Desativar o diálogo" tira **um** chamador do contrato;
+não zera os chamadores. Quando o cutover de leitura de finance acontecer (fatia futura), o
+diálogo volta a chamar `createReceivableFromQuote` diretamente — o código não precisa ser
+reescrito, só o call site do dialog volta a apontar pra onde apontava antes.
+
 ---
 
 ## 10. Runbook proposto — Rodada única (semeada; sem Rodada 2 real, per §5)
