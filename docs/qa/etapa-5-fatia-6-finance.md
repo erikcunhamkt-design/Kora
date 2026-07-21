@@ -299,5 +299,197 @@ crítico da homologação).
 
 ---
 
-**PARADO aqui.** Sem "vai" literal do revisor colado neste chat pelo operador, nenhuma fase B
-começa, nenhuma rodada de homologação executa, nenhuma migration é escrita ou aplicada.
+## 5. Decisão F6 (revisor, 2026-07-21) — medições e reclassificação
+
+| Medida | Valor |
+|---|---|
+| `financial_transactions` vivas na nuvem | **0** |
+| Transações locais demo | **8** |
+| Transações locais reais | **0** |
+| Fan-in (reais com `quoteId`) | **SECO** — 0, por não haver reais |
+| Índice `ux_ft_receivable_from_quote` | `indisvalid = true`, `indisunique = true` |
+
+**Não há dado real em nenhum lado.** Reclassificação: a fatia vira **instalação de infra de
+import**, homologada **100% por rodada semeada** — não existe Rodada 2 real porque não existe
+dado a migrar. Momento mais barato possível para esta mudança: tabela vazia dos dois lados, sem
+risco de tocar dado real durante o design ou a aplicação.
+
+---
+
+## 6. Design — Idempotência: Variante B + regra de coexistência com o índice parcial
+
+**Dois arbiters, dois propósitos, nunca um no lugar do outro:**
+
+| Arbiter | Índice | Propósito | Quando se aplica |
+|---|---|---|---|
+| **Geral (novo, desta fatia)** | `UNIQUE (workspace_id, source_local_id)`, **não-parcial** | Idempotência do **import** — rodar 2× não duplica nada, de nenhum tipo | **Toda** linha importada, sem exceção |
+| **Quote (já existe, Etapa 3)** | `ux_ft_receivable_from_quote` — `UNIQUE (quote_id)` **parcial**, `WHERE source='quote' AND type='receivable' AND deleted_at IS NULL` | Regra de **negócio**: no máximo 1 recebível vivo por orçamento — independe de quem cria (CRM ao vivo ou import) | **Só** quando a linha é `type='receivable' AND source='quote' AND quote_id` resolvido (não nulo) |
+
+**Regra de decisão no momento do import (por linha), sem ambiguidade:**
+
+```
+para cada transação local real (não-demo):
+  1. resolver quote_id (via kora.quotes.supabaseImport.v1), client_id, opportunity_id
+     -> UUID ou null, nunca id local cru (padrão Q4)
+  2. montar a linha com source_local_id = `${installId}:${localId}` sempre preenchido
+
+  SE type == 'receivable' E source == 'quote' E quote_id resolvido != null:
+     -> NÃO usar upsert(onConflict: "workspace_id,source_local_id") como caminho primário
+     -> chamar financeRepository.findReceivableByQuote(workspaceId, quote_id) primeiro
+        SE já existe:
+           -> backfill: gravar source_local_id nessa linha existente (se ainda vazio),
+              para que um 2º import da MESMA transação local reconheça via o arbiter geral também
+           -> não cria nova linha (idempotente pela regra de negócio, não pelo source_local_id)
+        SE não existe:
+           -> financeRepository.createReceivableFromQuote(workspaceId, { ...linha, source_local_id })
+           -> mesmo catch de 23505 já existente no repository (corrida perdedora -> busca e
+              devolve a existente) — o INSERT já carrega source_local_id, então o backfill do
+              caso acima só é necessário para linhas que já existiam ANTES desta fatia
+
+  SENÃO (qualquer outro type/source — manual, expense, service, sale, recurring, ou receivable
+         sem quote):
+     -> upsert(onConflict: "workspace_id,source_local_id") — caminho geral simples, sem
+        precisar saber nada sobre o índice parcial (ele nem se aplica a essas linhas)
+```
+
+**Por que isso não é ambíguo:** os dois índices têm colunas e predicados diferentes — nunca
+competem pela MESMA operação SQL. A ambiguidade só existiria se o código tentasse usar UM
+`upsert(onConflict:...)` genérico pra tudo; o desenho acima resolve isso com um **branch explícito
+antes** de decidir qual caminho de escrita usar, não com um único statement "esperto". Consistente
+com P8b (nunca inferir arbiter errado num índice parcial).
+
+---
+
+## 7. Design — Mapper (fan-out, precisão monetária, atomicidade)
+
+### Fan-out (padrão Q4 — UUID ou `null`, nunca id local cru)
+
+Reaproveita os **três** import-maps já provados em produção pelas Fatias 2-4 — nenhum novo:
+
+| Campo local | Map | Chave | Fallback se ausente |
+|---|---|---|---|
+| `clientId` (number) | `kora.clients.supabaseImport.v1` | `String(clientId)` | `null` |
+| `quoteId` (string) | `kora.quotes.supabaseImport.v1` | `quoteId` (já é string) | `null` |
+| `opportunityId` (number) | `kora.crm.supabaseImport.v1` | `String(opportunityId)` | `null` |
+
+Idêntico ao que `quoteMapper.ts`/`crmOpportunityMapper.ts` já fazem — sem desenho novo aqui.
+
+### Precisão monetária (padrão Q5 — quantização + validação que REPORTA, nunca conserta em silêncio)
+
+- `amount` quantizado a 2 casas (centavos) na entrada da migração:
+  `roundMoney(local.amount)` — **reaproveitar** `roundMoney` de
+  `src/services/quotes/quoteMoney.ts` (já testado, já em produção) em vez de reimplementar.
+  Nome do arquivo é histórico (nasceu em Q5/quotes); catalogado, não bloqueante, mover pra
+  `src/lib/money.ts` só quando uma **terceira** entidade precisar (regra dos três — não
+  antecipar).
+- **Checagem nova, específica de finance, no espírito de Q5:** quando a transação tem `quoteId`
+  resolvido, comparar `amount` importado contra o `total` da quote já migrada (`public.quotes`).
+  Se divergir **> 1 centavo**, **REPORTAR** ao operador antes do clique de import (mesmo padrão
+  do relatório de `quoteMoney.ts` — nunca ajustar o valor sozinho). Não bloqueia o import; só
+  torna visível uma inconsistência que hoje passaria despercebida.
+
+### Atomicidade — declarado, não uma RPC
+
+**`financial_transactions` não tem filhos.** Confirmado na Fase A (§1): sem tabela de parcelas,
+sem itens; `RecurringEntry` é um registro local autônomo, nunca uma sub-linha de uma transação
+específica, e não está em escopo desta fatia (F6, fora do escopo). **Não há precedente de RPC
+atômica pai-filho (Fatia 3) a aplicar aqui** — cada transação importada é **uma linha,
+independente das outras**. O único lugar onde "duas escritas dependentes" poderiam acontecer é
+exatamente o par find-then-create do caminho quote-linked (§6), que já é o padrão existente e
+testado do `financeRepository`, não uma invenção desta fatia.
+
+---
+
+## 8. Migrations escritas (não aplicadas) + queries de pré-aplicação
+
+Dois arquivos, seguindo o padrão da Fatia 3 (coluna transacional + índice `CONCURRENTLY` em
+arquivo separado, porque `CREATE INDEX CONCURRENTLY` não roda dentro de transação):
+
+- `supabase/migrations/20260721000000_etapa5_fatia6_finance_add_source_local_id.sql`
+- `supabase/migrations/20260721000100_etapa5_fatia6_finance_unique_source_local_id.sql`
+
+Queries de pré/pós-aplicação em `docs/database/etapa-5-fatia-6-preaplicacao.sql` (1 query por
+marco, mesmo padrão da Fatia 3).
+
+**Nenhum dos dois arquivos foi aplicado.** Escritos para revisão; aplicação depende de "vai"
+separado, sob o mesmo runbook de exceção (protocolo §8) se o Code for aplicar, ou pelo operador.
+
+---
+
+## 9. F5 — dois diálogos inconsistentes: avaliação e recomendação
+
+**Confirmado nesta rodada de design (não só suspeitado na Fase A):** o único consumidor de leitura
+de `financial_transactions` na nuvem é `useSupabaseFinancialSummary.ts`, e o único consumidor
+DESSE hook é `SupabaseOperationalDashboardCard.tsx` — um card de **Configurações** (operacional/
+monitoramento). A tela que qualquer usuário realmente olha para ver seu dinheiro,
+`Financeiro.tsx`, lê **só** `useFinance()` (100% local). **Logo: hoje, um recebível criado via
+`CreateReceivableDialog.tsx` (CRM) é gravado corretamente na nuvem, mas fica invisível na tela de
+Finanças que o usuário usa no dia a dia.** Mesma classe do bug de `client_contacts` (C8) —
+"escreve onde ninguém lê" — mas com uma diferença importante: aqui o dado **não se perde** (a
+escrita é bem-sucedida e persiste), só fica no lugar errado para ser visto. Ainda assim, é dado
+**financeiro**: o risco prático é o usuário achar que nada foi criado, tentar de novo pelo
+diálogo de Vendas (que grava local) — e agora ter **dois registros do mesmo recebível**, um em
+cada lado, sem nenhum dos dois sabendo do outro.
+
+**Três caminhos avaliados:**
+
+| Opção | O que muda | Risco |
+|---|---|---|
+| (a) Corrigir agora — fazer `Financeiro.tsx` também ler a nuvem | Financeiro passa a mesclar local+nuvem | **Fora de escopo**: isso é o cutover de leitura completo de finance, um trabalho do tamanho da fatia inteira de novo — inflaria "instalar infra de import" pra "migrar a leitura toda". Não recomendado nesta fatia. |
+| (b) Redirecionar `CreateReceivableDialog.tsx` pra gravar **local** (mesmo padrão que `QuoteToReceivableDialog.tsx` já usa) — medida interina até finance ter seu cutover de leitura de verdade | Os dois diálogos passam a ter o **mesmo** comportamento (local), visível em Finanças hoje | Perde o backstop de deduplicação do índice parcial **enquanto** grava local (mas `QuoteToReceivableDialog` já vive sem esse backstop hoje, então não é um risco novo — é nivelar pro risco já aceito em produção no outro diálogo) |
+| (c) Catalogar como dívida aceita, não mexer | Nada muda | Segue a inconsistência ativa — dado financeiro real continua podendo ficar invisível pro usuário |
+
+**Recomendação: (b).** É a menor mudança que resolve a invisibilidade **hoje**, sem esperar o
+cutover completo de leitura de finance (fora de escopo), e sem inventar um risco novo (o padrão
+"grava local, sem dedupe" já é o que `QuoteToReceivableDialog` faz em produção agora — só está
+sendo estendido pro segundo diálogo, não criado). Quando finance tiver seu cutover real (fatia
+futura, fora deste escopo), os dois diálogos voltam a apontar pra nuvem juntos, de uma vez, sob
+homologação própria. **Não implementado nesta entrega** — é uma proposta de código de UI simples
+(trocar a chamada de `financeRepository.createReceivableFromQuote` por `useFinance().addTransaction`
+dentro de `CreateReceivableDialog.tsx`), que dependeria de aprovação e fase de código separada.
+
+---
+
+## 10. Runbook proposto — Rodada única (semeada; sem Rodada 2 real, per §5)
+
+Workspace de teste: `2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9`. Reaproveita entidades já reais desse
+workspace: cliente "fabio" (`50f894e9-c81c-4420-b673-9335ad17a6bf`), quote "xxx"
+(`fd9053a2-b55e-47ab-b425-00df7e59264d`, `source_local_id`
+`e307969a-619b-4891-bfbf-9da596203be4:qt-1784521404974`). Sem oportunidade real confirmada no
+workspace ainda — caso de fan-out de `opportunityId` fica condicional, mesmo padrão adiável da
+Fatia 3 (9.1).
+
+**Prefixo de limpeza:** todo título semeado começa com `TESTE-FT-`, para a limpeza final poder
+filtrar com segurança (`WHERE title LIKE 'TESTE-FT-%'`), mesmo padrão `TESTE-QUOTE-*` da Fatia 3.
+
+| Caso | O que prova | Como |
+|---|---|---|
+| **(a) idempotência via arbiter novo** | Rodar o import 2× com o mesmo `source_local_id` → mesma linha, `UPDATE` via `ON CONFLICT`, nunca duplicata | Seed `TESTE-FT-idempotencia` (manual/expense, sem `quoteId`) → importar → importar de novo (chamada dupla direta ao upsert, mesmo padrão de prova da Fatia 3) → conferir 1 linha só, mesmo `id` |
+| **(b) fan-out dos 3 maps** | `client_id`/`quote_id`/`opportunity_id` viram UUID real ou `null`, nunca id cru | Seed `TESTE-FT-fanout` com `clientId` apontando pro local do "fabio" e `quoteId` apontando pro local da quote "xxx" → importar → conferir `client_id`/`quote_id` = UUIDs reais na linha |
+| **(c) coexistência com o índice parcial** | Import de uma transação quote-linked **reconhece** um recebível já existente pra essa quote em vez de duplicar | Setup: criar via SQL um recebível pré-existente pra `quote_id = fd9053a2-...` (simula "CRM já criou um"). Depois: seed `TESTE-FT-coexistencia` local com o mesmo `quoteId` da quote "xxx" → importar → conferir **1 única linha viva** pra esse `quote_id` (não 2), e que a linha existente recebeu o `source_local_id` da transação local (backfill) |
+| **(d) precisão monetária** | `amount` quantizado a centavos; divergência vs `quotes.total` (quando quote-linked) é reportada, não corrigida em silêncio | Seed `TESTE-FT-precisao` com `amount` tipo `99.995` (artefato de float) e, separadamente, um `quoteId` cujo `amount` diverge > R$0,01 do `quotes.total` correspondente → conferir `amount` gravado com 2 casas E um aviso reportado pro segundo caso |
+| **(e) tipo sem fan-in** (controle) | Transação comum (manual, sem `quoteId`) usa só o arbiter geral, nunca toca o índice parcial | Seed `TESTE-FT-manual` (`type=expense`, `source=manual`) → importar → confirmar via `EXPLAIN` que a leitura de idempotência usa o índice novo, não o de quote |
+
+**Não há caso de atomicidade parcial/rollback a testar** — ausência de filhos (§7) torna esse tipo
+de prova (como o "quota decapitada" da Fatia 3) inaplicável aqui; registrado, não esquecido.
+
+**Limpeza do cenário semeado (SQL, ao final):**
+```sql
+delete from public.financial_transactions
+where workspace_id='2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9'
+  and title like 'TESTE-FT-%';
+select count(*) from public.financial_transactions
+where workspace_id='2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and title like 'TESTE-FT-%';
+-- esperado: 0
+```
+
+**Critério de aceite:** 5/5 casos verdes (b/c ficam condicionados aos maps reais disponíveis no
+workspace — se não houver oportunidade real, essa parte de (b) fica documentada como adiada,
+mesmo padrão da Fatia 3).
+
+---
+
+**PARADO aqui.** Design (§6-§10) escrito para revisão — nenhuma migration foi aplicada, nenhuma
+rodada de homologação executou, nenhum código de import/mapper foi implementado ainda (isso seria
+uma fase de código separada, após aprovação deste design). Sem "vai" literal do revisor colado
+neste chat pelo operador, nada disso executa.
