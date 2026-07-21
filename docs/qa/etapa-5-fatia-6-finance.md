@@ -689,3 +689,41 @@ executada primeiro (nada disto existe ainda hoje).
 executado**: nenhuma transação semeada, nenhum import disparado, nenhuma limpeza rodada. Aguarda
 "vai" literal do revisor colado neste chat pelo operador antes de qualquer ação sobre dado (seed
 inclusive — semear já é escrever, mesmo em cenário de teste).
+
+---
+
+## 11. Resultado da rodada — EXECUTADA (vai do revisor)
+
+**Critério de aceite atingido: 5/5 casos verdes** (a-básica, b-fanout, c-órfã, d-coexistência,
+e-idempotência). Provas SQL de 10.3 conferidas pelo revisor. Limpeza de 10.4 (nuvem + local)
+executada e conferida zerada (0 remanescentes `TESTE-FT-%` na nuvem, 0 `seedF6-*` no local).
+
+**Ajustes de percurso** — não estavam previstos no runbook de §10 tal como escrito; registrados
+aqui por disciplina de não reescrever silenciosamente o que já foi proposto:
+
+- **(i) Cliente do fan-out trocado em execução.** O mapeamento sintético do seed (10.1) apontava
+  `960100 -> 50f894e9-...` ("fabio"). Esse client_id já não existia mais no momento da rodada —
+  clientes antigos foram apagados pelo operador antes da execução, por um motivo independente
+  desta fatia. Ajuste feito em execução: o mapeamento foi refeito para `960100 -> 3448cb56-...`,
+  um client real ainda vivo no workspace de teste. A FK `financial_transactions.client_id ->
+  clients.id` funcionou como esperado: nenhuma linha foi gravada com referência a cliente
+  apagado — o que teria falhado, falhou limpo, sem sujeira na tabela. Não é um bug do mecanismo
+  de import; é o comportamento correto de uma FK diante de um dado de apoio que ficou stale entre
+  o design do seed e a execução.
+- **(ii) Ambiente de execução.** A rodada rodou no preview local da própria lane (bundle do branch
+  `fatia-6-finance`, servido localmente — não o bundle de produção/main). Os seeds foram
+  regravados no `localStorage` já apontando para o client_id novo (ajuste (i)) antes da nova
+  tentativa de import.
+- **(iii) Backfill do source_local_id no caso (d).** Confirmado como comportamento de design, não
+  incidente: a linha pré-existente (criada pelo setup SQL de 10.2 passo 4, `source_local_id IS
+  NULL`) foi reconhecida via `findReceivableByQuote`, teve o `source_local_id` preenchido por
+  `UPDATE` e **não** foi duplicada — exatamente a árvore de decisão de §6/§7 e a prova esperada em
+  10.3 (d).
+
+**Nenhum ajuste de código foi motivado por esta rodada** — os três pontos acima são artefatos do
+ambiente/dado de teste, não falhas do mapper, do repository ou do índice. Nenhuma migration
+adicional necessária.
+
+**Gates pós-sync com `main` (branch `fatia-6-finance`, antes do merge para `main`):**
+tsc 0 erros · suíte 152/152 verde · lint-gate 68 erros / 49 any (dentro do teto 68/49, sem
+regressão).
