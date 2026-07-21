@@ -1,6 +1,6 @@
 {
-  "maxErrors": 89,
-  "maxAny": 68,
-  "measuredOn": "2026-07-02",
+  "maxErrors": 68,
+  "maxAny": 49,
+  "measuredOn": "2026-07-21",
   "note": "Baseline for the CI lint gate (scripts/lint-gate.mjs). These ceilings may only DECREASE. 'maxErrors' = total ESLint errors allowed; 'maxAny' = allowed '@typescript-eslint/no-explicit-any' violations (freezes 'no new any'). Measured on the committed tree at HEAD. When you fix legacy lint debt, lower these numbers in the same PR. See docs/qa/etapa-0-rede-de-seguranca.md."
 }
