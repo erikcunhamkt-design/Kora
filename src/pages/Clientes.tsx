@@ -808,6 +808,7 @@ const Clientes = () => {
 
       <ClientProfileDrawer
         client={selectedClient}
+        source={source}
         initialTab={queryTab}
         highlightedActivityId={queryActivity}
         onClose={closeDrawer}
