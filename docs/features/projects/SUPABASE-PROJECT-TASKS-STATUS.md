@@ -11,14 +11,14 @@ Permitir que usuários atualizem o status de tarefas persistidas no Supabase de 
 * **Ativação**: Pode ser ligada/desligada em *Configurações > Empresa/Supabase > Tarefas Supabase - Transição de Status Experimental*.
 
 ## Repositório
-Foi implementada a função no repositório [tasksRepository.ts](file:///C:/Users/erikw/.gemini/antigravity/scratch/orbit-designer-hub/src/repositories/tasksRepository.ts):
+Foi implementada a função no repositório [tasksRepository.ts](../../../src/repositories/tasksRepository.ts):
 * `updateTaskStatus(workspaceId: string, taskId: string, status: "todo" | "in_progress" | "done")`
   * Filtra por `workspace_id` e `id` da tarefa.
   * Ignora logicamente deletados (`deleted_at IS NOT NULL`).
   * Atualiza estritamente as colunas `status` e `updated_at`.
 
 ## Hook
-* **Função**: `updateStatus(taskId, status)` exposta pelo hook [useSupabaseProjectTasks.ts](file:///C:/Users/erikw/.gemini/antigravity/scratch/orbit-designer-hub/src/hooks/useSupabaseProjectTasks.ts).
+* **Função**: `updateStatus(taskId, status)` exposta pelo hook [useSupabaseProjectTasks.ts](../../../src/hooks/useSupabaseProjectTasks.ts).
 * **Fluxo**: Invoca a chamada ao repository, atualiza o checklist reativo chamando `refresh()` em caso de sucesso, e expõe mensagens de erro claras de forma isolada sem alterar `localStorage` diretamente no hook.
 
 ## Interface do Usuário (UI)

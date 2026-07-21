@@ -16,7 +16,7 @@ Exemplo prático:
 `3b3a9876-0f72-4cf0-888e-b810d65a8df2/142/technical-sheet/logo/1717015401928-a4f5b2z.png`
 
 ## Policies de Segurança e Auditoria RLS
-Durante a auditoria técnica, as policies em `storage.objects` foram endurecidas (hardened) no arquivo de migração [20260530040000_harden_storage_policies.sql](file:///C:/Users/erikw/.gemini/antigravity/scratch/orbit-designer-hub/supabase/migrations/20260530040000_harden_storage_policies.sql) para evitar potenciais exceções de execução na conversão de string para UUID.
+Durante a auditoria técnica, as policies em `storage.objects` foram endurecidas (hardened) no arquivo de migração [20260530040000_harden_storage_policies.sql](../../../supabase/migrations/20260530040000_harden_storage_policies.sql) para evitar potenciais exceções de execução na conversão de string para UUID.
 
 ### Extração Segura do `workspaceId`
 - O `workspaceId` é extraído do primeiro segmento da lista de diretórios do caminho do objeto utilizando o método `storage.foldername(name)`.
@@ -38,7 +38,7 @@ USING (
 *(Políticas equivalentes aplicadas a INSERT, UPDATE e DELETE).*
 
 ## Serviço de Armazenamento (`clientAssetsStorage`)
-O arquivo [clientAssetsStorage.ts](file:///C:/Users/erikw/.gemini/antigravity/scratch/orbit-designer-hub/src/services/storage/clientAssetsStorage.ts) encapsula as operações TypeScript de maneira limpa (sem tipagens genéricas `any`, sem chaves `service_role` e limitando arquivos a 2MB e extensões a PNG/JPEG/WebP).
+O arquivo [clientAssetsStorage.ts](../../../src/services/storage/clientAssetsStorage.ts) encapsula as operações TypeScript de maneira limpa (sem tipagens genéricas `any`, sem chaves `service_role` e limitando arquivos a 2MB e extensões a PNG/JPEG/WebP).
 
 ## Tratamento de URL Assinada e Caminhos
 - **Limitação**: As URLs assinadas (Signed URLs) geradas pelo Supabase expiram em 1 hora. Se salvas diretamente no `localStorage` sob o campo `logoUrl`, elas deixarão de exibir o preview de imagem após a expiração.

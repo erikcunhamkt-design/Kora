@@ -166,8 +166,8 @@ export async function importAudienceContacts(
   const phones = Array.from(new Set(normalized.map((n) => n.normalized).filter(Boolean)));
 
   let optOutSet = new Set<string>();
-  let clientByPhone = new Map<string, string>();
-  let convoByPhone = new Map<string, string>();
+  const clientByPhone = new Map<string, string>();
+  const convoByPhone = new Map<string, string>();
 
   if (phones.length > 0) {
     const [optOutRes, clientsRes, convosRes] = await Promise.all([

@@ -4,7 +4,7 @@ Este documento detalha o schema do banco de dados e o funcionamento da importaç
 
 ## Migration SQL e Tabela
 
-A tabela `public.client_technical_sheets` foi criada por meio da migração SQL no arquivo [20260530020000_create_client_technical_sheets.sql](file:///C:/Users/erikw/.gemini/antigravity/scratch/orbit-designer-hub/supabase/migrations/20260530020000_create_client_technical_sheets.sql).
+A tabela `public.client_technical_sheets` foi criada por meio da migração SQL no arquivo [20260530020000_create_client_technical_sheets.sql](../../../supabase/migrations/20260530020000_create_client_technical_sheets.sql).
 
 ### Modelagem da Tabela
 A tabela armazena de forma estruturada as sub-seções da Ficha Técnica utilizando o tipo de dados `jsonb` do PostgreSQL:
@@ -27,7 +27,7 @@ A tabela armazena de forma estruturada as sub-seções da Ficha Técnica utiliza
 
 ## Mapeamento e Importador Assistido
 
-O processo é centralizado no hook [useLocalTechnicalSheetsImport.ts](file:///C:/Users/erikw/.gemini/antigravity/scratch/orbit-designer-hub/src/hooks/useLocalTechnicalSheetsImport.ts):
+O processo é centralizado no hook [useLocalTechnicalSheetsImport.ts](../../../src/hooks/useLocalTechnicalSheetsImport.ts):
 1. **Verificação de dependência**: Só é possível importar a ficha técnica de um cliente que já tenha sido importado para o Supabase e que possua uma entrada no `importedMap` do `localStorage` sob a chave `kora.clients.supabaseImport.v1`.
 2. **Ignorar binários**: Como não usamos Storage nesta fase, imagens em formato de arquivo local ou em formato base64/dataURL são ignoradas, migrando apenas referências a links públicos normais.
 3. **Metadados locais**: Gravamos o status em `kora.technicalSheets.supabaseImport.v1` contendo:
@@ -58,7 +58,7 @@ Adicionamos a capacidade de enviar explicitamente a Ficha Técnica local do clie
 
 1. **Botão de Ação**: Localizado no painel "Versão Supabase", habilitado somente se houver um workspace ativo, o cliente estiver vinculado ao Supabase e houver dados locais preenchidos na Ficha Técnica.
 2. **Confirmação por Dialog**: Um `AlertDialog` é apresentado ao usuário antes do envio confirmando que a versão local será enviada como backup/cópia estruturada na nuvem.
-3. **Mapper Centralizado**: O mapper `mapLocalToSupabaseSheet` em [technicalSheetMapper.ts](file:///C:/Users/erikw/.gemini/antigravity/scratch/orbit-designer-hub/src/services/technicalSheets/technicalSheetMapper.ts) é compartilhado entre o importador assistido e o salvamento manual:
+3. **Mapper Centralizado**: O mapper `mapLocalToSupabaseSheet` em [technicalSheetMapper.ts](../../../src/services/technicalSheets/technicalSheetMapper.ts) é compartilhado entre o importador assistido e o salvamento manual:
    - Higieniza e filtra arquivos binários, dataURL ou base64 do campo `materials`.
    - Limpa imagens locais do `raw_payload` para evitar inchar o payload JSON.
 4. **Atualização**: Ao salvar, o painel recarrega os dados imediatamente, atualizando o indicador visual de preenchimento e a data da última atualização (`updated_at`).
@@ -71,7 +71,7 @@ Implementamos a funcionalidade de restaurar a Ficha Técnica gravada no Supabase
 2. **Preview Comparativo**: Apresenta uma visão lado a lado detalhando quais seções estão preenchidas no local e na nuvem, indicando também o número de materiais e arquivos.
 3. **Confirmação Obrigatória**: Exige que o usuário marque ativamente um checkbox atestando que entende que a versão local atual da Ficha Técnica será substituída.
 4. **Backup Preventivo Local**: Antes de sobrescrever o estado local do cliente, o sistema salva o estado anterior no `localStorage` sob a chave `kora.technicalSheets.restoreBackups.v1` (guardando até os últimos 5 backups do usuário para fins de rollback ou auditoria futura).
-5. **Conversor Seguro (Mapper Local)**: O mapper `mapSupabaseToLocalSheet` em [supabaseTechnicalSheetToLocalMapper.ts](file:///C:/Users/erikw/.gemini/antigravity/scratch/orbit-designer-hub/src/services/technicalSheets/supabaseTechnicalSheetToLocalMapper.ts) reconstrói a Ficha Técnica de volta ao padrão local, preservando os caminhos lógicos do storage (`storagePath`, sizes, mimeTypes) e filtrando imagens binárias grandes/expiradas.
+5. **Conversor Seguro (Mapper Local)**: O mapper `mapSupabaseToLocalSheet` em [supabaseTechnicalSheetToLocalMapper.ts](../../../src/services/technicalSheets/supabaseTechnicalSheetToLocalMapper.ts) reconstrói a Ficha Técnica de volta ao padrão local, preservando os caminhos lógicos do storage (`storagePath`, sizes, mimeTypes) e filtrando imagens binárias grandes/expiradas.
 
 ## Modo Supabase Experimental (Beta Fechado)
 

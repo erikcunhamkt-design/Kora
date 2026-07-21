@@ -646,3 +646,52 @@ rotacionada e confirmada pelo operador em 2026-07-20. Checklist de sign-off fech
 **Fatia 3 — resultado técnico: 5/5 (Rodada 1) + 1/1 (Rodada 2), zero perda de dado, sign-off
 fechado.** Processo: 1 desvio de gate parcial (11.4) + 1 desvio de autorização (11.5, Desvio #3)
 registrados sem suavização, com correção estrutural no protocolo (§9) para não se repetir.
+
+---
+
+## 12. Q8 — pendência pós-fechamento: paridade de schema local↔nuvem (bloqueia cutover de leitura)
+
+> Registrado em 2026-07-20, após o fechamento (§11.6), durante auditoria de paridade de schema
+> pré-cutover. **Não reabre a Fatia 3** — não bloqueia nada do que já foi executado (import é
+> write-only, leitura permanece local — §5). É pendência para a fatia futura que propuser migrar
+> a **leitura** de `quotes` para o Supabase.
+
+**Achado:** 6 campos do `Quote` local (`src/types/domain.ts:185-217`) não têm coluna
+correspondente em `public.quotes` em nenhuma das migrations aplicadas (`create_quotes_schema.sql`,
+`add_approved_rejected_to_quotes.sql`, e as 6 da Fatia 3 — Q1/Q2/Q5b/Q3), nem no shape espelhado
+`SupabaseQuote` (`src/repositories/quotesRepository.ts:7-32`):
+
+| Campo local | Linha (`domain.ts`) | Coluna em `public.quotes`? |
+|---|---|---|
+| `clientWhatsapp` | 189 | ausente |
+| `company` | 203 | ausente |
+| `paymentCondition` | 196 | ausente |
+| `deliveryDeadline` | 197 | ausente |
+| `validityDays` | 198 | ausente |
+| `notes` | 207 | ausente |
+
+**Confirmado no mapper (silencioso, não é bug de código — é ausência de schema):**
+`mapLocalQuoteToSupabaseQuote` (`quoteMapper.ts:58-79`) simplesmente não inclui esses 6 campos no
+payload enviado ao RPC — não há onde mandá-los. `mapSupabaseQuoteToLocalQuote`
+(`quoteMapper.ts:82-104`) faz o caminho inverso hardcodado: `clientWhatsapp: ""`,
+`paymentCondition: ""`, `deliveryDeadline: ""`, `validityDays: 0`, e `company`/`notes` ficam
+`undefined` (nunca atribuídos) — ou seja, qualquer leitura futura a partir da linha Supabase
+**zera** esses 6 campos, mesmo que o registro local de origem os tivesse preenchidos.
+
+**Já observado ao vivo, não é só teórico:** o único registro real desta fatia (§11.3,
+`fd9053a2-b55e-47ab-b425-00df7e59264d`) tinha, na tela "Preview do orçamento" local, pagamento
+"À vista no Pix", prazo "15 dias" e observações "czcszc" — nenhum dos três tem para onde ir na
+linha Supabase correspondente. Hoje isso é inofensivo porque a leitura nunca sai do local; se a
+flag de leitura for trocada para a nuvem antes de fechar este gap, esses valores **desaparecem da
+UI** para todo orçamento já migrado — regressão silenciosa de dado real, não de dado de teste.
+
+**Classificação:**
+- **Não bloqueante para a Fatia 3** — encerrada em §11.6, sem alteração de veredito.
+- **Bloqueante para cutover futuro de leitura** — nenhuma fatia deve propor aposentar a leitura
+  local de `quotes` (tirar da "carência" do §5) enquanto este gap existir.
+
+**Recomendação (registrada, não executada nesta fatia):** migration aditiva das 6 colunas
+(mesmo padrão do Q1 — `ALTER TABLE ... ADD COLUMN`, sem `NOT NULL` sem default) + estender
+`mapLocalQuoteToSupabaseQuote`/`mapSupabaseQuoteToLocalQuote`/`SupabaseQuote`/RPC
+`import_quote_with_items` nos dois sentidos + backfill do registro real já migrado
+(`fd9053a2-...`) antes de qualquer proposta de cutover de leitura.

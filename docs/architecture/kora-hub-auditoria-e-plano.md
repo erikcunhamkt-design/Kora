@@ -211,6 +211,48 @@ Para cada entidade:
 - Observabilidade: logs estruturados e alertas de erro nas Edge Functions.
 - **Aceite:** teto de lint menor; cobertura dos fluxos críticos; alertas ativos.
 
+### Etapa 8 — WhatsApp Oficial: Tech Provider + Embedded Signup
+
+> **Status: PLANEJADA, não iniciada.** Depende de G1 (migração `localStorage → Supabase`,
+> Etapa 5) avançar; sem data definida.
+
+#### Modelo
+
+Kora opera como **Tech Provider** da Meta (estilo SMClick): cada tenant conecta a **própria**
+WABA via **Embedded Signup**; o Kora lista os templates aprovados da conta do tenant e opera
+atendimento (janela 24h, texto livre) + disparo proativo (só template aprovado). Compliance de
+mensagens fica com o tenant, não com a IndhecX — requisito para escala nacional.
+
+#### Pré-requisitos IndhecX (uma vez)
+
+1. Verificação de negócio da IndhecX no Meta Business Manager (CNPJ, 1-5 dias).
+2. Meta App tipo Business com produto WhatsApp (`developers.facebook.com`).
+3. App Review: permissões `whatsapp_business_messaging` + `whatsapp_business_management`
+   (exige screencast de demonstração + política de privacidade publicada; dias a semanas —
+   iniciar cedo).
+4. Implementar Embedded Signup (OAuth) no Kora.
+
+#### Por tenant (no onboarding)
+
+- Embedded Signup dentro do Kora (minutos).
+- Verificação do negócio do tenant (guiada pelo fluxo).
+- Número dedicado próprio (não pode estar em app WhatsApp/Business).
+- Templates criados e aprovados na WABA do tenant; Kora consome via
+  `GET /{waba-id}/message_templates?status=APPROVED`.
+
+#### Impacto técnico no Kora
+
+- Multi-tenant: `waba_id`, `phone_number_id`, `token` por workspace (tokens criptografados,
+  nunca no frontend — mesmo padrão `service_role`, ver S4).
+- Cache/sync dos templates aprovados por tenant.
+- Webhooks: `HMAC-SHA256` já endurecido na Etapa 2 (S1) é a validação que a Meta exige.
+- Módulo WhatsApp atual (tipado na rodada `qualidade-lint`) é a base a evoluir.
+
+#### Dependências
+
+Depois de G1 (`localStorage → Supabase`) avançar; sem data. Registrada como etapa
+**PLANEJADA, não iniciada**.
+
 ---
 
 ## 7. Prompt pronto para colar no Claude Code

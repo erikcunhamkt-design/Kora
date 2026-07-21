@@ -6,7 +6,7 @@ Este documento descreve a integração que permite gerar um lançamento financei
 Permitir que usuários criem um lançamento de contas a receber no Supabase a partir de propostas/orçamentos aprovados de forma controlada por feature flag (`kora.quotes.supabaseCreateReceivable.enabled`), com confirmação explícita via modal e validação de duplicidade, mantendo os fluxos locais isolados.
 
 ## Tabela Financeira Supabase
-A tabela criada no Supabase é a `public.financial_transactions` via a migration [20260601_020000_create_financial_transactions_schema.sql](file:///C:/Users/erikw/.gemini/antigravity/scratch/orbit-designer-hub/supabase/migrations/20260601_020000_create_financial_transactions_schema.sql):
+A tabela criada no Supabase é a `public.financial_transactions` via a migration [20260601020000_create_financial_transactions_schema.sql](../../../supabase/migrations/20260601020000_create_financial_transactions_schema.sql):
 * `id` UUID PRIMARY KEY.
 * `workspace_id` UUID referenciando `workspaces(id)` com cascata.
 * `client_id` UUID referenciando `clients(id)` com set null.
@@ -32,7 +32,7 @@ Habilitado **Row Level Security (RLS)** restringindo a leitura e gravação a me
 * **Ativação**: Pode ser ligada/desligada em *Configurações > Empresa > Orçamentos Supabase - Gerar Recebível Experimental*.
 
 ## Repositório
-As funções estão implementadas em [financeRepository.ts](file:///C:/Users/erikw/.gemini/antigravity/scratch/orbit-designer-hub/src/repositories/financeRepository.ts):
+As funções estão implementadas em [financeRepository.ts](../../../src/repositories/financeRepository.ts):
 * `findReceivableByQuote(workspaceId, quoteId)`: Busca lançamentos existentes para evitar duplicidade.
 * `createReceivableFromQuote(workspaceId, input)`: Insere o recebível associando `quote_id`, `client_id`, `opportunity_id`, tipo `'receivable'` e status `'pending'`.
 * `softDeleteReceivable(workspaceId, id)`: Executa deleção lógica do recebível setando `deleted_at`.
@@ -42,7 +42,7 @@ As funções estão implementadas em [financeRepository.ts](file:///C:/Users/eri
 * **Locais**:
   1. No card de visualização experimental em Configurações (`SupabaseQuotesViewerCard.tsx`).
   2. Na seção de orçamentos vinculados no drawer de CRM (`LinkedQuotesSection.tsx`).
-* **Modal de Entrada**: O modal [CreateReceivableDialog.tsx](file:///C:/Users/erikw/.gemini/antigravity/scratch/orbit-designer-hub/src/components/crm/CreateReceivableDialog.tsx) pré-preenche título, valor, cliente e IDs vinculados, permitindo editar título, valor, vencimento e descrição.
+* **Modal de Entrada**: O modal [CreateReceivableDialog.tsx](../../../src/components/crm/CreateReceivableDialog.tsx) pré-preenche título, valor, cliente e IDs vinculados, permitindo editar título, valor, vencimento e descrição.
 
 ## Regra de Duplicidade
 Antes de efetuar a gravação, o sistema verifica se já existe uma transação com `quote_id` idêntico, `source = 'quote'`, `type = 'receivable'` e `deleted_at IS NULL`. Se encontrado, o fluxo é cancelado e um toast de erro é disparado: *"Este orçamento já possui um recebível vinculado."*

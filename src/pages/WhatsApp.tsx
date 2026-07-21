@@ -839,11 +839,11 @@ export default function WhatsAppPage() {
                           status={item.msg.status}
                           senderId={item.msg.sender_id}
                           workspaceId={workspace?.id}
-                          reactions={(item.msg as any).reactions ?? null}
-                          pinnedAt={(item.msg as any).pinned_at ?? null}
-                          deletedAt={(item.msg as any).deleted_at ?? null}
+                          reactions={item.msg.reactions as Record<string, string> | null}
+                          pinnedAt={item.msg.pinned_at}
+                          deletedAt={item.msg.deleted_at}
                           replyTo={(() => {
-                            const rId = (item.msg as any).reply_to_message_id as string | null;
+                            const rId = item.msg.reply_to_message_id;
                             if (!rId) return null;
                             const r = messages.find((x) => x.id === rId);
                             return r ? { id: r.id, content: r.content, direction: r.direction, type: r.type } : null;
@@ -939,10 +939,10 @@ export default function WhatsAppPage() {
                   contactPhone={selected.contact_phone}
                   status={selected.status}
                   tags={selected.tags}
-                  assignedTo={(selected as any).assigned_to ?? null}
+                  assignedTo={selected.assigned_to}
                   avatarUrl={selected.avatar_url}
                   lastActivity={selected.last_message_at}
-                  clientId={(selected as any).client_id ?? null}
+                  clientId={selected.client_id}
                   onClose={() => setShowContext(false)}
                   onAssign={(userId) => handleAssign(selected.id, userId)}
                   onUpdateTags={(tags) => handleUpdateTags(selected.id, tags)}
@@ -961,10 +961,10 @@ export default function WhatsAppPage() {
                     contactPhone={selected.contact_phone}
                     status={selected.status}
                     tags={selected.tags}
-                    assignedTo={(selected as any).assigned_to ?? null}
+                    assignedTo={selected.assigned_to}
                     avatarUrl={selected.avatar_url}
                     lastActivity={selected.last_message_at}
-                    clientId={(selected as any).client_id ?? null}
+                    clientId={selected.client_id}
                     onClose={() => setContextSheetOpen(false)}
                     onAssign={(userId) => handleAssign(selected.id, userId)}
                     onUpdateTags={(tags) => handleUpdateTags(selected.id, tags)}
