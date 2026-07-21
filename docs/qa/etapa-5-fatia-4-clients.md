@@ -599,11 +599,36 @@ resposta registrada aqui pra quando a RPC C2' for desenhada):
 | 4 | Client **local** (`source === "local"`) → fluxo de contatos 100% inalterado, sem chamada nenhuma ao Supabase. | Regressão zero no caminho que já funciona. |
 | 5 | Erro de rede/validação numa operação individual → toast de erro específico daquele contato; os **outros** contatos da lista permanecem intocados (não somem, não duplicam). | Prova que não há efeito colateral cruzado entre contatos — reforça (b). |
 | 6 | `client.id` (Supabase) chega como string no repository, não como o `number` que o TS afirma. | Regressão pro gotcha do cast — pega o bug antes de produção. |
-| 7 | (Homologação manual, não unitário) Abrir a aba Contatos de um client real na nuvem, adicionar um contato, fechar o drawer, reabrir → contato ainda lá. | Prova end-to-end do que hoje falha silenciosamente. |
+| 7 | (Homologação manual, não unitário) Abrir a aba Contatos de um client real na nuvem, adicionar um contato, fechar o drawer, reabrir → contato ainda lá. | ✅ **Confirmado pelo operador em 2026-07-21** — ver §4.5. |
+
+### 4.5 Implementação + homologação manual (operador, 2026-07-21)
+
+Design aprovado pelo revisor; implementado em 3 commits por camada no branch `fatia-4-clients`:
+`94f3ecb` (hook `useSupabaseClientContacts`), `0e3f2f7` (UI — `ContactsTab`/`ClientProfileDrawer`/
+`Clientes.tsx`), `eeff133` (testes automatizados dos casos 1-6, 7/7 verdes).
+
+**Caso 7 (homologação manual, o único que não dá pra automatizar sem navegador real):** operador
+confirmou, num client real da nuvem — criar contato, editar contato, excluir contato, cada um
+seguido de F5 (recarregar a página, não só reabrir o drawer) — **persistência confirmada nas três
+operações**. Fecha a prova end-to-end do que antes de C8 falhava silenciosamente (toast de
+sucesso, nada gravado).
+
+**Merge de `main` no branch (trouxe o merge de `qualidade-lint` + outros commits):** `9fe41f5`.
+Gates completos re-executados **depois** do merge, não só antes:
+
+| Gate | Resultado pós-merge |
+|---|---|
+| `tsc --noEmit` | 0 erros |
+| `lint-gate` | 68 erros / 49 `any` (baseline arquivo ainda em 89/68 — sem regressão em nenhuma leitura) |
+| Suíte completa | 16 arquivos, **127 testes** verdes |
+
+C8 está implementado, testado (automatizado + manual) e com os gates pós-merge verificados. Falta
+só o merge deste branch **para `main`** — que só acontece após a confirmação explícita do revisor
+sobre estes gates.
 
 ---
 
-**PARADO aqui.** §4.4 é design — nenhum arquivo de código foi criado ou editado (`useSupabaseClientContacts.ts`
-não existe ainda). A emenda §10 do protocolo segue como commit separado, tratado a seguir nesta
-mesma entrega. Depois dos dois commits, aguardando "vai" literal do revisor colado neste chat pelo
-operador antes de qualquer linha de código ou aplicação de migration.
+**PARADO aqui.** C8 implementado e homologado (código + testes + homologação manual + merge de
+`main` já trazido pro branch, gates pós-merge verificados). **Nada foi mesclado em `main` ainda** —
+isso depende de "vai" literal do revisor colado neste chat pelo operador, especificamente para o
+merge `fatia-4-clients → main`.
