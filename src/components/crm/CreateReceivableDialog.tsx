@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { financeRepository } from "@/repositories/financeRepository";
+import { useFinance } from "@/hooks/useFinance";
 
 interface CreateReceivableDialogProps {
   open: boolean;
@@ -27,16 +27,21 @@ interface CreateReceivableDialogProps {
 }
 
 export function CreateReceivableDialog({
+  // Etapa 5 · Fatia 6 (F5-b, adendo 39851d7): workspaceId/quoteId/clientId/opportunityId
+  // seguem no contrato de props (os 2 chamadores — LinkedQuotesSection.tsx e
+  // SupabaseQuotesViewerCard.tsx — não precisam mudar), mas não são desestruturados
+  // aqui: são UUIDs de NUVEM (este diálogo só existe para orçamentos já migrados),
+  // sem equivalente de id LOCAL, então não entram no lançamento local abaixo. O
+  // caminho nuvem (financeRepository.createReceivableFromQuote) fica DESATIVADO ATÉ
+  // O CUTOVER de leitura de finance, não abandonado — reaparece aqui quando esse
+  // cutover acontecer.
   open,
   onOpenChange,
   quoteTitle,
   quoteTotal,
-  workspaceId,
-  quoteId,
-  clientId,
-  opportunityId,
   onSuccess,
 }: CreateReceivableDialogProps) {
+  const fin = useFinance();
   const [submitting, setSubmitting] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -73,52 +78,50 @@ export function CreateReceivableDialog({
 
     setSubmitting(true);
     try {
-      // 1. Evitar duplicidade: verificar se já existe recebível Supabase com mesmo quote_id, source=quote, type=receivable, deleted_at=null
-      const existing = await financeRepository.findReceivableByQuote(workspaceId, quoteId);
-      if (existing && existing.length > 0) {
-        toast.error("Este orçamento já possui um recebível vinculado.");
-        setSubmitting(false);
-        return;
-      }
-
-      // 2. Persistência no Supabase
-      const created = await financeRepository.createReceivableFromQuote(workspaceId, {
-        client_id: clientId || null,
-        quote_id: quoteId,
-        opportunity_id: opportunityId || null,
+      // F5-b: grava LOCAL (useFinance().addTransaction), nivelado ao mesmo caminho que
+      // QuoteToReceivableDialog.tsx (Vendas) já usa em produção — Financeiro.tsx só lê
+      // local hoje (ver docs/qa/etapa-5-fatia-6-finance.md §9), então é o único jeito
+      // do usuário ver este lançamento na tela que realmente usa. O caminho nuvem
+      // (financeRepository.createReceivableFromQuote/findReceivableByQuote) segue
+      // existindo, intocado — DESATIVADO ATÉ O CUTOVER, não abandonado.
+      const tx = fin.addTransaction({
+        type: "income",
         title,
-        description: description || null,
+        description: description || `Gerado a partir do orçamento "${quoteTitle}".`,
         amount,
-        due_date: dueDate,
-        type: "receivable",
+        category: "Serviços",
+        quoteTitle,
+        dueDate,
         status: "pending",
+        paymentMethod: "pix",
+        recurrence: "none",
         source: "quote",
-        is_demo: false,
-        archived: false,
       });
 
-      // 3. Log local de sucesso
+      // Log local de sucesso — sem quoteId de nuvem aqui de propósito (ver comentário
+      // acima do destructuring): a proveniência fica registrada pelo quoteTitle.
       try {
         const logRaw = localStorage.getItem("kora.quotes.supabaseReceivables.v1") || "[]";
         const logParsed = JSON.parse(logRaw);
         logParsed.push({
-          quoteId,
-          receivableId: created.id,
+          quoteTitle,
+          receivableId: tx.id,
           title,
           amount,
           createdAt: new Date().toISOString(),
+          gravadoLocal: true,
         });
         localStorage.setItem("kora.quotes.supabaseReceivables.v1", JSON.stringify(logParsed));
       } catch (logErr) {
         console.error("Erro ao registrar log local de recebível:", logErr);
       }
 
-      toast.success("Recebível financeiro gerado com sucesso no Supabase!");
+      toast.success("Recebível financeiro gerado. Veja em Financeiro.");
       onSuccess();
       onOpenChange(false);
     } catch (err: unknown) {
       console.error(err);
-      toast.error("Erro ao gerar recebível financeiro no Supabase.");
+      toast.error("Erro ao gerar recebível financeiro.");
     } finally {
       setSubmitting(false);
     }
@@ -130,7 +133,7 @@ export function CreateReceivableDialog({
         <DialogHeader>
           <DialogTitle className="text-foreground text-sm font-semibold">Gerar recebível?</DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground leading-normal">
-            Esta ação criará um lançamento financeiro a receber no Supabase a partir deste orçamento aprovado. Nenhum pagamento será cobrado automaticamente.
+            Esta ação criará um lançamento financeiro a receber, visível na tela Financeiro, a partir deste orçamento aprovado. Nenhum pagamento será cobrado automaticamente.
           </DialogDescription>
         </DialogHeader>
 

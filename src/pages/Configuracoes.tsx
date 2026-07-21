@@ -73,6 +73,7 @@ import { useLocalClientsImport } from "@/hooks/useLocalClientsImport";
 import { useLocalTechnicalSheetsImport } from "@/hooks/useLocalTechnicalSheetsImport";
 import { useLocalOpportunitiesImport } from "@/hooks/useLocalOpportunitiesImport";
 import { LocalQuotesImportCard } from "@/components/settings/LocalQuotesImportCard";
+import { LocalFinanceImportCard } from "@/components/settings/LocalFinanceImportCard";
 import { QuotesSupabaseExperimentalToggleCard } from "@/components/settings/QuotesSupabaseExperimentalToggleCard";
 import { SupabaseQuotesViewerCard } from "@/components/settings/SupabaseQuotesViewerCard";
 import { CrmSupabaseCreateQuoteToggleCard } from "@/components/settings/CrmSupabaseCreateQuoteToggleCard";
@@ -845,6 +846,7 @@ const Configuracoes = () => {
                   <LocalOpportunitiesImportCard />
                   <LocalTechnicalSheetsImportCard />
                   <LocalQuotesImportCard />
+                  <LocalFinanceImportCard />
                 </div>
               </div>
 

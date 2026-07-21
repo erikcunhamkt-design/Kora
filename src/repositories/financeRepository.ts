@@ -22,6 +22,10 @@ export interface SupabaseFinancialTransaction {
   deleted_at?: string | null;
   created_at: string;
   updated_at: string;
+  /** Etapa 5 · Fatia 6 (F1): chave de idempotência do import geral. NULL para linhas
+   * legadas ou criadas nativamente na nuvem (ex.: via CreateReceivableDialog antes de
+   * F1, ou por outro fluxo que não passe pelo import). */
+  source_local_id?: string | null;
 }
 
 export const financeRepository = {
@@ -90,5 +94,69 @@ export const financeRepository = {
 
     if (error) throw normalizeSupabaseError(error);
     return data as SupabaseFinancialTransaction[];
+  },
+
+  // Etapa 5 · Fatia 6 (F2) — import geral, com a árvore de decisão do §6 do doc da
+  // fatia: dois arbiters de idempotência coexistem sobre a mesma tabela, cada um
+  // cobrindo um caso diferente, nunca a mesma operação de escrita.
+  async importTransaction(
+    workspaceId: string,
+    sourceLocalId: string,
+    input: Partial<SupabaseFinancialTransaction>,
+  ) {
+    // Guarda (mesma disciplina do NULL guard do RPC import_quote_with_items, Fatia 3):
+    // sem source_local_id não-vazio, o upsert abaixo não tem arbiter de idempotência
+    // nenhum — um chamador que falhe em resolvê-lo (bug futuro) reimportaria a mesma
+    // transação em duplicata a cada clique, silenciosamente. Falha explícita aqui é
+    // melhor que descobrir o bug em produção.
+    if (!sourceLocalId || !sourceLocalId.trim()) {
+      throw new Error("importTransaction: source_local_id é obrigatório (arbiter da idempotência)");
+    }
+
+    // Transação quote-linked usa o contrato de negócio já existente da Etapa 3 (no
+    // máximo 1 recebível vivo por orçamento) em vez do upsert geral — os dois índices
+    // nunca competem pela mesma operação (ver docs/qa/etapa-5-fatia-6-finance.md §6).
+    const isQuoteLinkedReceivable =
+      input.type === "receivable" && input.source === "quote" && !!input.quote_id;
+
+    if (isQuoteLinkedReceivable) {
+      const existing = await financeRepository.findReceivableByQuote(workspaceId, input.quote_id as string);
+      if (existing[0]) {
+        // Backfill: a linha já existia (criada antes desta fatia, ou nativamente via
+        // CreateReceivableDialog) e ainda não tem source_local_id — grava agora para
+        // que um 2º import da MESMA transação local seja reconhecido pelo arbiter
+        // geral também, não só pelo de quote.
+        if (!existing[0].source_local_id) {
+          const { data, error } = await supabase
+            .from("financial_transactions")
+            .update({ source_local_id: sourceLocalId })
+            .eq("id", existing[0].id)
+            .eq("workspace_id", workspaceId)
+            .select()
+            .single();
+          if (error) throw normalizeSupabaseError(error);
+          return data as SupabaseFinancialTransaction;
+        }
+        return existing[0];
+      }
+      return financeRepository.createReceivableFromQuote(workspaceId, {
+        ...input,
+        source_local_id: sourceLocalId,
+      });
+    }
+
+    // Caminho geral: qualquer outro type/source — arbiter é o índice novo, não-parcial
+    // (ux_financial_transactions_source_local), que nem se aplica às linhas acima.
+    const { data, error } = await supabase
+      .from("financial_transactions")
+      .upsert(
+        { workspace_id: workspaceId, source_local_id: sourceLocalId, ...input },
+        { onConflict: "workspace_id,source_local_id" },
+      )
+      .select()
+      .single();
+
+    if (error) throw normalizeSupabaseError(error);
+    return data as SupabaseFinancialTransaction;
   },
 };
