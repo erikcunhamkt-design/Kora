@@ -634,6 +634,17 @@ o segundo. **O mapper precisa traduzir**: `local "orçamento" + quoteId resolvid
 campo `source` é o análogo, para `projects`, da tradução `income/expense -> receivable/payable`
 que a Fatia 6 fez para `type` — mesma classe de problema, campo diferente.
 
+**Requisito de implementação (condição do revisor, não opcional):** esta tradução
+`"orçamento"->"quote"` não é uma nota de rodapé — é o que faz `ux_projects_from_quote` funcionar
+como backstop de verdade em vez de virar índice decorativo (sem ela, o predicado `WHERE source =
+'quote'` nunca bate para projetos vindos do import geral, e dois projetos vivos para a mesma
+quote coexistem sem o banco reclamar). Na fase de implementação, `mapLocalProjectToSupabase`
+**precisa** ter um teste unitário dedicado que prove especificamente essa tradução (projeto local
+`source: "orçamento"` + `quoteId` resolvido → payload com `source: "quote"`; projeto local
+`source: "manual"` → payload com `source: "manual"`, passagem direta) — não basta o teste de
+fan-out genérico cobrir isso de raspão. Ver também §13 casos (j)/(k), que provam a mesma coisa em
+nível de integração (rede+banco), não só de unidade.
+
 ### 7.3 `tasks` — sem árvore de decisão necessária (vocabulário já disjunto)
 
 `Task.source` local só usa `"manual" | "projeto" | "orçamento"` — o literal `"project_template"`
@@ -713,6 +724,43 @@ transacional análoga a `import_quote_with_items` (Fatia 3). Justificativa:
    import ser rodada depois de o projeto já estar mapeado — não há backfill automático de órfãs
    quando o pai chega depois (mesma limitação já aceita para client/quote/opportunity em todas as
    fatias, não uma novidade desta).
+
+### 8.1 Cenário de falha parcial (condição do revisor) — narrado explicitamente
+
+**Cenário:** o operador seleciona um projeto E as tarefas daquele projeto na mesma rodada de
+import. O projeto é importado e o import-map (`kora.projects.supabaseImport.v1`) é gravado com
+sucesso — mas o import de tarefas é interrompido no meio (aba fechada, rede cai, usuário cancela)
+depois de algumas tarefas já terem sido gravadas e outras ainda não.
+
+**O que o operador vê:** ao reabrir o painel de import, `analyze()` re-escaneia o local e recalcula
+o status de cada candidato do zero (mesmo padrão de `useLocalFinanceImport`/`useLocalQuotesImport`
+— nenhum estado de "em andamento" é persistido, só o resultado de sucesso). As tarefas já
+gravadas aparecem como **"imported"** (seus ids estão em `importedMap`, gravado **só após sucesso
+individual** — mesmo padrão do F2 da Fatia 6, `financeRepository`/`useLocalFinanceImport.ts`
+linhas 171-177: grava no map linha a linha, não em lote). As tarefas que não chegaram a ser
+processadas continuam **"new"**. Nenhuma tarefa fica num estado ambíguo ou "meio importada" — o
+grão da persistência de progresso é uma linha por vez, nunca o lote inteiro.
+
+**O que a re-execução faz:** o operador seleciona os candidatos "new" restantes e importa de novo.
+Isso é seguro por dois motivos independentes, não só um:
+1. **Idempotência do arbiter geral (§7.1):** se por acaso uma tarefa já gravada na tentativa
+   anterior for re-selecionada por engano, o `upsert(onConflict: "workspace_id,source_local_id")`
+   simplesmente faz `UPDATE` na mesma linha — nunca duplica.
+2. **O projeto pai já está mapeado** (gravado com sucesso antes da interrupção) — então toda
+   tarefa reprocessada resolve `project_id` normalmente pelo map, sem virar órfã por causa da
+   interrupção anterior. A interrupção não deixa "resíduo" que precise de limpeza manual antes de
+   tentar de novo.
+
+**Garantia de ordem — explícita, não implícita:** o import de tarefas **nunca inventa** um
+`project_id`. Em qualquer execução — primeira tentativa, re-execução após falha parcial, ou uma
+sessão onde o operador escolhe importar tarefas antes de seus projetos por engano — o mapper só
+faz uma de duas coisas: (a) resolve `project_id` para um UUID real se `kora.projects
+.supabaseImport.v1` já tiver a entrada daquele `projectId` local; ou (b) trata a ausência como
+órfã (`project_id: null`, avisada na UI), nunca um terceiro caminho que gere, adivinhe ou reserve
+um id. Não existe estado inválido possível nesta fronteira — só "resolvido" ou "órfão", nunca
+"pendente"/"quebrado". Isso é o que torna a garantia de ordem do item 5 acima ("sugestão, não
+trava") segura de se manter como sugestão e não precisar virar trava: mesmo na pior ordem
+possível, o resultado é sempre determinístico e nunca corrompe dado.
 
 ---
 
@@ -823,6 +871,12 @@ ainda ausente, pós-ALTER de cada tabela, pós-índice de cada tabela, controle 
 Nenhuma migration acima foi aplicada. Nenhum índice novo para o TOCTOU do §9 foi incluído
 (decisão: catalogar, não criar).
 
+**Confirmação (condição do revisor):** os 2 arquivos `CREATE INDEX CONCURRENTLY` (`...000300` de
+`projects`, `...000500` de `tasks`) estão em arquivos **separados** dos 2 de `ADD COLUMN`
+(`...000200`/`...000400`), cada um com o comentário `>>> APLICAÇÃO: CREATE INDEX CONCURRENTLY não
+pode rodar dentro de uma transação. Aplicar em autocommit` — mesma forma exigida pelas Fatias
+2/3/4/6, confirmado por leitura direta dos 4 arquivos.
+
 ---
 
 ## 13. Runbook semeado — desenho de casos (proposta, aguardando aprovação — NÃO é texto executável ainda)
@@ -843,23 +897,82 @@ título (mesmo espírito redundante das Fatias 3-6).
 | (g) tarefa fan-out para projeto | `projectId` mapeado (via o projeto do caso (a), já importado) → `project_id` uuid real — prova o 4º import-map (§7.4) e a decisão do §8 (sem RPC) | reusa (a) |
 | (h) tarefa órfã de projeto | `projectId` presente mas **não** mapeado (projeto ainda não importado) → `project_id` null, aviso na UI — prova que a ordem projects-antes-de-tasks é sugestão, não trava (§8 item 5) | nenhum extra |
 | (i) tarefa idempotência | reimport do caso (f) — UPDATE via `ON CONFLICT`, nunca INSERT novo | reusa (f) |
+| (j) coexistência — duplo import, caminho do app | duas tentativas de import apontando pra **mesma** quote (dois projetos locais distintos, ambos `source: "orçamento"` + mesmo `quoteId`, OU reimport do caso (d) por um segundo caminho) nunca resultam em 2 projetos vivos `source='quote'` pra mesma quote — prova a árvore do §7.2 fim-a-fim, pelo caminho normal do app (nunca SQL direto) | reusa a quote do caso (d); um 2º projeto local sintético apontando pra mesma quote |
+| (k) coexistência — backstop de banco, bypass do app | `INSERT` direto (SQL Editor, **bypassando o app**) tentando criar um **segundo** projeto com `source='quote'` (literal traduzido) + o **mesmo** `quote_id` de um projeto já existente → deve falhar com `23505` contra `ux_projects_from_quote` — prova que o índice é o backstop real, não só a checagem do app (mesmo espírito do caso (e) da Fatia 6, mas testando o índice PARCIAL de coexistência, não o geral) | reusa o projeto já existente do caso (d)/(j) |
 
 **Sem caso de atomicidade parcial/rollback** — decisão do §8 (sem RPC) torna esse tipo de prova
-inaplicável, igual à Fatia 6 (`financial_transactions`, sem filhos). **Sem caso de TOCTOU de
-tarefas-base** — decisão do §9 é catalogar, não corrigir; nada a provar nesta rodada. **Sem caso
-de precisão monetária dedicado** — mesma lógica da Fatia 6: a quantização (`roundMoney`) já tem
+inaplicável, igual à Fatia 6 (`financial_transactions`, sem filhos); o cenário de falha parcial em
+si já foi narrado em texto no §8.1, não precisa de um caso de homologação dedicado (não há estado
+intermediário a demonstrar — só "new"/"imported", sempre). **Sem caso de TOCTOU de tarefas-base**
+— decisão do §9 é catalogar (PT1), não corrigir; nada a provar nesta rodada. **Sem caso de
+precisão monetária dedicado** — mesma lógica da Fatia 6: a quantização (`roundMoney`) já tem
 cobertura de teste unitário própria; o que só a integração real prova é rede+banco+os dois
-arbiters coexistindo, e isso já está coberto pelos casos (d)/(e)/(i) acima.
+arbiters coexistindo, e isso já está coberto pelos casos (d)/(e)/(j)/(k) acima.
 
-**Critério de aceite proposto:** 9/9 casos verdes.
+**Critério de aceite proposto:** 11/11 casos verdes (revisado de 9/9 — (j)/(k) somados pela
+condição do item 3 do veredito de Fase B).
 
 ---
 
-**PARADO aqui.** Design de Fase B entregue (§7-§13) — decisões explícitas registradas para os 7
-pontos pedidos: idempotência dos dois níveis + coexistência (§7), atomicidade pai-filho sem RPC
-(§8), TOCTOU de tarefas-base catalogado com o porquê (§9), gap do 3º nível catalogado (§10),
-F5-equivalente recomendado para correção (§11), migrations escritas e não aplicadas (§12),
-runbook desenhado em tabela de casos (§13). **Nenhuma migration foi aplicada, nenhum código de
-implementação foi escrito, nenhuma rodada foi executada.** Qualquer avanço (aprovação do design,
-implementação, ou aplicação de migration) depende do "vai" literal do revisor colado neste chat
-pelo operador.
+---
+
+## 14. PT1 — pendência catalogada: corrida TOCTOU do gerador de "tarefas base" (não bloqueia esta fatia)
+
+> Registrado no mesmo espírito do `Q8` (Fatia 3, `etapa-5-fatia-3-quotes.md` §12) — mesma lista
+> conceitual de pendências que bloqueiam algo FUTURO sem bloquear o que já foi decidido aqui.
+> Código de catálogo próprio de Fatia 7 (`PT` = Projects/Tasks; não reutiliza `Q` porque essa
+> letra é específica da Fatia 3, nem `P`, já usado pela lista de segurança/performance da sessão
+> — ver TaskList — para não colidir os dois catálogos).
+
+**Achado (detalhado em §9):** `CreateProjectBaseTasksDialog.tsx` faz SELECT-depois-INSERT em
+massa sem backstop de banco; um índice único simples não resolve porque `sort_order` varia
+conforme a seleção do usuário no dialog, não é uma posição fixa por tarefa-padrão.
+
+**Classificação:** **não bloqueante para esta fatia** — caminho hoje inalcançável na UI publicada
+(`SupabaseOperationalDashboardCard` desmontado, §2.3 da Fase A). **Bloqueante para** qualquer
+trabalho futuro que reative aquele card/dialog sem antes desenhar a correção certa (trava atômica
+fora da tabela `tasks`, ex. `projects.base_tasks_generated_at` + `UPDATE ... WHERE ... IS NULL`
+condicional, ver §9) — reativar a UI sem essa correção reintroduz a corrida com um caminho de
+novo alcançável.
+
+**Recomendação (registrada, não executada nesta fatia):** se/quando alguém propuser remontar
+`SupabaseOperationalDashboardCard` (ou qualquer UI equivalente para gerar tarefas base), a trava
+atômica deste achado é pré-requisito, não um nice-to-have — não repetir a corrida numa feature
+recém-reativada.
+
+---
+
+## 15. PT2 — pendência catalogada: gap de schema do 3º nível (bloqueia cutover futuro de `tasks`)
+
+> Mesma lista de paridade pré-cutover onde vive o `Q8` (Fatia 3) — ambos são "achado de paridade
+> schema local↔nuvem que não bloqueia a fatia atual, mas bloqueia uma fatia futura específica".
+
+**Achado (detalhado em §10):** `Task.subtasks[]`/`Task.comments[]` (3º nível local, embutido, sem
+`id` próprio nos itens) não têm nenhuma representação em `public.tasks` nem em tabela própria —
+nem coluna JSONB, nem `task_subtasks`/`task_comments`.
+
+**Classificação:** **não bloqueante para esta fatia** — o import geral desenhado aqui move
+`Project`/`Task` como linhas (1 nível cada), `subtasks`/`comments` ficam fora de escopo por
+decisão explícita, não por omissão. **Bloqueante para** qualquer fatia futura que proponha migrar
+o **CRUD completo** de `tasks` (não só importar um snapshot, mas fazer `useTasks()` ler/escrever
+Supabase de verdade) — antes disso, precisa: (a) uma migration nova (tabela dedicada ou coluna
+JSONB) para o 3º nível; (b) uma decisão de como gerar `id`s estáveis para os itens de
+`SubTask`/`TaskComment`, que hoje não têm nenhuma chave natural (mutados por índice de array).
+
+**Recomendação (registrada, não executada nesta fatia):** nenhuma ação necessária agora. Qualquer
+fatia futura de cutover de leitura/escrita completo de `tasks` deve verificar este item antes de
+propor remover `tasks` da "carência" local (mesmo espírito da recomendação do `Q8` para `quotes`).
+
+---
+
+**PARADO aqui.** Emenda de Fase B entregue, endereçando os 4 pontos do veredito do revisor:
+narrativa de falha parcial + garantia de ordem do fan-out de tasks (§8.1, item 2 do veredito);
+requisito de implementação com teste unitário dedicado para a tradução `"orçamento"->"quote"` +
+2 novos casos de homologação, (j) e (k), provando a coexistência pelo caminho do app e pelo
+backstop direto de banco (§7.2 + §13, item 3 do veredito); números de catálogo próprios para o
+TOCTOU (`PT1`, §14) e o gap do 3º nível (`PT2`, §15), ambos na mesma categoria conceitual do `Q8`
+da Fatia 3 (item 4/5 do veredito); confirmação da separação dos arquivos `CONCURRENTLY` e da
+anotação autocommit-only (§12, item 1/7 do veredito). **Nenhuma migration foi aplicada, nenhum
+código de implementação foi escrito, nenhuma rodada foi executada.** O "vai" da Fase C (aprovação
+do design final, implementação, ou aplicação de migration) depende do próximo veredito do
+revisor, colado neste chat pelo operador.
