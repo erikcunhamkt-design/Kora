@@ -556,3 +556,310 @@ foi tratado meio a meio com a implementação, não antes).
 **PARADO aqui.** Diagnóstico de Fase A entregue — nenhuma rodada de homologação, migration ou
 escrita em banco/localStorage foi executada. Qualquer avanço (Fase B, decisões P1-P7, ou
 qualquer execução) depende do "vai" literal do revisor colado neste chat pelo operador.
+
+---
+
+## 6. Decisão do revisor (medições) e reclassificação
+
+| Medida | Valor |
+|---|---|
+| `projects` vivos na nuvem | **0** |
+| `tasks` vivas na nuvem | **0** |
+| Projects locais demo / reais | 5 demo / **0 reais** |
+| Tasks locais demo / reais | 5 demo / **0 reais** |
+| Fan-in (`quoteId` em reais, projects e tasks) | **SECO** — 0, por não haver reais |
+| 3º nível (`subtasks`/`comments` em tasks reais) | sem dado — 0 reais, nada a inspecionar |
+| Corrida TOCTOU de "tarefas base" (`project_id` com >9 linhas `project_template`) | **não materializada** — 0 linhas de `source='project_template'` na nuvem |
+| Índice `ux_projects_from_quote` | `indisvalid = true`, `indisunique = true` |
+
+**Não há dado real em nenhum lado, nas duas entidades.** Reclassificação: a fatia vira
+**instalação de infraestrutura de import** — mesmo enquadramento da Fatia 6 (F6) — homologada
+**100% por rodada semeada**, sem Rodada 2 real possível. Momento mais barato para as migrations:
+as 4 tabelas-linha (projects/tasks × nuvem/local) estão vazias ou só com demo, sem risco de
+tocar dado real durante o design ou a aplicação.
+
+---
+
+## 7. Design — Idempotência Variante B (dois níveis) + coexistência com `ux_projects_from_quote`
+
+### 7.1 Variante B para `projects` e para `tasks`, independentemente
+
+Mesmo padrão das Fatias 2/3/4/6: coluna `source_local_id text` (formato
+`${installId}:${localId}`, `src/lib/installId.ts`) + índice **não-parcial**
+`UNIQUE(workspace_id, source_local_id)` em cada tabela — dois pares de migration
+independentes, um para `projects`, um para `tasks` (§8 lista os 4 arquivos). Não-parcial pelo
+mesmo motivo de sempre (P8b): um índice parcial não serve de arbiter de `ON CONFLICT` porque o
+inference do Postgres exige a definição do índice bater exatamente com as colunas do
+`onConflict`, sem predicado adicional.
+
+### 7.2 Coexistência em `projects` — precisa de árvore de decisão (igual à Fatia 6)
+
+`ux_projects_from_quote` já existe: `UNIQUE (quote_id) WHERE source = 'quote' AND deleted_at IS
+NULL`. Um projeto local real pode ter `source: "orçamento"` **e** um `quoteId` preenchido (ver
+§0.2 query 18) — importar esse projeto precisa passar pelo **mesmo** contrato de negócio que
+`CreateProjectFromQuoteDialog` já usa (`findProjectByQuote`/`createProjectFromQuote`, com catch de
+23505), nunca um `upsert(onConflict: "workspace_id,source_local_id")` sozinho — que erraria por
+não saber do segundo índice, exatamente como a Fatia 6 já resolveu para finance.
+
+**Árvore de decisão (`projectsRepository.importProject(workspaceId, sourceLocalId, input)`,
+espelhando `financeRepository.importTransaction`):**
+
+```
+input.quote_id resolvido (não null) E project.source local == "orçamento"
+  -> caminho QUOTE-LINKED:
+       1. findProjectByQuote(workspaceId, quote_id)
+       2. se existir: UPDATE source_local_id na linha existente (backfill), devolver — NUNCA
+          cria um segundo projeto pra mesma quote
+       3. se não existir: createProjectFromQuote(...) COM source_local_id no payload;
+          catch 23505 (corrida perdida) -> findProjectByQuote de novo, devolve o existente
+  -> NUNCA passa pelo upsert(onConflict: "workspace_id,source_local_id") nesta linha
+
+qualquer outro caso (source local == "manual", OU quoteId não resolvido/órfão)
+  -> caminho GERAL:
+       upsert({ ...payload, source_local_id }, { onConflict: "workspace_id,source_local_id" })
+```
+
+**Achado de vocabulário — o motivo pelo qual isto NÃO é automático:** ao contrário de finance
+(onde `Transaction.source` local já usa o literal `"quote"`, o mesmo valor do predicado do
+índice parcial), `Project.source` local só usa `"manual" | "orçamento"` — **o literal `"quote"`
+nunca existe no dado local** (confirmado em `src/hooks/useProjects.ts` e no único produtor real,
+`QuoteToProjectDialog.tsx` linha 103: `source: "orçamento"`). Se o mapper copiasse
+`project.source` direto pra nuvem, um projeto quote-linked chegaria com `source: "orçamento"` —
+que **não bate** com o predicado `WHERE source = 'quote'` do índice parcial. Resultado: o projeto
+passaria pelo caminho GERAL mesmo sendo quote-linked, e **dois projetos vivos para a mesma
+quote** (um do fluxo antigo do CRM com `source='quote'`, outro do import geral com
+`source='orçamento'`) coexistiriam sem o banco reclamar — porque o predicado do índice não cobre
+o segundo. **O mapper precisa traduzir**: `local "orçamento" + quoteId resolvido -> cloud
+"quote"`; `local "manual" -> cloud "manual"` (passagem direta). Esta tradução de vocabulário do
+campo `source` é o análogo, para `projects`, da tradução `income/expense -> receivable/payable`
+que a Fatia 6 fez para `type` — mesma classe de problema, campo diferente.
+
+### 7.3 `tasks` — sem árvore de decisão necessária (vocabulário já disjunto)
+
+`Task.source` local só usa `"manual" | "projeto" | "orçamento"` — o literal `"project_template"`
+(usado pelo gerador de tarefas base, source do único fluxo estreito de `tasks`) **nunca aparece
+no dado local**, por construção. Logo, todo import geral de tasks passa sempre pelo caminho
+GERAL (`upsert(onConflict: "workspace_id,source_local_id")`), sem nenhum risco de colidir com o
+namespace do gerador de tarefas base — os dois nunca escrevem a mesma combinação de valores. Não
+existe (e não precisa existir) um `tasksRepository.importTask` com árvore de decisão — só o
+upsert direto. Esta é uma diferença estrutural real em relação a `projects`, não uma
+simplificação de conveniência.
+
+### 7.4 Mapper — fan-out (4º import-map novo) e precisão monetária
+
+- **Fan-out de `projects`**: `client_id`/`quote_id`/`opportunity_id` via os 3 import-maps já
+  provados (`kora.clients.supabaseImport.v1`, `kora.quotes.supabaseImport.v1`,
+  `kora.crm.supabaseImport.v1`), padrão Q4 (mapeado → uuid; ausente → `null`, nunca id local cru).
+- **Fan-out de `tasks`**: os mesmos 3 (`client_id`/`quote_id`) **mais um 4º, novo**:
+  `project_id`, via um import-map que ainda não existe — `kora.projects.supabaseImport.v1` —
+  preenchido pela própria importação de `projects` desta fatia. `opportunity_id` de `tasks` é
+  **sempre `null`** no import, porque `Task` local não tem nenhum campo `opportunityId` (só
+  `Project` tem) — não é uma órfã a reportar, é ausência estrutural do campo, diferença que a UI
+  de candidatos deveria distinguir de um "vínculo não encontrado".
+- **Precisão monetária**: `Project.budget` é quantizado com `roundMoney` (mesma função de
+  `src/services/quotes/quoteMoney.ts`, já reusada por finance) só para evitar artefato de float —
+  **sem** checagem de divergência tipo `inspectFinanceMoney` (decidido N/A na Fase A, §1: budget é
+  estimativa editável pelo usuário, não uma cópia fixa do total do orçamento). `Task` não tem
+  campo monetário.
+- **Nota de dívida, não bloqueante:** `roundMoney` já tem 2 consumidores fora de `quotes`
+  (`quoteMapper.ts` de origem + `financeMapper.ts`, Fatia 6). `projects` seria o **3º** — pela
+  própria regra do projeto ("regra dos três": só extrair pra um lugar mais compartilhado quando
+  uma terceira entidade precisar), este é o gatilho para mover `roundMoney` de
+  `src/services/quotes/quoteMoney.ts` para um lar neutro (ex. `src/lib/money.ts`), já que ter um
+  serviço de "projects" importando de dentro de "quotes" é um cheiro de organização, não um
+  problema funcional. Recomendado para a fase de implementação (é um `mv` + re-export, baixo
+  risco), não para esta fase de design.
+- **Status/priority — passagem direta, sem tradução.** `projects.status`/`tasks.status`/
+  `tasks.priority` são colunas `TEXT` livres, sem `CHECK` constraint (confirmado nas migrations
+  de criação). Diferente de `type` (Fatia 6) e de `source` (§7.2 acima), aqui não há vocabulário
+  divergente forçando tradução — os valores locais (`"planning"`, `"a_fazer"`, `"média"`, etc.)
+  podem ser gravados como estão. Único consumidor que assume um vocabulário mais estreito
+  (`tasksRepository.updateTaskStatus`, tipado só para `"todo"|"in_progress"|"done"`) não é
+  chamado pelo import geral (que só faz INSERT/upsert, nunca UPDATE de status) — não há conflito
+  de fato, só uma restrição de tipo TypeScript num método que este import não usa.
+
+---
+
+## 8. Design — Atomicidade pai-filho: DECISÃO EXPLÍCITA — SEM RPC transacional
+
+**Decisão: `projects` e `tasks` importam como entidades independentes.** Não há RPC
+transacional análoga a `import_quote_with_items` (Fatia 3). Justificativa:
+
+1. **`Task` é entidade de primeira classe, não um array embutido.** `quote_items` (Fatia 3) não
+   tem `localStorage` próprio, não tem tela própria, não tem CRUD independente — é puramente um
+   array dentro do objeto `Quote` local. `Task`, ao contrário, tem seu próprio storage
+   (`orbyt.tasks.v1`), seu próprio hook completo (`useTasks`), sua própria tela (`Tarefas.tsx`),
+   e **existe e é usada rotineiramente sem nenhum `projectId`** (tarefas soltas/pessoais são um
+   caso de uso real, não um estado transitório).
+2. **A relação já é uma FK solta até no modelo local.** `Task.projectId` é opcional, casado em
+   memória por igualdade de string (`t.projectId === project.id`, ver
+   `ProjectDetailDrawer.tsx` linha 87-90), nunca um FK de banco local. Importar essa relação com
+   a mesma força fraca que ela já tem hoje não introduz nenhuma regressão de integridade —
+   herdar uma fraqueza pré-existente não é o mesmo que criar uma nova.
+3. **O motivo da Fatia 3 precisar de RPC não se repete aqui.** Ali, uma falha parcial (quote sem
+   itens, ou itens órfãos) quebraria algo que o usuário vê como **uma coisa só** — a tela de
+   orçamento mostra quote+itens como um único documento. Aqui, `Project` e `Task` já são **duas
+   coisas** para o usuário — duas telas, dois hooks, duas listas de candidatos de import
+   separadas. Um projeto importado sem (ainda) sua tarefa filha é uma situação visível e
+   compreensível, não uma corrupção de um objeto único.
+4. **O padrão de resolução já existe e já é aceito.** `Task.projectId` resolve pelo mesmo
+   mecanismo Q4 de fan-out/órfã que `clientId`/`quoteId`/`opportunityId` já usam em todas as
+   fatias anteriores: mapeado → uuid real; não mapeado → `null` + aviso de "vínculo não
+   encontrado" na UI. Não é um mecanismo novo, é o 4º uso do mesmo mecanismo (§7.4).
+5. **Recomendação operacional, não uma trava de código:** o painel de import deveria sugerir
+   (copy/ordem de exibição) importar `projects` antes de `tasks`, para maximizar quantos vínculos
+   resolvem de primeira — mas, como nas Fatias 2-6, a ordem não é imposta pelo mecanismo. Uma
+   task importada antes do seu projeto fica com `project_id: null` (órfã) até uma nova rodada de
+   import ser rodada depois de o projeto já estar mapeado — não há backfill automático de órfãs
+   quando o pai chega depois (mesma limitação já aceita para client/quote/opportunity em todas as
+   fatias, não uma novidade desta).
+
+---
+
+## 9. Design — TOCTOU de "tarefas base": a correção óbvia NÃO funciona — recomendação: CATALOGAR
+
+A pergunta era se um índice único simples resolveria a corrida
+`CreateProjectBaseTasksDialog.tsx` (SELECT-depois-INSERT em massa, §1(b) da Fase A). Investigação
+mais funda: **não resolve**, e vale registrar o porquê, não só a conclusão.
+
+**Por que um índice parcial simples (`UNIQUE(project_id) WHERE source='project_template' AND
+deleted_at IS NULL`) NÃO serve:** uma "geração de tarefas base" bem-sucedida grava **várias**
+linhas (até 9, `DEFAULT_TASKS`) com o **mesmo** `project_id` e o **mesmo** `source =
+'project_template'` — um índice único só em `(project_id)` filtrado por esse `source` rejeitaria
+a 2ª..9ª linha do PRIMEIRO lote legítimo, não só de um lote duplicado. Precisaria de uma terceira
+coluna na chave para distinguir "linha 1 de 9" de "linha 2 de 9" dentro do mesmo lote.
+
+**A coluna óbvia para isso seria `sort_order`** (`UNIQUE(project_id, sort_order) WHERE
+source='project_template' AND deleted_at IS NULL`) — mas não funciona também, por um motivo mais
+sutil: `CreateProjectBaseTasksDialog.tsx` linha 116 atribui `sort_order: idx` a partir do índice
+dentro do **subconjunto filtrado pelo usuário** (`selectedTasks.map((t, idx) => ...)`), não a
+partir de uma posição fixa das 9 tarefas-padrão. Se dois usuários (ou duas abas) selecionarem
+subconjuntos diferentes — ex. um seleciona as tarefas 1/3/5/7/9 (ganhando `sort_order` 0,1,2,3,4)
+e outro seleciona 2/4/6 (ganhando `sort_order` 0,1,2) — **nenhum dos dois colide** com o outro
+nessa chave, mesmo gerando lotes para o mesmo projeto. O índice pareceria proteger mas deixaria
+passar exatamente o tipo de corrida concorrente que motivou a pergunta.
+
+**A correção correta é de outra natureza:** uma "trava de reivindicação" atômica fora da tabela
+de tarefas — por exemplo, uma coluna nova em `projects` (`base_tasks_generated_at timestamptz`)
+e um `UPDATE projects SET base_tasks_generated_at = now() WHERE id = ? AND
+base_tasks_generated_at IS NULL RETURNING id` rodado **antes** do insert em massa; 0 linhas
+devolvidas = alguém já reivindicou, aborta. Isso é uma mudança de esquema + de código na
+feature de "tarefas base" (`CreateProjectBaseTasksDialog`/`tasksRepository`), não um índice em
+`tasks` — fora do formato "adicionar um índice" que a pergunta original presumia.
+
+**Recomendação: CATALOGAR, não corrigir agora.** Motivos: (a) o caminho está **hoje
+inalcançável** na UI publicada (§2.3 da Fase A — `SupabaseOperationalDashboardCard` desmontado),
+risco líquido zero em produção; (b) a correção certa é maior e de forma diferente do que esta
+fatia está fazendo (schema+mapper de import geral) — merece seu próprio ciclo de design/aprovação
+se e quando aquela feature for reativada, não deveria ser encaixada como efeito colateral do
+import geral de `tasks`. Este achado (o índice óbvio não funciona, e por quê) fica registrado
+aqui para quem decidir reativar aquele card no futuro.
+
+---
+
+## 10. Design — Gap do 3º nível (`subtasks`/`comments`): CATALOGADO como bloqueante de cutover futuro
+
+Já levantado na Fase A (§1, "Profundidade real"): o schema de `tasks` não tem **nenhuma**
+representação para o checklist embutido (`Task.subtasks[]`/`Task.comments[]`) — nem tabela
+própria, nem coluna JSONB. Confirmado: nenhuma migration em `supabase/migrations/` cria algo
+equivalente a `task_subtasks`/`task_comments`, nem uma coluna JSON em `tasks`.
+
+**Escopo desta fatia:** o import geral desenhado aqui move `Project` e `Task` como **linhas**
+(um nível cada) — os campos `subtasks`/`comments` de cada `Task` **ficam de fora do import**, por
+não terem para onde ir. Isto não é um esquecimento, é uma decisão de escopo explícita.
+
+**Catalogado como bloqueante — não desta fatia, de qualquer fatia futura que queira migrar o
+CRUD completo de `tasks`** (não só importar um snapshot, mas fazer `useTasks()` ler/escrever
+Supabase de verdade): antes disso ser possível, alguém precisa desenhar e aplicar uma migration
+nova (tabela `task_subtasks`/`task_comments`, ou uma coluna JSONB em `tasks`) — e decidir como
+gerar `id`s estáveis para os itens de `SubTask`/`TaskComment`, que hoje **não têm `id`** (mutados
+por índice de array, `toggleSubtask(taskId, idx)`) — os dados locais não trazem uma chave natural
+para essa migração. Registrado aqui para não se perder; nenhuma ação necessária nesta fatia.
+
+---
+
+## 11. F5-equivalente (projeto CRM invisível, §2.4 da Fase A) — recomendação: CORRIGIR, padrão F5-b
+
+**Recomendação: corrigir, análogo à F5-b da Fatia 6** — redirecionar
+`CreateProjectFromQuoteDialog.tsx` para gravar **local** (`useProjects().addProject()` +
+`useTasks().addTask()` quando aplicável) em vez de `projectsRepository.createProjectFromQuote`,
+desativando o caminho nuvem **até o cutover real**, sem apagar o contrato de negócio
+(`findProjectByQuote`/`createProjectFromQuote` continuam vivos, cobertos pelo design de
+coexistência do §7.2 — só deixam de ser chamados por este diálogo específico).
+
+**Por que corrigir, não só catalogar (ao contrário do TOCTOU do §9):**
+1. **Já existe um substituto local prático e comprovado** — `QuoteToProjectDialog.tsx` (Vendas,
+   §2.5 da Fase A) já faz exatamente essa conversão, 100% local, é o fluxo que o usuário real usa
+   hoje. Redirecionar não é inventar um caminho novo, é reaproveitar um já provado — o mesmo
+   raciocínio que sustentou F5-b em finance.
+2. **Diferente do TOCTOU (§9), este caminho é hoje ALCANÇÁVEL em produção**
+   (`getCrmDataSource()` retorna `"supabase"` por padrão — confirmado, Fase A §2.2) — deixar
+   destrancado enquanto esta fatia constrói um import geral do lado de baixo aumenta a área de
+   dado invisível em vez de reduzi-la.
+3. **Custo baixo, forma já conhecida** — é a mesma classe de mudança que F5-b já fez (trocar o
+   import de um repository por um hook local, ajustar o payload, manter o dedup) — não introduz
+   desenho novo, só aplica um padrão já aprovado uma vez.
+
+Esta correção é código (não uma migration), então cabe na fase de **implementação**, não nesta
+fase de design — mas a decisão (corrigir, não catalogar) fica registrada e aprovada em desenho
+aqui, para não ficar em aberto quando a implementação for autorizada.
+
+---
+
+## 12. Migrations escritas (não aplicadas)
+
+4 arquivos, 2 pares independentes (`projects` e `tasks` não dependem um do outro — podem ser
+aplicados em qualquer ordem entre si; dentro de cada par, coluna antes do índice):
+
+- `supabase/migrations/20260721000200_etapa5_fatia7_projects_add_source_local_id.sql`
+- `supabase/migrations/20260721000300_etapa5_fatia7_projects_unique_source_local_id.sql`
+- `supabase/migrations/20260721000400_etapa5_fatia7_tasks_add_source_local_id.sql`
+- `supabase/migrations/20260721000500_etapa5_fatia7_tasks_unique_source_local_id.sql`
+
+Pré-aplicação: `docs/database/etapa-5-fatia-7-preaplicacao.sql` (7 queries — baseline, coluna
+ainda ausente, pós-ALTER de cada tabela, pós-índice de cada tabela, controle de
+`ux_projects_from_quote` intocado).
+
+Nenhuma migration acima foi aplicada. Nenhum índice novo para o TOCTOU do §9 foi incluído
+(decisão: catalogar, não criar).
+
+---
+
+## 13. Runbook semeado — desenho de casos (proposta, aguardando aprovação — NÃO é texto executável ainda)
+
+Mesmo formato da Fatia 6 (§10 antes de virar "pronto para execução"): tabela de casos, não script
+pronto — os nomes/ids reais só existirão depois que mapper/repository/hook estiverem
+implementados e aprovados. Prefixo de identificação sugerido: `seedF7-` no id local + `TESTE-` no
+título (mesmo espírito redundante das Fatias 3-6).
+
+| Caso | O que prova | Setup necessário |
+|---|---|---|
+| (a) projeto básico | upsert + arbiter geral novo de `projects` (`source: "manual"`) | nenhum |
+| (b) projeto fan-out | `clientId` mapeado → `client_id` uuid real | mapeamento sintético de client, como na Fatia 6 |
+| (c) projeto órfã | `clientId` sem mapeamento → `client_id` null, aviso na UI | nenhum extra |
+| (d) projeto coexistência | projeto quote-linked reconhecido via `findProjectByQuote`, backfill de `source_local_id`, **sem duplicar** — prova a árvore do §7.2 e a tradução `"orçamento"→"quote"` | SQL setup pré-existente: um projeto `source='quote'` já criado pra mesma quote (simula o fluxo antigo do CRM já ter rodado) |
+| (e) projeto idempotência | reimport do caso (a) — UPDATE via `ON CONFLICT`, nunca INSERT novo | reusa (a) |
+| (f) tarefa básica | upsert + arbiter geral novo de `tasks`, sem `projectId` (tarefa solta) | nenhum |
+| (g) tarefa fan-out para projeto | `projectId` mapeado (via o projeto do caso (a), já importado) → `project_id` uuid real — prova o 4º import-map (§7.4) e a decisão do §8 (sem RPC) | reusa (a) |
+| (h) tarefa órfã de projeto | `projectId` presente mas **não** mapeado (projeto ainda não importado) → `project_id` null, aviso na UI — prova que a ordem projects-antes-de-tasks é sugestão, não trava (§8 item 5) | nenhum extra |
+| (i) tarefa idempotência | reimport do caso (f) — UPDATE via `ON CONFLICT`, nunca INSERT novo | reusa (f) |
+
+**Sem caso de atomicidade parcial/rollback** — decisão do §8 (sem RPC) torna esse tipo de prova
+inaplicável, igual à Fatia 6 (`financial_transactions`, sem filhos). **Sem caso de TOCTOU de
+tarefas-base** — decisão do §9 é catalogar, não corrigir; nada a provar nesta rodada. **Sem caso
+de precisão monetária dedicado** — mesma lógica da Fatia 6: a quantização (`roundMoney`) já tem
+cobertura de teste unitário própria; o que só a integração real prova é rede+banco+os dois
+arbiters coexistindo, e isso já está coberto pelos casos (d)/(e)/(i) acima.
+
+**Critério de aceite proposto:** 9/9 casos verdes.
+
+---
+
+**PARADO aqui.** Design de Fase B entregue (§7-§13) — decisões explícitas registradas para os 7
+pontos pedidos: idempotência dos dois níveis + coexistência (§7), atomicidade pai-filho sem RPC
+(§8), TOCTOU de tarefas-base catalogado com o porquê (§9), gap do 3º nível catalogado (§10),
+F5-equivalente recomendado para correção (§11), migrations escritas e não aplicadas (§12),
+runbook desenhado em tabela de casos (§13). **Nenhuma migration foi aplicada, nenhum código de
+implementação foi escrito, nenhuma rodada foi executada.** Qualquer avanço (aprovação do design,
+implementação, ou aplicação de migration) depende do "vai" literal do revisor colado neste chat
+pelo operador.
