@@ -879,12 +879,18 @@ pode rodar dentro de uma transação. Aplicar em autocommit` — mesma forma exi
 
 ---
 
-## 13. Runbook semeado — desenho de casos (proposta, aguardando aprovação — NÃO é texto executável ainda)
+## 13. Runbook semeado — casos (a)-(k) — PRONTO PARA EXECUÇÃO
 
-Mesmo formato da Fatia 6 (§10 antes de virar "pronto para execução"): tabela de casos, não script
-pronto — os nomes/ids reais só existirão depois que mapper/repository/hook estiverem
-implementados e aprovados. Prefixo de identificação sugerido: `seedF7-` no id local + `TESTE-` no
-título (mesmo espírito redundante das Fatias 3-6).
+> **Nota de versão:** esta seção era só a tabela de desenho (proposta) até a Fase D. O texto
+> executável (§13.1-§13.6 abaixo) foi acrescentado depois da implementação (Fase C) e da
+> aplicação das migrations (item 1), sem alterar as letras/conteúdo dos casos já aprovados no
+> veredito de Fase B. **Nada foi executado ainda** — os artefatos abaixo (seed, SQL, limpeza)
+> estão prontos para colar, aguardando o "vai" literal do revisor.
+
+Mesmo formato da Fatia 6 (§10 depois de virar "pronto para execução"). Prefixo de identificação:
+`seedF7-` no id local de projects + `TESTE-` no título/id de projects e tasks (mesmo espírito
+redundante das Fatias 3-6). Tasks usam `id` numérico (campo `Task.id: number`) — faixa
+`77000xx`, fácil de reconhecer e limpar por range.
 
 | Caso | O que prova | Setup necessário |
 |---|---|---|
@@ -912,7 +918,355 @@ arbiters coexistindo, e isso já está coberto pelos casos (d)/(e)/(j)/(k) acima
 **Critério de aceite proposto:** 11/11 casos verdes (revisado de 9/9 — (j)/(k) somados pela
 condição do item 3 do veredito de Fase B).
 
+### 13.1 Pré-requisito — dados reais (operador roda, SÓ LEITURA, antes de tudo)
+
+Workspace de teste (mesmo das Fatias 1-6): `2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9`. Reaproveita a
+quote real "xxx" (`fd9053a2-b55e-47ab-b425-00df7e59264d`, id local `qt-1784521404974`, já mapeada
+desde a Fatia 3) — mas **verificar, não assumir**, que ela e um client vivo ainda existem (lição
+já aplicada duas vezes nesta fatia: a Fatia 6 descobriu em execução que o client "fabio" tinha
+sido apagado entre o design e a rodada).
+
+```sql
+-- (1) Confirma a quote real "xxx" ainda existe e pega o total (pro budget do caso d/j)
+select id, title, total from public.quotes
+where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9'
+  and id = 'fd9053a2-b55e-47ab-b425-00df7e59264d' and deleted_at is null;
+-- esperado: 1 linha. Se 0 linhas, PARAR — a quote de referência de todas as fatias sumiu,
+-- precisa de uma decisão do revisor antes de continuar (trocar de quote de teste).
+```
+
+```sql
+-- (2) Qualquer client vivo no workspace de teste, pro fan-out do caso (b)
+select id, name from public.clients
+where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and deleted_at is null
+order by created_at limit 1;
+-- esperado: 1 linha. Guardar o `id` (uuid) — vira <CLIENT_UUID_REAL> no seed de 13.2.
+```
+
+**Preencher antes de rodar 13.2:** o total da query (1) vira `<QUOTE_TOTAL>`; o `id` da query (2)
+vira `<CLIENT_UUID_REAL>`, ambos colados no seed abaixo.
+
+### 13.2 Seed (console do navegador, produção) — cobre os casos (a)/(b)/(c)/(d)/(j) [projects] e (f)/(g)/(h) [tasks]
+
+```js
+// Etapa 5 · Fatia 7 (projects/tasks) — SEED da rodada semeada. Preserva o que já existe em
+// orbyt.projects.v1/orbyt.tasks.v1. Prefixo "seedF7-"/id 77000xx + "TESTE-" no título.
+
+// --- mapeamento de apoio (client fan-out) — client real da query (2) do §13.1, chave local
+// sintética só pra esta rodada (nenhum client LOCAL real existe hoje, Fatia 4 F6).
+const clientMap = JSON.parse(localStorage["kora.clients.supabaseImport.v1"] || '{"importedMap":{}}');
+clientMap.importedMap["770100"] = "<CLIENT_UUID_REAL>"; // da query (2) do §13.1
+localStorage.setItem("kora.clients.supabaseImport.v1", JSON.stringify(clientMap));
+
+// --- projects semeados ---
+const existingProjects = JSON.parse(localStorage["orbyt.projects.v1"] || "[]");
+const now = new Date().toISOString();
+const due = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+const start = new Date().toISOString().slice(0, 10);
+
+const seedProjects = [
+  { // (a) básica — sem fan-in nenhum, prova upsert + arbiter geral novo
+    id: "seedF7-a-basica", name: "TESTE-a-basica", clientName: "Cliente Teste",
+    status: "planning", priority: "medium", progress: 0, tags: [], createdAt: now,
+    isDemo: false, source: "manual", budget: 1500, startDate: start, dueDate: due,
+  },
+  { // (b) fan-out — clientId mapeado -> deve virar client_id = uuid real (não "770100" cru)
+    id: "seedF7-b-fanout", name: "TESTE-b-fanout", clientName: "Cliente Teste",
+    status: "planning", priority: "medium", progress: 0, tags: [], createdAt: now,
+    isDemo: false, source: "manual", budget: 2500, startDate: start, dueDate: due,
+    clientId: 770100,
+  },
+  { // (c) órfã — clientId presente mas SEM mapeamento -> client_id = null + reporte na UI
+    id: "seedF7-c-orfa", name: "TESTE-c-orfa", clientName: "Cliente Teste",
+    status: "planning", priority: "medium", progress: 0, tags: [], createdAt: now,
+    isDemo: false, source: "manual", budget: 500, startDate: start, dueDate: due,
+    clientId: 770199, // deliberadamente NÃO mapeado
+  },
+  { // (d) coexistência — quote-linked, mesma quote real "xxx". REQUER o setup SQL de 13.3
+    // ANTES de importar este (e o (j) abaixo) — simula "já existe um projeto pra essa quote".
+    id: "seedF7-d-coexistencia", name: "TESTE-d-coexistencia", clientName: "fabio",
+    status: "planning", priority: "medium", progress: 0, tags: [], createdAt: now,
+    isDemo: false, source: "orçamento", budget: <QUOTE_TOTAL>, startDate: start, dueDate: due,
+    quoteId: "qt-1784521404974",
+  },
+  { // (j) coexistência (2ª tentativa, projeto local DIFERENTE, mesma quote) — prova que o
+    // caminho do app nunca duplica, mesmo pra um candidato local distinto de (d).
+    id: "seedF7-j-duplo-quote", name: "TESTE-j-duplo-quote", clientName: "fabio",
+    status: "planning", priority: "medium", progress: 0, tags: [], createdAt: now,
+    isDemo: false, source: "orçamento", budget: <QUOTE_TOTAL>, startDate: start, dueDate: due,
+    quoteId: "qt-1784521404974",
+  },
+];
+
+localStorage.setItem("orbyt.projects.v1", JSON.stringify([...existingProjects, ...seedProjects]));
+
+// --- tasks semeadas ---
+const existingTasks = JSON.parse(localStorage["orbyt.tasks.v1"] || "[]");
+
+const seedTasks = [
+  { // (f) básica — tarefa solta, sem projectId (caso de uso real, não transitório)
+    id: 7700001, title: "TESTE-f-basica", description: "", client: "", project: "",
+    priority: "média", deadline: "20 Ago 2026", status: "a_fazer", createdAt: now,
+    tags: [], subtasks: [], comments: [], isDemo: false, source: "manual",
+  },
+  { // (g) fan-out — projectId aponta pro id LOCAL do caso (a); só resolve depois que
+    // projects já tiver sido importado (ordem sugerida, não travada — §8.1).
+    id: 7700002, title: "TESTE-g-fanout", description: "", client: "", project: "",
+    priority: "média", deadline: "20 Ago 2026", status: "a_fazer", createdAt: now,
+    tags: [], subtasks: [], comments: [], isDemo: false, source: "projeto",
+    projectId: "seedF7-a-basica",
+  },
+  { // (h) órfã de projeto — projectId aponta pra um id local que NUNCA existe (nenhum seed
+    // usa esse id) -> fica órfã permanente nesta rodada, prova o guard do §8.1.
+    id: 7700003, title: "TESTE-h-orfa", description: "", client: "", project: "",
+    priority: "média", deadline: "20 Ago 2026", status: "a_fazer", createdAt: now,
+    tags: [], subtasks: [], comments: [], isDemo: false, source: "projeto",
+    projectId: "seedF7-projeto-inexistente",
+  },
+];
+
+localStorage.setItem("orbyt.tasks.v1", JSON.stringify([...existingTasks, ...seedTasks]));
+console.log("✅ Seed F7 gravado:", seedProjects.map(p => p.id), seedTasks.map(t => t.id));
+// esperado: ["seedF7-a-basica","seedF7-b-fanout","seedF7-c-orfa","seedF7-d-coexistencia",
+//            "seedF7-j-duplo-quote"] [7700001,7700002,7700003]
+```
+
+*(Casos (e)/(i) — idempotência — não precisam de seed próprio: reimportam os casos (a)/(f) já
+semeados, via SQL direto, §13.5. Caso (k) — backstop de banco — também via SQL direto, sem seed
+de UI, §13.5.)*
+
+### 13.3 Setup SQL do caso (d)/(j) — rodar ANTES de importar
+
+```sql
+-- Simula "já existe um projeto pra essa quote" (ex.: fluxo antigo do CRM, ou qualquer origem
+-- anterior a esta fatia) — sem source_local_id, pra provar o backfill do caso (d).
+insert into public.projects
+  (workspace_id, client_id, quote_id, title, status, source, budget, is_demo, archived)
+values
+  ('2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9', null,
+   'fd9053a2-b55e-47ab-b425-00df7e59264d', 'TESTE-FT-preexistente-d', 'active', 'quote',
+   <QUOTE_TOTAL>, false, false)
+returning id, quote_id, source_local_id;
+-- guarde o id — esperado: source_local_id IS NULL (criado direto por SQL, não por import)
+```
+
+### 13.4 Passos do operador, em ordem
+
+1. Rodar as 2 queries do **§13.1** (só leitura) e preencher `<CLIENT_UUID_REAL>`/`<QUOTE_TOTAL>`
+   no seed de 13.2.
+2. Rodar o **setup SQL do caso (d)/(j)** (§13.3) — ANTES de importar.
+3. Rodar o **seed JS** (§13.2) no console, origem de produção.
+4. **F5** (recarregar a página) — `useProjects`/`useTasks` não observam mudança externa no
+   `localStorage` (mesma lição das Fatias 3/4/6).
+5. Abrir **Configurações → Importar projetos locais**.
+6. **Gate 2 (print pré-clique):** print do card mostrando os candidatos — esperado **5
+   candidatos novos** (a/b/c/d/j), só **(c)** com aviso "vínculo não encontrado", nenhum outro
+   aviso.
+7. Selecionar os 5 candidatos → **Importar selecionados**.
+8. Print do toast + aba Network — esperado: chamadas a `projects` incluindo pelo menos um
+   `SELECT` (o `findProjectByQuote` dos casos (d)/(j), antes de decidir upsert vs backfill vs
+   reconhecer-existente).
+9. Rodar as **provas SQL 13.5 (a)-(d)/(j)**.
+10. Abrir **Configurações → Importar tarefas locais**.
+11. **Gate 2 (print pré-clique):** esperado **3 candidatos novos** (f/g/h) — só **(h)** com aviso
+    "projeto ainda não importado"; **(g)** SEM aviso (projeto do caso (a) já foi importado no
+    passo 7).
+12. Selecionar os 3 candidatos → **Importar selecionados**.
+13. Rodar as **provas SQL 13.5 (f)-(h)**.
+14. Rodar as **provas de idempotência 13.5 (e)/(i)** (usam os `source_local_id` reais gravados
+    nos passos 9/13).
+15. Rodar a **prova de backstop 13.5 (k)**.
+16. Rodar a **limpeza 13.6** (nuvem + local) — só depois de todas as provas confirmadas.
+
+### 13.5 Provas SQL por caso
+
+```sql
+-- (a) básica: sem fan-in nenhum
+select id, title, client_id, quote_id, opportunity_id, budget, source, source_local_id
+from public.projects
+where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and title = 'TESTE-a-basica';
+-- esperado: 1 linha; client_id/quote_id/opportunity_id NULL; source='manual';
+-- source_local_id preenchido (contém "seedF7-a-basica") — GUARDE esse valor pro caso (e).
+```
+
+```sql
+-- (b) fan-out: client_id vira uuid real, nunca "770100" cru
+select id, title, client_id from public.projects
+where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and title = 'TESTE-b-fanout';
+-- esperado: client_id = <CLIENT_UUID_REAL> (o mesmo da query 2 do §13.1)
+```
+
+```sql
+-- (c) órfã: client_id vira null, não "770199" cru, não erro
+select id, title, client_id from public.projects
+where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and title = 'TESTE-c-orfa';
+-- esperado: 1 linha, client_id IS NULL
+```
+
+```sql
+-- (d)+(j) coexistência: 1 única linha viva pra essa quote (não 2 — não duplicou nenhuma vez)
+select count(*) as linhas_vivas from public.projects
+where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9'
+  and quote_id = 'fd9053a2-b55e-47ab-b425-00df7e59264d'
+  and source = 'quote' and deleted_at is null;
+-- esperado: 1
+
+select id, title, source_local_id from public.projects
+where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9'
+  and quote_id = 'fd9053a2-b55e-47ab-b425-00df7e59264d'
+  and source = 'quote' and deleted_at is null;
+-- esperado: é a linha do SETUP §13.3 (título "TESTE-FT-preexistente-d", MESMO id do §13.3) —
+-- NÃO virou "TESTE-d-coexistencia" nem "TESTE-j-duplo-quote" (o import de (d) reconheceu a
+-- existente e fez backfill; o import de (j), rodado depois no MESMO lote, reconheceu a MESMA
+-- linha JÁ com source_local_id preenchido e não tocou nada de novo — nota esperada, não bug:
+-- o local seedF7-j-duplo-quote fica marcado "imported" apontando pra esse id, mas seu PRÓPRIO
+-- source_local_id nunca é gravado na coluna, porque só um import "ganha" a coluna por linha).
+-- source_local_id contém "seedF7-d-coexistencia" (o de (d), que rodou primeiro no lote).
+```
+
+```sql
+-- (f) básica: tarefa solta, sem project_id
+select id, title, project_id, client_id, quote_id, source_local_id from public.tasks
+where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and title = 'TESTE-f-basica';
+-- esperado: 1 linha, project_id IS NULL; source_local_id preenchido (contém "7700001") —
+-- GUARDE esse valor pro caso (i).
+```
+
+```sql
+-- (g) fan-out para projeto: project_id vira o uuid real do projeto do caso (a)
+select t.id, t.title, t.project_id, p.title as projeto_titulo
+from public.tasks t join public.projects p on p.id = t.project_id
+where t.workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and t.title = 'TESTE-g-fanout';
+-- esperado: 1 linha, projeto_titulo = 'TESTE-a-basica'
+```
+
+```sql
+-- (h) órfã de projeto: project_id vira null, não o id local cru, não erro
+select id, title, project_id from public.tasks
+where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and title = 'TESTE-h-orfa';
+-- esperado: 1 linha, project_id IS NULL
+```
+
+```sql
+-- (e) idempotência de projects — cole o source_local_id real do caso (a) no lugar de
+-- <SOURCE_LOCAL_ID_CASO_A>. INSERT direto, bypassa o app de propósito.
+insert into public.projects
+  (workspace_id, source_local_id, title, status, source, budget, is_demo, archived)
+values
+  ('2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9', '<SOURCE_LOCAL_ID_CASO_A>',
+   'TESTE-a-basica-RETRY', 'planning', 'manual', 999, false, false)
+on conflict (workspace_id, source_local_id) do update set title = excluded.title
+returning id, title, source_local_id;
+-- esperado: MESMO id da linha (a) original; title virou "...-RETRY" — UPDATE via ON CONFLICT.
+
+select count(*) from public.projects
+where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9'
+  and source_local_id = '<SOURCE_LOCAL_ID_CASO_A>';
+-- esperado: 1 (nunca 2)
+```
+
+```sql
+-- (i) idempotência de tasks — cole o source_local_id real do caso (f) no lugar de
+-- <SOURCE_LOCAL_ID_CASO_F>.
+insert into public.tasks
+  (workspace_id, source_local_id, title, status, priority, source, sort_order, is_demo, archived)
+values
+  ('2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9', '<SOURCE_LOCAL_ID_CASO_F>',
+   'TESTE-f-basica-RETRY', 'todo', 'medium', 'manual', 0, false, false)
+on conflict (workspace_id, source_local_id) do update set title = excluded.title
+returning id, title, source_local_id;
+-- esperado: MESMO id da linha (f) original; title virou "...-RETRY".
+
+select count(*) from public.tasks
+where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9'
+  and source_local_id = '<SOURCE_LOCAL_ID_CASO_F>';
+-- esperado: 1 (nunca 2)
+```
+
+```sql
+-- (k) backstop de banco — INSERT direto tentando criar um SEGUNDO projeto com source='quote'
+-- + o MESMO quote_id da linha viva de (d)/(j), SEM passar por findProjectByQuote (bypass
+-- total do app). Prova que ux_projects_from_quote é o backstop real, não só a checagem do
+-- código — o literal 'quote' aqui É a tradução provada em §7.2/testes unitários.
+insert into public.projects
+  (workspace_id, quote_id, title, status, source, budget, is_demo, archived)
+values
+  ('2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9', 'fd9053a2-b55e-47ab-b425-00df7e59264d',
+   'TESTE-k-backstop-tentativa', 'active', 'quote', 1, false, false);
+-- esperado: ERRO 23505 (unique_violation) contra ux_projects_from_quote. A linha NÃO é
+-- criada — é o resultado ESPERADO e VERDE deste caso (erro = prova, não falha da rodada).
+
+select count(*) from public.projects
+where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and title = 'TESTE-k-backstop-tentativa';
+-- esperado: 0 (o INSERT acima nunca commitou)
+```
+
+**Não há caso de atomicidade parcial/rollback** — decisão do §8 (sem RPC) torna esse tipo de
+prova inaplicável, igual à Fatia 6.
+
+### 13.6 Limpeza — escrita para APROVAÇÃO do revisor ANTES da rodada (nada executado ainda)
+
+**Nuvem** — um filtro por título cobre projects (prefixo `TESTE-`, incl. o setup e os retries) +
+um filtro por `source_local_id` cobre tasks:
+
+```sql
+delete from public.projects
+where workspace_id='2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9'
+  and (title like 'TESTE-%' or title like 'TESTE-FT-%');
+
+delete from public.tasks
+where workspace_id='2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9'
+  and title like 'TESTE-%';
+
+select
+  (select count(*) from public.projects where workspace_id='2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and (title like 'TESTE-%' or title like 'TESTE-FT-%')) as projects_restantes,
+  (select count(*) from public.tasks where workspace_id='2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and title like 'TESTE-%') as tasks_restantes;
+-- esperado: 0 e 0
+```
+
+**Local:**
+```js
+const existingProjects = JSON.parse(localStorage["orbyt.projects.v1"] || "[]")
+  .filter(p => !String(p.id).startsWith("seedF7-"));
+localStorage.setItem("orbyt.projects.v1", JSON.stringify(existingProjects));
+
+const existingTasks = JSON.parse(localStorage["orbyt.tasks.v1"] || "[]")
+  .filter(t => !(t.id >= 7700000 && t.id < 7800000));
+localStorage.setItem("orbyt.tasks.v1", JSON.stringify(existingTasks));
+
+const projMeta = JSON.parse(localStorage["kora.projects.supabaseImport.v1"] || '{"importedMap":{}}');
+["seedF7-a-basica", "seedF7-b-fanout", "seedF7-c-orfa", "seedF7-d-coexistencia", "seedF7-j-duplo-quote"].forEach(
+  (id) => delete projMeta.importedMap[id]
+);
+projMeta.importedLocalIds = (projMeta.importedLocalIds || []).filter((id) => !id.startsWith("seedF7-"));
+localStorage.setItem("kora.projects.supabaseImport.v1", JSON.stringify(projMeta));
+
+const taskMeta = JSON.parse(localStorage["kora.tasks.supabaseImport.v1"] || '{"importedMap":{}}');
+["7700001", "7700002", "7700003"].forEach((id) => delete taskMeta.importedMap[id]);
+taskMeta.importedLocalIds = (taskMeta.importedLocalIds || []).filter((id) => !["7700001","7700002","7700003"].includes(id));
+localStorage.setItem("kora.tasks.supabaseImport.v1", JSON.stringify(taskMeta));
+
+// remove o mapeamento fake criado só para esta rodada (770100 -> client real)
+const clientMap = JSON.parse(localStorage["kora.clients.supabaseImport.v1"] || '{"importedMap":{}}');
+delete clientMap.importedMap["770100"];
+localStorage.setItem("kora.clients.supabaseImport.v1", JSON.stringify(clientMap));
+
+console.log("✅ Limpeza local F7 ok. F5.");
+```
+
+**Este statement de limpeza está aqui para aprovação — não foi executado.** Só roda depois de
+todas as provas de 13.5 confirmadas (passo 16 do §13.4), e só com a rodada em si já aprovada e
+executada primeiro.
+
+**Critério de aceite:** 11/11 casos verdes.
+
 ---
+
+**PARADO aqui.** Runbook pronto para execução (pré-requisito, seed, setup, passos, provas,
+limpeza) — **nada foi executado**: nenhuma leitura de dado real rodou, nenhum projeto/tarefa
+semeado, nenhum import disparado, nenhuma limpeza rodada. Aguarda "vai" literal do revisor colado
+neste chat pelo operador antes de qualquer ação sobre dado (leitura das queries do §13.1
+inclusive — mesmo sendo só `SELECT`, é ação sobre o ambiente de homologação real).
 
 ---
 
