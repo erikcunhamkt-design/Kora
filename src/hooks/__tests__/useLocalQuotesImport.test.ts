@@ -10,9 +10,9 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 
 import { useLocalQuotesImport } from "@/hooks/useLocalQuotesImport";
-import { useQuotes } from "@/hooks/useQuotes";
+import { useQuotes, type Quote } from "@/hooks/useQuotes";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
-import { quotesRepository } from "@/repositories/quotesRepository";
+import { quotesRepository, type SupabaseQuote } from "@/repositories/quotesRepository";
 import { getInstallId } from "@/lib/installId";
 
 vi.mock("@/hooks/useQuotes", () => ({ useQuotes: vi.fn() }));
@@ -27,31 +27,120 @@ vi.mock("@/lib/notify", () => ({ emitNotification: vi.fn() }));
 
 const META_KEY = "kora.quotes.supabaseImport.v1";
 
+// Mirrors the hook's own local ExtendedLocalQuote/RemoteQuote extensions
+// (src/hooks/useLocalQuotesImport.ts) for the dedupe-only fields (code,
+// leadId, string clientId) that aren't part of the base Quote type — the
+// mocked useQuotes()/quotesRepository still need a cast to the base types
+// below, same as the hook casts its own remote rows.
+type TestLocalQuote = Omit<Quote, "clientId" | "clientEmail"> & {
+  clientId?: string;
+  // Optional here (unlike the real Quote type) so the "blocked" test can
+  // construct a genuinely incomplete quote missing its email.
+  clientEmail?: string;
+  code?: string;
+  leadId?: string;
+};
+type TestRemoteQuote = SupabaseQuote & { code?: string };
+
+function makeLocalQuote(overrides: Partial<TestLocalQuote> & { id: string }): TestLocalQuote {
+  return {
+    clientName: "",
+    clientEmail: "",
+    clientWhatsapp: "",
+    title: "",
+    description: "",
+    items: [],
+    subtotal: 0,
+    discount: 0,
+    total: 0,
+    paymentCondition: "",
+    deliveryDeadline: "",
+    validityDays: 0,
+    status: "rascunho",
+    createdAt: "2024-01-01T00:00:00Z",
+    ...overrides,
+  };
+}
+
+function makeRemoteQuote(overrides: Partial<TestRemoteQuote> & { id: string }): TestRemoteQuote {
+  return {
+    workspace_id: "ws1",
+    title: "",
+    subtotal: 0,
+    discount: 0,
+    total: 0,
+    status: "aprovado",
+    archived: false,
+    created_at: "2024-01-01T00:00:00Z",
+    updated_at: "2024-01-01T00:00:00Z",
+    ...overrides,
+  };
+}
+
 // id "1" casa com o remoto r1 (título+cliente+total) => é duplicado.
 // id "3" NÃO tem correspondente remoto => é "new" (usado nos testes de import).
-function makeLocalQuotes() {
+function makeLocalQuotes(): TestLocalQuote[] {
   return [
-    { id: "1", title: "Orc 1", clientName: "Cliente A", clientEmail: "a@example.com", total: 100, isDemo: false, clientId: "c1", items: [] },
-    { id: "2", title: "Orc 2", clientName: "Cliente B", clientEmail: "b@example.com", total: 200, isDemo: true, items: [] }, // demo
-    { id: "3", title: "Orc 3", clientName: "Cliente C", clientEmail: "c@example.com", total: 150, isDemo: false, items: [] },
+    makeLocalQuote({ id: "1", title: "Orc 1", clientName: "Cliente A", clientEmail: "a@example.com", total: 100, isDemo: false, clientId: "c1" }),
+    makeLocalQuote({ id: "2", title: "Orc 2", clientName: "Cliente B", clientEmail: "b@example.com", total: 200, isDemo: true }), // demo
+    makeLocalQuote({ id: "3", title: "Orc 3", clientName: "Cliente C", clientEmail: "c@example.com", total: 150, isDemo: false }),
   ];
 }
 
-function makeRemoteQuotes() {
+function makeRemoteQuotes(): TestRemoteQuote[] {
   return [
-    { id: "r1", title: "Orc 1", client_name: "Cliente A", client_email: "a@example.com", total: 100 },
-    { id: "r2", title: "Orc 4", client_name: "Cliente D", client_email: "d@example.com", total: 300 },
+    makeRemoteQuote({ id: "r1", title: "Orc 1", client_name: "Cliente A", client_email: "a@example.com", total: 100 }),
+    makeRemoteQuote({ id: "r2", title: "Orc 4", client_name: "Cliente D", client_email: "d@example.com", total: 300 }),
   ];
+}
+
+function mockLocalQuotes(quotes: TestLocalQuote[]) {
+  // addQuote/updateStatus/updateQuote/duplicateQuote/deleteQuote/setQuotes are
+  // unused by these tests — no-op stubs just to satisfy useQuotes()'s return shape.
+  vi.mocked(useQuotes).mockReturnValue({
+    quotes: quotes as unknown as Quote[],
+    addQuote: vi.fn(),
+    updateStatus: vi.fn(),
+    updateQuote: vi.fn(),
+    duplicateQuote: vi.fn(),
+    deleteQuote: vi.fn(),
+    setQuotes: vi.fn(),
+  });
+}
+
+function mockRemoteQuotes(quotes: TestRemoteQuote[]) {
+  vi.mocked(quotesRepository.listQuotes).mockResolvedValue(quotes as unknown as SupabaseQuote[]);
 }
 
 beforeEach(() => {
   localStorage.clear();
   vi.clearAllMocks();
-  vi.mocked(useQuotes).mockReturnValue({ quotes: makeLocalQuotes() });
-  vi.mocked(useCurrentWorkspace).mockReturnValue({ workspace: { id: "ws1" } });
-  vi.mocked(quotesRepository.listQuotes).mockResolvedValue(makeRemoteQuotes());
+  mockLocalQuotes(makeLocalQuotes());
+  vi.mocked(useCurrentWorkspace).mockReturnValue({
+    workspace: {
+      id: "ws1",
+      name: "Test Workspace",
+      slug: "test-workspace",
+      owner_id: "owner1",
+      created_at: "2024-01-01T00:00:00Z",
+      updated_at: "2024-01-01T00:00:00Z",
+      currency: "BRL",
+      locale: "pt-BR",
+      timezone: null,
+    },
+    membership: null,
+    loading: false,
+    error: null,
+  });
+  mockRemoteQuotes(makeRemoteQuotes());
   vi.mocked(quotesRepository.importQuoteWithItems).mockImplementation(
-    async (_ws, _sourceLocalId, quote) => ({ id: "new-id", ...quote }),
+    async (_ws, _sourceLocalId, quote) => ({
+      id: "new-id",
+      workspace_id: "ws1",
+      created_at: "2024-01-01T00:00:00Z",
+      updated_at: "2024-01-01T00:00:00Z",
+      ...quote,
+    }),
   );
 });
 
@@ -77,7 +166,7 @@ describe("useLocalQuotesImport", () => {
     );
     const { result } = renderHook(useLocalQuotesImport);
     await waitFor(() => expect(result.current.candidates.length).toBe(2));
-    const meta = JSON.parse(localStorage.getItem(META_KEY));
+    const meta = JSON.parse(localStorage.getItem(META_KEY) ?? "{}");
     expect(meta.importedMap["1"]).toBe("r1"); // preservado
     expect(meta.lastImportedAt).toBe("2024-01-01T00:00:00Z");
   });
@@ -106,10 +195,10 @@ describe("useLocalQuotesImport", () => {
   it("classifica como 'duplicate' quando existe o mesmo code no remoto", async () => {
     const locals = makeLocalQuotes();
     locals[2].code = "CODE123"; // id "3"
-    vi.mocked(useQuotes).mockReturnValue({ quotes: locals });
-    vi.mocked(quotesRepository.listQuotes).mockResolvedValue([
+    mockLocalQuotes(locals);
+    mockRemoteQuotes([
       ...makeRemoteQuotes(),
-      { id: "r3", code: "CODE123", title: "Other", client_name: "X", client_email: "x@x.com", total: 10 },
+      makeRemoteQuote({ id: "r3", code: "CODE123", title: "Other", client_name: "X", client_email: "x@x.com", total: 10 }),
     ]);
     const { result } = renderHook(useLocalQuotesImport);
     await waitFor(() => expect(result.current.candidates.length).toBe(2));
@@ -120,7 +209,7 @@ describe("useLocalQuotesImport", () => {
   it("classifica como 'blocked' um orçamento sem dados essenciais", async () => {
     const locals = makeLocalQuotes();
     locals[2].clientEmail = undefined; // id "3" sem email
-    vi.mocked(useQuotes).mockReturnValue({ quotes: locals });
+    mockLocalQuotes(locals);
     const { result } = renderHook(useLocalQuotesImport);
     await waitFor(() => expect(result.current.candidates.length).toBe(2));
     const byId = Object.fromEntries(result.current.candidates.map((c) => [c.localQuote.id, c.status]));
@@ -133,7 +222,7 @@ describe("useLocalQuotesImport", () => {
     const locals = makeLocalQuotes();
     locals[2].clientId = "c1"; // id "3" (não-duplicado) ganha client + lead p/ o mapeamento
     locals[2].leadId = "lead99";
-    vi.mocked(useQuotes).mockReturnValue({ quotes: locals });
+    mockLocalQuotes(locals);
 
     const { result } = renderHook(useLocalQuotesImport);
     await waitFor(() => expect(result.current.candidates.length).toBe(2));
@@ -165,7 +254,7 @@ describe("useLocalQuotesImport", () => {
     await act(async () => {
       await result.current.importSelected(["3"]); // id "3" é 'new'
     });
-    const meta = JSON.parse(localStorage.getItem(META_KEY));
+    const meta = JSON.parse(localStorage.getItem(META_KEY) ?? "{}");
     expect(meta.importedMap["3"]).toBe("new-id");
     expect(meta.importedLocalIds).toContain("3");
   });
@@ -177,7 +266,7 @@ describe("useLocalQuotesImport", () => {
     await act(async () => {
       await result.current.importSelected(["3"]);
     });
-    const meta = JSON.parse(localStorage.getItem(META_KEY));
+    const meta = JSON.parse(localStorage.getItem(META_KEY) ?? "{}");
     expect(meta.importedMap["3"]).toBeUndefined();
     expect(meta.skippedLocalIds).toContain("3");
   });
@@ -185,7 +274,7 @@ describe("useLocalQuotesImport", () => {
   it("preserva quantidade fracionária no payload de itens enviado ao RPC (Q5b)", async () => {
     const locals = makeLocalQuotes();
     locals[2].items = [{ id: "it1", name: "Consultoria", quantity: 1.5, unitPrice: 100 }];
-    vi.mocked(useQuotes).mockReturnValue({ quotes: locals });
+    mockLocalQuotes(locals);
     const { result } = renderHook(useLocalQuotesImport);
     await waitFor(() => expect(result.current.candidates.length).toBe(2));
     await act(async () => {
@@ -199,11 +288,11 @@ describe("useLocalQuotesImport", () => {
   it("Q4: marca clientOrphan quando o cliente local não está no import-map", async () => {
     const locals = makeLocalQuotes();
     locals[2].clientId = "c-nao-mapeado"; // id "3" (new), sem entrada em kora.clients.supabaseImport.v1
-    vi.mocked(useQuotes).mockReturnValue({ quotes: locals });
+    mockLocalQuotes(locals);
     const { result } = renderHook(useLocalQuotesImport);
     await waitFor(() => expect(result.current.candidates.length).toBe(2));
     const c3 = result.current.candidates.find((c) => c.localQuote.id === "3");
-    expect(c3.clientOrphan).toBe(true);
-    expect(c3.money).toBeDefined(); // Q5: relatório monetário sempre presente
+    expect(c3!.clientOrphan).toBe(true);
+    expect(c3!.money).toBeDefined(); // Q5: relatório monetário sempre presente
   });
 });
