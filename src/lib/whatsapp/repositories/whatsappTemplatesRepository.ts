@@ -56,14 +56,14 @@ export async function updateTemplate(
   templateId: string,
   patch: Partial<TemplateInput>,
 ): Promise<WhatsAppTemplate> {
-  const update: Record<string, unknown> = {};
+  const update: Database["public"]["Tables"]["whatsapp_templates"]["Update"] = {};
   if (patch.name !== undefined) update.name = patch.name;
   if (patch.internalName !== undefined) update.internal_name = patch.internalName;
   if (patch.category !== undefined) update.category = patch.category;
   if (patch.language !== undefined) update.language = patch.language;
   if (patch.body !== undefined) update.body = patch.body;
-  if (patch.variables !== undefined) update.variables = patch.variables;
-  if (patch.sampleValues !== undefined) update.sample_values = patch.sampleValues;
+  if (patch.variables !== undefined) update.variables = patch.variables as unknown as Json;
+  if (patch.sampleValues !== undefined) update.sample_values = patch.sampleValues as unknown as Json;
 
   const { data, error } = await supabase
     .from("whatsapp_templates")
