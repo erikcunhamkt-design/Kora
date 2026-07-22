@@ -325,14 +325,14 @@ export default function ClientTechnicalSheetPage() {
   const isExperimentalEnabled = useMemo(() => getTechnicalSheetExperimentalEnabled(), []);
 
   const [dataSource, setDataSource] = useState<"local" | "supabase">(
-    () => getTechnicalSheetDataSource(clientId),
+    () => getTechnicalSheetDataSource(String(clientId)),
   );
 
   const activeDataSource = isExperimentalEnabled ? dataSource : "local";
 
   // Auto-promote to supabase when client has a linked supabase ID
   useEffect(() => {
-    if (supabaseClientId && dataSource === "local" && getTechnicalSheetDataSource(clientId) === "supabase") {
+    if (supabaseClientId && dataSource === "local" && getTechnicalSheetDataSource(String(clientId)) === "supabase") {
       setDataSource("supabase");
     }
   }, [supabaseClientId, dataSource, clientId]);
@@ -344,7 +344,7 @@ export default function ClientTechnicalSheetPage() {
       toast.error("Este cliente não possui vínculo com o Supabase.");
       return;
     }
-    setTechnicalSheetDataSource(clientId, newSource);
+    setTechnicalSheetDataSource(String(clientId), newSource);
     setDataSource(newSource);
     toast.success(`Fonte alterada para ${newSource === "supabase" ? "Supabase experimental" : "Local"}.`);
   };
