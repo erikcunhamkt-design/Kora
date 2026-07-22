@@ -234,11 +234,9 @@ acionável — não há o que agendar.
   confirmado na auditoria de Fatia 2.1, `AUDITORIA_FASE_02_1.md §22`) — mas é um ponto de
   manutenibilidade: se a chave rotacionar, essa migration histórica fica com o valor antigo
   (inofensivo, mas morto). Não é bloqueante.
-- **Este levantamento é estático (leitura de código/migrations), não verificação ao vivo.**
-  Não há confirmação de que `pg_cron`/`pg_net` estão de fato `CREATE EXTENSION`-ados no banco
-  remoto agora (só que a migration que os cria foi commitada — ver histórico de aplicação de
-  migrations nas fatias anteriores para o padrão de confiança adotado). **Pedir ao operador**
-  rodar a query abaixo e colar o resultado antes de qualquer decisão de escopo:
+- ~~Este levantamento é estático (leitura de código/migrations), não verificação ao vivo.~~
+  **Confirmado ao vivo pelo operador em 2026-07-21 — ver `§6`.** Query usada, para
+  referência/reprodutibilidade:
 
 ```sql
 -- Extensões relevantes à Etapa 6
@@ -250,6 +248,38 @@ where extname in ('pg_cron', 'pg_net');
 select jobid, jobname, schedule, active
 from cron.job;
 ```
+
+---
+
+## 6. Confirmação ao vivo (operador, 2026-07-21)
+
+Query do `§5` executada pelo operador diretamente no banco remoto. Resultado:
+
+| Extensão | Versão |
+|---|---|
+| `pg_cron` | `1.6.4` |
+| `pg_net` | `0.20.0` |
+
+| `jobid` | `jobname` | `schedule` | `active` |
+|---|---|---|---|
+| — | `whatsapp-campaign-processor` | `* * * * *` | `true` |
+
+Confirma, sem margem de dúvida, o achado do `§2.2`: `pg_cron`/`pg_net` estão habilitados
+neste projeto (plano Free) e o job legado está ativo, no schedule esperado. A ressalva
+estática do `§5` está superada.
+
+**Nota derivada (raciocínio novo, não apenas o resultado da query):** o próprio job
+`whatsapp-campaign-processor` roda `net.http_post` contra uma Edge Function a cada minuto,
+24/7 — isso **é**, em si, tráfego de API constante contra o projeto. A condição de pausa do
+Free ("paused after 1 week of inactivity", `§5`) é sobre **inatividade**; um job que bate na
+API todo minuto, para sempre, é o oposto de inatividade. **Enquanto esse job existir e
+continuar ativo, ele mitiga por construção o próprio risco de pausa que o `§5` levanta** —
+não por decisão ou monitoramento do Kora, mas como efeito colateral da cadência do cron.
+Isso não elimina o risco (o job poderia falhar silenciosamente, ser desabilitado, ou a regra
+de pausa da Supabase poder não contar tráfego de `pg_net`/`cron` como "atividade" no sentido
+que a Supabase mede — isso **não foi verificado**, é inferência, não confirmado em doc oficial)
+mas reduz a probabilidade prática do cenário "projeto pausou, cron parou" enquanto o job
+atual permanecer de pé.
 
 ---
 
