@@ -695,3 +695,12 @@ UI** para todo orçamento já migrado — regressão silenciosa de dado real, n�
 `mapLocalQuoteToSupabaseQuote`/`mapSupabaseQuoteToLocalQuote`/`SupabaseQuote`/RPC
 `import_quote_with_items` nos dois sentidos + backfill do registro real já migrado
 (`fd9053a2-...`) antes de qualquer proposta de cutover de leitura.
+
+**Referência cruzada (adicionada na Etapa 5 · Fatia 7, 2026-07-21):** este achado inaugura a
+categoria "pendência de paridade de schema local↔nuvem que bloqueia cutover futuro, não a fatia
+atual" — a mesma categoria em que a Fatia 7 (`projects`/`tasks`) catalogou o gap do 3º nível
+(`subtasks`/`comments` sem representação na nuvem) como **PT2**, ver
+[`etapa-5-fatia-7-projects.md` §15](etapa-5-fatia-7-projects.md#15-pt2--pendência-catalogada-gap-de-schema-do-3º-nível-bloqueia-cutover-futuro-de-tasks).
+Entidades diferentes (`quotes` aqui, `tasks` lá), mesma classe de achado — nenhuma delas bloqueia
+a fatia em que foi descoberta, ambas bloqueiam uma fatia futura específica (cutover de leitura de
+`quotes`; cutover de CRUD completo de `tasks`, respectivamente).
