@@ -179,7 +179,7 @@ export function useLocalFinanceImport() {
         emitNotification({
           title: "Lançamento financeiro importado",
           description: local.title,
-          category: "import",
+          category: "finance",
           type: "success",
         });
       } catch (e: unknown) {
@@ -190,8 +190,8 @@ export function useLocalFinanceImport() {
         emitNotification({
           title: "Falha ao importar lançamento financeiro",
           description: local.title,
-          category: "import",
-          type: "error",
+          category: "finance",
+          type: "danger",
         });
       }
     }
