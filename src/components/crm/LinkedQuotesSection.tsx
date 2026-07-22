@@ -283,6 +283,7 @@ export function LinkedQuotesSection({
           onOpenChange={setProjectDialogOpen}
           quoteTitle={projectQuote.title}
           quoteTotal={projectQuote.total}
+          clientName={projectQuote.clientName}
           workspaceId={workspaceId}
           quoteId={projectQuote.id}
           clientId={projectQuote.clientId ? String(projectQuote.clientId) : undefined}

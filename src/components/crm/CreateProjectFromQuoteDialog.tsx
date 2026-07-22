@@ -12,13 +12,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { projectsRepository } from "@/repositories/projectsRepository";
+import { useProjects } from "@/hooks/useProjects";
 
 interface CreateProjectFromQuoteDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   quoteTitle: string;
   quoteTotal: number;
+  clientName: string;
   workspaceId: string;
   quoteId: string;
   clientId?: string | null;
@@ -27,16 +28,22 @@ interface CreateProjectFromQuoteDialogProps {
 }
 
 export function CreateProjectFromQuoteDialog({
+  // Etapa 5 · Fatia 7 (F5-equivalente, padrão F5-b da Fatia 6): workspaceId/quoteId/
+  // clientId/opportunityId seguem no contrato de props (o chamador,
+  // LinkedQuotesSection.tsx, não precisa mudar), mas não são desestruturados aqui:
+  // são UUIDs de NUVEM (este diálogo só existe para orçamentos já migrados), sem
+  // equivalente de id LOCAL, então não entram no projeto local abaixo. O caminho
+  // nuvem (projectsRepository.createProjectFromQuote/findProjectByQuote) fica
+  // DESATIVADO ATÉ O CUTOVER de leitura de projects, não abandonado — permanece
+  // vivo como o contrato de negócio que o import geral (§7.2) reusa.
   open,
   onOpenChange,
   quoteTitle,
   quoteTotal,
-  workspaceId,
-  quoteId,
-  clientId,
-  opportunityId,
+  clientName,
   onSuccess,
 }: CreateProjectFromQuoteDialogProps) {
+  const { addProject } = useProjects();
   const [submitting, setSubmitting] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -80,52 +87,51 @@ export function CreateProjectFromQuoteDialog({
 
     setSubmitting(true);
     try {
-      // 1. Evitar duplicidade: verificar se já existe projeto Supabase com quote_id, source=quote, deleted_at=null
-      const existing = await projectsRepository.findProjectByQuote(workspaceId, quoteId);
-      if (existing && existing.length > 0) {
-        toast.error("Este orçamento já possui um projeto vinculado.");
-        setSubmitting(false);
-        return;
-      }
-
-      // 2. Persistência no Supabase
-      const created = await projectsRepository.createProjectFromQuote(workspaceId, {
-        client_id: clientId || null,
-        quote_id: quoteId,
-        opportunity_id: opportunityId || null,
-        title,
-        description: description || null,
+      // F5-equivalente (padrão F5-b): grava LOCAL (useProjects().addProject()),
+      // nivelado ao mesmo caminho que QuoteToProjectDialog.tsx (Vendas) já usa em
+      // produção — ProjectsSection.tsx só lê local hoje (ver
+      // docs/qa/etapa-5-fatia-7-projects.md §2.4/§11), então é o único jeito do
+      // usuário ver este projeto na tela que realmente usa. O caminho nuvem
+      // (projectsRepository.createProjectFromQuote/findProjectByQuote) segue
+      // existindo, intocado — DESATIVADO ATÉ O CUTOVER, não abandonado.
+      const project = addProject({
+        name: title,
+        clientName,
+        quoteTitle,
+        description: description || undefined,
         budget,
-        start_date: startDate,
-        due_date: dueDate,
-        status: "active",
-        source: "quote",
-        is_demo: false,
-        archived: false,
+        startDate,
+        dueDate,
+        status: "planning",
+        priority: "medium",
+        source: "orçamento",
+        tags: [],
       });
 
-      // 3. Log local de sucesso
+      // Log local de sucesso — sem quoteId de nuvem aqui de propósito (ver comentário
+      // acima do destructuring): a proveniência fica registrada pelo quoteTitle.
       try {
         const logRaw = localStorage.getItem("kora.quotes.supabaseProjects.v1") || "[]";
         const logParsed = JSON.parse(logRaw);
         logParsed.push({
-          quoteId,
-          projectId: created.id,
+          quoteTitle,
+          projectId: project.id,
           title,
           budget,
           createdAt: new Date().toISOString(),
+          gravadoLocal: true,
         });
         localStorage.setItem("kora.quotes.supabaseProjects.v1", JSON.stringify(logParsed));
       } catch (logErr) {
         console.error("Erro ao registrar log local de projeto:", logErr);
       }
 
-      toast.success("Projeto gerado com sucesso no Supabase!");
+      toast.success("Projeto criado. Veja em Projetos.");
       onSuccess();
       onOpenChange(false);
     } catch (err: unknown) {
       console.error(err);
-      toast.error("Erro ao gerar projeto no Supabase.");
+      toast.error("Erro ao gerar projeto.");
     } finally {
       setSubmitting(false);
     }
@@ -137,7 +143,7 @@ export function CreateProjectFromQuoteDialog({
         <DialogHeader>
           <DialogTitle className="text-foreground text-sm font-semibold">Gerar projeto?</DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground leading-normal">
-            Esta ação criará um projeto base no Supabase a partir deste orçamento aprovado. Tarefas, cronogramas e automações locais não serão criados nesta etapa.
+            Esta ação criará um projeto local, visível na tela Projetos, a partir deste orçamento aprovado. Tarefas, cronogramas e automações não serão criados nesta etapa.
           </DialogDescription>
         </DialogHeader>
 

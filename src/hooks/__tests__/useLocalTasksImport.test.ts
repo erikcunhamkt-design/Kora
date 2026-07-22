@@ -7,6 +7,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 
 import { useLocalTasksImport } from "@/hooks/useLocalTasksImport";
+import type { ImportResult } from "@/hooks/useLocalTasksImport";
 import { useTasks } from "@/hooks/useTasks";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { tasksRepository } from "@/repositories/tasksRepository";
@@ -173,7 +174,7 @@ describe("useLocalTasksImport — importSelected: project_id resolvido ou null, 
     const { result } = renderHook(() => useLocalTasksImport());
     await waitFor(() => expect(result.current.candidates.length).toBeGreaterThan(0));
 
-    let importResult;
+    let importResult: ImportResult = { successIds: [], failedIds: [] };
     await act(async () => {
       importResult = await result.current.importSelected(["1", "3"]);
     });

@@ -5,6 +5,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 
 import { useLocalProjectsImport } from "@/hooks/useLocalProjectsImport";
+import type { ImportResult } from "@/hooks/useLocalProjectsImport";
 import { useProjects } from "@/hooks/useProjects";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { projectsRepository } from "@/repositories/projectsRepository";
@@ -119,7 +120,7 @@ describe("useLocalProjectsImport — importSelected grava o map SÓ APÓS sucess
     const { result } = renderHook(() => useLocalProjectsImport());
     await waitFor(() => expect(result.current.candidates.length).toBeGreaterThan(0));
 
-    let importResult;
+    let importResult: ImportResult = { successIds: [], failedIds: [] };
     await act(async () => {
       importResult = await result.current.importSelected(["pj-1", "pj-3"]);
     });

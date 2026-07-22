@@ -336,6 +336,7 @@ export function SupabaseQuotesViewerCard() {
           onOpenChange={setProjectDialogOpen}
           quoteTitle={projectQuote.title}
           quoteTotal={projectQuote.total}
+          clientName={projectQuote.clientName}
           workspaceId={workspace.id}
           quoteId={projectQuote.id}
           clientId={projectQuote.clientId ? String(projectQuote.clientId) : undefined}

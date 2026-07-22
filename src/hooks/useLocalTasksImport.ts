@@ -167,7 +167,7 @@ export function useLocalTasksImport() {
         emitNotification({
           title: "Tarefa importada",
           description: local.title,
-          category: "import",
+          category: "project",
           type: "success",
         });
       } catch (e: unknown) {
@@ -177,8 +177,8 @@ export function useLocalTasksImport() {
         emitNotification({
           title: "Falha ao importar tarefa",
           description: local.title,
-          category: "import",
-          type: "error",
+          category: "project",
+          type: "danger",
         });
       }
     }

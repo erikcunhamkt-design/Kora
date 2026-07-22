@@ -170,7 +170,7 @@ export function useLocalProjectsImport() {
         emitNotification({
           title: "Projeto importado",
           description: local.name,
-          category: "import",
+          category: "project",
           type: "success",
         });
       } catch (e: unknown) {
@@ -181,8 +181,8 @@ export function useLocalProjectsImport() {
         emitNotification({
           title: "Falha ao importar projeto",
           description: local.name,
-          category: "import",
-          type: "error",
+          category: "project",
+          type: "danger",
         });
       }
     }
