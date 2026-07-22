@@ -131,8 +131,8 @@ describe("useLocalFinanceImport — importSelected grava o map SÓ APÓS sucesso
       importResult = await result.current.importSelected(["tx-1", "tx-3"]);
     });
 
-    expect(importResult.successIds).toEqual(["tx-3"]);
-    expect(importResult.failedIds).toEqual(["tx-1"]);
+    expect(importResult!.successIds).toEqual(["tx-3"]);
+    expect(importResult!.failedIds).toEqual(["tx-1"]);
 
     const meta = JSON.parse(localStorage.getItem(META_KEY) || "{}");
     expect(meta.importedMap["tx-1"]).toBeUndefined(); // falhou, nada gravado
