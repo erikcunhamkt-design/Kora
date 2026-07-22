@@ -74,6 +74,8 @@ import { useLocalTechnicalSheetsImport } from "@/hooks/useLocalTechnicalSheetsIm
 import { useLocalOpportunitiesImport } from "@/hooks/useLocalOpportunitiesImport";
 import { LocalQuotesImportCard } from "@/components/settings/LocalQuotesImportCard";
 import { LocalFinanceImportCard } from "@/components/settings/LocalFinanceImportCard";
+import { LocalProjectsImportCard } from "@/components/settings/LocalProjectsImportCard";
+import { LocalTasksImportCard } from "@/components/settings/LocalTasksImportCard";
 import { QuotesSupabaseExperimentalToggleCard } from "@/components/settings/QuotesSupabaseExperimentalToggleCard";
 import { SupabaseQuotesViewerCard } from "@/components/settings/SupabaseQuotesViewerCard";
 import { CrmSupabaseCreateQuoteToggleCard } from "@/components/settings/CrmSupabaseCreateQuoteToggleCard";
@@ -847,6 +849,8 @@ const Configuracoes = () => {
                   <LocalTechnicalSheetsImportCard />
                   <LocalQuotesImportCard />
                   <LocalFinanceImportCard />
+                  <LocalProjectsImportCard />
+                  <LocalTasksImportCard />
                 </div>
               </div>
 

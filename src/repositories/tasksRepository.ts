@@ -21,6 +21,11 @@ export interface SupabaseTask {
   deleted_at?: string | null;
   created_at: string;
   updated_at: string;
+  /** Etapa 5 · Fatia 7 (F1): chave de idempotência do import geral. NULL para linhas
+   * legadas ou geradas nativamente na nuvem via CreateProjectBaseTasksDialog
+   * (source='project_template') — vocabulário disjunto do import geral, os dois
+   * nunca competem (ver docs/qa/etapa-5-fatia-7-projects.md §7.3). */
+  source_local_id?: string | null;
 }
 
 export const tasksRepository = {
@@ -78,6 +83,36 @@ export const tasksRepository = {
       .eq("id", taskId)
       .eq("workspace_id", workspaceId)
       .is("deleted_at", null)
+      .select()
+      .single();
+
+    if (error) throw normalizeSupabaseError(error);
+    return data as SupabaseTask;
+  },
+
+  // Etapa 5 · Fatia 7 (F2) — import geral. Sem árvore de decisão (§7.3 do doc da
+  // fatia): o vocabulário local de Task.source ("manual"/"projeto"/"orçamento")
+  // nunca produz o literal "project_template" (gerador de tarefas base, Etapa 3) —
+  // os dois nunca escrevem a mesma combinação de valores, então um upsert direto
+  // pelo arbiter geral basta, sem precisar de nenhum caminho especial.
+  async importTask(
+    workspaceId: string,
+    sourceLocalId: string,
+    input: Partial<SupabaseTask>,
+  ) {
+    // Guarda (mesma disciplina de financeRepository.importTransaction/
+    // projectsRepository.importProject): sem source_local_id não-vazio, o upsert
+    // abaixo não tem arbiter de idempotência nenhum.
+    if (!sourceLocalId || !sourceLocalId.trim()) {
+      throw new Error("importTask: source_local_id é obrigatório (arbiter da idempotência)");
+    }
+
+    const { data, error } = await supabase
+      .from("tasks")
+      .upsert(
+        { workspace_id: workspaceId, source_local_id: sourceLocalId, ...input },
+        { onConflict: "workspace_id,source_local_id" },
+      )
       .select()
       .single();
 
