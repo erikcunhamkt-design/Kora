@@ -67,6 +67,24 @@ Achado durante a rodada `qualidade-lint` (tipagem de `supabase/functions/whatsap
 - **Lacuna de cobertura:** a suíte (152/152 verde na rodada `qualidade-lint`) **não cobre esse caminho** — `whatsapp-bot-reply` é uma Edge Function Deno (`Deno.serve`, `npm:` imports), fora do alcance do harness Node/Vitest (mesma limitação já documentada em `docs/qa/etapa-2-seguranca.md` para os handlers de webhook). Corrigir o bug sem adicionar ao menos um teste de regressão (ainda que de integração/homologação, dado o harness) deixaria a falha silenciosa livre para se repetir.
 - **Fix não incluído nesta rodada:** hoisting de `flowNodes` para um escopo comum aos dois branches (`isTest`/normal) resolve a referência; decisão em aberto se o modo `isTest` também deve suportar template de Send Node ou se a formatação deve ser pulada quando `flowNodes` estiver vazio.
 
+**G9 — Gate `tsc --noEmit` inoperante: checagem de tipos vazia em toda a Etapa 5. [ALTO — confirmado]**
+Achado durante a Etapa 5 · Fatia 7 (projects/tasks), corrigindo o item 4 (F5-equivalente) — não corrigido nela por ser um achado de escopo maior que uma fatia individual, e por precisar de rodada própria (ver "Fix roteado" abaixo).
+
+- **A causa:** `tsconfig.json` (raiz) declara `"files": []` e só `"references"` (para `tsconfig.app.json`/`tsconfig.node.json`) — é um config "solution-style" de project references. Rodar `npx tsc --noEmit` **sem** `-p`/`--build` contra ele verifica **zero arquivos** e sempre reporta "0 erros", não importa o que exista em `src/`. Não é uma flakiness ocasional — é estrutural, todo run se comporta assim.
+- **Onde isso foi usado como gate, o tempo todo:** (a) manualmente, em toda sessão de todas as fatias da Etapa 5 (2/3/4/6/7), reportado como "tsc 0" em cada commit; (b) no próprio `.github/workflows/ci.yml`, step "Type-check (tsc --noEmit)" (linha ~34-35) — roda exatamente o mesmo comando vazio. O CI nunca checou tipo nenhum nesta janela.
+- **Checagem real** (`npx tsc --noEmit -p tsconfig.app.json`, rodada na Fatia 7 pós-merge com `qualidade-lint`, tip `ff50025`): **37 erros reais** em **9 arquivos**, nenhum deles em código da Fatia 7 (`projects`/`tasks`/mappers/dialog — todos limpos sob a checagem real):
+  - `src/components/whatsapp/WhatsAppBotConfig.tsx` — 1 erro (cast `Json[]` → `WorkflowNode[]`)
+  - `src/hooks/useLocalFinanceImport.ts` — 3 erros (`emitNotification` com `category:"import"`/`type:"error"`, valores inválidos — ver `src/lib/notify.ts` pro vocabulário real)
+  - `src/hooks/__tests__/useLocalFinanceImport.test.ts` — 2 erros (`importResult` possivelmente `undefined`)
+  - `src/hooks/useLocalQuotesImport.ts` — 3 erros (mesmo padrão de `category`/`type` inválidos — é de onde o padrão parece ter se originado e depois foi copiado pras fatias seguintes)
+  - `src/hooks/__tests__/useLocalQuotesImport.test.ts` — 20 erros (fixtures de teste com formato desatualizado vs. os tipos reais de `Quote`/`SupabaseQuote`/`Workspace`)
+  - `src/hooks/useSupabaseOpportunities.ts` — 1 erro (cast faltando `source_local_id`)
+  - `src/lib/whatsapp/repositories/whatsappTemplatesRepository.ts` — 1 erro (`RejectExcessProperties`)
+  - `src/pages/ClientTechnicalSheet.tsx` — 3 erros (`string | undefined` vs. `string | number`)
+  - `src/repositories/crmOpportunitiesRepository.ts` — 3 erros (`RejectExcessProperties`/`source_local_id: never`)
+- **Não reabre veredito nenhum.** Boa parte é herança de fatias já assinadas e fechadas (ex.: o padrão de `category`/`type` inválidos em `useLocalFinanceImport.ts` nasceu copiado de `useLocalQuotesImport.ts`, de uma fatia anterior) — os resultados técnicos já registrados nos docs de cada fatia continuam válidos; o problema é que o **gate nunca rodou de verdade** pra pegar isso, não que a homologação de alguma fatia estivesse errada.
+- **Fix roteado à LANE B (rodada futura), NÃO à fatia que achou isto:** corrigir os 37 erros listados primeiro (arquivo por arquivo, a maioria são 1-3 linhas cada, exceto o teste de `useLocalQuotesImport` que precisa das fixtures atualizadas); só depois trocar o step do `ci.yml` de `npx tsc --noEmit` para `npx tsc --noEmit -p tsconfig.app.json` (ou `npx tsc --build`) — nessa ordem, pra o CI não quebrar no mesmo commit que liga o gate de verdade. Uma fatia de import (Fase C) não é o lugar de corrigir dívida de tipos pré-existente e não-relacionada — só de reportá-la.
+
 ---
 
 ## 3. Segurança / vulnerabilidades (verificar e endurecer)
