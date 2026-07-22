@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Hook for Supabase Quotes — backed by React Query (pilot for A2).
 //
 // Public API is unchanged from the previous useState/useEffect version, so

@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Testes do hook useLocalQuotesImport — migrados de Jest para Vitest.
 // (Antes: jest.mock + @testing-library/react-hooks, pacote deprecado/não instalado,
 //  por isso o arquivo estava em quarentena via vitest.config exclude.)

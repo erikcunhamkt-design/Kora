@@ -84,6 +84,32 @@ async function upsertConversation(workspaceId: string, instanceId: string, phone
   return created?.id ?? null;
 }
 
+interface WhatsAppWebhookMessage {
+  from: string;
+  id: string;
+  timestamp: string;
+  type: string;
+  text?: { body?: string };
+  [key: string]: unknown;
+}
+
+interface WhatsAppWebhookValue {
+  metadata?: { phone_number_id?: string };
+  messages?: WhatsAppWebhookMessage[];
+}
+
+interface WhatsAppWebhookChange {
+  value?: WhatsAppWebhookValue;
+}
+
+interface WhatsAppWebhookEntry {
+  changes?: WhatsAppWebhookChange[];
+}
+
+interface WhatsAppWebhookPayload {
+  entry?: WhatsAppWebhookEntry[];
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -105,7 +131,7 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
 
   const raw = await req.text();
-  let payload: any;
+  let payload: WhatsAppWebhookPayload;
   try { payload = JSON.parse(raw); } catch { return new Response("Bad JSON", { status: 400 }); }
 
   for (const entry of payload?.entry ?? []) {
@@ -138,7 +164,7 @@ Deno.serve(async (req) => {
         const from = msg.from as string;
         const messageId = msg.id as string;
         const ts = new Date(Number(msg.timestamp) * 1000).toISOString();
-        const text = msg.text?.body ?? msg[msg.type]?.caption ?? null;
+        const text = msg.text?.body ?? (msg[msg.type] as { caption?: string } | undefined)?.caption ?? null;
         const preview = text?.slice(0, 200) ?? `[${msg.type}]`;
         const convId = await upsertConversation(cred.workspace_id, instanceId, from, preview, ts);
         if (!convId) continue;

@@ -1,7 +1,92 @@
 // Generates an AI reply (Vertex AI / Google Gemini / Lovable AI Gateway) for an inbound WhatsApp message
 // and sends it back via uazapi. Invoked fire-and-forget by whatsapp-webhook.
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+
+interface BotFlowNodeProperties {
+  respondAll?: boolean;
+  instruction?: string;
+  provider?: string;
+  model?: string;
+  geminiApiKey?: string;
+  gcpProjectId?: string;
+  gcpRegion?: string;
+  gcpServiceAccount?: string;
+  template?: string;
+  assignTo?: string;
+}
+
+interface BotFlowNode {
+  id: string;
+  type: "trigger" | "ai" | "send" | "handover";
+  enabled: boolean;
+  properties?: BotFlowNodeProperties;
+}
+
+interface BotSettingsRow {
+  is_active: boolean | null;
+  flow_data: unknown;
+  system_instruction: string | null;
+  provider: string | null;
+  model_name: string | null;
+  gemini_api_key: string | null;
+  gcp_project_id: string | null;
+  gcp_region: string | null;
+  gcp_service_account: string | null;
+  respond_all: boolean;
+}
+
+interface ConversationRow {
+  id: string;
+  instance_id: string;
+  contact_phone: string;
+  assigned_to: string | null;
+}
+
+interface InstanceRow {
+  instance_token: string;
+  status: string;
+  subdomain: string | null;
+}
+
+interface MessageHistoryRow {
+  direction: string;
+  content: string | null;
+  body: string | null;
+  type: string | null;
+  timestamp: string | null;
+  created_at: string;
+}
+
+interface GeminiContent {
+  role: string;
+  parts: Array<{ text: string }>;
+}
+
+interface GeminiRequestBody {
+  contents: GeminiContent[];
+  systemInstruction?: { parts: Array<{ text: string }> };
+}
+
+interface BotReplyHistoryItem {
+  role: string;
+  text: string;
+}
+
+interface BotReplyRequestBody {
+  isTest?: boolean;
+  conversationId?: string;
+  workspaceId?: string;
+  systemInstruction?: string;
+  provider?: string;
+  modelName?: string;
+  geminiApiKey?: string;
+  gcpProjectId?: string;
+  gcpRegion?: string;
+  gcpServiceAccount?: string;
+  history?: BotReplyHistoryItem[];
+  messageText?: string;
+}
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -133,12 +218,12 @@ Deno.serve(async (req) => {
 
   let conversationId: string | undefined;
   let workspaceId: string | undefined;
-  let adminClient: any = null;
+  let adminClient: SupabaseClient | null = null;
 
   try {
-    const body = await req.json().catch(() => ({}));
+    const body = (await req.json().catch(() => ({}))) as BotReplyRequestBody;
     const isTest = Boolean(body.isTest);
-    
+
     conversationId = body.conversationId;
     workspaceId = body.workspaceId;
 
@@ -149,7 +234,7 @@ Deno.serve(async (req) => {
     adminClient = createClient(SUPABASE_URL, SERVICE_ROLE);
 
     // Bot settings & details
-    let bot: any = null;
+    let bot: BotSettingsRow | null = null;
     let systemInstruction = "Você é um atendente cordial e prestativo. Responda de forma clara, breve e em português.";
     let provider = "lovable";
     let modelName = DEFAULT_MODEL;
@@ -157,9 +242,9 @@ Deno.serve(async (req) => {
     let gcpProjectId: string | null = null;
     let gcpRegion = "us-central1";
     let gcpServiceAccount: string | null = null;
-    let contents: any[] = [];
-    let conv: any = null;
-    let instance: any = null;
+    let contents: GeminiContent[] = [];
+    let conv: ConversationRow | null = null;
+    let instance: InstanceRow | null = null;
 
     if (isTest) {
       // Direct testing mode from UI playground
@@ -184,7 +269,7 @@ Deno.serve(async (req) => {
       // Build test contents
       const testHistory = body.history || [];
       if (testHistory.length > 0) {
-        contents = testHistory.map((h: any) => ({
+        contents = testHistory.map((h) => ({
           role: h.role,
           parts: [{ text: h.text }]
         }));
@@ -202,7 +287,7 @@ Deno.serve(async (req) => {
         .eq("workspace_id", workspaceId)
         .maybeSingle();
 
-      bot = botData;
+      bot = botData as BotSettingsRow | null;
       if (!bot) {
         return json({ ok: true, skipped: "no bot settings found" });
       }
@@ -218,7 +303,7 @@ Deno.serve(async (req) => {
         .eq("id", conversationId)
         .maybeSingle();
 
-      conv = convData;
+      conv = convData as ConversationRow | null;
       if (convErr) {
         console.error("[bot-reply] conv query error:", convErr);
         throw new Error(`Erro ao buscar conversa: ${convErr.message}`);
@@ -228,21 +313,21 @@ Deno.serve(async (req) => {
       }
 
       // Respect respond_all setting (parsed from trigger node if available)
-      let flowNodes: any[] = [];
+      let flowNodes: BotFlowNode[] = [];
       try {
         if (bot.flow_data) {
-          flowNodes = typeof bot.flow_data === "string" 
-            ? JSON.parse(bot.flow_data) 
-            : bot.flow_data;
+          flowNodes = (typeof bot.flow_data === "string"
+            ? JSON.parse(bot.flow_data)
+            : bot.flow_data) as BotFlowNode[];
         }
       } catch (err) {
         console.error("[bot-reply] failed to parse flow_data:", err);
       }
 
-      const triggerNode = flowNodes.find((n: any) => n.type === "trigger" && n.enabled);
-      const aiNode = flowNodes.find((n: any) => n.type === "ai" && n.enabled);
-      const sendNode = flowNodes.find((n: any) => n.type === "send" && n.enabled);
-      const handoverNode = flowNodes.find((n: any) => n.type === "handover" && n.enabled);
+      const triggerNode = flowNodes.find((n) => n.type === "trigger" && n.enabled);
+      const aiNode = flowNodes.find((n) => n.type === "ai" && n.enabled);
+      const sendNode = flowNodes.find((n) => n.type === "send" && n.enabled);
+      const handoverNode = flowNodes.find((n) => n.type === "handover" && n.enabled);
 
       const respondAll = triggerNode ? triggerNode.properties?.respondAll : bot.respond_all;
 
@@ -265,7 +350,7 @@ Deno.serve(async (req) => {
         .eq("id", conv.instance_id)
         .maybeSingle();
 
-      instance = instData;
+      instance = instData as InstanceRow | null;
       if (instErr) {
         console.error("[bot-reply] instance query error:", instErr);
         throw new Error(`Erro ao buscar instância: ${instErr.message}`);
@@ -282,11 +367,11 @@ Deno.serve(async (req) => {
         .order("timestamp", { ascending: false, nullsFirst: false })
         .limit(MAX_HISTORY);
 
-      const ordered = (history ?? []).slice().reverse();
+      const ordered = ((history ?? []) as MessageHistoryRow[]).slice().reverse();
 
       // Check for human handover condition if handover node is enabled
       if (handoverNode) {
-        const lastMsg = ordered.findLast((m: any) => m.direction === "inbound")?.content || "";
+        const lastMsg = ordered.findLast((m) => m.direction === "inbound")?.content || "";
         const handoverKeywords = ["atendente", "humano", "pessoa", "falar com", "suporte", "ajuda", "atendimento"];
         if (handoverKeywords.some(keyword => lastMsg.toLowerCase().includes(keyword))) {
           const handoverText = "Encaminhando o seu contato para o atendimento humano. Um de nossos colaboradores irá te atender em instantes! Obrigado por aguardar.";
@@ -370,15 +455,15 @@ Deno.serve(async (req) => {
     }
 
     // Default environment variables (fallback)
-    let GEMINI_API_KEY = geminiApiKey || Deno.env.get("GEMINI_API_KEY") || Deno.env.get("VERTEX_API_KEY") || null;
-    let GCP_SERVICE_ACCOUNT = gcpServiceAccount || Deno.env.get("GCP_SERVICE_ACCOUNT") || null;
-    let GCP_PROJECT_ID = gcpProjectId || Deno.env.get("GCP_PROJECT_ID") || null;
-    let GCP_REGION = gcpRegion;
+    const GEMINI_API_KEY = geminiApiKey || Deno.env.get("GEMINI_API_KEY") || Deno.env.get("VERTEX_API_KEY") || null;
+    const GCP_SERVICE_ACCOUNT = gcpServiceAccount || Deno.env.get("GCP_SERVICE_ACCOUNT") || null;
+    const GCP_PROJECT_ID = gcpProjectId || Deno.env.get("GCP_PROJECT_ID") || null;
+    const GCP_REGION = gcpRegion;
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY") || null;
 
     let reply = "";
     // Auto-map removed Google models to a currently supported Gemini model.
-    let rawModel = normalizeGoogleModel(modelName, provider);
+    const rawModel = normalizeGoogleModel(modelName, provider);
 
     if (provider === "vertex_ai" && GCP_SERVICE_ACCOUNT && GCP_PROJECT_ID) {
       // 1. Google Cloud Vertex AI Mode
@@ -386,14 +471,14 @@ Deno.serve(async (req) => {
       const token = await getGCPToken(GCP_SERVICE_ACCOUNT);
       const vertexUrl = `https://${GCP_REGION}-aiplatform.googleapis.com/v1/projects/${GCP_PROJECT_ID}/locations/${GCP_REGION}/publishers/google/models/${rawModel}:generateContent`;
 
-      const bodyPayload: Record<string, any> = { contents };
+      const bodyPayload: GeminiRequestBody = { contents };
       if (systemInstruction) {
         bodyPayload.systemInstruction = {
           parts: [{ text: systemInstruction }],
         };
       }
 
-      let aiRes = await fetch(vertexUrl, {
+      const aiRes = await fetch(vertexUrl, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`,
@@ -434,7 +519,7 @@ Deno.serve(async (req) => {
       console.log(`[bot-reply] Using Gemini AI Studio mode with model: ${rawModel}`);
       const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${rawModel}:generateContent?key=${GEMINI_API_KEY}`;
 
-      const bodyPayload: Record<string, any> = { contents };
+      const bodyPayload: GeminiRequestBody = { contents };
       if (systemInstruction) {
         bodyPayload.systemInstruction = {
           parts: [{ text: systemInstruction }],
