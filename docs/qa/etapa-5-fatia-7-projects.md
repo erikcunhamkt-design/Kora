@@ -918,45 +918,74 @@ arbiters coexistindo, e isso já está coberto pelos casos (d)/(e)/(j)/(k) acima
 **Critério de aceite proposto:** 11/11 casos verdes (revisado de 9/9 — (j)/(k) somados pela
 condição do item 3 do veredito de Fase B).
 
-### 13.1 Pré-requisito — dados reais (operador roda, SÓ LEITURA, antes de tudo)
+> **Emenda (registrada após revisão do runbook, antes de qualquer execução): dado real é
+> SÓ-LEITURA em homologação.** Nenhum caso desta rodada cria registro com FK apontando para uma
+> linha que o próprio seed não criou. O desenho original reaproveitava a quote real "xxx"
+> (`fd9053a2-b55e-47ab-b425-00df7e59264d`) e um client real como alvo dos casos (b)/(d)/(j)/(k) —
+> risco identificado: o caso (j) ocuparia o slot único de `ux_projects_from_quote` **dessa quote
+> real**; uma falha de limpeza deixaria um projeto de teste bloqueando (`23505`) a criação do
+> projeto legítimo por um usuário real depois. Substituído por um **cliente e uma quote
+> sintéticos**, criados e destruídos por este próprio runbook, no mesmo workspace de homologação
+> — nunca no caminho de nenhum dado real. Dado real (se algum for lido) serve só de referência de
+> formato, nunca de alvo.
 
-Workspace de teste (mesmo das Fatias 1-6): `2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9`. Reaproveita a
-quote real "xxx" (`fd9053a2-b55e-47ab-b425-00df7e59264d`, id local `qt-1784521404974`, já mapeada
-desde a Fatia 3) — mas **verificar, não assumir**, que ela e um client vivo ainda existem (lição
-já aplicada duas vezes nesta fatia: a Fatia 6 descobriu em execução que o client "fabio" tinha
-sido apagado entre o design e a rodada).
+### 13.1 Pré-requisito — baseline (operador roda, SÓ LEITURA, antes de tudo)
+
+Workspace de teste (mesmo das Fatias 1-6): `2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9`.
 
 ```sql
--- (1) Confirma a quote real "xxx" ainda existe e pega o total (pro budget do caso d/j)
-select id, title, total from public.quotes
-where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9'
-  and id = 'fd9053a2-b55e-47ab-b425-00df7e59264d' and deleted_at is null;
--- esperado: 1 linha. Se 0 linhas, PARAR — a quote de referência de todas as fatias sumiu,
--- precisa de uma decisão do revisor antes de continuar (trocar de quote de teste).
+-- (1) Baseline — contagem de quotes/clients ANTES de semear qualquer coisa. Guardar os dois
+-- números: são o alvo de "volta ao normal" da limpeza do §13.6 (NÃO é 0 — existem quotes/
+-- clients reais no workspace; só não pode sobrar nenhum HOMOLOG-F7-* depois da limpeza).
+select
+  (select count(*) from public.quotes where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and deleted_at is null) as quotes_baseline,
+  (select count(*) from public.clients where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and archived is not true) as clients_baseline;
+```
+
+### 13.2 Seed — cliente e quote SINTÉTICOS (SQL) + projects/tasks locais (JS)
+
+#### 13.2.1 SQL — cria o cliente e a quote sintéticos de homologação (rodar ANTES do seed JS)
+
+```sql
+-- Cliente sintético — nunca usado por dado real, identificado só pelo nome. Não é alvo de
+-- nenhuma FK real; existe só pra este runbook e é apagado por ele no §13.6.
+insert into public.clients (workspace_id, name, is_demo, archived)
+values ('2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9', 'HOMOLOG-F7-cliente', false, false)
+returning id;
+-- guarde o id -> vira <HOMOLOG_CLIENT_UUID> no seed de 13.2.2 e na prova (b) de 13.5
 ```
 
 ```sql
--- (2) Qualquer client vivo no workspace de teste, pro fan-out do caso (b)
-select id, name from public.clients
-where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and deleted_at is null
-order by created_at limit 1;
--- esperado: 1 linha. Guardar o `id` (uuid) — vira <CLIENT_UUID_REAL> no seed de 13.2.
+-- Quote sintética — nunca usada por dado real, identificada pelo source_local_id (coluna da
+-- Fatia 3/Q2) com prefixo homolog-f7-. client_id aponta pro cliente sintético acima (fan-out
+-- de verdade, mas 100% dentro do que este runbook criou). total = 4200.00, valor fixo escolhido
+-- aqui (formato de dinheiro realista de 2 casas — não precisa mais ser lido de nenhuma quote
+-- real, ver emenda acima).
+insert into public.quotes (workspace_id, client_id, title, total, status, source_local_id)
+values ('2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9', '<HOMOLOG_CLIENT_UUID>',
+        'HOMOLOG-F7-quote', 4200.00, 'approved', 'homolog-f7-quote-1')
+returning id;
+-- guarde o id -> vira <HOMOLOG_QUOTE_UUID> no seed de 13.2.2, no setup do §13.3 e nas provas
+-- (d)/(j)/(k) de 13.5
 ```
 
-**Preencher antes de rodar 13.2:** o total da query (1) vira `<QUOTE_TOTAL>`; o `id` da query (2)
-vira `<CLIENT_UUID_REAL>`, ambos colados no seed abaixo.
-
-### 13.2 Seed (console do navegador, produção) — cobre os casos (a)/(b)/(c)/(d)/(j) [projects] e (f)/(g)/(h) [tasks]
+#### 13.2.2 JS (console do navegador, produção) — cobre os casos (a)/(b)/(c)/(d)/(j) [projects] e (f)/(g)/(h) [tasks]
 
 ```js
 // Etapa 5 · Fatia 7 (projects/tasks) — SEED da rodada semeada. Preserva o que já existe em
 // orbyt.projects.v1/orbyt.tasks.v1. Prefixo "seedF7-"/id 77000xx + "TESTE-" no título.
 
-// --- mapeamento de apoio (client fan-out) — client real da query (2) do §13.1, chave local
+// --- mapeamento de apoio (client fan-out) — cliente SINTÉTICO criado no §13.2.1, chave local
 // sintética só pra esta rodada (nenhum client LOCAL real existe hoje, Fatia 4 F6).
 const clientMap = JSON.parse(localStorage["kora.clients.supabaseImport.v1"] || '{"importedMap":{}}');
-clientMap.importedMap["770100"] = "<CLIENT_UUID_REAL>"; // da query (2) do §13.1
+clientMap.importedMap["770100"] = "<HOMOLOG_CLIENT_UUID>"; // do §13.2.1
 localStorage.setItem("kora.clients.supabaseImport.v1", JSON.stringify(clientMap));
+
+// --- mapeamento de apoio (quote fan-out) — quote SINTÉTICA criada no §13.2.1, chave local
+// sintética (não existe Quote local de verdade pra ela — é cloud-native, criada por SQL).
+const quoteMap = JSON.parse(localStorage["kora.quotes.supabaseImport.v1"] || '{"importedMap":{}}');
+quoteMap.importedMap["homolog-f7-quote-local"] = "<HOMOLOG_QUOTE_UUID>"; // do §13.2.1
+localStorage.setItem("kora.quotes.supabaseImport.v1", JSON.stringify(quoteMap));
 
 // --- projects semeados ---
 const existingProjects = JSON.parse(localStorage["orbyt.projects.v1"] || "[]");
@@ -982,19 +1011,20 @@ const seedProjects = [
     isDemo: false, source: "manual", budget: 500, startDate: start, dueDate: due,
     clientId: 770199, // deliberadamente NÃO mapeado
   },
-  { // (d) coexistência — quote-linked, mesma quote real "xxx". REQUER o setup SQL de 13.3
-    // ANTES de importar este (e o (j) abaixo) — simula "já existe um projeto pra essa quote".
-    id: "seedF7-d-coexistencia", name: "TESTE-d-coexistencia", clientName: "fabio",
+  { // (d) coexistência — quote-linked, quote SINTÉTICA (§13.2.1), nunca a real. REQUER o
+    // setup SQL de 13.3 ANTES de importar este (e o (j) abaixo) — simula "já existe um
+    // projeto pra essa quote".
+    id: "seedF7-d-coexistencia", name: "TESTE-d-coexistencia", clientName: "HOMOLOG-F7-cliente",
     status: "planning", priority: "medium", progress: 0, tags: [], createdAt: now,
-    isDemo: false, source: "orçamento", budget: <QUOTE_TOTAL>, startDate: start, dueDate: due,
-    quoteId: "qt-1784521404974",
+    isDemo: false, source: "orçamento", budget: 4200.00, startDate: start, dueDate: due,
+    quoteId: "homolog-f7-quote-local",
   },
-  { // (j) coexistência (2ª tentativa, projeto local DIFERENTE, mesma quote) — prova que o
-    // caminho do app nunca duplica, mesmo pra um candidato local distinto de (d).
-    id: "seedF7-j-duplo-quote", name: "TESTE-j-duplo-quote", clientName: "fabio",
+  { // (j) coexistência (2ª tentativa, projeto local DIFERENTE, mesma quote sintética) — prova
+    // que o caminho do app nunca duplica, mesmo pra um candidato local distinto de (d).
+    id: "seedF7-j-duplo-quote", name: "TESTE-j-duplo-quote", clientName: "HOMOLOG-F7-cliente",
     status: "planning", priority: "medium", progress: 0, tags: [], createdAt: now,
-    isDemo: false, source: "orçamento", budget: <QUOTE_TOTAL>, startDate: start, dueDate: due,
-    quoteId: "qt-1784521404974",
+    isDemo: false, source: "orçamento", budget: 4200.00, startDate: start, dueDate: due,
+    quoteId: "homolog-f7-quote-local",
   },
 ];
 
@@ -1039,44 +1069,48 @@ de UI, §13.5.)*
 
 ```sql
 -- Simula "já existe um projeto pra essa quote" (ex.: fluxo antigo do CRM, ou qualquer origem
--- anterior a esta fatia) — sem source_local_id, pra provar o backfill do caso (d).
+-- anterior a esta fatia) — sem source_local_id, pra provar o backfill do caso (d). quote_id
+-- aponta pra <HOMOLOG_QUOTE_UUID> (§13.2.1), nunca pra uma quote real.
 insert into public.projects
   (workspace_id, client_id, quote_id, title, status, source, budget, is_demo, archived)
 values
   ('2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9', null,
-   'fd9053a2-b55e-47ab-b425-00df7e59264d', 'TESTE-FT-preexistente-d', 'active', 'quote',
-   <QUOTE_TOTAL>, false, false)
+   '<HOMOLOG_QUOTE_UUID>', 'TESTE-FT-preexistente-d', 'active', 'quote',
+   4200.00, false, false)
 returning id, quote_id, source_local_id;
 -- guarde o id — esperado: source_local_id IS NULL (criado direto por SQL, não por import)
 ```
 
 ### 13.4 Passos do operador, em ordem
 
-1. Rodar as 2 queries do **§13.1** (só leitura) e preencher `<CLIENT_UUID_REAL>`/`<QUOTE_TOTAL>`
-   no seed de 13.2.
-2. Rodar o **setup SQL do caso (d)/(j)** (§13.3) — ANTES de importar.
-3. Rodar o **seed JS** (§13.2) no console, origem de produção.
-4. **F5** (recarregar a página) — `useProjects`/`useTasks` não observam mudança externa no
+1. Rodar a query de **baseline** (§13.1) — guardar `quotes_baseline`/`clients_baseline`.
+2. Rodar o **SQL do §13.2.1** (cria cliente + quote sintéticos) — guardar os dois `id`
+   retornados como `<HOMOLOG_CLIENT_UUID>`/`<HOMOLOG_QUOTE_UUID>`.
+3. Preencher os dois placeholders no **seed JS** (§13.2.2) e no **setup do caso (d)/(j)**
+   (§13.3) com os UUIDs do passo 2.
+4. Rodar o **setup SQL do caso (d)/(j)** (§13.3) — ANTES de importar.
+5. Rodar o **seed JS** (§13.2.2) no console, origem de produção.
+6. **F5** (recarregar a página) — `useProjects`/`useTasks` não observam mudança externa no
    `localStorage` (mesma lição das Fatias 3/4/6).
-5. Abrir **Configurações → Importar projetos locais**.
-6. **Gate 2 (print pré-clique):** print do card mostrando os candidatos — esperado **5
+7. Abrir **Configurações → Importar projetos locais**.
+8. **Gate 2 (print pré-clique):** print do card mostrando os candidatos — esperado **5
    candidatos novos** (a/b/c/d/j), só **(c)** com aviso "vínculo não encontrado", nenhum outro
    aviso.
-7. Selecionar os 5 candidatos → **Importar selecionados**.
-8. Print do toast + aba Network — esperado: chamadas a `projects` incluindo pelo menos um
-   `SELECT` (o `findProjectByQuote` dos casos (d)/(j), antes de decidir upsert vs backfill vs
-   reconhecer-existente).
-9. Rodar as **provas SQL 13.5 (a)-(d)/(j)**.
-10. Abrir **Configurações → Importar tarefas locais**.
-11. **Gate 2 (print pré-clique):** esperado **3 candidatos novos** (f/g/h) — só **(h)** com aviso
+9. Selecionar os 5 candidatos → **Importar selecionados**.
+10. Print do toast + aba Network — esperado: chamadas a `projects` incluindo pelo menos um
+    `SELECT` (o `findProjectByQuote` dos casos (d)/(j), antes de decidir upsert vs backfill vs
+    reconhecer-existente).
+11. Rodar as **provas SQL 13.5 (a)-(d)/(j)**.
+12. Abrir **Configurações → Importar tarefas locais**.
+13. **Gate 2 (print pré-clique):** esperado **3 candidatos novos** (f/g/h) — só **(h)** com aviso
     "projeto ainda não importado"; **(g)** SEM aviso (projeto do caso (a) já foi importado no
-    passo 7).
-12. Selecionar os 3 candidatos → **Importar selecionados**.
-13. Rodar as **provas SQL 13.5 (f)-(h)**.
-14. Rodar as **provas de idempotência 13.5 (e)/(i)** (usam os `source_local_id` reais gravados
-    nos passos 9/13).
-15. Rodar a **prova de backstop 13.5 (k)**.
-16. Rodar a **limpeza 13.6** (nuvem + local) — só depois de todas as provas confirmadas.
+    passo 9).
+14. Selecionar os 3 candidatos → **Importar selecionados**.
+15. Rodar as **provas SQL 13.5 (f)-(h)**.
+16. Rodar as **provas de idempotência 13.5 (e)/(i)** (usam os `source_local_id` reais gravados
+    nos passos 11/15).
+17. Rodar a **prova de backstop 13.5 (k)**.
+18. Rodar a **limpeza 13.6** (nuvem + local) — só depois de todas as provas confirmadas.
 
 ### 13.5 Provas SQL por caso
 
@@ -1090,10 +1124,10 @@ where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and title = 'TESTE-a
 ```
 
 ```sql
--- (b) fan-out: client_id vira uuid real, nunca "770100" cru
+-- (b) fan-out: client_id vira uuid real (SINTÉTICO), nunca "770100" cru
 select id, title, client_id from public.projects
 where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and title = 'TESTE-b-fanout';
--- esperado: client_id = <CLIENT_UUID_REAL> (o mesmo da query 2 do §13.1)
+-- esperado: client_id = <HOMOLOG_CLIENT_UUID> (o mesmo retornado no §13.2.1)
 ```
 
 ```sql
@@ -1104,16 +1138,17 @@ where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and title = 'TESTE-c
 ```
 
 ```sql
--- (d)+(j) coexistência: 1 única linha viva pra essa quote (não 2 — não duplicou nenhuma vez)
+-- (d)+(j) coexistência: 1 única linha viva pra essa quote SINTÉTICA (não 2 — não duplicou
+-- nenhuma vez). <HOMOLOG_QUOTE_UUID> é o id retornado no §13.2.1, nunca uma quote real.
 select count(*) as linhas_vivas from public.projects
 where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9'
-  and quote_id = 'fd9053a2-b55e-47ab-b425-00df7e59264d'
+  and quote_id = '<HOMOLOG_QUOTE_UUID>'
   and source = 'quote' and deleted_at is null;
 -- esperado: 1
 
 select id, title, source_local_id from public.projects
 where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9'
-  and quote_id = 'fd9053a2-b55e-47ab-b425-00df7e59264d'
+  and quote_id = '<HOMOLOG_QUOTE_UUID>'
   and source = 'quote' and deleted_at is null;
 -- esperado: é a linha do SETUP §13.3 (título "TESTE-FT-preexistente-d", MESMO id do §13.3) —
 -- NÃO virou "TESTE-d-coexistencia" nem "TESTE-j-duplo-quote" (o import de (d) reconheceu a
@@ -1185,13 +1220,14 @@ where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9'
 
 ```sql
 -- (k) backstop de banco — INSERT direto tentando criar um SEGUNDO projeto com source='quote'
--- + o MESMO quote_id da linha viva de (d)/(j), SEM passar por findProjectByQuote (bypass
--- total do app). Prova que ux_projects_from_quote é o backstop real, não só a checagem do
--- código — o literal 'quote' aqui É a tradução provada em §7.2/testes unitários.
+-- + o MESMO quote_id (SINTÉTICO, <HOMOLOG_QUOTE_UUID>) da linha viva de (d)/(j), SEM passar
+-- por findProjectByQuote (bypass total do app). Prova que ux_projects_from_quote é o backstop
+-- real, não só a checagem do código — o literal 'quote' aqui É a tradução provada em
+-- §7.2/testes unitários. Quote sintética: o 23505, se disparar, nunca afeta dado real.
 insert into public.projects
   (workspace_id, quote_id, title, status, source, budget, is_demo, archived)
 values
-  ('2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9', 'fd9053a2-b55e-47ab-b425-00df7e59264d',
+  ('2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9', '<HOMOLOG_QUOTE_UUID>',
    'TESTE-k-backstop-tentativa', 'active', 'quote', 1, false, false);
 -- esperado: ERRO 23505 (unique_violation) contra ux_projects_from_quote. A linha NÃO é
 -- criada — é o resultado ESPERADO e VERDE deste caso (erro = prova, não falha da rodada).
@@ -1206,8 +1242,8 @@ prova inaplicável, igual à Fatia 6.
 
 ### 13.6 Limpeza — escrita para APROVAÇÃO do revisor ANTES da rodada (nada executado ainda)
 
-**Nuvem** — um filtro por título cobre projects (prefixo `TESTE-`, incl. o setup e os retries) +
-um filtro por `source_local_id` cobre tasks:
+**Nuvem — passo 1 (projects/tasks primeiro, ordem de FK):** um filtro por título cobre projects
+(prefixo `TESTE-`, incl. o setup e os retries) + um filtro por `source_local_id` cobre tasks:
 
 ```sql
 delete from public.projects
@@ -1222,6 +1258,32 @@ select
   (select count(*) from public.projects where workspace_id='2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and (title like 'TESTE-%' or title like 'TESTE-FT-%')) as projects_restantes,
   (select count(*) from public.tasks where workspace_id='2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and title like 'TESTE-%') as tasks_restantes;
 -- esperado: 0 e 0
+```
+
+**Nuvem — passo 2 (quote sintética, depois de projects/tasks):**
+
+```sql
+delete from public.quotes
+where workspace_id='2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9'
+  and source_local_id = 'homolog-f7-quote-1';
+```
+
+**Nuvem — passo 3 (cliente sintético, por último):**
+
+```sql
+delete from public.clients
+where workspace_id='2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9'
+  and name = 'HOMOLOG-F7-cliente';
+```
+
+**Verificação final — volta à baseline do §13.1 (NÃO é 0/0 — são as contagens de lá):**
+
+```sql
+select
+  (select count(*) from public.quotes where workspace_id='2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and deleted_at is null) as quotes_depois,
+  (select count(*) from public.clients where workspace_id='2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and archived is not true) as clients_depois;
+-- esperado: quotes_depois = quotes_baseline (§13.1); clients_depois = clients_baseline (§13.1).
+-- Se diferente, PARAR — sobrou algo (sintético ou não), não prosseguir sem entender o porquê.
 ```
 
 **Local:**
@@ -1246,16 +1308,21 @@ const taskMeta = JSON.parse(localStorage["kora.tasks.supabaseImport.v1"] || '{"i
 taskMeta.importedLocalIds = (taskMeta.importedLocalIds || []).filter((id) => !["7700001","7700002","7700003"].includes(id));
 localStorage.setItem("kora.tasks.supabaseImport.v1", JSON.stringify(taskMeta));
 
-// remove o mapeamento fake criado só para esta rodada (770100 -> client real)
+// remove o mapeamento sintético criado só para esta rodada (770100 -> cliente sintético)
 const clientMap = JSON.parse(localStorage["kora.clients.supabaseImport.v1"] || '{"importedMap":{}}');
 delete clientMap.importedMap["770100"];
 localStorage.setItem("kora.clients.supabaseImport.v1", JSON.stringify(clientMap));
+
+// remove o mapeamento sintético da quote (homolog-f7-quote-local -> quote sintética)
+const quoteMap = JSON.parse(localStorage["kora.quotes.supabaseImport.v1"] || '{"importedMap":{}}');
+delete quoteMap.importedMap["homolog-f7-quote-local"];
+localStorage.setItem("kora.quotes.supabaseImport.v1", JSON.stringify(quoteMap));
 
 console.log("✅ Limpeza local F7 ok. F5.");
 ```
 
 **Este statement de limpeza está aqui para aprovação — não foi executado.** Só roda depois de
-todas as provas de 13.5 confirmadas (passo 16 do §13.4), e só com a rodada em si já aprovada e
+todas as provas de 13.5 confirmadas (passo 17 do §13.4), e só com a rodada em si já aprovada e
 executada primeiro.
 
 **Critério de aceite:** 11/11 casos verdes.
