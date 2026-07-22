@@ -1018,7 +1018,7 @@ Deno.serve(async (req) => {
         return json({ error: "uazapi download failed", status: dl.status, detail: dl.data }, 502);
       }
       const dd = (dl.data ?? {}) as Record<string, unknown>;
-      let returnedUrl =
+      const returnedUrl =
         (dd.fileURL as string) ||
         (dd.mediaUrl as string) ||
         (dd.url as string) ||
