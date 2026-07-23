@@ -187,3 +187,87 @@ describe("useLocalTasksImport — importSelected: project_id resolvido ou null, 
     expect(meta.importedMap["3"]).toBe("cloud-uuid-ok");
   });
 });
+
+describe("useLocalTasksImport — rodada fix do bug (g): sinal persistido pendingLinks", () => {
+  it("cenário exato da homologação: importada órfã -> projeto importado depois -> continua reselecionável -> reimport preenche o vínculo, mesmo id, nunca duplica", async () => {
+    vi.mocked(tasksRepository.importTask).mockResolvedValue({ id: "cloud-uuid-tk3" } as never);
+
+    const { result } = renderHook(() => useLocalTasksImport());
+    await waitFor(() => expect(result.current.candidates.length).toBeGreaterThan(0));
+
+    // 1. Importa a tarefa 3 com o projeto AINDA não mapeado (mesma ordem da homologação).
+    await act(async () => {
+      await result.current.importSelected(["3"]);
+    });
+
+    let tk3 = result.current.candidates.find((c) => c.localTask.id === 3);
+    expect(tk3?.status).toBe("imported-orphan"); // NÃO "imported" travado
+
+    // 2. Simula o projeto sendo importado DEPOIS (outra tela, mesmo localStorage).
+    localStorage.setItem(PROJECT_MAP_KEY, JSON.stringify({ importedMap: { "pj-nao-importado": "project-uuid-real" } }));
+
+    // 3. "Reabre o diálogo" (analyze de novo) — o sinal PERSISTIDO garante que o
+    //    candidato continua reselecionável, ao contrário de um recálculo ao vivo
+    //    (que já teria voltado a travar como "imported" simples aqui).
+    act(() => {
+      result.current.analyze();
+    });
+    await waitFor(() => {
+      tk3 = result.current.candidates.find((c) => c.localTask.id === 3);
+      expect(tk3?.status).toBe("imported-orphan");
+    });
+
+    // 4. Reimporta -> backfill via o mesmo upsert já homologado.
+    await act(async () => {
+      const reimportResult = await result.current.importSelected(["3"]);
+      expect(reimportResult.successIds).toEqual(["3"]);
+    });
+
+    const calls = vi.mocked(tasksRepository.importTask).mock.calls;
+    expect(calls.length).toBe(2); // 1ª tentativa (órfã) + reimport (backfill)
+    expect(calls[1][2].project_id).toBe("project-uuid-real");
+
+    const meta = JSON.parse(localStorage.getItem(META_KEY) || "{}");
+    expect(meta.importedMap["3"]).toBe("cloud-uuid-tk3"); // MESMO id nas duas vezes
+    expect(meta.importedLocalIds.filter((id: string) => id === "3")).toHaveLength(1); // sem duplicata no array
+    expect(meta.pendingLinks || []).not.toContain("3"); // pendência resolvida, sai da lista
+
+    tk3 = result.current.candidates.find((c) => c.localTask.id === 3);
+    expect(tk3?.status).toBe("imported"); // agora sim resolvido de vez, sem pendência
+  });
+
+  it("caso negativo: tarefa importada SEM pendência nunca volta a ser elegível", async () => {
+    // Tarefa 4 (beforeEach): já "imported", sem projectId — nunca teve pendência de vínculo.
+    const { result } = renderHook(() => useLocalTasksImport());
+    await waitFor(() => expect(result.current.candidates.length).toBeGreaterThan(0));
+
+    const tk4 = result.current.candidates.find((c) => c.localTask.id === 4);
+    expect(tk4?.status).toBe("imported"); // nunca "imported-orphan"
+
+    const reimportResult = await result.current.importSelected(["4"]);
+    expect(reimportResult.successIds).toEqual([]);
+    expect(reimportResult.failedIds).toEqual([]);
+    expect(tasksRepository.importTask).not.toHaveBeenCalled();
+  });
+
+  it("migração suave: tarefa já importada ANTES do fix (sem pendingLinks no meta), ainda órfã hoje, ganha o sinal na primeira análise", async () => {
+    // Meta no formato ANTIGO (pré-fix) — sem a chave pendingLinks, tarefa 3 já
+    // marcada "imported" mas o projeto nunca foi mapeado.
+    localStorage.setItem(META_KEY, JSON.stringify({
+      lastImportedAt: "2026-07-01T00:00:00Z",
+      importedLocalIds: ["3", "4"],
+      skippedLocalIds: [],
+      importedMap: { "3": "cloud-uuid-tk3-legado", "4": "cloud-uuid-tk-4" },
+      // pendingLinks ausente de propósito — simula dado gravado antes deste fix existir.
+    }));
+
+    const { result } = renderHook(() => useLocalTasksImport());
+    await waitFor(() => expect(result.current.candidates.length).toBeGreaterThan(0));
+
+    const tk3 = result.current.candidates.find((c) => c.localTask.id === 3);
+    expect(tk3?.status).toBe("imported-orphan"); // migrado automaticamente, não fica preso
+
+    const meta = JSON.parse(localStorage.getItem(META_KEY) || "{}");
+    expect(meta.pendingLinks).toContain("3");
+  });
+});
