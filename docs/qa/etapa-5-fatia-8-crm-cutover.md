@@ -472,12 +472,35 @@ sempre, flag OFF bloqueia sem nenhum toast de sucesso falso). Sem caso de atomic
 `crm_opportunities` não tem tabela-filha (mesma lógica de finance/Fatia 6). Gates 1 (export
 manual) e 2 (print pré-clique) aplicam normalmente a cada caso de escrita.
 
-### 6.8 Migration escrita, não aplicada
+### 6.8 Migration — escrita e **APLICADA** (2026-07-23, sob §8/emenda §13)
 
 `supabase/migrations/20260723000100_etapa5_fatia8_opportunities_add_tags_history.sql` — 2
 `ADD COLUMN` (`tags text[]`, `history jsonb DEFAULT '[]'::jsonb`), sem `UNIQUE`/índice novo (não
-faz parte de nenhuma chave de idempotência), **não precisa de autocommit** (nenhum
-`CREATE INDEX CONCURRENTLY` envolvido, roda dentro de transação normal).
+faz parte de nenhuma chave de idempotência), **não precisou de autocommit** (nenhum
+`CREATE INDEX CONCURRENTLY` envolvido, rodou dentro de transação normal).
+
+**Aplicada pelo operador via `psql`** (credencial referenciada só via `$DATABASE_URL`/`PGPASSWORD`
+na sessão do operador, nunca lida/impressa pelo Code — emenda §13, sem arquivo intermediário).
+Output bruto:
+
+```
+ALTER TABLE
+COMMENT
+COMMENT
+```
+
+**Verificação pós-aplicação** (item (b) do §6.9, confirmado na prática):
+
+```
+ column_name | data_type | column_default
+-------------+-----------+----------------
+ history     | jsonb     | '[]'::jsonb
+ tags        | ARRAY     |
+(2 linhas)
+```
+
+Bate exatamente com o esperado — `history` com o default constante, `tags` sem default, nenhum
+erro em nenhuma das duas etapas. Item 1 da Fase C encerrado.
 
 ### 6.9 Pré-condições verificadas antes da Fase C (leitura de código, nenhum código alterado)
 
@@ -558,15 +581,19 @@ não são mais vermelho esperado.
 operador um arquivo de credencial para a aplicação da migration (item 1) — a emenda §13 do
 protocolo não proíbe o arquivo em si (ela existe justamente para o caso em que um arquivo *é*
 usado), mas o revisor determinou que, nesta fatia, a aplicação da migration usa exclusivamente
-`$env:DATABASE_URL` setado pelo operador na sessão, sem arquivo intermediário. Registrado aqui
-para não repetir o pedido — item 1 continua pendente, aguardando o operador setar a variável de
-ambiente quando for a hora do DDL.
+`$env:DATABASE_URL`/`PGPASSWORD` setado pelo operador na sessão, sem arquivo intermediário.
+Aplicada assim (§6.8) — sem arquivo, credencial nunca lida/impressa pelo Code.
+
+**Incidente de sessão (registrado, não catalogado como novo achado):** durante a tentativa de
+aplicação, a senha do banco apareceu em texto puro no chat por 3 vezes (print + 2 mensagens de
+texto), sempre por ação do operador ao colar a connection string completa em vez de só os
+valores nos placeholders. O Code recusou usá-la a cada vez e não a reproduziu em nenhuma
+resposta. Recomendada rotação da senha após o fechamento desta rodada, independente do sucesso
+da aplicação — mesmo critério do desvio de credencial nº 1 da Fatia 7 (emenda §13).
 
 ---
 
-**PARADO aqui.** Design de Fase B (§6.0-§6.8), pré-condições da Fase C verificadas (§6.9) e
-correção de O2/O3/O4 (§6.10) entregues — as 7 decisões pedidas, o achado arquitetural do §6.0
-(leitura já default-Supabase, não previsto na Fase A), os 3 bugs pré-existentes corrigidos com
-teste (não apenas catalogados), a migration escrita (não aplicada) e o runbook de 11 casos.
-**NADA EXECUTA sem o "vai" literal do revisor, colado neste chat pelo operador** — inclusive a
-aplicação da migration (item 1, pendente do `$env:DATABASE_URL`).
+**PARADO aqui.** Fase C completa: design (§6.0-§6.8), pré-condições verificadas (§6.9), correção
+de O2/O3/O4 com teste (§6.10), e a migration O1 escrita **e aplicada** com verificação pós-DDL
+(§6.8) — os 5 itens do prompt de implementação encerrados. **NADA EXECUTA sem o "vai" literal do
+revisor, colado neste chat pelo operador** — inclusive a Fase D (homologação real do cutover).
