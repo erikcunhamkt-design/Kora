@@ -360,6 +360,27 @@ const CRM = () => {
     }
   };
 
+  // Fatia 8 (O4, correção): EditTagsDialog.onSave chamava setLeadTags() local
+  // incondicionalmente — nunca gravava em crm_opportunities.tags (Fatia 8, O1),
+  // mesmo com a flag ligada. Esta função é o par Supabase de setLeadTags.
+  const persistTagsSupabase = async (leadId: number, tags: string[]) => {
+    const lead = leads.find((l) => l.id === leadId);
+    if (!lead || !lead.supabaseId || !workspace) return;
+
+    try {
+      await crmOpportunitiesRepository.updateOpportunity(workspace.id, lead.supabaseId, {
+        tags: tags.length > 0 ? tags : null,
+      });
+      await refreshSupabase();
+      toast.success("Tags atualizadas");
+    } catch (err) {
+      console.error("Erro ao salvar tags no Supabase:", err);
+      const errMsg = err instanceof Error ? err.message : "Erro inesperado";
+      toast.error(`Erro ao salvar tags no Supabase: ${errMsg}`);
+      await refreshSupabase();
+    }
+  };
+
   const [tagsLeadId, setTagsLeadId] = useState<number | null>(null);
   const [scheduleLeadId, setScheduleLeadId] = useState<number | null>(null);
   const [movePipelineLeadId, setMovePipelineLeadId] = useState<number | null>(null);
@@ -1330,7 +1351,16 @@ const CRM = () => {
         open={!!tagsLead}
         onOpenChange={(v) => !v && setTagsLeadId(null)}
         initialTags={tagsLead?.tags || []}
-        onSave={(tags) => { if (tagsLead) setLeadTags(tagsLead.id, tags); toast.success("Tags atualizadas"); }}
+        onSave={(tags) => {
+          if (!tagsLead) return;
+          if (activeDataSource === "supabase") {
+            if (blockWriteAction(false, true)) return;
+            persistTagsSupabase(tagsLead.id, tags);
+            return;
+          }
+          setLeadTags(tagsLead.id, tags);
+          toast.success("Tags atualizadas");
+        }}
       />
 
       <ScheduleMeetingDialog

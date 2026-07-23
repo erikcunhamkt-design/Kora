@@ -366,3 +366,88 @@ describe("CRM · O3 (restaurar) — persistArchiveSupabase sob flag, nunca archi
     expect(toast.error).toHaveBeenCalled();
   });
 });
+
+describe("CRM · O4 (editar tags) — persistTagsSupabase sob flag, nunca setLeadTags local em modo nuvem", () => {
+  it("modo Supabase + flag ON: chama updateOpportunity com tags (nuvem), nunca setLeadTags local", async () => {
+    const localSetLeadTags = vi.fn();
+    vi.mocked(useLeads).mockReturnValue({
+      leads: [], addLead: vi.fn(), moveLead: vi.fn(), moveLeadToStage: vi.fn(),
+      moveLeadToPipeline: vi.fn(), updateLead: vi.fn(), archiveLead: vi.fn(),
+      deleteLead: vi.fn(), setLeadTags: localSetLeadTags, markConverted: vi.fn(),
+    } as never);
+    vi.mocked(useSupabaseCrmWriteFlag).mockReturnValue({ enabled: true, setEnabled: vi.fn(), toggle: vi.fn() });
+    vi.mocked(useSupabaseOpportunities).mockReturnValue({
+      opportunities: [makeSupabaseOpportunity()], loading: false, error: null, refresh: vi.fn(),
+    } as never);
+    vi.mocked(crmOpportunitiesRepository.updateOpportunity).mockResolvedValue({} as never);
+    localStorage.setItem(CRM_DATA_SOURCE_KEY, "supabase");
+
+    renderCRM();
+    await openLeadMenu("Lead Nuvem");
+    fireEvent.click(screen.getByText("Editar tags"));
+
+    const input = await screen.findByPlaceholderText("Digite e pressione Enter");
+    fireEvent.change(input, { target: { value: "vip" } });
+    fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+    fireEvent.click(screen.getByRole("button", { name: /salvar/i }));
+
+    await waitFor(() => expect(crmOpportunitiesRepository.updateOpportunity).toHaveBeenCalledTimes(1));
+    const [, , patch] = vi.mocked(crmOpportunitiesRepository.updateOpportunity).mock.calls[0];
+    expect(patch).toEqual({ tags: ["vip"] });
+    expect(localSetLeadTags).not.toHaveBeenCalled();
+  });
+
+  it("modo Local: preserva o comportamento de sempre — setLeadTags local", async () => {
+    const localSetLeadTags = vi.fn();
+    vi.mocked(useLeads).mockReturnValue({
+      leads: [makeLocalLead()], addLead: vi.fn(), moveLead: vi.fn(), moveLeadToStage: vi.fn(),
+      moveLeadToPipeline: vi.fn(), updateLead: vi.fn(), archiveLead: vi.fn(),
+      deleteLead: vi.fn(), setLeadTags: localSetLeadTags, markConverted: vi.fn(),
+    } as never);
+    vi.mocked(useSupabaseCrmWriteFlag).mockReturnValue({ enabled: true, setEnabled: vi.fn(), toggle: vi.fn() });
+    vi.mocked(useSupabaseOpportunities).mockReturnValue({
+      opportunities: [], loading: false, error: null, refresh: vi.fn(),
+    } as never);
+    localStorage.setItem(CRM_DATA_SOURCE_KEY, "local");
+
+    renderCRM();
+    await openLeadMenu("Lead Local");
+    fireEvent.click(screen.getByText("Editar tags"));
+
+    const input = await screen.findByPlaceholderText("Digite e pressione Enter");
+    fireEvent.change(input, { target: { value: "vip" } });
+    fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+    fireEvent.click(screen.getByRole("button", { name: /salvar/i }));
+
+    await waitFor(() => expect(localSetLeadTags).toHaveBeenCalledWith(42, ["vip"]));
+    expect(crmOpportunitiesRepository.updateOpportunity).not.toHaveBeenCalled();
+  });
+
+  it("modo Supabase + flag OFF: bloqueia — nenhuma escrita e nenhum toast de sucesso", async () => {
+    const localSetLeadTags = vi.fn();
+    vi.mocked(useLeads).mockReturnValue({
+      leads: [], addLead: vi.fn(), moveLead: vi.fn(), moveLeadToStage: vi.fn(),
+      moveLeadToPipeline: vi.fn(), updateLead: vi.fn(), archiveLead: vi.fn(),
+      deleteLead: vi.fn(), setLeadTags: localSetLeadTags, markConverted: vi.fn(),
+    } as never);
+    vi.mocked(useSupabaseCrmWriteFlag).mockReturnValue({ enabled: false, setEnabled: vi.fn(), toggle: vi.fn() });
+    vi.mocked(useSupabaseOpportunities).mockReturnValue({
+      opportunities: [makeSupabaseOpportunity()], loading: false, error: null, refresh: vi.fn(),
+    } as never);
+    localStorage.setItem(CRM_DATA_SOURCE_KEY, "supabase");
+
+    renderCRM();
+    await openLeadMenu("Lead Nuvem");
+    fireEvent.click(screen.getByText("Editar tags"));
+
+    const input = await screen.findByPlaceholderText("Digite e pressione Enter");
+    fireEvent.change(input, { target: { value: "vip" } });
+    fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+    fireEvent.click(screen.getByRole("button", { name: /salvar/i }));
+
+    expect(localSetLeadTags).not.toHaveBeenCalled();
+    expect(crmOpportunitiesRepository.updateOpportunity).not.toHaveBeenCalled();
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalled();
+  });
+});
