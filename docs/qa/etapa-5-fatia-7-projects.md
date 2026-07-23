@@ -1388,6 +1388,103 @@ mapeamentos sintéticos removidos).
 
 ---
 
+## 13.8 Escopo aprovável — correção do bug (g), rodada própria (design, NENHUM código ainda)
+
+> Escopo proposto para a rodada de correção do achado vermelho do §13.7 (fan-out retroativo de
+> tarefa não existe — a UI promete um caminho que o código não implementa). **Nada implementado
+> aqui** — aguarda "vai" próprio, específico desta rodada, separado do "vai" da homologação.
+
+### 1. Mudança no hook (`src/hooks/useLocalTasksImport.ts`)
+
+`ImportStatus` ganha um terceiro valor:
+```ts
+export type ImportStatus = "new" | "imported" | "imported-orphan";
+```
+
+Em `analyze()`, a atribuição de status passa a considerar `projectOrphan` para tarefas já
+importadas:
+```ts
+const alreadyImported = !!meta.importedMap[String(local.id)];
+const projectOrphan = !!local.projectId && !projectMap[String(local.projectId)];
+const status: ImportStatus = !alreadyImported
+  ? "new"
+  : (projectOrphan ? "imported-orphan" : "imported");
+```
+
+Em `importSelected`, a guarda de elegibilidade passa a aceitar os dois estados re-selecionáveis:
+```ts
+if (!candidate || (candidate.status !== "new" && candidate.status !== "imported-orphan")) continue;
+```
+
+**Atenção de implementação (achado durante o desenho, não estava nos 5 pontos originais do
+pedido, mas precisa ser resolvido para o fix funcionar de verdade):** se `imported-orphan` for
+recalculado só a partir do estado ATUAL do map (como acima), ele **desaparece assim que o
+projeto é importado** — porque `projectOrphan` vira `false` no mesmo instante em que
+`kora.projects.supabaseImport.v1` ganha a entrada, mesmo que a linha na nuvem AINDA tenha
+`project_id NULL` (nada foi reimportado ainda). Isso reproduz o bug original, só com o timing
+trocado: o usuário reabre "Importar tarefas locais" DEPOIS de importar o projeto (é exatamente o
+fluxo que a homologação seguiu) e encontra o candidato já como `imported` simples de novo —
+checkbox desabilitado, sem nunca ter tido a chance de clicar em "reimportar".
+**Recomendação:** a elegibilidade para reimportar não deve depender de `projectOrphan`
+recalculado a cada `analyze()`, e sim de um sinal persistido — ex.: gravar em `ImportMeta` quais
+`localId`s foram importados com algum FK não resolvido (`meta.pendingLinks: string[]` ou
+equivalente), setado no sucesso do import quando `payload.project_id === null` e `local.projectId`
+existe, e só removido de lá quando um reimport subsequente resolver o vínculo de fato. O badge
+"vínculo pendente" mostrado ao usuário pode continuar refletindo o `projectOrphan` ao vivo (é
+informação correta sobre o presente), mas a **elegibilidade do checkbox** deve olhar pro sinal
+persistido, não pro cálculo instantâneo — senão o fix corrige o cenário errado (só ajuda quem
+reabre o diálogo ANTES de importar o projeto pai, que já nem é o problema).
+
+### 2. Reimport reusa o `importSelected` existente — nenhum método novo no repository
+
+Reimportar um candidato `imported-orphan` chama exatamente o mesmo `importSelected` de hoje. O
+`sourceLocalId` é determinístico (`buildSourceLocalId(getInstallId(), String(local.id))` — mesmo
+valor de antes), então `tasksRepository.importTask`'s `upsert(onConflict:
+"workspace_id,source_local_id")` acha a MESMA linha e faz `UPDATE`, agora com `project_id`
+resolvido — nunca cria uma segunda linha. Nenhuma mudança no repository nem no mapper é
+necessária — o backend já suporta isso, só faltava a UI/hook permitirem a re-seleção.
+
+**Detalhe a corrigir junto (achado no desenho, não no pedido original):**
+`meta.importedLocalIds = [...meta.importedLocalIds, String(local.id)]` hoje roda incondicional a
+cada sucesso — reimportar um candidato já presente nesse array duplicaria a entrada nele
+(cosmético, `importedMap` continua sendo a fonte de verdade do status, mas vale corrigir com um
+guard de `includes()` antes de dar `push`, já que estamos mexendo nesse código mesmo).
+
+### 3. Card (`src/components/settings/LocalTasksImportCard.tsx`)
+
+- Checkbox: `disabled={c.status === 'new' || c.status === 'imported-orphan' ? false : true}`
+  (ou equivalente) — só `imported` (sem pendência) trava.
+- Badge: precisa de uma 3ª variante visual para `imported-orphan` (hoje só há
+  `success`/`secondary` para `new`/`imported`) — texto sugerido "vínculo pendente" em vez do
+  enum cru, para o usuário entender que aquela linha É diferente de um "imported" comum.
+
+### 4. Texto do card — avaliado, decisão: MANTÉM
+
+O texto atual ("Tarefas cujo projeto ainda não foi importado sobem com o vínculo de projeto
+vazio... Importe o projeto e rode a importação de novo para preencher o vínculo.") **passa a ser
+verdadeiro** com este fix — hoje é uma promessa vazia, com o fix vira a descrição exata do
+comportamento real. Não precisa mudar o texto; precisa mudar o código para honrá-lo.
+
+### 5. Teste unitário novo (`useLocalTasksImport.test.ts`) — cobre o cenário exato da homologação
+
+Cenário: (1) tarefa com `projectId` apontando pra um id local ainda não mapeado → importar →
+status vira `imported-orphan` (não `imported`) porque o vínculo não resolveu. (2) simular o
+projeto sendo importado DEPOIS — atualizar `kora.projects.supabaseImport.v1` no `localStorage`
+com a entrada real. (3) chamar `analyze()` de novo — **o candidato continua re-selecionável**
+(não volta a travar como `imported` simples, por causa do sinal persistido do item 1). (4)
+reimportar o mesmo candidato → `tasksRepository.importTask` é chamado de novo, com `project_id`
+agora resolvido no payload → confirmar que o resultado grava no MESMO id (mock retornando o
+mesmo id de antes), nunca cria um id novo.
+
+### Critério de aceite da rodada
+
+Teste novo do item 5 verde + os 3 gates (`tsc -p tsconfig.app.json --noEmit` real, `vitest run`,
+`lint-gate.mjs` ≤ 42/34, sem regressão) + **prova manual adiada** — o cenário já tem evidência de
+homologação real (§13.7, caso g) e não precisa reencenar contra o banco; a prova desta rodada é
+por teste automatizado.
+
+---
+
 ## 14. PT1 — pendência catalogada: corrida TOCTOU do gerador de "tarefas base" (não bloqueia esta fatia)
 
 > Registrado no mesmo espírito do `Q8` (Fatia 3, `etapa-5-fatia-3-quotes.md` §12) — mesma lista
