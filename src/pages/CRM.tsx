@@ -282,8 +282,11 @@ const CRM = () => {
         toast.error("Restauração no CRM Supabase está bloqueada nesta etapa experimental.");
         return;
       }
-      archiveLead(leadId, false);
-      toast.success("Lead restaurado");
+      // Fatia 8 (O3, correção): chamava archiveLead() local (no-op para um lead de
+      // origem Supabase, cujo id é um hash — nunca bate com nada em orbyt.leads.v1),
+      // com toast de sucesso mesmo assim. persistArchiveSupabase é a função que já
+      // existe para o caminho de arquivar; reusada aqui para restaurar (archived=false).
+      persistArchiveSupabase(leadId, false);
     } else {
       archiveLead(leadId, false);
       toast.success("Lead restaurado");
@@ -313,7 +316,9 @@ const CRM = () => {
       }
 
       await refreshSupabase();
-      toast.success("Oportunidade arquivada com sucesso!");
+      // Fatia 8 (O3): mensagem depende da direção — "arquivada" vs "restaurada",
+      // já que esta função agora também é usada por handleUnarchiveClick.
+      toast.success(archived ? "Oportunidade arquivada com sucesso!" : "Oportunidade restaurada com sucesso!");
     } catch (err) {
       console.error("Erro ao arquivar oportunidade no Supabase:", err);
       const errMsg = err instanceof Error ? err.message : "Erro inesperado";
