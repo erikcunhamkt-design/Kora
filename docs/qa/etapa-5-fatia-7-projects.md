@@ -1532,6 +1532,11 @@ JSONB) para o 3º nível; (b) uma decisão de como gerar `id`s estáveis para os
 fatia futura de cutover de leitura/escrita completo de `tasks` deve verificar este item antes de
 propor remover `tasks` da "carência" local (mesmo espírito da recomendação do `Q8` para `quotes`).
 
+**Atualização (Etapa 5 · Fatia 8, 2026-07-23):** a mesma categoria ganhou um terceiro membro —
+**O1**, `opportunities` (`Lead.tags[]`/`Lead.history[]` sem coluna em `crm_opportunities`), ver
+[`etapa-5-fatia-2-opportunities.md` §10](etapa-5-fatia-2-opportunities.md#10-o1--pendência-pós-fechamento-paridade-de-schema-localnuvem-bloqueia-cutover-de-escrita).
+Bloqueia especificamente o cutover de **escrita** de `opportunities`, proposto pela Fatia 8.
+
 ---
 
 **PARADO aqui.** Emenda de Fase B entregue, endereçando os 4 pontos do veredito do revisor:

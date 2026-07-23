@@ -152,3 +152,55 @@ perder. **Gate print pré-clique:** ✅ card "Importar Oportunidades Locais" (2/
 **Validação em produção:** A1 (órfã→NULL, mapeado→UUID real), A2 (0 novos na 2ª análise),
 A3 (0 duplicatas, `source_local_id` namespacado), A4 (órfã reportada), A5 (contrato de
 re-link documentado + ponte confirmada na prova 7).
+
+---
+
+## 10. O1 — pendência pós-fechamento: paridade de schema local↔nuvem (bloqueia cutover de escrita)
+
+> Registrado em 2026-07-23, durante a Fase A de Etapa 5 · Fatia 8 (cutover de escrita de
+> `opportunities`), na mesma auditoria de paridade de schema pré-cutover que originou **Q8**
+> (Fatia 3) e **PT2** (Fatia 7). **Não reabre a Fatia 2** — não bloqueia nada do que já foi
+> executado e homologado aqui (§9, VERDE 7/7); o import é write-only sobre o import-map, a
+> leitura/escrita de negócio continua local. É pendência para a Fatia 8, que propõe o cutover de
+> **escrita** de `opportunities`.
+
+**Achado:** 2 campos do `Lead` local (`src/hooks/useLeads.ts`) não têm coluna correspondente em
+`public.crm_opportunities` (`supabase/migrations/20260530050000_create_crm_opportunities.sql`):
+
+| Campo local | Linha (`useLeads.ts`) | Coluna em `public.crm_opportunities`? |
+|---|---|---|
+| `tags?: string[]` | 24 | ausente |
+| `history: {date, text}[]` | 29 | ausente |
+
+**Confirmado no mapper (silencioso, não é bug de código — é ausência de schema):**
+`crmOpportunityMapper.ts` não inclui `tags`/`history` no payload local→nuvem (não há coluna para
+mandar); no caminho inverso, `mapSupabaseOpportunityToLocal` (linha 94) grava
+`history: []` **hardcoded vazio** — qualquer leitura a partir da linha Supabase zera o
+histórico, mesmo que o registro local de origem o tivesse preenchido. `tags` sofre o mesmo
+apagamento (nunca atribuído no caminho de volta).
+
+**Hoje é inofensivo** porque a leitura de negócio de `opportunities` nunca sai do local
+(`useLeads`, `orbyt.leads.v1`) — o caminho Supabase (`useSupabaseOpportunities`) é usado só nas
+telas específicas do modo "Operacional", opt-in via `kora.crm.dataSource.v1`/
+`kora.crm.supabaseWrite.enabled`, ambos hoje sem cutover completo. Se o cutover de escrita da
+Fatia 8 passar a tratar Supabase como fonte única antes de fechar este gap, `tags`/`history`
+somem silenciosamente para todo lead que passar pelo cutover — regressão de dado real, não de
+teste.
+
+**Classificação:**
+- **Não bloqueante para a Fatia 2** — encerrada em §9, sem alteração de veredito.
+- **Bloqueante para o cutover de escrita (Fatia 8)** — decisão de design explícita necessária
+  antes de flipar qualquer flag de escrita por padrão: adicionar coluna, aceitar degradação
+  catalogada, ou recortar um cutover parcial que preserve os dois campos como só-local até
+  resolver.
+
+**Recomendação (registrada, não executada nesta fatia):** decisão a ser tomada na Fase B da
+Fatia 8 (ver [`etapa-5-fatia-8-crm-cutover.md`](etapa-5-fatia-8-crm-cutover.md) §5, achado O1),
+com base no uso real dos dois campos pelos consumidores da UI antes de escolher entre migration
+aditiva (`tags text[]`, `history jsonb`) e degradação aceita.
+
+**Referência cruzada:** mesma categoria de **Q8** ([`etapa-5-fatia-3-quotes.md` §12](etapa-5-fatia-3-quotes.md#12-q8--pendência-pós-fechamento-paridade-de-schema-localnuvem-bloqueia-cutover-de-leitura))
+e **PT2** ([`etapa-5-fatia-7-projects.md` §15](etapa-5-fatia-7-projects.md#15-pt2--pendência-catalogada-gap-de-schema-do-3º-nível-bloqueia-cutover-futuro-de-tasks))
+— achado de paridade de schema local↔nuvem que não bloqueia a fatia em que foi descoberto, mas
+bloqueia uma fatia futura específica (aqui, cutover de **escrita** de `opportunities`; lá,
+cutover de **leitura** de `quotes` e cutover de **CRUD completo** de `tasks`, respectivamente).
