@@ -1,7 +1,9 @@
-// @ts-nocheck
 // Repository for Financial Transactions (Supabase)
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import { normalizeSupabaseError } from "@/lib/supabase/errors";
+
+type FinancialTransactionUpsert = Database["public"]["Tables"]["financial_transactions"]["Insert"];
 
 export interface SupabaseFinancialTransaction {
   id: string;
@@ -52,7 +54,7 @@ export const financeRepository = {
         status: "pending",
         source: "quote",
         ...input,
-      })
+      } as unknown as FinancialTransactionUpsert)
       .select()
       .single();
 
@@ -150,7 +152,7 @@ export const financeRepository = {
     const { data, error } = await supabase
       .from("financial_transactions")
       .upsert(
-        { workspace_id: workspaceId, source_local_id: sourceLocalId, ...input },
+        { workspace_id: workspaceId, source_local_id: sourceLocalId, ...input } as unknown as FinancialTransactionUpsert,
         { onConflict: "workspace_id,source_local_id" },
       )
       .select()

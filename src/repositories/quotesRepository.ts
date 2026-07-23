@@ -1,8 +1,16 @@
-// @ts-nocheck
 // Repository for Quotes (Supabase)
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import { normalizeSupabaseError } from "@/lib/supabase/errors";
 // Removed unused import of local Quote types
+
+// import_quote_with_items's generated Args type has no null unions for its
+// text params (p_client_id/p_opportunity_id/p_client_name/p_client_email/
+// p_description) — Postgres function parameters have no NOT NULL concept,
+// so the SQL (supabase/migrations/20260719001400_...) genuinely accepts NULL
+// for all of these; the generator just doesn't express that.
+type ImportQuoteWithItemsArgs = Database["public"]["Functions"]["import_quote_with_items"]["Args"];
+type QuoteUpsert = Database["public"]["Tables"]["quotes"]["Insert"];
 
 export interface SupabaseQuote {
   id: string;
@@ -82,7 +90,7 @@ export const quotesRepository = {
   async createQuote(workspaceId: string, input: Partial<SupabaseQuote>) {
     const { data, error } = await supabase
       .from("quotes")
-      .insert({ workspace_id: workspaceId, ...input })
+      .insert({ workspace_id: workspaceId, ...input } as unknown as QuoteUpsert)
       .select()
       .single();
     if (error) throw normalizeSupabaseError(error);
@@ -191,7 +199,7 @@ export const quotesRepository = {
       p_status: quote.status,
       p_archived: quote.archived,
       p_items: items,
-    });
+    } as unknown as ImportQuoteWithItemsArgs);
     if (error) throw normalizeSupabaseError(error);
     return data as SupabaseQuote;
   },

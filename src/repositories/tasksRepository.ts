@@ -1,6 +1,8 @@
-// @ts-nocheck
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import { normalizeSupabaseError } from "@/lib/supabase/errors";
+
+type TaskUpsert = Database["public"]["Tables"]["tasks"]["Insert"];
 
 export interface SupabaseTask {
   id: string;
@@ -52,7 +54,7 @@ export const tasksRepository = {
           status: "todo",
           source: "project_template",
           ...t,
-        }))
+        })) as unknown as TaskUpsert[]
       )
       .select();
 
@@ -110,7 +112,7 @@ export const tasksRepository = {
     const { data, error } = await supabase
       .from("tasks")
       .upsert(
-        { workspace_id: workspaceId, source_local_id: sourceLocalId, ...input },
+        { workspace_id: workspaceId, source_local_id: sourceLocalId, ...input } as unknown as TaskUpsert,
         { onConflict: "workspace_id,source_local_id" },
       )
       .select()

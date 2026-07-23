@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       client_contacts: {
@@ -325,6 +350,7 @@ export type Database = {
           quote_id: string | null
           quote_title: string | null
           source: string | null
+          source_local_id: string | null
           stage: string
           status: string | null
           temperature: string | null
@@ -360,6 +386,7 @@ export type Database = {
           quote_id?: string | null
           quote_title?: string | null
           source?: string | null
+          source_local_id?: string | null
           stage?: string
           status?: string | null
           temperature?: string | null
@@ -395,6 +422,7 @@ export type Database = {
           quote_id?: string | null
           quote_title?: string | null
           source?: string | null
+          source_local_id?: string | null
           stage?: string
           status?: string | null
           temperature?: string | null
@@ -436,6 +464,7 @@ export type Database = {
           paid_at: string | null
           quote_id: string | null
           source: string | null
+          source_local_id: string | null
           status: string
           title: string
           type: string
@@ -456,6 +485,7 @@ export type Database = {
           paid_at?: string | null
           quote_id?: string | null
           source?: string | null
+          source_local_id?: string | null
           status?: string
           title: string
           type?: string
@@ -476,6 +506,7 @@ export type Database = {
           paid_at?: string | null
           quote_id?: string | null
           source?: string | null
+          source_local_id?: string | null
           status?: string
           title?: string
           type?: string
@@ -602,6 +633,7 @@ export type Database = {
           opportunity_id: string | null
           quote_id: string | null
           source: string | null
+          source_local_id: string | null
           start_date: string | null
           status: string
           title: string
@@ -621,6 +653,7 @@ export type Database = {
           opportunity_id?: string | null
           quote_id?: string | null
           source?: string | null
+          source_local_id?: string | null
           start_date?: string | null
           status?: string
           title: string
@@ -640,6 +673,7 @@ export type Database = {
           opportunity_id?: string | null
           quote_id?: string | null
           source?: string | null
+          source_local_id?: string | null
           start_date?: string | null
           status?: string
           title?: string
@@ -723,6 +757,7 @@ export type Database = {
           approved_at: string | null
           archived: boolean | null
           client_email: string | null
+          client_id: string | null
           client_name: string | null
           created_at: string | null
           deleted_at: string | null
@@ -731,7 +766,9 @@ export type Database = {
           description: string | null
           discount: number | null
           id: string
+          opportunity_id: string | null
           rejected_at: string | null
+          source_local_id: string | null
           status: string | null
           subtotal: number | null
           title: string
@@ -743,6 +780,7 @@ export type Database = {
           approved_at?: string | null
           archived?: boolean | null
           client_email?: string | null
+          client_id?: string | null
           client_name?: string | null
           created_at?: string | null
           deleted_at?: string | null
@@ -751,7 +789,9 @@ export type Database = {
           description?: string | null
           discount?: number | null
           id?: string
+          opportunity_id?: string | null
           rejected_at?: string | null
+          source_local_id?: string | null
           status?: string | null
           subtotal?: number | null
           title: string
@@ -763,6 +803,7 @@ export type Database = {
           approved_at?: string | null
           archived?: boolean | null
           client_email?: string | null
+          client_id?: string | null
           client_name?: string | null
           created_at?: string | null
           deleted_at?: string | null
@@ -771,7 +812,9 @@ export type Database = {
           description?: string | null
           discount?: number | null
           id?: string
+          opportunity_id?: string | null
           rejected_at?: string | null
+          source_local_id?: string | null
           status?: string | null
           subtotal?: number | null
           title?: string
@@ -780,6 +823,20 @@ export type Database = {
           workspace_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "quotes_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotes_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "crm_opportunities"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "quotes_workspace_id_fkey"
             columns: ["workspace_id"]
@@ -805,6 +862,7 @@ export type Database = {
           quote_id: string | null
           sort_order: number
           source: string
+          source_local_id: string | null
           status: string
           title: string
           updated_at: string
@@ -825,6 +883,7 @@ export type Database = {
           quote_id?: string | null
           sort_order?: number
           source?: string
+          source_local_id?: string | null
           status?: string
           title: string
           updated_at?: string
@@ -845,6 +904,7 @@ export type Database = {
           quote_id?: string | null
           sort_order?: number
           source?: string
+          source_local_id?: string | null
           status?: string
           title?: string
           updated_at?: string
@@ -1518,6 +1578,7 @@ export type Database = {
       }
       whatsapp_instances: {
         Row: {
+          campaign_next_send_at: string | null
           connected_at: string | null
           created_at: string
           created_by: string | null
@@ -1535,6 +1596,7 @@ export type Database = {
           workspace_id: string
         }
         Insert: {
+          campaign_next_send_at?: string | null
           connected_at?: string | null
           created_at?: string
           created_by?: string | null
@@ -1552,6 +1614,7 @@ export type Database = {
           workspace_id: string
         }
         Update: {
+          campaign_next_send_at?: string | null
           connected_at?: string | null
           created_at?: string
           created_by?: string | null
@@ -1841,6 +1904,7 @@ export type Database = {
           created_at: string
           error_message: string | null
           id: string
+          locked_at: string | null
           phone: string
           recipient_name: string | null
           scheduled_at: string
@@ -1854,6 +1918,7 @@ export type Database = {
           created_at?: string
           error_message?: string | null
           id?: string
+          locked_at?: string | null
           phone: string
           recipient_name?: string | null
           scheduled_at?: string
@@ -1867,6 +1932,7 @@ export type Database = {
           created_at?: string
           error_message?: string | null
           id?: string
+          locked_at?: string | null
           phone?: string
           recipient_name?: string | null
           scheduled_at?: string
@@ -2118,8 +2184,76 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      claim_campaign_messages: {
+        Args: {
+          p_max_delay_s?: number
+          p_max_workspaces?: number
+          p_min_delay_s?: number
+        }
+        Returns: {
+          campaign_id: string
+          id: string
+          instance_id: string
+          instance_token: string
+          phone: string
+          recipient_name: string
+          variables: Json
+          workspace_id: string
+        }[]
+      }
+      import_quote_with_items: {
+        Args: {
+          p_archived: boolean
+          p_client_email: string
+          p_client_id: string
+          p_client_name: string
+          p_description: string
+          p_discount: number
+          p_items: Json
+          p_opportunity_id: string
+          p_source_local_id: string
+          p_status: string
+          p_subtotal: number
+          p_title: string
+          p_total: number
+          p_workspace_id: string
+        }
+        Returns: {
+          approved_at: string | null
+          archived: boolean | null
+          client_email: string | null
+          client_id: string | null
+          client_name: string | null
+          created_at: string | null
+          deleted_at: string | null
+          deleted_by: string | null
+          deleted_reason: string | null
+          description: string | null
+          discount: number | null
+          id: string
+          opportunity_id: string | null
+          rejected_at: string | null
+          source_local_id: string | null
+          status: string | null
+          subtotal: number | null
+          title: string
+          total: number | null
+          updated_at: string | null
+          workspace_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "quotes"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       is_workspace_admin: { Args: { w_id: string }; Returns: boolean }
       is_workspace_member: { Args: { w_id: string }; Returns: boolean }
+      reap_stuck_campaign_messages: {
+        Args: { p_cutoff_s?: number }
+        Returns: number
+      }
       workspace_id_from_realtime_topic: {
         Args: { topic: string }
         Returns: string
@@ -2252,6 +2386,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {},
   },
