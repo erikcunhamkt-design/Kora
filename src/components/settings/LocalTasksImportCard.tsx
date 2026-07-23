@@ -12,7 +12,9 @@ export function LocalTasksImportCard() {
   const { candidates, loading, error, analyze, importSelected } = useLocalTasksImport();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
-  const eligible = candidates.filter((c) => c.status === 'new');
+  // Elegíveis pra seleção: "new" (primeira vez) e "imported-orphan" (reimport de
+  // backfill, rodada fix do bug g — §13.8).
+  const eligible = candidates.filter((c) => c.status === 'new' || c.status === 'imported-orphan');
   const orphanCount = eligible.filter((c) => c.clientOrphan || c.quoteOrphan).length;
   const projectOrphanCount = eligible.filter((c) => c.projectOrphan).length;
 
@@ -90,15 +92,18 @@ export function LocalTasksImportCard() {
                 <p className="text-sm text-muted-foreground">Nenhuma tarefa local encontrada.</p>
               )}
               {candidates.map((c) => {
-                const hasOrphan = c.status === 'new' && (c.clientOrphan || c.quoteOrphan);
-                const hasProjectOrphan = c.status === 'new' && c.projectOrphan;
+                const selectable = c.status === 'new' || c.status === 'imported-orphan';
+                const hasOrphan = selectable && (c.clientOrphan || c.quoteOrphan);
+                const hasProjectOrphan = selectable && c.projectOrphan;
+                const badgeVariant = c.status === 'new' ? 'success' : c.status === 'imported-orphan' ? 'warning' : 'secondary';
+                const badgeLabel = c.status === 'imported-orphan' ? 'vínculo pendente' : c.status;
                 return (
                   <div key={c.localTask.id} className="flex items-start justify-between p-2 border rounded-md">
                     <div className="flex items-start space-x-2 min-w-0">
                       <Checkbox
                         checked={selectedIds.includes(String(c.localTask.id))}
                         onCheckedChange={() => toggleSelection(String(c.localTask.id))}
-                        disabled={c.status !== 'new'}
+                        disabled={!selectable}
                         className="mt-0.5"
                       />
                       <div className="min-w-0">
@@ -115,7 +120,7 @@ export function LocalTasksImportCard() {
                         )}
                       </div>
                     </div>
-                    <Badge variant={c.status === 'new' ? 'success' : 'secondary'}>{c.status}</Badge>
+                    <Badge variant={badgeVariant}>{badgeLabel}</Badge>
                   </div>
                 );
               })}
