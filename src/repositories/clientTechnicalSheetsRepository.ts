@@ -1,7 +1,9 @@
-// @ts-nocheck
 // Espelho Reversível (Etapa 5) — repository de referência do padrão: ver docs/architecture/espelho-reversivel.md
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import { normalizeSupabaseError } from "@/lib/supabase/errors";
+
+type TechnicalSheetUpsert = Database["public"]["Tables"]["client_technical_sheets"]["Insert"];
 
 export interface SupabaseTechnicalSheetInput {
   branding?: Record<string, unknown>;
@@ -39,7 +41,7 @@ export const clientTechnicalSheetsRepository = {
         client_id: clientId,
         ...payload,
         updated_at: new Date().toISOString(),
-      }, {
+      } as unknown as TechnicalSheetUpsert, {
         onConflict: "client_id",
       })
       .select()

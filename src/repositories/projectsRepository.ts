@@ -1,7 +1,9 @@
-// @ts-nocheck
 // Repository for Projects (Supabase)
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import { normalizeSupabaseError } from "@/lib/supabase/errors";
+
+type ProjectUpsert = Database["public"]["Tables"]["projects"]["Insert"];
 
 export interface SupabaseProject {
   id: string;
@@ -49,7 +51,7 @@ export const projectsRepository = {
         status: "active",
         source: "quote",
         ...input,
-      })
+      } as unknown as ProjectUpsert)
       .select()
       .single();
 
@@ -148,7 +150,7 @@ export const projectsRepository = {
     const { data, error } = await supabase
       .from("projects")
       .upsert(
-        { workspace_id: workspaceId, source_local_id: sourceLocalId, ...input },
+        { workspace_id: workspaceId, source_local_id: sourceLocalId, ...input } as unknown as ProjectUpsert,
         { onConflict: "workspace_id,source_local_id" },
       )
       .select()
