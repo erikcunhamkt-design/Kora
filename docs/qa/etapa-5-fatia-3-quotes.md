@@ -704,3 +704,8 @@ atual" — a mesma categoria em que a Fatia 7 (`projects`/`tasks`) catalogou o g
 Entidades diferentes (`quotes` aqui, `tasks` lá), mesma classe de achado — nenhuma delas bloqueia
 a fatia em que foi descoberta, ambas bloqueiam uma fatia futura específica (cutover de leitura de
 `quotes`; cutover de CRUD completo de `tasks`, respectivamente).
+
+**Atualização (Etapa 5 · Fatia 8, 2026-07-23):** a mesma categoria ganhou um terceiro membro —
+**O1**, `opportunities` (`Lead.tags[]`/`Lead.history[]` sem coluna em `crm_opportunities`), ver
+[`etapa-5-fatia-2-opportunities.md` §10](etapa-5-fatia-2-opportunities.md#10-o1--pendência-pós-fechamento-paridade-de-schema-localnuvem-bloqueia-cutover-de-escrita).
+Bloqueia especificamente o cutover de **escrita** de `opportunities`, proposto pela Fatia 8.
