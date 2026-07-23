@@ -301,3 +301,30 @@ Regra dura, sem exceção — vale inclusive para QA:
    preservando qualquer fato exclusivo da versão descartada (ex.: proveniência) em 1-2 linhas —
    mesmo critério já usado na resolução do conflito G9 desta fatia.
 4. **Demais gates permanentes (seções 0–13) inalterados.**
+
+---
+
+## 15. Emenda 2026-07-23 — Enquadramento de print em sessão de DDL: credencial nunca aparece
+
+> **Motivada por:** Etapa 5 · Fatia 8 (cutover de escrita de `opportunities`) — durante a
+> aplicação da migration O1 sob a exceção da seção 8, a senha do banco apareceu em texto puro no
+> chat 3 vezes (1 print de terminal + 2 mensagens de texto), sempre por ação do operador ao
+> colar a connection string completa em vez de só os valores nos placeholders indicados. O Code
+> recusou usar o valor a cada vez e não o reproduziu em nenhuma resposta, mas a exposição em si já
+> ocorreu — a emenda existente (seção 13) cobre credencial em **arquivo**, não em **print/texto
+> de terminal colado no chat**, que é o vetor real deste incidente.
+
+1. **Prints de terminal enviados ao Code durante uma sessão de DDL (seção 8) são capturados
+   ANTES de digitar/colar a credencial**, ou com a linha que contém a credencial **fora do
+   enquadramento** do print — nunca depois, nunca com a linha visível.
+2. **Se a credencial aparecer em texto puro no chat por qualquer via** (print, mensagem colada,
+   comando ecoado) — o Code recusa usá-la, não a reproduz em nenhuma resposta, e o operador
+   rotaciona a senha ao final da sessão, independente de a aplicação da migration ter dado certo
+   ou não. Mesmo critério já em vigor (seção 8, item 2) para o caso de arquivo (seção 13) — esta
+   emenda estende o mesmo princípio ao vetor "print/texto colado", que é distinto de "arquivo".
+3. **Registro obrigatório no doc da fatia** quando o incidente ocorrer: quantas vezes, por qual
+   vetor, e a confirmação de que o Code nunca usou/reproduziu o valor — mesmo padrão de
+   transparência já usado nos registros de incidente de homologação anteriores (Fatia 7 §13.7,
+   Fatia 8 §6.8).
+4. **Demais gates permanentes (seções 0–14) inalterados.**
+4. **Demais gates permanentes (seções 0–13) inalterados.**
