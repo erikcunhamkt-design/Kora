@@ -1329,11 +1329,62 @@ executada primeiro.
 
 ---
 
-**PARADO aqui.** Runbook pronto para execução (pré-requisito, seed, setup, passos, provas,
-limpeza) — **nada foi executado**: nenhuma leitura de dado real rodou, nenhum projeto/tarefa
-semeado, nenhum import disparado, nenhuma limpeza rodada. Aguarda "vai" literal do revisor colado
-neste chat pelo operador antes de qualquer ação sobre dado (leitura das queries do §13.1
-inclusive — mesmo sendo só `SELECT`, é ação sobre o ambiente de homologação real).
+**Nota:** o texto de "PARADO aqui" abaixo era o estado deste doc antes da execução (Fase D). A
+rodada foi executada com "vai" do revisor — resultado registrado no §13.7.
+
+> ~~**PARADO aqui.** Runbook pronto para execução (pré-requisito, seed, setup, passos, provas,
+> limpeza) — **nada foi executado**: nenhuma leitura de dado real rodou, nenhum projeto/tarefa
+> semeado, nenhum import disparado, nenhuma limpeza rodada. Aguarda "vai" literal do revisor
+> colado neste chat pelo operador antes de qualquer ação sobre dado (leitura das queries do
+> §13.1 inclusive — mesmo sendo só `SELECT`, é ação sobre o ambiente de homologação real).~~
+
+---
+
+## 13.7 Resultado da rodada — EXECUTADA (vai do revisor)
+
+**Critério de aceite: 10/11.** Caso (g) fica registrado **vermelho** — não maquiado por SQL
+manual. Rodada executada pelo operador contra cliente/quote sintéticos (`HOMOLOG-F7-cliente`,
+`HOMOLOG-F7-quote`), nunca contra dado real (per emenda do §13, commit `1aad648`).
+
+| Caso | Resultado | Evidência |
+|---|---|---|
+| (a) básico | ✅ verde | upsert + arbiter geral novo, sem fan-in |
+| (b) fan-out de cliente | ✅ verde | `client_id` resolvido pro UUID sintético real, nunca o id local cru |
+| (c) órfã | ✅ verde | `client_id` NULL, nunca o id local cru, sem erro |
+| (d) coexistência (quote-linked) | ✅ verde, por evidência equivalente | `createProjectFromQuote` gravou com `source_local_id` + tradução `"orçamento"→"quote"` confirmada em produção. Ramo específico "reconhece uma linha PRÉ-EXISTENTE sem `source_local_id` e faz backfill" não foi exercitado nesta integração (ver "Gap aceito" abaixo) |
+| (e) idempotência (projects) | ✅ verde | upsert via `ON CONFLICT`, `count=1` confirmado, sem duplicata (nota: `RETURNING` do id não capturado nos prints desta rodada — `count=1` aceito como prova suficiente) |
+| (f) tarefa básica | ✅ verde | tarefa solta, sem `project_id`, sem fan-in |
+| (g) fan-out retroativo de tarefa | 🔴 **VERMELHO** | UI trava o candidato como "imported" e desabilita a seleção; o texto do próprio card promete "importe o projeto e rode a importação de novo para preencher o vínculo" — caminho que o código não implementa. `project_id` permanece `NULL` mesmo com o projeto-alvo já importado. **Veredito: BUG, critério F5-eq (caminho alcançável em produção, sem flag) — correção em rodada própria, não catalogado como PT** |
+| (h) órfã de tarefa (permanente) | ✅ verde | `project_id` NULL — comportamento correto e esperado (nenhum seed cria o projeto-alvo dela) |
+| (i) idempotência (tasks) | ✅ verde | upsert via `ON CONFLICT`, `count=1` confirmado, sem duplicata (mesma nota do (e) sobre `RETURNING`) |
+| (j) coexistência — duplo import, caminho do app | ✅ verde | 2 candidatos locais distintos, mesma quote sintética → **1 único projeto vivo** (`944046c6-61be-4f0e-b37f-48e49289979a`), `source='quote'` — tradução provada em produção, nunca duplicou |
+| (k) backstop de banco | ✅ verde | `INSERT` direto bypassando o app → erro `23505` citando literalmente `ux_projects_from_quote` e a chave conflitante — confirma que o índice parcial é o backstop real, não só a checagem do app |
+
+**Gap aceito (caso d):** o ramo `if (!existing[0].source_local_id) { ...backfill... }` de
+`projectsRepository.importProject` (reconhecer uma linha quote-linked pré-existente SEM
+`source_local_id` e preenchê-lo) não foi exercitado nesta rodada — a ordem real de execução (ver
+incidente abaixo) fez `(d)` criar a própria linha via `createProjectFromQuote` em vez de
+encontrar uma pré-existente. Reencenar exigiria apagar a linha viva de (d)/(j) e uma segunda
+quote sintética só para isso — custo não justificado, porque o ramo **já tem teste unitário
+dedicado e verde** (`projectsRepository.test.ts`, caso "projeto JÁ existente para a mesma quote:
+reconhece via findProjectByQuote, faz backfill do source_local_id, NUNCA duplica"). Registrado
+como cobertura só-de-unidade, não de integração — aceito, não bloqueante.
+
+**Incidente de homologação nº 1 — execução fora de ordem, sem dano:** a lista de passos entregue
+pelo Code para esta rodada **omitiu** o passo do setup SQL do §13.3 (criação da linha
+"TESTE-FT-preexistente-d"), e a ordem real executada trocou tarefas antes de projetos (o
+documentado era o oposto). Consequência prática: **nenhuma** — a própria garantia de ordem do
+§8.1 (import de tasks nunca inventa `project_id`, só resolve via map ou vira órfã) foi validada
+na prática por essa falha: as 3 tarefas subiram com `project_id NULL` porque os projetos ainda
+não existiam, exatamente como desenhado, sem dado corrompido. A falha do Code (lista incompleta)
+é o que expôs o bug real do caso (g) — se a ordem correta tivesse sido seguida à risca, o mesmo
+bug ainda existiria, só apareceria de forma diferente (tentando reimportar tarefas depois de
+importar os projetos manualmente antes).
+
+**Limpeza confirmada:** nuvem `projects_restantes`/`tasks_restantes` = 0/0; quote e cliente
+sintéticos apagados; contagem final de quotes/clients = baseline inicial (1 quote / 1 cliente a
+mais durante a rodada, de volta ao normal depois); `localStorage` limpo (seeds, import-maps,
+mapeamentos sintéticos removidos).
 
 ---
 
