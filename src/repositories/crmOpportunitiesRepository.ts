@@ -1,5 +1,15 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import { normalizeSupabaseError } from "@/lib/supabase/errors";
+
+// `source_local_id` (Etapa 5 · Fatia 2, migration 20260719000000) exists on the
+// real crm_opportunities table but predates the last `types.ts` regeneration,
+// so the generated Insert/Update types don't know about it and postgrest-js's
+// excess-property guard rejects it outright (even via an intersection type).
+// Route through `unknown` at each call site below instead of hand-editing the
+// generated file.
+type OpportunityInsert = Database["public"]["Tables"]["crm_opportunities"]["Insert"];
+type OpportunityUpdate = Database["public"]["Tables"]["crm_opportunities"]["Update"];
 
 export interface SupabaseOpportunity {
   id: string;
@@ -111,7 +121,7 @@ export const crmOpportunitiesRepository = {
       .insert({
         workspace_id: workspaceId,
         ...input,
-      })
+      } as unknown as OpportunityInsert)
       .select()
       .single();
 
@@ -133,7 +143,7 @@ export const crmOpportunitiesRepository = {
     const { data, error } = await supabase
       .from("crm_opportunities")
       .upsert(
-        { workspace_id: workspaceId, ...input, source_local_id: sourceLocalId },
+        { workspace_id: workspaceId, ...input, source_local_id: sourceLocalId } as unknown as OpportunityInsert,
         { onConflict: "workspace_id,source_local_id" },
       )
       .select()
@@ -146,7 +156,7 @@ export const crmOpportunitiesRepository = {
   async updateOpportunity(workspaceId: string, opportunityId: string, patch: Partial<SupabaseOpportunityInput>) {
     const { data, error } = await supabase
       .from("crm_opportunities")
-      .update(patch)
+      .update(patch as unknown as OpportunityUpdate)
       .eq("id", opportunityId)
       .eq("workspace_id", workspaceId)
       .select()

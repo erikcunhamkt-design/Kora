@@ -135,7 +135,7 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
         // Try parsing flow_data from DB
         const savedFlow = data.flow_data;
         if (savedFlow && Array.isArray(savedFlow)) {
-          setNodes(savedFlow as WorkflowNode[]);
+          setNodes(savedFlow as unknown as WorkflowNode[]);
         } else {
           // Fallback legacy conversion
           const legacyInstruction = data.system_instruction || "Você é o atendente virtual do KORA Hub. Seja prestativo, educado e conciso.";

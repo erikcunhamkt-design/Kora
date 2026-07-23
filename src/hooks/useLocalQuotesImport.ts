@@ -256,7 +256,7 @@ export function useLocalQuotesImport() {
         emitNotification({
           title: "Orçamento importado",
           description: local.title,
-          category: "import",
+          category: "commercial",
           type: "success",
         });
       } catch (e: unknown) {
@@ -267,8 +267,8 @@ export function useLocalQuotesImport() {
         emitNotification({
           title: "Falha ao importar orçamento",
           description: local.title,
-          category: "import",
-          type: "error",
+          category: "commercial",
+          type: "danger",
         });
       }
     }

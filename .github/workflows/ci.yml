@@ -31,8 +31,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Type-check (tsc --noEmit)
-        run: npx tsc --noEmit
+      # tsc --noEmit sem -p/-b na raiz não resolve as project references
+      # (tsconfig.json tem files: [] + references) e sempre reporta 0 erros
+      # independente do estado real do código — ver G9 em
+      # docs/architecture/kora-hub-auditoria-e-plano.md.
+      - name: Type-check (tsc -p tsconfig.app.json --noEmit)
+        run: npx tsc -p tsconfig.app.json --noEmit
 
       # Gate autoritativo de lint: reporta a contagem e falha se erros OU
       # `no-explicit-any` aumentarem vs ci/lint-baseline.json.

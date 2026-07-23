@@ -29,7 +29,7 @@ export function useSupabaseOpportunities(options?: { includeArchived?: boolean; 
         includeArchived,
         onlyDeleted,
       });
-      return (data as SupabaseOpportunity[]) || [];
+      return (data as unknown as SupabaseOpportunity[]) || [];
     },
     enabled: !!workspaceId,
     staleTime: 30_000,
