@@ -288,8 +288,196 @@ duas fatias anteriores tiveram que endereçar.
 
 ---
 
-**PARADO aqui.** Levantamento de Fase A entregue — nenhum código alterado, nenhuma migration
-escrita, nenhum dado acessado. Proposta de recorte: **Fatia 8 = cutover de escrita de
-`opportunities`** (§4), com o achado **O1** catalogado como parte do escopo de design. **NADA
-EXECUTA sem o "vai" literal do revisor, colado neste chat pelo operador** — inclusive a própria
-Fase B (design) desta fatia.
+**Fase A entregue e aprovada.** Segue abaixo o design de Fase B (§6), autorizado pelo "vai" do
+revisor. Achado **O1** ([registrado em main](etapa-5-fatia-2-opportunities.md#10-o1--pendência-pós-fechamento-paridade-de-schema-localnuvem-bloqueia-cutover-de-escrita),
+commit `7acd0fe`) passa de pendência catalogada a **requisito bloqueante desta fatia** (§6.2).
+
+---
+
+## 6. Fase B — Design do cutover de escrita de `opportunities`
+
+### 6.0 Contexto arquitetural (achado que reformula as 7 perguntas)
+
+Antes de responder item a item, um fato descoberto na leitura de `CRM.tsx` muda o formato do
+problema: **o cutover de leitura já está, silenciosamente, ligado por padrão desde antes desta
+fatia.**
+
+- `CRM.tsx` chama **os dois hooks incondicionalmente** — `useLeads()` (local) e
+  `useSupabaseOpportunities()` (nuvem) — todo render ([`CRM.tsx:137-175`](../../src/pages/CRM.tsx#L137)).
+  Não é um branch condicional de qual hook rodar; é um **switch de qual resultado renderizar**
+  (`activeDataSource`, [`CRM.tsx:167`](../../src/pages/CRM.tsx#L167)).
+- `activeDataSource = workspace ? dataSource : "local"` — e `dataSource` vem de
+  `getCrmDataSource()`, cujo default já é `"supabase"` (só `"local"` explícito escolhe local).
+  **Ou seja:** todo usuário com workspace que nunca tocou no seletor **já está olhando para
+  `crm_opportunities` hoje**, não para `orbyt.leads.v1`.
+- O que **não** está ligado por padrão é a **escrita**: `blockWriteAction()` bloqueia toda ação
+  (criar/editar/mover/arquivar/excluir) no modo Supabase a menos que
+  `kora.crm.supabaseWrite.enabled` esteja `true` — e essa flag é opt-in, default `false`
+  ([`useSupabaseCrmWriteFlag.ts:10`](../../src/hooks/useSupabaseCrmWriteFlag.ts#L10)).
+
+**Consequência prática, já existente e não introduzida por esta fatia:** um usuário com
+workspace e leads locais reais, que nunca tocou no seletor, já vê hoje um Kanban vazio (ou
+parcial) vindo de `crm_opportunities` — e não consegue criar/editar nada ali até ligar a flag
+manualmente em Configurações ou voltar para "Local". Isso reformula a "mecânica do cutover"
+(§6.1): não é preciso inventar um mecanismo novo de troca de fonte — ele já existe e já roda em
+produção. O que falta é **completar o lado de escrita** do mesmo mecanismo, e resolver o
+**risco de dado pré-existente** que esse fato já estava criando silenciosamente (§6.3).
+
+### 6.1 Mecânica do cutover — recomendação: **nenhuma das três opções literais**
+
+Nem "flip do default do dataSource" (já é o default, não muda nada novo), nem "dual-write
+transitório" (não existe — nunca existiu — um caminho que escreva nos dois lados ao mesmo tempo;
+inventar um agora seria um retrocesso arquitetural, não um cutover), nem "troca seca no hook
+`useLeads`" (removeria a única rede de segurança/reversibilidade que este design depende — ver
+§6.6). A recomendação é a mesma mecânica que `client_technical_sheets`/`clients` já usam:
+
+**Flipar o default de `kora.crm.supabaseWrite.enabled` de `false` para `true`**, mantendo:
+- o seletor `kora.crm.dataSource.v1` intacto, com "Local" continuando disponível como opção
+  explícita (carência, não removida);
+- `useLeads()` e todo o caminho `orbyt.leads.v1` **intactos no código**, sem nenhuma linha
+  removida — só deixam de ser o caminho **padrão** de escrita para quem nunca escolheu nada.
+
+**Tensão a registrar:** o cabeçalho de `flags.ts` declara um "CONTRATO DE PRESERVAÇÃO DE
+COMPORTAMENTO" (Etapa 4a) — "MESMO default de antes". Essa regra foi escrita para a
+centralização de leitura de flags **já existentes**, não para proibir uma decisão de produto
+deliberada de mudar um default. Registrar aqui, explicitamente, que **esta é a primeira exceção
+consciente a esse contrato**, aprovada nominalmente pelo revisor nesta fatia — não um
+descumprimento silencioso. Sessões que **já têm** o valor gravado (`true` ou `false`,
+explicitamente) não são afetadas — só usuários que nunca tocaram na flag herdam o novo default.
+
+**Rollback:** trivial e barato — reverter o default no código (uma constante), sem nenhuma
+migração de dado em nenhuma direção (ver §6.6 para o detalhe completo).
+
+### 6.2 Paridade de schema (O1) — decisão: **(a) migration nova, bloqueante desta fatia**
+
+Diferente de Q8/PT2 (pendências para uma fatia *futura*), O1 vira **requisito de implementação
+da própria Fatia 8** — porque esta fatia liga a escrita por padrão, e os dois campos são uso
+real, não incidental:
+
+- `tags` — grep em `CRM.tsx` confirma uso ativo: badge no card do Kanban
+  ([`CRM.tsx:1082`](../../src/pages/CRM.tsx#L1082), [`:2116`](../../src/pages/CRM.tsx#L2116)),
+  editor dedicado de tags (`setLeadTags`, [`CRM.tsx:1338`](../../src/pages/CRM.tsx#L1338)), e
+  automações de pipeline que **adicionam tag automaticamente** ao mover de estágio
+  ([`CRM.tsx:521`](../../src/pages/CRM.tsx#L521), `r.actions.addTag`). Perder isso silenciosamente
+  no modo Supabase quebra uma automação configurada pelo usuário sem aviso.
+- `history` — timeline de atividade renderizada no drawer de detalhe
+  ([`CRM.tsx:2198`](../../src/pages/CRM.tsx#L2198), `lead.history.map(...)`) — visível, não um
+  campo de debug.
+
+**Recomendação:** migration aditiva, mesmo padrão de Q1 (Fatia 3)/F1 (Fatia 6)/F1 (Fatia 7):
+`ALTER TABLE public.crm_opportunities ADD COLUMN tags text[]`,
+`ADD COLUMN history jsonb DEFAULT '[]'::jsonb` — escrita nesta rodada, **não aplicada** (ver
+arquivo em §6.8). Estender `crmOpportunityMapper.ts` nos dois sentidos (hoje: local→nuvem não
+manda nenhum dos dois; nuvem→local zera `history` e nunca atribui `tags`) — implementação
+entra no escopo obrigatório da Fase C, não é opcional.
+
+**Fora de escopo desta migration:** backfill de `history`/`tags` de registros que eventualmente
+já tenham sido criados em `crm_opportunities` antes desta fatia (baseline era 0 linhas em
+2026-07-18, por Fatia 2 §9 — improvável mas não confirmado; medir com a query do §3 antes da
+Fase C).
+
+### 6.3 Dados pré-existentes — import vira **gate obrigatório antes do flip**, órfãs continuam aviso
+
+O fato do §6.0 (leitura já default-Supabase) faz este item ser o mais crítico do design: **não é
+o cutover que arrisca dado pré-existente — é a combinação do cutover de escrita com um import
+nunca rodado.** Um usuário com leads locais reais, nunca importadas, que ganha escrita-padrão em
+Supabase, passa a **criar dado novo do lado errado** enquanto o dado antigo fica invisível (não
+perdido — ver §6.6 — mas invisível).
+
+**Recomendação:** o assistente de import (`useLocalOpportunitiesImport.ts`, já homologado 7/7 na
+Fatia 2) vira **pré-condição de runbook, não pré-condição de código** — ou seja, não bloquear
+teecnicamente a escrita, mas o runbook de Fase C exige, para cada workspace de teste: (1) medir
+`orbyt.leads.v1` local (reais, não-demo); (2) se > 0 e nenhuma delas está em
+`kora.crm.supabaseImport.v1.importedMap`, **rodar o import antes** de considerar o flip seguro
+para aquele cenário. Órfãs de cliente (FK não resolvida) continuam **aviso, nunca bloqueio** —
+mesmo invariante de todas as fatias anteriores.
+
+**Nota de escopo — fora desta fatia:** decidir uma migração **em massa**, automática, para todos
+os workspaces de produção existentes (rodar o import para todo mundo, de uma vez, no dia do
+flip) é uma decisão operacional maior que uma Fase C de fatia deveria tomar sozinha — fica
+registrado como pergunta em aberto para o "vai" de Fase C, não respondida aqui.
+
+### 6.4 Convivência com o campo-ponte (`Lead.supabaseId`) — **mantido, não removido**
+
+`Lead.supabaseId?: string` ([`useLeads.ts:50`](../../src/hooks/useLeads.ts#L50)) é a ponte de
+re-link que a Fatia 2 já prova funcionar (§9, prova 7: `tx-homolog-1.opportunityId` resolve via
+`importedMap`). Enquanto `useLeads()`/`orbyt.leads.v1` continuarem existindo no código (§6.1 —
+não são removidos, só deixam de ser o padrão), esse campo continua sendo o único jeito de um
+lead local pré-cutover se religar ao registro Supabase equivalente. Removê-lo **quebraria** o
+fan-in de finance/projects/tasks para qualquer lead criado antes do flip. Fica mantido
+indefinidamente, sem prazo de remoção associado ao desta fatia — sua remoção só faria sentido no
+dia em que `useLeads()` for de fato apagado (fora de escopo, ver §6.5).
+
+### 6.5 Flags — `kora.crm.supabaseWrite.enabled` continua sendo a única, com plano de morte explícito
+
+Nenhuma flag nova — usar a que já existe. **Default novo: `true`** (§6.1). Aprendizado da Etapa 4
+(flag sem plano de morte vira dívida assumida, ver decisão C6 de `clients` no
+[protocolo §10](protocolo-homologacao.md#10-emenda-2026-07-20--regularização-de-p5-para-clients-dívida-assumida-sem-homologação-retroativa)):
+esta fatia define o **critério de retirada**, não a data.
+
+**Critério de retirada (registrado, não executado nesta fatia):** a flag e o seletor
+`kora.crm.dataSource.v1` só saem de "carência" quando, cumulativamente: (1) zero incidente de
+escrita reportado por ≥ 1 ciclo de homologação real (não sintética) após o flip; (2) query
+`select count(*) from crm_opportunities` confirma volume condizente com o uso esperado (não
+zero, não estagnado); (3) uma fatia futura explicitamente proponha a remoção de `useLeads()` do
+CRM (equivalente ao que nunca foi feito para `clients`/`client_technical_sheets` até hoje — ou
+seja, pode nunca acontecer, e isso é aceitável, desde que seja uma decisão consciente e não uma
+omissão).
+
+### 6.6 Reversibilidade — runbook de rollback explícito
+
+**O que desligar:** reverter o default de `kora.crm.supabaseWrite.enabled` para `false` no
+código (1 constante) — **OU**, por workspace individual, o próprio usuário troca
+`kora.crm.dataSource.v1` de volta para `"local"` via UI, sem precisar de deploy.
+
+**O que acontece com o dado, em cada direção:**
+- **Voltando para "Local":** `orbyt.leads.v1` nunca foi tocado enquanto o workspace esteve em
+  modo Supabase (§6.0 — os dois hooks rodam em paralelo, mas só um é lido; o outro nunca
+  escreve) — **100% intacto**, leitura volta a mostrar exatamente o que havia antes,
+  incluindo leads criadas antes do cutover. Mesmo invariante (d) do molde, já provado por
+  clients/ficha técnica.
+- **Dado criado em Supabase durante a janela com escrita ligada:** **não é apagado** ao reverter
+  a flag — só some da tela se o usuário também trocar para "Local" (fica em
+  `crm_opportunities`, resgatável religando o seletor para "Supabase" a qualquer momento,
+  agora em modo leitura se a flag de escrita voltou a `false`). Nenhuma direção do rollback
+  perde dado — o pior caso é perda de **visibilidade** temporária, sempre reversível.
+
+### 6.7 Runbook de homologação (tabela de casos) — desenho, seed sintético (emenda §11)
+
+Todo caso usa **cliente e oportunidade sintéticos próprios** (`HOMOLOG-F8-cliente`,
+`HOMOLOG-F8-opp`) — nenhum dado real é alvo de escrita ou vínculo (emenda §11). Cenário base:
+1 cliente sintético + 1 oportunidade sintética pré-existente (criada via seed SQL direto,
+simulando "já estava na nuvem antes do flip") + 1 lead local sintético não-importado (simulando
+o risco do §6.3).
+
+| Caso | Cenário | Resultado esperado |
+|---|---|---|
+| (a) leitura pós-flip, default | Workspace de teste nunca tocou o seletor nem a flag | Kanban mostra `HOMOLOG-F8-opp` (Supabase), **não** o array local — confirma §6.0 |
+| (b) criar | Escrita ligada por padrão; criar oportunidade nova pela UI | Linha nova em `crm_opportunities`, `orbyt.leads.v1` **não** ganha entrada nova |
+| (c) editar campo básico | Editar `company`/`email` de `HOMOLOG-F8-opp` | `UPDATE` na linha Supabase; local intacto |
+| (d) mover de estágio | Drag-and-drop ou ação de mover estágio | `stage` atualizado; se houver automação de tag (§6.2), `tags` grava e persiste (prova O1) |
+| (e) arquivar/restaurar | Arquivar `HOMOLOG-F8-opp`, depois restaurar | `archived=true` → `false`; nenhuma linha perdida |
+| (f) excluir (soft) + restore | Soft-delete + `restoreDeletedOpportunity` | `deleted_at` setado e depois `null`; mesma linha, mesmo id |
+| (g) tags/history (O1) | Criar com 2 tags + 1 entrada de histórico, reler | Round-trip completo — nenhum dos dois campos zera na releitura (prova direta da migration §6.2) |
+| (h) import pré-flip, gate §6.3 | Lead local sintético não-importado, workspace ainda sem `crm_opportunities` — rodar o assistente de import antes do teste de escrita | Import homologa 1/1 (mesmo runbook da Fatia 2); só depois disso a escrita é considerada "segura" para este cenário |
+| (i) offline/falha do Supabase | Simular erro de rede numa chamada de escrita (mock de erro no repository) | Erro é propagado à UI (toast de falha) — **nunca** um fallback silencioso que grave em `orbyt.leads.v1` como substituto |
+| (j) idempotência do reimport | Reimportar o mesmo lead do caso (h) uma 2ª vez | "Já Importada", 0 duplicata — mesma prova 3 da Fatia 2 |
+| (k) rollback | Reverter a flag de escrita para OFF, ou trocar dataSource para "Local" | Dado criado nos casos (b)-(g) continua em `crm_opportunities` (não some); `orbyt.leads.v1` continua intacto o tempo todo — prova §6.6 |
+
+**Critério de aceite proposto:** 11/11 casos verdes. Sem caso de atomicidade pai-filho —
+`crm_opportunities` não tem tabela-filha (mesma lógica de finance/Fatia 6). Gates 1 (export
+manual) e 2 (print pré-clique) aplicam normalmente a cada caso de escrita.
+
+### 6.8 Migration escrita, não aplicada
+
+`supabase/migrations/20260723000100_etapa5_fatia8_opportunities_add_tags_history.sql` — 2
+`ADD COLUMN` (`tags text[]`, `history jsonb DEFAULT '[]'::jsonb`), sem `UNIQUE`/índice novo (não
+faz parte de nenhuma chave de idempotência), **não precisa de autocommit** (nenhum
+`CREATE INDEX CONCURRENTLY` envolvido, roda dentro de transação normal).
+
+---
+
+**PARADO aqui.** Design de Fase B entregue (§6.0-§6.8) — as 7 decisões pedidas, o achado
+arquitetural do §6.0 (leitura já default-Supabase, achado não previsto na Fase A), a migration
+escrita (não aplicada) e o runbook de 11 casos. **NADA EXECUTA sem o "vai" literal do revisor,
+colado neste chat pelo operador** — inclusive a implementação de Fase C.
