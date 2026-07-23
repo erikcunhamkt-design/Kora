@@ -223,3 +223,81 @@ Regra dura, sem exceção — vale inclusive para QA:
    Supabase-first descoberto em outra entidade exige o mesmo tratamento explícito nesta seção —
    não herda esta emenda por analogia, mesmo que o padrão de achado se repita.
 6. **Demais gates permanentes (seções 0–9) inalterados.**
+
+---
+
+## 11. Emenda 2026-07-23 — Dado real é só-leitura em homologação (nunca alvo de escrita/vínculo)
+
+> **Motivada por:** Etapa 5 · Fatia 7 (`projects`/`tasks`) — quase-desvio no desenho original do
+> runbook: o seed de homologação referenciava uma **quote real** pré-existente para calibrar
+> `ux_projects_from_quote`. Se a limpeza pós-rodada falhasse, um projeto de teste ficaria ocupando
+> o slot único daquela quote real, bloqueando o fluxo de negócio de verdade. Corrigido em emenda
+> **pré-execução** do runbook (cliente/quote sintéticos próprios, `HOMOLOG-F7-cliente` /
+> `HOMOLOG-F7-quote`) — nenhuma rodada real chegou a usar o desenho original.
+
+1. Toda homologação semeada **cria seus próprios registros sintéticos** (cliente, quote, ou
+   equivalente) e nunca cria linha com FK apontando para um registro que o próprio seed não criou.
+2. Dado real pode ser **lido** (para calibrar formato/volume esperado), nunca usado como **alvo**
+   de escrita ou vínculo — nenhum caso de homologação grava FK para uma linha pré-existente fora
+   do seed.
+3. Regra vale para toda fatia futura sob este protocolo, não só para a que a descobriu.
+4. **Demais gates permanentes (seções 0–10) inalterados.**
+
+---
+
+## 12. Emenda 2026-07-23 — Push da branch de fatia ao fim de cada fase
+
+> **Motivada por:** Etapa 5 · Fatia 7 — a branch inteira residiu só em disco local (worktree
+> `Kora-laneA`) da Fase A até a Fase D, sem nenhum push intermediário. O projeto está hospedado em
+> plano Free sem backup automático de banco — o mesmo raciocínio de risco (seção 0) se aplica a
+> código não versionado remotamente: um disco corrompido apagaria fases inteiras de trabalho sem
+> recuperação possível.
+
+1. Toda branch de fatia é **pushada para `origin` ao final de cada fase concluída** (A, B, C, D —
+   não só no merge final para `main`).
+2. Push é ação do operador (P6 já cobre isso) — esta emenda apenas torna explícita a **cadência
+   mínima** exigida, não altera quem executa.
+3. **Demais gates permanentes (seções 0–11) inalterados.**
+
+---
+
+## 13. Emenda 2026-07-23 — Credencial em arquivo: destruição do arquivo E rotação, não uma ou outra
+
+> **Motivada por:** Etapa 5 · Fatia 7 — desvio de credencial nº 1: uma connection string com senha
+> em texto plano foi colocada num arquivo no Desktop do operador para contornar a
+> não-persistência de `$env:` entre chamadas do PowerShell tool. Mitigado (arquivo destruído,
+> senha rotacionada), mas o protocolo até então (seção 8, item 2) só exigia rotação — não
+> mencionava o arquivo em si.
+
+1. Se uma credencial for gravada em arquivo (mesmo temporário, mesmo fora do repositório) durante
+   uma sessão de DDL sob a exceção da seção 8, o fechamento dessa sessão exige **duas**
+   confirmações verificadas, não uma: (a) **destruição do arquivo**, incluindo a lixeira/recycle
+   bin; (b) **rotação da senha** usada.
+2. As duas confirmações são registradas explicitamente no doc da fatia (ou equivalente) — não
+   basta a rotação sozinha, mesmo que nenhum incidente tenha ocorrido.
+3. A preferência permanece pelo padrão **sem** arquivo (variável de ambiente carregada e usada num
+   único bloco de comando) — esta emenda cobre o caso em que um arquivo ainda assim foi usado.
+4. **Demais gates permanentes (seções 0–12) inalterados.**
+
+---
+
+## 14. Emenda 2026-07-23 — Entradas de catálogo (G/PT/Q) sincronizam via `main`
+
+> **Motivada por:** Etapa 5 · Fatia 7 — conflito de merge real na seção G9 do plano mestre
+> (`docs/architecture/kora-hub-auditoria-e-plano.md`): a LANE A catalogou o achado do gate
+> `tsc --noEmit` vazio na branch da própria fatia, roteando o fix para uma "LANE B" futura; em
+> paralelo, uma rodada `qualidade-lint` corrigiu o mesmo achado diretamente em `main`, sem ver a
+> primeira catalogação — resultado foi duas versões divergentes da mesma entrada G9, resolvidas
+> manualmente no merge.
+
+1. Achado catalogado no plano mestre (prefixos `G`/`P`/`Q`/`PT` ou equivalente) **nasce em
+   `main`**, ou é sincronizado para `main` o quanto antes — nunca fica retido só numa branch de
+   fatia por mais que uma fase.
+2. Antes de catalogar um achado novo a partir de uma branch de fatia, conferir se `main` já
+   avançou e já contém uma entrada relacionada — evita duplicação e divergência de estado
+   (pendente vs. corrigido) na mesma entrada.
+3. Se duas lanes catalogarem o mesmo achado em paralelo sem sincronizar, o merge resolve adotando
+   a versão que reflete o estado mais avançado (ex.: "corrigido" prevalece sobre "pendente"),
+   preservando qualquer fato exclusivo da versão descartada (ex.: proveniência) em 1-2 linhas —
+   mesmo critério já usado na resolução do conflito G9 desta fatia.
+4. **Demais gates permanentes (seções 0–13) inalterados.**
