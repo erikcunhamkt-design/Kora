@@ -456,21 +456,21 @@ o risco do §6.3).
 | (b) criar | Escrita ligada por padrão; criar oportunidade nova pela UI | Linha nova em `crm_opportunities`, `orbyt.leads.v1` **não** ganha entrada nova |
 | (c) editar campo básico | Editar `company`/`email` de `HOMOLOG-F8-opp` | `UPDATE` na linha Supabase; local intacto |
 | (d) mover de estágio | Drag-and-drop ou ação de mover estágio | `stage` atualizado; se houver automação de tag (§6.2), `tags` grava e persiste (prova O1) |
-| (e) arquivar/restaurar | Arquivar `HOMOLOG-F8-opp`, depois restaurar | Arquivar: OK (`persistArchiveSupabase`). **Restaurar: ESPERADO VERMELHO** — `handleUnarchiveClick` chama `archiveLead` local, não `persistArchiveSupabase` (**O3**, §6.9) |
-| (f) excluir (soft) + restore | Soft-delete + `restoreDeletedOpportunity` **via a UI real (ícone de lixeira do card/lista)** | **ESPERADO VERMELHO** — o `onDelete` do card/lista chama `deleteLead` local incondicionalmente, nunca `persistSoftDeleteSupabase` (**O2**, §6.9); `handleDeleteClick`, que faria isso certo, existe mas está morto (nunca chamado) |
-| (g) tags/history (O1) | Criar com 2 tags + 1 entrada de histórico, reler | Migration+mapper: OK (prova a coluna/tradução). **Editar tags pela UI real (`EditTagsDialog`): ESPERADO VERMELHO** — `setLeadTags` é sempre local, nunca grava em `crm_opportunities` (**O4**, §6.9) |
+| (e) arquivar/restaurar | Arquivar `HOMOLOG-F8-opp`, depois restaurar | Arquivar: OK (`persistArchiveSupabase`). Restaurar: OK — `handleUnarchiveClick` agora chama `persistArchiveSupabase(id, false)` sob a flag (**O3, corrigido**, ver §6.9) |
+| (f) excluir (soft) + restore | Soft-delete + `restoreDeletedOpportunity` **via a UI real (ícone de lixeira do card/lista)** | OK — `onDelete` do card/lista agora chama `handleDeleteClick`, que gateia por `activeDataSource`/flag e usa `persistSoftDeleteSupabase` em modo Supabase (**O2, corrigido**, ver §6.9) |
+| (g) tags/history (O1) | Criar com 2 tags + 1 entrada de histórico, reler | OK — migration+mapper provam a coluna/tradução; `EditTagsDialog.onSave` agora gateia e chama `persistTagsSupabase` (`updateOpportunity` com `tags`) em modo Supabase (**O4, corrigido**, ver §6.9) |
 | (h) import pré-flip, gate §6.3 | Lead local sintético não-importado, workspace ainda sem `crm_opportunities` — rodar o assistente de import antes do teste de escrita | Import homologa 1/1 (mesmo runbook da Fatia 2); só depois disso a escrita é considerada "segura" para este cenário |
 | (i) offline/falha do Supabase | Simular erro de rede numa chamada de escrita (mock de erro no repository) | Erro é propagado à UI (toast de falha) — **nunca** um fallback silencioso que grave em `orbyt.leads.v1` como substituto |
 | (j) idempotência do reimport | Reimportar o mesmo lead do caso (h) uma 2ª vez | "Já Importada", 0 duplicata — mesma prova 3 da Fatia 2 |
 | (k) rollback | Reverter a flag de escrita para OFF, ou trocar dataSource para "Local" | Dado criado nos casos (b)-(g) continua em `crm_opportunities` (não some); `orbyt.leads.v1` continua intacto o tempo todo — prova §6.6 |
 
-**Critério de aceite revisado (pós-§6.9): 8/11 verde + 3 vermelho catalogado (O2/O3/O4), não
-9/11 nem 11/11 maquiado.** Os 3 vermelhos são bugs pré-existentes confirmados por leitura de
-código antes mesmo da Fase C rodar (§6.9), não falhas de implementação desta fatia — mesmo
-critério da Fatia 7 caso (g): reportar vermelho real, não disfarçar com SQL manual. Sem caso de
-atomicidade pai-filho — `crm_opportunities` não tem tabela-filha (mesma lógica de
-finance/Fatia 6). Gates 1 (export manual) e 2 (print pré-clique) aplicam normalmente a cada caso
-de escrita.
+**Critério de aceite: 11/11 casos verdes.** Os 3 achados O2/O3/O4 (§6.9), confirmados por
+leitura de código antes da Fase C rodar, foram corrigidos em código antes de qualquer aplicação
+de migration — commits `9c1e893` (O3), `1ff7abf` (O2), `42125be` (O4), cada um com teste
+dedicado provando as 3 condições (flag ON grava na nuvem, modo Local preserva o comportamento de
+sempre, flag OFF bloqueia sem nenhum toast de sucesso falso). Sem caso de atomicidade pai-filho —
+`crm_opportunities` não tem tabela-filha (mesma lógica de finance/Fatia 6). Gates 1 (export
+manual) e 2 (print pré-clique) aplicam normalmente a cada caso de escrita.
 
 ### 6.8 Migration escrita, não aplicada
 
@@ -531,9 +531,42 @@ instrução em contrário.
 
 ---
 
-**PARADO aqui.** Design de Fase B entregue (§6.0-§6.8) + pré-condições da Fase C verificadas
-(§6.9) — as 7 decisões pedidas, o achado arquitetural do §6.0 (leitura já default-Supabase, não
-previsto na Fase A), 3 bugs pré-existentes catalogados (O2/O3/O4, um deles — O3 — diretamente
-agravado pelo item 2 desta própria fatia), a migration escrita (não aplicada) e o runbook de 11
-casos revisado para refletir os 3 vermelhos esperados. **NADA EXECUTA sem o "vai" literal do
-revisor, colado neste chat pelo operador** — inclusive a implementação de Fase C.
+### 6.10 Correção de O2/O3/O4 — feita ANTES de qualquer migration (revisor, 2026-07-23)
+
+Decisão do revisor: os 3 achados do §6.9 não ficam catalogados-só — são corrigidos em código,
+antes de aplicar a migration O1 (item 1 da Fase C), porque cada um vira o comportamento **padrão**
+assim que a escrita em Supabase estiver ligada por padrão (esta própria fatia). Um commit por
+bug, cada um com teste dedicado provando as 3 condições (flag ON grava na nuvem / modo Local
+preserva o comportamento de sempre / flag OFF bloqueia sem nenhum toast de sucesso falso):
+
+- **O3** (`9c1e893`) — `handleUnarchiveClick` passa a chamar `persistArchiveSupabase(id, false)`
+  em vez de `archiveLead` local. Ajuste complementar: o toast de `persistArchiveSupabase` agora
+  depende da direção ("arquivada" vs "restaurada"), já que a função passa a servir os dois
+  caminhos.
+- **O2** (`1ff7abf`) — os dois `onDelete` (card do Kanban e linha da tabela) passam a chamar
+  `handleDeleteClick(lead.id)`, que já existia e já fazia certo (bloqueia com a flag off; abre o
+  diálogo de soft-delete via `persistSoftDeleteSupabase` com a flag on) — estava só desconectado
+  da UI (dead code).
+- **O4** (`42125be`) — nova função `persistTagsSupabase` (par Supabase de `setLeadTags`, mesmo
+  padrão de `persistArchiveSupabase`/`persistSoftDeleteSupabase`); `EditTagsDialog.onSave` agora
+  gateia por `activeDataSource`/flag antes de decidir entre ela e o `setLeadTags` local.
+
+Runbook (§6.7) e critério de aceite atualizados de volta para **11/11** — os 3 casos (e)/(f)/(g)
+não são mais vermelho esperado.
+
+**Correção de processo (item 5 do prompt desta rodada):** a entrega anterior deste chat pediu ao
+operador um arquivo de credencial para a aplicação da migration (item 1) — a emenda §13 do
+protocolo não proíbe o arquivo em si (ela existe justamente para o caso em que um arquivo *é*
+usado), mas o revisor determinou que, nesta fatia, a aplicação da migration usa exclusivamente
+`$env:DATABASE_URL` setado pelo operador na sessão, sem arquivo intermediário. Registrado aqui
+para não repetir o pedido — item 1 continua pendente, aguardando o operador setar a variável de
+ambiente quando for a hora do DDL.
+
+---
+
+**PARADO aqui.** Design de Fase B (§6.0-§6.8), pré-condições da Fase C verificadas (§6.9) e
+correção de O2/O3/O4 (§6.10) entregues — as 7 decisões pedidas, o achado arquitetural do §6.0
+(leitura já default-Supabase, não previsto na Fase A), os 3 bugs pré-existentes corrigidos com
+teste (não apenas catalogados), a migration escrita (não aplicada) e o runbook de 11 casos.
+**NADA EXECUTA sem o "vai" literal do revisor, colado neste chat pelo operador** — inclusive a
+aplicação da migration (item 1, pendente do `$env:DATABASE_URL`).
