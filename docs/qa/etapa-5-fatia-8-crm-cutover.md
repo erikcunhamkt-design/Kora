@@ -593,7 +593,288 @@ da aplicação — mesmo critério do desvio de credencial nº 1 da Fatia 7 (eme
 
 ---
 
-**PARADO aqui.** Fase C completa: design (§6.0-§6.8), pré-condições verificadas (§6.9), correção
-de O2/O3/O4 com teste (§6.10), e a migration O1 escrita **e aplicada** com verificação pós-DDL
-(§6.8) — os 5 itens do prompt de implementação encerrados. **NADA EXECUTA sem o "vai" literal do
-revisor, colado neste chat pelo operador** — inclusive a Fase D (homologação real do cutover).
+## 7. Fase D — Runbook executável da homologação (11 casos) — PRONTO PARA EXECUÇÃO
+
+> **Nota de versão:** §6.7 era só a tabela de desenho (proposta). O texto executável abaixo
+> (§7.1-§7.5) foi acrescentado depois da implementação (Fase C) e da aplicação da migration O1,
+> sem alterar as letras/conteúdo dos casos já aprovados. **Nada foi executado ainda** — os
+> artefatos abaixo (seed, SQL, passos, limpeza) estão prontos para colar, aguardando o "vai"
+> literal do revisor. A execução é do operador, com revisão passo a passo.
+
+**Diferença crítica em relação à Fatia 7:** `crm_opportunities` **tem dados reais** (Fatia 2 já
+homologou em produção; uso real desde então). Emenda §11 do protocolo (dado real é só-leitura em
+homologação) aplica com força total aqui — nenhum caso lê o volume real para calibrar nada, e
+nenhum caso cria linha com FK apontando pra cliente/quote real. Prefixo `HOMOLOG-F8-` no título de
+toda oportunidade sintética + `HOMOLOG-F8-lead-import` no lead local sintético — nenhum dos dois
+reaproveita nome/id de dado real.
+
+**Simplificação registrada:** o caso (d) do §6.7 previa testar a automação de tag-ao-mover-estágio
+junto com o move de stage. Configurar uma automação de pipeline pelo UI adicionaria complexidade
+de setup sem prova adicional — a prova de tags (O1/O4) já é coberta em profundidade pelo caso (g).
+(d) aqui testa só o move de estágio isolado.
+
+**Achado registrado (não bloqueante, escopo fora desta fatia):** não existe caminho de UI que
+escreva em `history` do lado Supabase (nem em criar, nem em mover de estágio) — ao contrário do
+`useLeads` local, que grava automaticamente. Isso não foi pedido nem corrigido nesta fatia (O2/O3/O4
+são sobre excluir/restaurar/tags, não sobre gravação automática de histórico). O caso (g) abaixo
+prova a coluna via SQL direto (round-trip de leitura), não via UI — consistente com a realidade do
+código, não maquiado.
+
+### 7.1 Pré-requisito — baseline + checagem dos 2 seletores (operador roda, SÓ LEITURA)
+
+Workspace de teste (mesmo das Fatias 1-7): `2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9`.
+
+```sql
+-- (1) Baseline — contagem de oportunidades ATIVAS antes de semear qualquer coisa. Guardar o
+-- número: é o alvo de "volta ao normal" da limpeza do §7.5 (NÃO é 0 — há oportunidades reais no
+-- workspace; só não pode sobrar nenhum HOMOLOG-F8-* depois da limpeza).
+select count(*) as opps_baseline
+from public.crm_opportunities
+where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and deleted_at is null;
+```
+
+```js
+// (2) Checagem dos 2 seletores desta sessão de navegador — anote os dois valores atuais antes
+// de mexer em qualquer um (pra restaurar exatamente esse estado depois, se precisar).
+console.log("dataSource atual:", localStorage.getItem("kora.crm.dataSource.v1"));
+console.log("supabaseWrite atual:", localStorage.getItem("kora.crm.supabaseWrite.enabled"));
+```
+
+### 7.2 Seed — oportunidades SINTÉTICAS (SQL) + lead local sintético (JS)
+
+#### 7.2.1 SQL — cria as 2 oportunidades sintéticas de homologação
+
+```sql
+-- Oportunidade principal — usada nos casos (a) leitura, (c) editar, (d) mover estágio,
+-- (e) arquivar/restaurar (O3), (g) tags+history (O4/O1). Sem source_local_id — simula "já
+-- nativa na nuvem", não veio de import.
+insert into public.crm_opportunities
+  (workspace_id, title, stage, status, potential_value, is_demo, archived)
+values
+  ('2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9', 'HOMOLOG-F8-opp', 'lead', 'open', 1000, false, false)
+returning id;
+-- guarde o id -> vira <HOMOLOG_OPP_UUID> nas provas de 7.4 (a)/(c)/(d)/(e)/(g)
+```
+
+```sql
+-- Oportunidade dedicada ao caso (f) — separada da principal pra não colidir com os outros
+-- casos que rodam antes dela na sequência do §7.3.
+insert into public.crm_opportunities
+  (workspace_id, title, stage, status, potential_value, is_demo, archived)
+values
+  ('2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9', 'HOMOLOG-F8-opp-excluir', 'lead', 'open', 500, false, false)
+returning id;
+-- guarde o id -> vira <HOMOLOG_OPP_DELETE_UUID> na prova de 7.4 (f)
+```
+
+#### 7.2.2 JS (console do navegador, produção) — lead local para o gate de import (§6.3)
+
+```js
+// Etapa 5 · Fatia 8 (opportunities) — SEED do lead local não-importado. Preserva o que já
+// existe em orbyt.leads.v1. Prefixo "HOMOLOG-F8-".
+const existingLeads = JSON.parse(localStorage["orbyt.leads.v1"] || "[]");
+const nowIso = new Date().toISOString();
+
+const seedLead = {
+  id: 880001,
+  name: "HOMOLOG-F8-lead-import",
+  company: "", email: "", phone: "",
+  serviceType: "Geral",
+  estimatedValue: 300,
+  priority: "média",
+  lastInteraction: nowIso,
+  stage: "lead", pipelineId: "default", stageId: "lead",
+  tags: [], archived: false, description: "",
+  history: [{ date: nowIso.slice(0, 10), text: "Lead criado (seed homologação)" }],
+  notes: "", isDemo: false,
+};
+
+localStorage.setItem("orbyt.leads.v1", JSON.stringify([...existingLeads, seedLead]));
+console.log("✅ Seed F8 gravado:", seedLead.id, seedLead.name);
+// esperado: 880001 "HOMOLOG-F8-lead-import"
+```
+
+### 7.3 Passos do operador, em ordem
+
+| # | ONDE | O que fazer | O que anotar | Verde quando |
+|---|---|---|---|---|
+| 1 | SQL Editor | Rodar baseline (§7.1.1) | `opps_baseline` | número anotado |
+| 2 | Console do navegador (produção) | Rodar checagem dos seletores (§7.1.2) | os 2 valores atuais | anotado |
+| 3 | SQL Editor | Rodar as 2 queries de seed (§7.2.1) | os 2 `id` retornados → `<HOMOLOG_OPP_UUID>` / `<HOMOLOG_OPP_DELETE_UUID>` | 2 linhas criadas |
+| 4 | Console do navegador (produção) | Rodar o seed JS (§7.2.2) | log "✅ Seed F8 gravado: 880001" | sem erro no console |
+| 5 | Navegador | **F5** (recarregar a página inteira, não só reabrir o CRM) | — | página recarrega |
+| 6 | App → CRM | Se os seletores do passo 2 tinham algum valor, limpar os dois: Configurações → CRM (ou console: `localStorage.removeItem("kora.crm.dataSource.v1")` e `localStorage.removeItem("kora.crm.supabaseWrite.enabled")`) + **F5** de novo | — | os dois ausentes |
+| 7 | App → CRM | Abrir a tela do CRM | Kanban mostra `HOMOLOG-F8-opp`; **não** mostra nenhum lead do array local antigo | ✅ **caso (a)** — leitura default já é Supabase, sem tocar em nada (confirma §6.0) |
+| 8 | App → CRM | Clicar **Nova oportunidade**, título `HOMOLOG-F8-criada`, valor 700, salvar | toast de sucesso | linha aparece no Kanban |
+| 9 | SQL Editor | Rodar prova 7.4 **(b)** | — | 1 linha nova, `source_local_id IS NULL` |
+| 10 | App → CRM | Abrir `HOMOLOG-F8-opp`, editar `company` para `"Empresa Teste F8"`, salvar | toast "salvas com sucesso" | — |
+| 11 | SQL Editor | Rodar prova 7.4 **(c)** | — | ✅ `company` atualizada na nuvem |
+| 12 | App → CRM | No card `HOMOLOG-F8-opp`, menu ⋮ → **Mover para etapa** → qualquer etapa diferente da atual | toast — | — |
+| 13 | SQL Editor | Rodar prova 7.4 **(d)** | — | ✅ `stage` mudou na nuvem |
+| 14 | App → CRM | Menu ⋮ do card `HOMOLOG-F8-opp` → **Arquivar** | toast "arquivada com sucesso" | card some da lista padrão |
+| 15 | App → CRM | Clicar **Arquivados** (mostrar arquivados) → achar `HOMOLOG-F8-opp` → menu ⋮ → **Restaurar** | toast **"restaurada com sucesso"** (não "arquivada") | ✅ **caso (e), prova O3** — se o toast disser "arquivada" em vez de "restaurada", ou se não aparecer nada, é vermelho |
+| 16 | SQL Editor | Rodar prova 7.4 **(e)** | — | ✅ `archived=false`, `deleted_at IS NULL` |
+| 17 | App → CRM | Card `HOMOLOG-F8-opp-excluir` → menu ⋮ → **Excluir lead** | abre diálogo "Excluir oportunidade?" | diálogo aparece (não é um `window.confirm` cru) |
+| 18 | App → CRM | Marcar a caixa "Entendo que esta oportunidade será removida..." → **Excluir oportunidade** | toast de sucesso | ✅ **caso (f), prova O2** — se o card sumir sem nenhum diálogo aparecer, ou se não sumir mas mostrar sucesso, é vermelho |
+| 19 | SQL Editor | Rodar prova 7.4 **(f)** | — | ✅ `deleted_at` preenchido, linha não removida fisicamente |
+| 20 | App → CRM | Card `HOMOLOG-F8-opp` → menu ⋮ → **Editar tags** → digitar `vip`, Enter → digitar `homolog`, Enter → **Salvar** | toast "Tags atualizadas" | — |
+| 21 | SQL Editor | Rodar prova 7.4 **(g), parte tags** | — | ✅ `tags = {vip,homolog}` |
+| 22 | SQL Editor | Rodar a escrita direta de `history` (7.4 (g), parte history) — via SQL, não via UI (ver achado registrado acima) | — | `UPDATE 1` |
+| 23 | App → CRM | Reabrir o card `HOMOLOG-F8-opp` (clique no card, não no menu ⋮) | drawer de detalhe mostra a entrada de histórico gravada no passo 22 | ✅ **caso (g)** completo — tags via UI real, history via leitura real do que foi gravado |
+| 24 | DevTools → Network | Marcar **Offline** (throttling) | — | — |
+| 25 | App → CRM | Tentar editar `company` de `HOMOLOG-F8-opp` de novo → salvar | toast de **erro** ("Erro ao salvar alterações...") | ✅ **caso (i)** — se em vez de erro aparecer sucesso, é vermelho (fallback silencioso) |
+| 26 | DevTools → Network | Desmarcar **Offline** | — | volta ao normal |
+| 27 | App → Configurações | Abrir **Importar Oportunidades Locais** | candidato `HOMOLOG-F8-lead-import` aparece como **Novo** | — |
+| 28 | App → Configurações | Selecionar o candidato → **Importar selecionados** | toast "1 oportunidade importada" | ✅ **caso (h)** |
+| 29 | SQL Editor | Rodar prova 7.4 **(h)** | — | 1 linha, `source_local_id` preenchido (guardar valor) |
+| 30 | App → Configurações | Reabrir **Importar Oportunidades Locais** de novo | candidato aparece como **Já Importada** | — |
+| 31 | App → Configurações | Marcar de novo (se permitir) e **Importar selecionados** | toast — nenhuma duplicata | ✅ **caso (j)** |
+| 32 | SQL Editor | Rodar prova 7.4 **(j)** | — | `count = 1` (nunca 2) |
+| 33 | App → Configurações | Desligar `kora.crm.supabaseWrite.enabled` (toggle na tela, se existir) **ou** trocar o seletor de fonte do CRM para **Local** | — | — |
+| 34 | App → CRM | Reabrir o CRM | se trocou pra Local: Kanban mostra o array local (não `HOMOLOG-F8-*`) | — |
+| 35 | SQL Editor | Rodar prova 7.4 **(k)** | — | ✅ **caso (k)** — todas as linhas de (b)-(g)/(h) continuam em `crm_opportunities`; nada foi apagado pelo rollback |
+| 36 | Console do navegador | Conferir `orbyt.leads.v1` | `HOMOLOG-F8-lead-import` (id 880001) continua lá, intacto | ✅ reforça (k) — local nunca foi tocado |
+| 37 | SQL Editor + Console | Rodar a **limpeza §7.5** (nuvem + local) — só depois de todas as provas confirmadas | — | contagens finais batem com o baseline do passo 1 |
+
+### 7.4 Provas SQL por caso
+
+```sql
+-- (a) leitura pós-flip, default — conferida visualmente no passo 7 (Kanban). Prova complementar:
+-- confirma que a linha existe e está ativa, sem nenhuma escrita ainda.
+select id, title, stage, archived, deleted_at from public.crm_opportunities
+where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and title = 'HOMOLOG-F8-opp';
+-- esperado: 1 linha, archived=false, deleted_at IS NULL
+```
+
+```sql
+-- (b) criar — nova linha, sem source_local_id (criada direto pela UI, não por import)
+select id, title, potential_value, source_local_id from public.crm_opportunities
+where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and title = 'HOMOLOG-F8-criada';
+-- esperado: 1 linha, potential_value=700, source_local_id IS NULL
+```
+
+```sql
+-- (c) editar campo básico
+select id, company from public.crm_opportunities
+where id = '<HOMOLOG_OPP_UUID>';
+-- esperado: company = 'Empresa Teste F8'
+```
+
+```sql
+-- (d) mover de estágio
+select id, stage, status from public.crm_opportunities
+where id = '<HOMOLOG_OPP_UUID>';
+-- esperado: stage != 'lead' (a etapa escolhida no passo 12)
+```
+
+```sql
+-- (e) arquivar/restaurar — prova O3. archived deve estar false NO FINAL (arquivou e depois
+-- restaurou); se estiver true, ou se a linha não existir mais, é vermelho.
+select id, archived, deleted_at from public.crm_opportunities
+where id = '<HOMOLOG_OPP_UUID>';
+-- esperado: archived=false, deleted_at IS NULL
+```
+
+```sql
+-- (f) excluir (soft) — prova O2. deleted_at deve estar preenchido; a linha NUNCA é removida
+-- fisicamente (soft delete, não DELETE).
+select id, deleted_at, deleted_reason from public.crm_opportunities
+where id = '<HOMOLOG_OPP_DELETE_UUID>';
+-- esperado: deleted_at preenchido (timestamp), linha ainda existe
+```
+
+```sql
+-- (g) tags — prova O1/O4 via UI real
+select id, tags from public.crm_opportunities where id = '<HOMOLOG_OPP_UUID>';
+-- esperado: tags = {vip,homolog}
+
+-- (g) history — escrita direta (não existe caminho de UI, ver achado registrado acima),
+-- prova o round-trip de LEITURA da coluna (o mapper já prova o round-trip de escrita via
+-- teste unitário, crmOpportunityMapper.test.ts)
+update public.crm_opportunities
+set history = '[{"date":"2026-07-23","text":"Entrada de historico gravada via SQL (prova de leitura)"}]'::jsonb
+where id = '<HOMOLOG_OPP_UUID>';
+
+select id, history from public.crm_opportunities where id = '<HOMOLOG_OPP_UUID>';
+-- esperado: history com a entrada acima — e o passo 23 confirma que o drawer da UI mostra
+-- essa mesma entrada (prova de leitura ponta-a-ponta, mapper -> UI)
+```
+
+```sql
+-- (h) import pré-flip, gate §6.3
+select id, title, source_local_id from public.crm_opportunities
+where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and title = 'HOMOLOG-F8-lead-import';
+-- esperado: 1 linha, source_local_id preenchido (contém "880001") — GUARDE esse valor
+```
+
+```sql
+-- (i) offline/falha — não tem prova de banco (nada deveria ter sido escrito). Conferir que
+-- company NÃO mudou de novo com o valor tentado no passo 25 (se tentou um valor diferente).
+select id, company, updated_at from public.crm_opportunities where id = '<HOMOLOG_OPP_UUID>';
+-- esperado: company continua 'Empresa Teste F8' (do passo 10) — a tentativa offline não gravou
+```
+
+```sql
+-- (j) idempotência do reimport — 0 duplicata
+select count(*) as linhas from public.crm_opportunities
+where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9'
+  and source_local_id = '<SOURCE_LOCAL_ID_CASO_H>';
+-- esperado: 1 (nunca 2)
+```
+
+```sql
+-- (k) rollback — nada criado nos casos (b)-(h) foi apagado pelo flip de flag/dataSource
+select title, archived, deleted_at from public.crm_opportunities
+where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9'
+  and title like 'HOMOLOG-F8-%'
+order by title;
+-- esperado: todas as linhas semeadas/criadas ainda presentes (nenhuma sumiu)
+```
+
+### 7.5 Limpeza — escrita para APROVAÇÃO do revisor ANTES da rodada (nada executado ainda)
+
+**Nuvem — DELETE físico (é homologação; não precisa manter soft-deleted de teste):**
+
+```sql
+delete from public.crm_opportunities
+where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9'
+  and title like 'HOMOLOG-F8-%';
+
+select count(*) as restantes from public.crm_opportunities
+where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and title like 'HOMOLOG-F8-%';
+-- esperado: 0
+```
+
+**Local (console do navegador):**
+
+```js
+const leads = JSON.parse(localStorage["orbyt.leads.v1"] || "[]");
+localStorage.setItem("orbyt.leads.v1", JSON.stringify(leads.filter(l => l.id !== 880001)));
+console.log("restantes com id 880001:", JSON.parse(localStorage["orbyt.leads.v1"]).filter(l => l.id === 880001).length);
+// esperado: 0
+```
+
+**Seletores — restaurar ao estado do passo 2** (se estavam ausentes antes, manter ausentes — já
+é o novo default de produção; se tinham valor, regravar esse valor exato):
+
+```js
+// Só rodar se o passo 2 tinha anotado ALGUM valor — regravar o mesmo:
+// localStorage.setItem("kora.crm.dataSource.v1", "<valor anotado>");
+// localStorage.setItem("kora.crm.supabaseWrite.enabled", "<valor anotado>");
+```
+
+**Verificação final — volta à baseline do §7.1:**
+
+```sql
+select count(*) as opps_final
+from public.crm_opportunities
+where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and deleted_at is null;
+-- esperado: igual a opps_baseline (passo 1)
+```
+
+---
+
+**PARADO aqui.** Fase C completa (§6.0-§6.10) e Fase D com runbook executável entregue (§7.1-§7.5)
+— 11 casos, seed sintético próprio, provas SQL por caso, limpeza em ordem de FK. **A execução é
+do operador, com revisão passo a passo — NADA EXECUTA sem o "vai" literal do revisor, colado neste
+chat pelo operador.**
