@@ -874,7 +874,67 @@ where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and deleted_at is nu
 
 ---
 
-**PARADO aqui.** Fase C completa (§6.0-§6.10) e Fase D com runbook executável entregue (§7.1-§7.5)
-— 11 casos, seed sintético próprio, provas SQL por caso, limpeza em ordem de FK. **A execução é
-do operador, com revisão passo a passo — NADA EXECUTA sem o "vai" literal do revisor, colado neste
-chat pelo operador.**
+## 8. Fase D — Resultado da rodada executada (vai do revisor)
+
+**Critério de aceite: 11/11.** Rodada executada pelo operador contra oportunidades sintéticas
+(`HOMOLOG-F8-opp`, `HOMOLOG-F8-opp-excluir`, `HOMOLOG-F8-criada`) + 1 lead local sintético
+(`HOMOLOG-F8-lead-import`), nunca contra dado real (emenda §11 do protocolo). Confirmação do
+revisor via prints.
+
+| Caso | Resultado | Evidência |
+|---|---|---|
+| (a) leitura pós-flip, default | ✅ verde | banner "CRM Supabase operacional" visível — leitura já é Supabase por padrão, sem tocar em nada, confirma §6.0 |
+| (b) criar | ✅ verde | toast "criada com sucesso no Supabase!"; ver **incidente nº 1** abaixo |
+| (c) editar campo básico | ✅ verde | `company` atualizada na nuvem |
+| (d) mover de estágio | ✅ verde | `lead` → `contato`, `status` preservado |
+| (e) arquivar/restaurar — **prova O3** | ✅ verde | `archived=false` no banco após restaurar — `handleUnarchiveClick` chamou `persistArchiveSupabase`, não `archiveLead` local |
+| (f) excluir (soft) — **prova O2** | ✅ verde | diálogo de confirmação real (não `window.confirm`) + soft delete; `deleted_at` preenchido, linha preservada |
+| (g) tags/history — **prova O1/O4** | ✅ verde | `tags = {vip,homolog}` via `EditTagsDialog` real; `history` round-trip SQL→drawer confirmado; ver **incidente nº 2** abaixo |
+| (h) import pré-flip, gate §6.3 | ✅ verde | `source_local_id = 3ef26da6-...:880001` |
+| (i) offline/falha do Supabase | ✅ verde | toast "Erro ao salvar alterações... Revertendo"; banco intacto; **zero fallback silencioso** |
+| (j) idempotência do reimport | ✅ verde | `count=1` no banco — nunca duplicou; ver **observação registrada (O5)** abaixo |
+| (k) rollback | ✅ verde | as 4 linhas da rodada intactas na nuvem; lead local intacto |
+
+**Incidente nº 1 (caso b, inocente — erro de digitação do operador, sem dano):** o primeiro
+submit foi feito com o título `"HOMOLOG-F8-criada+ 700"` (o valor colado junto do título por
+engano) e o campo de valor vazio. Corrigido editando pela própria UI (título e valor) antes de
+confirmar a criação — o que, de quebra, também exercitou o caminho de edição (caso c) sobre uma
+linha recém-criada, não muda o veredito de nenhum dos dois casos.
+
+**Incidente nº 2 (caso g, inocente — salvamento incompleto do operador, sem dano):** a 1ª
+tentativa de salvar as tags não confirmou (operador não completou o fluxo do diálogo). A 2ª
+tentativa salvou `{vip,homolog}` corretamente. Não há indício de nenhum problema de código — o
+`EditTagsDialog`/`persistTagsSupabase` não foram tocados entre as duas tentativas.
+
+**Observação registrada (caso j) — veredito: O5, comportamento pré-existente da Fatia 2, NÃO
+regressão desta fatia, não bloqueante.** Ao reabrir "Importar Oportunidades Locais" depois do
+reimport, o operador não conseguiu ver o candidato com o badge "Já Importada" esperado pelo
+runbook. Investigado por leitura de código (`src/pages/Configuracoes.tsx`, linha ~1822): o botão
+que abre o diálogo (`Analisar importação`) é `disabled={eligibleCandidates.length === 0 ||
+importing}`, onde `eligibleCandidates` só conta candidatos com `matchStatus === "new"`. Assim que
+o único candidato vira `"imported"`, o botão fica desabilitado e o diálogo **nunca abre de novo**
+— por isso a tela "aparece vazia": não é que o candidato sumiu do estado (`candidates` continua
+com 1 linha, `matchStatus: "imported"`, badge renderizado corretamente **se** o diálogo abrisse),
+é que não existe mais caminho de UI pra reabrir o diálogo e ver isso. **Diferença confirmada
+comparando com os cards mais recentes** (`LocalProjectsImportCard.tsx`,
+`LocalTasksImportCard.tsx`, Fatias 6/7): lá o `Dialog` inteiro é o card clicável, sempre abre
+independente de haver candidato novo — só o botão **Importar selecionados** (dentro do diálogo já
+aberto) é que fica desabilitado por seleção vazia. O card de oportunidades (Fatia 2) usa o padrão
+mais antigo. **Não bloqueia esta fatia** — a garantia de idempotência real (dado no banco,
+`count=1`) está provada independente deste gap de UX; é um achado de UX pré-existente, de fora do
+escopo tocado por Fatia 8, catalogado aqui para uma rodada futura de consistência entre cards de
+import (mesma classe de ajuste que unificaria os 5 cards no mesmo padrão).
+
+**Limpeza:** confirmada pelo operador — 0 linhas `HOMOLOG-F8-%` restantes na nuvem, lead local
+(id 880001) removido, seletores (`kora.crm.dataSource.v1`/`kora.crm.supabaseWrite.enabled`)
+restaurados ao estado do passo 2, contagem final de oportunidades = baseline inicial. Prints da
+limpeza em si não foram capturados — aceito pelo revisor com base no histórico completo de provas
+já confirmadas (mesmo critério de aceitação por evidência equivalente já usado no gap do caso (d)
+da Fatia 7).
+
+---
+
+**PARADO aqui.** Fase D encerrada — 11/11, 2 incidentes inocentes registrados (sem dano, sem
+mudança de veredito), 1 observação de UX pré-existente catalogada (O5, não bloqueante, fora do
+escopo desta fatia). **NADA EXECUTA sem o "vai" literal do revisor** — sync com `main` e sign-off
+ficam para a próxima rodada, com "vai" próprio.
