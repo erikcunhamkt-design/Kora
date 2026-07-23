@@ -456,17 +456,21 @@ o risco do §6.3).
 | (b) criar | Escrita ligada por padrão; criar oportunidade nova pela UI | Linha nova em `crm_opportunities`, `orbyt.leads.v1` **não** ganha entrada nova |
 | (c) editar campo básico | Editar `company`/`email` de `HOMOLOG-F8-opp` | `UPDATE` na linha Supabase; local intacto |
 | (d) mover de estágio | Drag-and-drop ou ação de mover estágio | `stage` atualizado; se houver automação de tag (§6.2), `tags` grava e persiste (prova O1) |
-| (e) arquivar/restaurar | Arquivar `HOMOLOG-F8-opp`, depois restaurar | `archived=true` → `false`; nenhuma linha perdida |
-| (f) excluir (soft) + restore | Soft-delete + `restoreDeletedOpportunity` | `deleted_at` setado e depois `null`; mesma linha, mesmo id |
-| (g) tags/history (O1) | Criar com 2 tags + 1 entrada de histórico, reler | Round-trip completo — nenhum dos dois campos zera na releitura (prova direta da migration §6.2) |
+| (e) arquivar/restaurar | Arquivar `HOMOLOG-F8-opp`, depois restaurar | Arquivar: OK (`persistArchiveSupabase`). **Restaurar: ESPERADO VERMELHO** — `handleUnarchiveClick` chama `archiveLead` local, não `persistArchiveSupabase` (**O3**, §6.9) |
+| (f) excluir (soft) + restore | Soft-delete + `restoreDeletedOpportunity` **via a UI real (ícone de lixeira do card/lista)** | **ESPERADO VERMELHO** — o `onDelete` do card/lista chama `deleteLead` local incondicionalmente, nunca `persistSoftDeleteSupabase` (**O2**, §6.9); `handleDeleteClick`, que faria isso certo, existe mas está morto (nunca chamado) |
+| (g) tags/history (O1) | Criar com 2 tags + 1 entrada de histórico, reler | Migration+mapper: OK (prova a coluna/tradução). **Editar tags pela UI real (`EditTagsDialog`): ESPERADO VERMELHO** — `setLeadTags` é sempre local, nunca grava em `crm_opportunities` (**O4**, §6.9) |
 | (h) import pré-flip, gate §6.3 | Lead local sintético não-importado, workspace ainda sem `crm_opportunities` — rodar o assistente de import antes do teste de escrita | Import homologa 1/1 (mesmo runbook da Fatia 2); só depois disso a escrita é considerada "segura" para este cenário |
 | (i) offline/falha do Supabase | Simular erro de rede numa chamada de escrita (mock de erro no repository) | Erro é propagado à UI (toast de falha) — **nunca** um fallback silencioso que grave em `orbyt.leads.v1` como substituto |
 | (j) idempotência do reimport | Reimportar o mesmo lead do caso (h) uma 2ª vez | "Já Importada", 0 duplicata — mesma prova 3 da Fatia 2 |
 | (k) rollback | Reverter a flag de escrita para OFF, ou trocar dataSource para "Local" | Dado criado nos casos (b)-(g) continua em `crm_opportunities` (não some); `orbyt.leads.v1` continua intacto o tempo todo — prova §6.6 |
 
-**Critério de aceite proposto:** 11/11 casos verdes. Sem caso de atomicidade pai-filho —
-`crm_opportunities` não tem tabela-filha (mesma lógica de finance/Fatia 6). Gates 1 (export
-manual) e 2 (print pré-clique) aplicam normalmente a cada caso de escrita.
+**Critério de aceite revisado (pós-§6.9): 8/11 verde + 3 vermelho catalogado (O2/O3/O4), não
+9/11 nem 11/11 maquiado.** Os 3 vermelhos são bugs pré-existentes confirmados por leitura de
+código antes mesmo da Fase C rodar (§6.9), não falhas de implementação desta fatia — mesmo
+critério da Fatia 7 caso (g): reportar vermelho real, não disfarçar com SQL manual. Sem caso de
+atomicidade pai-filho — `crm_opportunities` não tem tabela-filha (mesma lógica de
+finance/Fatia 6). Gates 1 (export manual) e 2 (print pré-clique) aplicam normalmente a cada caso
+de escrita.
 
 ### 6.8 Migration escrita, não aplicada
 
@@ -475,9 +479,61 @@ manual) e 2 (print pré-clique) aplicam normalmente a cada caso de escrita.
 faz parte de nenhuma chave de idempotência), **não precisa de autocommit** (nenhum
 `CREATE INDEX CONCURRENTLY` envolvido, roda dentro de transação normal).
 
+### 6.9 Pré-condições verificadas antes da Fase C (leitura de código, nenhum código alterado)
+
+#### (a) Comportamento ATUAL de escrita com a flag OFF — nem "bloqueia" nem "escreve local" de forma uniforme
+
+A pergunta pressupunha uma resposta binária; a leitura de código (`CRM.tsx`) mostra as duas coisas
+coexistindo, **por ação**:
+
+| Ação | Com flag OFF hoje | Com flag ON (o que a Fase C liga por padrão) |
+|---|---|---|
+| Criar | ✅ Bloqueia (`isCreateOpportunityEnabled=false` → dialog não chama nada) | ✅ Correto — `crmOpportunitiesRepository.createOpportunity` (`CRM.tsx:1170`) |
+| Editar campo básico | ✅ Bloqueia (`blockWriteAction(false,true)`, `CRM.tsx:1211`) | ✅ Correto — `crmOpportunitiesRepository.updateOpportunity` (`CRM.tsx:1237`) — **mas não inclui `tags`/`history` no `allowedPatch`** (esperado, são O1, tratados à parte) |
+| Mover de estágio | ✅ Bloqueia (`blockWriteAction(true)`, `CRM.tsx:536`) | ✅ Correto (via `persistArchiveSupabase`-equivalente de stage, não auditado linha-a-linha aqui — fora do escopo desta fatia) |
+| Arquivar | ✅ Bloqueia (`handleArchiveClick`, `CRM.tsx:250-253`) | ✅ Correto — `persistArchiveSupabase(id, true)` (`CRM.tsx:1380`) |
+| **Restaurar (unarchive)** | ✅ Bloqueia com toast de erro (`CRM.tsx:281-284`) | 🔴 **BUG confirmado — O3:** `handleUnarchiveClick` (`CRM.tsx:285`) chama `archiveLead(leadId, false)` — a função **local** — mesmo dentro do branch `activeDataSource === "supabase"` com a flag ligada. `persistArchiveSupabase(id, false)` existe e seria a chamada certa, mas nunca é usada para restaurar. **Achado direto da flag flip desta fatia: hoje é um bug raro (só quem já ligou a flag manualmente hoje encontra); a partir do item 2 desta Fase C, vira o comportamento padrão de TODO usuário.** |
+| **Excluir** | 🔴 **BUG confirmado — O2:** o ícone de lixeira do card (`CRM.tsx:1010-1015`) e da linha de tabela (`CRM.tsx:1101-1104`) chama `deleteLead(lead.id)` **sem NENHUM gate de `activeDataSource`/flag** — não importa o estado da flag. `handleDeleteClick` (`CRM.tsx:261`), que faz a coisa certa (`persistSoftDeleteSupabase` via diálogo de confirmação), está **morto** — grep confirma zero chamadas a ele em todo o arquivo. | 🔴 Mesmo bug, flag não muda nada — o gate nunca é alcançado |
+| **Editar tags** | 🔴 **BUG confirmado — O4:** `EditTagsDialog.onSave` (`CRM.tsx:1338`) chama `setLeadTags` (local) **incondicionalmente**, sem checar `activeDataSource`. Mesmo depois da migration O1 (§6.2) + mapper (item 4 da Fase C) existirem, este caminho de UI específico continua não gravando tag nenhuma em `crm_opportunities` até ser corrigido à parte. | 🔴 Mesmo bug |
+
+**Por que os 3 são silenciosos e não óbvios ao usuário:** `lead.id` para um registro de origem
+Supabase é `stableNumericIdFromUuid(opportunity.id)` — um hash determinístico, não um id do
+array local. `deleteLead`/`archiveLead`/`setLeadTags` chamados com esse hash contra
+`orbyt.leads.v1` **não encontram nada para alterar** (no-op), mas os três `toast.success(...)`
+dessas chamadas disparam incondicionalmente, então a UI **informa sucesso** onde nada aconteceu
+de fato no lado certo do dado.
+
+**Classificação, mesmo critério do F5-equivalente/PT1 já usado nesta etapa:** os 3 são
+**reachable em produção, sem flag que os esconda** (excluir e editar-tags já são bugs vivos
+HOJE, com a flag OFF; restaurar se torna um bug vivo padrão assim que o item 2 desta Fase C
+rodar). Registrados como **O2, O3, O4** — catalogados, **não corrigidos nesta rodada** (fora do
+escopo explícito do prompt: "NADA além… import intocado"). Reflexo no runbook: §6.7, casos
+(e)/(f)/(g) foram marcados com o resultado esperado real (vermelho parcial), não maquiados para
+"verde" — mesmo padrão do caso (g) da Fatia 7.
+
+**Nota para o revisor:** O3 é uma consequência direta do item 2 desta própria Fase C (o flip do
+default transforma O3 de "bug raro, opt-in" em "bug padrão, todo usuário") — sinalizado aqui
+antes do código para que a decisão de prosseguir seja informada, não descoberta depois do fato.
+Sigo para os itens 1-5 exatamente como escopados (catalogar, não corrigir), aguardando
+instrução em contrário.
+
+#### (b) Migration — colunas nullable, sem rewrite, tipos justificados
+
+- `tags text[]` — sem `NOT NULL`, sem `DEFAULT` → coluna nova sempre `NULL` para linhas
+  existentes, **metadata-only** (Postgres não reescreve a tabela para uma coluna nullable sem
+  default). Tipo `text[]` — espelha `Lead.tags?: string[]` 1:1, array nativo evita
+  round-trip de JSON para uma lista simples de strings.
+- `history jsonb DEFAULT '[]'::jsonb` — tem `DEFAULT`, mas é uma **constante não-volátil**
+  (`'[]'::jsonb`) — desde o Postgres 11, `ADD COLUMN ... DEFAULT <constante>` também é
+  metadata-only (não reescreve linhas existentes; o Supabase roda em versões muito mais novas
+  que isso). Tipo `jsonb` (não uma tabela dedicada) — mesma razão de PT2 (Fatia 7): é um array
+  pequeno, append-only, sem necessidade de modelagem relacional própria.
+
 ---
 
-**PARADO aqui.** Design de Fase B entregue (§6.0-§6.8) — as 7 decisões pedidas, o achado
-arquitetural do §6.0 (leitura já default-Supabase, achado não previsto na Fase A), a migration
-escrita (não aplicada) e o runbook de 11 casos. **NADA EXECUTA sem o "vai" literal do revisor,
-colado neste chat pelo operador** — inclusive a implementação de Fase C.
+**PARADO aqui.** Design de Fase B entregue (§6.0-§6.8) + pré-condições da Fase C verificadas
+(§6.9) — as 7 decisões pedidas, o achado arquitetural do §6.0 (leitura já default-Supabase, não
+previsto na Fase A), 3 bugs pré-existentes catalogados (O2/O3/O4, um deles — O3 — diretamente
+agravado pelo item 2 desta própria fatia), a migration escrita (não aplicada) e o runbook de 11
+casos revisado para refletir os 3 vermelhos esperados. **NADA EXECUTA sem o "vai" literal do
+revisor, colado neste chat pelo operador** — inclusive a implementação de Fase C.
