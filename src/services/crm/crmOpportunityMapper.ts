@@ -65,6 +65,11 @@ export function mapLocalLeadToSupabaseOpportunity(
     lost_reason: lead.lostReason || null,
     is_demo: lead.isDemo || false,
     archived: lead.archived || false,
+    // Etapa 5 · Fatia 8 (O1): tags/history agora têm coluna correspondente
+    // (migration 20260723000100) — sem isso, ux ficava só decorativo (tags
+    // sumiam, história zerava na releitura). Ver crm-cutover.md §6.2.
+    tags: lead.tags && lead.tags.length > 0 ? lead.tags : null,
+    history: lead.history ?? [],
   };
 }
 
@@ -91,7 +96,11 @@ export function mapSupabaseOpportunityToLocalLead(opportunity: SupabaseOpportuni
     nextAction: opportunity.next_action || "",
     description: opportunity.notes || "",
     notes: opportunity.notes || "",
-    history: [],
+    // Etapa 5 · Fatia 8 (O1): antes desta fatia, era hardcoded [] — zerava o
+    // histórico de qualquer lead lido da nuvem mesmo que a coluna existisse.
+    // Agora lê de volta o que foi gravado (ou [] para linhas pré-migration).
+    history: opportunity.history || [],
+    tags: opportunity.tags && opportunity.tags.length > 0 ? opportunity.tags : undefined,
     isDemo: opportunity.is_demo || false,
     clientId: opportunity.client_id ? Number(opportunity.client_id) || undefined : undefined,
     temperature: (opportunity.temperature as LeadTemperature) || undefined,

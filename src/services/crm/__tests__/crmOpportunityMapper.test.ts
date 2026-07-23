@@ -7,7 +7,11 @@
 import { describe, it, expect } from "vitest";
 
 import type { Lead } from "@/hooks/useLeads";
-import { mapLocalLeadToSupabaseOpportunity } from "@/services/crm/crmOpportunityMapper";
+import type { SupabaseOpportunity } from "@/repositories/crmOpportunitiesRepository";
+import {
+  mapLocalLeadToSupabaseOpportunity,
+  mapSupabaseOpportunityToLocalLead,
+} from "@/services/crm/crmOpportunityMapper";
 
 function baseLead(overrides: Partial<Lead> = {}): Lead {
   return {
@@ -88,5 +92,104 @@ describe("mapLocalLeadToSupabaseOpportunity — re-mapeamento de FKs (A1)", () =
     expect(out.converted_client_id).toBeNull();
     expect(out.title).toBe("Sem FK");
     expect(out.potential_value).toBe(2500);
+  });
+});
+
+// Etapa 5 · Fatia 8 (cutover de escrita) — O1: tags/history (migration
+// 20260723000100) fazem o round-trip completo local↔nuvem, sem zerar em
+// nenhuma direção. Antes desta fatia, o sentido nuvem→local hardcodava
+// `history: []` e não existia campo nenhum para `tags`. Ver
+// docs/qa/etapa-5-fatia-8-crm-cutover.md §6.2.
+function baseSupabaseOpportunity(overrides: Partial<SupabaseOpportunity> = {}): SupabaseOpportunity {
+  return {
+    id: "opp-uuid-1",
+    workspace_id: "ws-1",
+    client_id: null,
+    title: "Oportunidade Teste",
+    company: null,
+    contact_name: null,
+    email: null,
+    phone: null,
+    whatsapp: null,
+    stage: "lead",
+    status: "open",
+    source: null,
+    temperature: null,
+    priority: null,
+    potential_value: 1000,
+    probability: null,
+    next_action: null,
+    next_action_date: null,
+    expected_close_date: null,
+    notes: null,
+    quote_id: null,
+    quote_title: null,
+    converted_client_id: null,
+    won_at: null,
+    lost_at: null,
+    lost_reason: null,
+    is_demo: false,
+    archived: false,
+    source_local_id: null,
+    tags: null,
+    history: null,
+    created_at: "2026-07-23T00:00:00Z",
+    updated_at: "2026-07-23T00:00:00Z",
+    ...overrides,
+  };
+}
+
+describe("mapLocalLeadToSupabaseOpportunity — O1 (tags/history)", () => {
+  it("grava tags e history quando o lead local tem os dois preenchidos", () => {
+    const lead = baseLead({
+      tags: ["vip", "urgente"],
+      history: [{ date: "2026-07-20", text: "Primeiro contato" }],
+    });
+    const out = mapLocalLeadToSupabaseOpportunity(lead);
+    expect(out.tags).toEqual(["vip", "urgente"]);
+    expect(out.history).toEqual([{ date: "2026-07-20", text: "Primeiro contato" }]);
+  });
+
+  it("tags ausente/vazio vira null (coluna sem default); history ausente vira [] (coluna com default '[]')", () => {
+    const semTags = mapLocalLeadToSupabaseOpportunity(baseLead({ tags: undefined, history: [] }));
+    expect(semTags.tags).toBeNull();
+    expect(semTags.history).toEqual([]);
+
+    const tagsVazio = mapLocalLeadToSupabaseOpportunity(baseLead({ tags: [] }));
+    expect(tagsVazio.tags).toBeNull();
+  });
+});
+
+describe("mapSupabaseOpportunityToLocalLead — O1 (tags/history)", () => {
+  it("lê de volta tags e history gravados — antes desta fatia, history era hardcoded [] aqui", () => {
+    const opportunity = baseSupabaseOpportunity({
+      tags: ["vip", "urgente"],
+      history: [{ date: "2026-07-20", text: "Primeiro contato" }],
+    });
+    const lead = mapSupabaseOpportunityToLocalLead(opportunity);
+    expect(lead.tags).toEqual(["vip", "urgente"]);
+    expect(lead.history).toEqual([{ date: "2026-07-20", text: "Primeiro contato" }]);
+  });
+
+  it("linha pré-migration (tags/history NULL no banco) não quebra — history vira [], tags vira undefined", () => {
+    const lead = mapSupabaseOpportunityToLocalLead(baseSupabaseOpportunity({ tags: null, history: null }));
+    expect(lead.history).toEqual([]);
+    expect(lead.tags).toBeUndefined();
+  });
+
+  it("round-trip completo: local -> Supabase -> local preserva tags e history", () => {
+    const original = baseLead({
+      tags: ["a", "b", "c"],
+      history: [
+        { date: "2026-07-01", text: "Criado" },
+        { date: "2026-07-10", text: "Follow-up" },
+      ],
+    });
+    const payload = mapLocalLeadToSupabaseOpportunity(original);
+    const roundTripped = mapSupabaseOpportunityToLocalLead(
+      baseSupabaseOpportunity({ tags: payload.tags ?? null, history: payload.history ?? null }),
+    );
+    expect(roundTripped.tags).toEqual(original.tags);
+    expect(roundTripped.history).toEqual(original.history);
   });
 });

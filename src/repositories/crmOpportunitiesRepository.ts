@@ -42,6 +42,10 @@ export interface SupabaseOpportunity {
   archived: boolean;
   /** Etapa 5 · Fatia 2 — chave de origem do import local (`${installId}:${localId}`). */
   source_local_id: string | null;
+  /** Etapa 5 · Fatia 8 (O1) — espelha Lead.tags[] local. NULL para linhas anteriores à migration. */
+  tags: string[] | null;
+  /** Etapa 5 · Fatia 8 (O1) — espelha Lead.history[] local. Default '[]' na migration. */
+  history: { date: string; text: string }[] | null;
   created_at: string;
   updated_at: string;
 }
@@ -74,6 +78,10 @@ export interface SupabaseOpportunityInput {
   is_demo?: boolean;
   archived?: boolean;
   source_local_id?: string | null;
+  /** Etapa 5 · Fatia 8 (O1). */
+  tags?: string[] | null;
+  /** Etapa 5 · Fatia 8 (O1). */
+  history?: { date: string; text: string }[] | null;
 }
 
 export const crmOpportunitiesRepository = {
