@@ -1012,12 +1012,7 @@ const CRM = () => {
                       onSchedule={() => setScheduleLeadId(lead.id)}
                       onArchive={() => handleArchiveClick(lead.id)}
                       onUnarchive={() => handleUnarchiveClick(lead.id)}
-                      onDelete={() => {
-                        if (window.confirm("Excluir este lead?")) {
-                          deleteLead(lead.id);
-                          toast.success("Lead excluído");
-                        }
-                      }}
+                      onDelete={() => handleDeleteClick(lead.id)}
                       onConvert={() => handleConvertToClient(lead)}
                     />
                   ))}
@@ -1103,12 +1098,7 @@ const CRM = () => {
                           onArchive={() => handleArchiveClick(lead.id)}
                           onUnarchive={() => handleUnarchiveClick(lead.id)}
                           onConvert={() => handleConvertToClient(lead)}
-                          onDelete={() => {
-                            if (window.confirm("Excluir este lead?")) {
-                              deleteLead(lead.id);
-                              toast.success("Lead excluído");
-                            }
-                          }}
+                          onDelete={() => handleDeleteClick(lead.id)}
                           onEdit={() => setSelectedLead(lead)}
                         />
                       </TableCell>

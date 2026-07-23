@@ -208,6 +208,82 @@ function renderCRM() {
   );
 }
 
+describe("CRM · O2 (excluir) — lixeira sempre gateada, nunca no-op com toast de sucesso", () => {
+  it("modo Supabase + flag ON: chama softDeleteOpportunity (nuvem), nunca deleteLead (local)", async () => {
+    const localDeleteLead = vi.fn();
+    vi.mocked(useLeads).mockReturnValue({
+      leads: [], addLead: vi.fn(), moveLead: vi.fn(), moveLeadToStage: vi.fn(),
+      moveLeadToPipeline: vi.fn(), updateLead: vi.fn(), archiveLead: vi.fn(),
+      deleteLead: localDeleteLead, setLeadTags: vi.fn(), markConverted: vi.fn(),
+    } as never);
+    vi.mocked(useSupabaseCrmWriteFlag).mockReturnValue({ enabled: true, setEnabled: vi.fn(), toggle: vi.fn() });
+    vi.mocked(useSupabaseOpportunities).mockReturnValue({
+      opportunities: [makeSupabaseOpportunity()], loading: false, error: null, refresh: vi.fn(),
+    } as never);
+    vi.mocked(crmOpportunitiesRepository.softDeleteOpportunity).mockResolvedValue({} as never);
+    localStorage.setItem(CRM_DATA_SOURCE_KEY, "supabase");
+
+    renderCRM();
+    await openLeadMenu("Lead Nuvem");
+    fireEvent.click(screen.getByText("Excluir lead"));
+
+    // Abre o AlertDialog de soft-delete (modo Supabase) — precisa marcar o
+    // checkbox de ciência antes do botão de confirmar destravar.
+    const ack = await screen.findByLabelText(/entendo que esta oportunidade/i);
+    fireEvent.click(ack);
+    fireEvent.click(screen.getByRole("button", { name: "Excluir oportunidade" }));
+
+    await waitFor(() => expect(crmOpportunitiesRepository.softDeleteOpportunity).toHaveBeenCalledTimes(1));
+    expect(crmOpportunitiesRepository.softDeleteOpportunity).toHaveBeenCalledWith("ws1", "opp-uuid-homolog", undefined);
+    expect(localDeleteLead).not.toHaveBeenCalled();
+  });
+
+  it("modo Local: preserva o comportamento de sempre — deleteLead local, nunca o repository", async () => {
+    const localDeleteLead = vi.fn();
+    vi.mocked(useLeads).mockReturnValue({
+      leads: [makeLocalLead()], addLead: vi.fn(), moveLead: vi.fn(), moveLeadToStage: vi.fn(),
+      moveLeadToPipeline: vi.fn(), updateLead: vi.fn(), archiveLead: vi.fn(),
+      deleteLead: localDeleteLead, setLeadTags: vi.fn(), markConverted: vi.fn(),
+    } as never);
+    vi.mocked(useSupabaseCrmWriteFlag).mockReturnValue({ enabled: true, setEnabled: vi.fn(), toggle: vi.fn() });
+    vi.mocked(useSupabaseOpportunities).mockReturnValue({
+      opportunities: [], loading: false, error: null, refresh: vi.fn(),
+    } as never);
+    localStorage.setItem(CRM_DATA_SOURCE_KEY, "local");
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    renderCRM();
+    await openLeadMenu("Lead Local");
+    fireEvent.click(screen.getByText("Excluir lead"));
+
+    expect(localDeleteLead).toHaveBeenCalledWith(42);
+    expect(crmOpportunitiesRepository.softDeleteOpportunity).not.toHaveBeenCalled();
+  });
+
+  it("modo Supabase + flag OFF: bloqueia — nenhuma escrita (local ou nuvem) e nenhum toast de sucesso", async () => {
+    const localDeleteLead = vi.fn();
+    vi.mocked(useLeads).mockReturnValue({
+      leads: [], addLead: vi.fn(), moveLead: vi.fn(), moveLeadToStage: vi.fn(),
+      moveLeadToPipeline: vi.fn(), updateLead: vi.fn(), archiveLead: vi.fn(),
+      deleteLead: localDeleteLead, setLeadTags: vi.fn(), markConverted: vi.fn(),
+    } as never);
+    vi.mocked(useSupabaseCrmWriteFlag).mockReturnValue({ enabled: false, setEnabled: vi.fn(), toggle: vi.fn() });
+    vi.mocked(useSupabaseOpportunities).mockReturnValue({
+      opportunities: [makeSupabaseOpportunity()], loading: false, error: null, refresh: vi.fn(),
+    } as never);
+    localStorage.setItem(CRM_DATA_SOURCE_KEY, "supabase");
+
+    renderCRM();
+    await openLeadMenu("Lead Nuvem");
+    fireEvent.click(screen.getByText("Excluir lead"));
+
+    expect(localDeleteLead).not.toHaveBeenCalled();
+    expect(crmOpportunitiesRepository.softDeleteOpportunity).not.toHaveBeenCalled();
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalled();
+  });
+});
+
 describe("CRM · O3 (restaurar) — persistArchiveSupabase sob flag, nunca archiveLead local em modo nuvem", () => {
   async function renderWithArchivedOpportunity() {
     // CRM.tsx mostra um empty-state dedicado quando `leads.filter(!archived)`
