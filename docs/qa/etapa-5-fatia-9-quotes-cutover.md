@@ -654,10 +654,256 @@ do retry (`DROP FUNCTION` → `CREATE FUNCTION` → `REVOKE` → `GRANT` → `CO
 `exit code: 0`) corresponde exatamente às 5 instruções presentes no arquivo committado, na mesma
 ordem. **Arquivo em disco = DDL de fato aplicada no banco.**
 
+### 10.5 Item 4b — gap do 3º caso (§9a), achado pela pergunta pré-runbook
+
+Ao converter o desenho do §9a num caso de runbook executável (item 2 do prompt de Fase D — seed
+com status inventado, provando "nunca oculta silenciosamente"), o Code parou **antes de escrever
+o caso** e checou por grep se a implementação de fato sustentava o que o caso ia testar. Achado:
+`Quote.cloudStatusRaw` (existente desde o item 2, mapper) **nunca era lido em
+`QuotesSection.tsx`** — o item 4 original cobriu dataSource + bloqueio de escrita, mas não a parte
+visual do 3º caso. Sem a correção, o caso de runbook teria sido escrito pra testar um
+comportamento que não existia — e só teria sido descoberto na execução pelo operador, tarde
+demais pra ser barato de corrigir.
+
+**Correção — commit `7654351`:** contador aditivo "N com status vindo da nuvem" (mesmo padrão de
+`totalClientOrphan`) + badge de aviso por linha com o valor bruto, sempre ao lado da badge normal
+de status (nunca substituindo) — 2 testes novos, gates verdes (257/257, 37/37, 34/34).
+
+**Crédito ao processo:** o gap não foi pego em código-review nem em homologação — foi pego pela
+disciplina de "não escrever um caso de teste pra um comportamento sem antes confirmar que ele
+existe", a mesma que já tinha evitado o bug O2/O3/O4 no design do item 4 original (§ do commit
+`46b690d`). Registrado aqui a pedido explícito do revisor.
+
 ---
 
-**PARADO aqui.** Fase C encerrada — implementação (itens 1-4) e aplicação da DDL (item 1) ambas
-concluídas e verificadas, gates verdes, 1 incidente de credencial registrado e já mitigado
-(rotação confirmada pelo operador), proposta de emenda §15-b registrada para aprovação no
-sign-off. **NADA EXECUTA sem o "vai" literal do revisor** — Fase D (homologação) fica para a
-próxima rodada, com "vai" próprio.
+Fase C encerrada — implementação (itens 1-4 + 4b) e aplicação da DDL (item 1) concluídas e
+verificadas, gates verdes, 1 incidente de credencial registrado e já mitigado (rotação confirmada
+pelo operador), proposta de emenda §15-b registrada para aprovação no sign-off, gap do 3º caso
+achado e corrigido antes da homologação.
+
+---
+
+## 11. Fase D — Runbook executável da homologação (8 casos) — PRONTO PARA EXECUÇÃO
+
+> **Nada foi executado ainda** — os artefatos abaixo (seed, SQL, passos, limpeza) estão prontos
+> para colar, aguardando o "vai" literal do revisor. A execução é do operador, com revisão passo
+> a passo. Esta rodada testa **só a leitura** (é o recorte desta fatia — §7) — não há caso de
+> escrita bem-sucedida a provar, só o bloqueio uniforme dela.
+
+**`quotes` tem dados reais** (Fatia 3 já homologou o import; uso real desde então). Emenda §11 do
+protocolo (dado real é só-leitura em homologação) aplica com força total — nenhum caso lê o volume
+real pra calibrar nada, nenhum caso cria linha com FK apontando pra cliente/oportunidade real.
+Prefixo `HOMOLOG-F9-` em todo título/nome sintético — nenhum reaproveita nome/id de dado real.
+Workspace de teste (mesmo das Fatias 1-8): `2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9`.
+
+### 11.1 Pré-requisito — baseline + checagem do seletor (operador roda, SÓ LEITURA)
+
+```sql
+-- (1) Baseline — contagem de quotes ATIVAS antes de semear qualquer coisa. Guardar o número: é
+-- o alvo de "volta ao normal" da limpeza do §11.5 (NÃO é 0 — há quotes reais no workspace; só
+-- não pode sobrar nenhum HOMOLOG-F9-* depois da limpeza).
+select count(*) as quotes_baseline
+from public.quotes
+where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and deleted_at is null;
+```
+
+```js
+// (2) Checagem do seletor desta sessão de navegador — esperado ausente (nunca tocado; default
+// LOCAL, §8.3). Anote o valor atual antes de mexer, pra restaurar exatamente esse estado depois.
+console.log("quotes dataSource atual:", localStorage.getItem("kora.quotes.dataSource.v1"));
+```
+
+### 11.2 Seed — quotes SINTÉTICAS (SQL) + 1 quote local sintética (JS)
+
+#### 11.2.1 SQL — 3 quotes sintéticas na nuvem (pt / en / status desconhecido)
+
+```sql
+-- HOMOLOG-F9-pt — status em português CRU, simula o achado do §8.0 (passthrough legado: o
+-- import nunca traduziu status antes desta fatia — dado real pode estar assim hoje).
+insert into public.quotes
+  (workspace_id, client_name, title, subtotal, discount, total, status, archived)
+values
+  ('2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9', 'HOMOLOG-F9-cliente', 'HOMOLOG-F9-pt', 800, 0, 800, 'aprovado', false)
+returning id;
+-- guarde o id -> <HOMOLOG_PT_UUID>
+```
+
+```sql
+-- HOMOLOG-F9-en — status em inglês, o vocabulário "nativo" da nuvem pós-fatia. Também carrega
+-- os 6 campos Q8, pra provar que aparecem certos na leitura.
+insert into public.quotes
+  (workspace_id, client_name, title, subtotal, discount, total, status, archived,
+   client_whatsapp, company, payment_condition, delivery_deadline, validity_days, notes)
+values
+  ('2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9', 'HOMOLOG-F9-cliente', 'HOMOLOG-F9-en', 1200, 0, 1200, 'approved', false,
+   '(11) 90000-0000', 'HOMOLOG-F9 Empresa', '50% entrada', '20 dias', 30, 'Semente Fatia 9 — Q8/Q9')
+returning id;
+-- guarde o id -> <HOMOLOG_EN_UUID>; vira quote_id da query seguinte
+```
+
+```sql
+-- Itens da HOMOLOG-F9-en — prova que quote_items renderiza certo na leitura (troque o
+-- <HOMOLOG_EN_UUID> pelo id retornado acima).
+insert into public.quote_items (quote_id, name, quantity, unit_price)
+values
+  ('<HOMOLOG_EN_UUID>', 'Item A homologação', 2, 300),
+  ('<HOMOLOG_EN_UUID>', 'Item B homologação', 1, 600);
+```
+
+```sql
+-- HOMOLOG-F9-unknown — status inventado, nunca visto, prova o 3º caso (§9a/item4b): nunca
+-- oculto silenciosamente.
+insert into public.quotes
+  (workspace_id, client_name, title, subtotal, discount, total, status, archived)
+values
+  ('2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9', 'HOMOLOG-F9-cliente', 'HOMOLOG-F9-unknown', 400, 0, 400, 'xyz', false)
+returning id;
+-- guarde o id -> <HOMOLOG_UNKNOWN_UUID>
+```
+
+#### 11.2.2 JS (console do navegador, produção) — quote local para o caso de import (§11.3, passo 17)
+
+```js
+// Etapa 5 · Fatia 9 (quotes) — SEED do quote local não-importado. Preserva o que já existe em
+// orbyt.quotes.v1. Prefixo "HOMOLOG-F9-". Inclui 2 campos Q8 (company/notes) — prova, depois do
+// import, que a RPC estendida (item 1) de fato persiste os 6 campos novos, não só as colunas.
+const existingQuotes = JSON.parse(localStorage["orbyt.quotes.v1"] || "[]");
+const seedQuote = {
+  id: "homolog-f9-import-quote-1",
+  clientName: "HOMOLOG-F9-cliente-import",
+  clientEmail: "",
+  clientWhatsapp: "",
+  title: "HOMOLOG-F9-import",
+  description: "",
+  items: [{ id: "homolog-f9-item-1", name: "Item de teste import", quantity: 1, unitPrice: 500 }],
+  subtotal: 500,
+  discount: 0,
+  total: 500,
+  paymentCondition: "50% entrada",
+  deliveryDeadline: "15 dias",
+  validityDays: 10,
+  status: "rascunho",
+  createdAt: new Date().toISOString(),
+  company: "HOMOLOG-F9 Empresa Import",
+  notes: "Semente Fatia 9 — prova de import + propagação dos 6 campos Q8",
+};
+localStorage.setItem("orbyt.quotes.v1", JSON.stringify([...existingQuotes, seedQuote]));
+console.log("✅ Seed F9 (local, import) gravado:", seedQuote.id, seedQuote.title);
+```
+
+### 11.3 Passos do operador, em ordem
+
+| # | ONDE | O que fazer | O que anotar | Verde quando |
+|---|---|---|---|---|
+| 1 | SQL Editor | Rodar baseline (§11.1.1) | `quotes_baseline` | número anotado |
+| 2 | Console do navegador (produção) | Rodar checagem do seletor (§11.1.2) | valor atual (esperado `null`) | anotado |
+| 3 | SQL Editor | Rodar as 3 queries de seed + itens (§11.2.1) | os 3 `id` retornados → `<HOMOLOG_PT_UUID>` / `<HOMOLOG_EN_UUID>` / `<HOMOLOG_UNKNOWN_UUID>` | 3 quotes + 2 itens criados |
+| 4 | Console do navegador (produção) | Rodar o seed JS (§11.2.2) | log "✅ Seed F9 (local, import) gravado" | sem erro no console |
+| 5 | Navegador | **F5** (recarregar a página inteira) | — | página recarrega |
+| 6 | App → Orçamentos | Se o seletor do passo 2 tinha algum valor, limpar: console `localStorage.removeItem("kora.quotes.dataSource.v1")` + **F5** | — | seletor ausente |
+| 7 | App → Orçamentos | Abrir a tela (sem tocar em nada) | Tela mostra só os orçamentos locais de sempre; **nenhum** `HOMOLOG-F9-*` aparece | ✅ **caso 3 (modo local intacto)** — leitura default é local, `orbyt.quotes.v1` não muda |
+| 8 | App → Orçamentos | Clicar **Supabase experimental** | toast de troca de fonte | badge "Modo leitura" aparece |
+| 9 | App → Orçamentos | Localizar `HOMOLOG-F9-pt` e `HOMOLOG-F9-en` na tabela | ambas com badge **Aprovado** (mesma cor/rótulo, apesar de status bruto `'aprovado'` vs `'approved'` diferentes no banco) | ✅ **caso 4, parte tradução+agrupamento** — filtro "Aprovado" mostra as duas juntas; contador "Aprovados" (KPI) conta 2 |
+| 10 | App → Orçamentos | Abrir o preview de `HOMOLOG-F9-en` (clique na linha) | 2 itens visíveis: "Item A homologação" (qtd 2, R$300) e "Item B homologação" (qtd 1, R$600); campos Q8 (WhatsApp, empresa, condição, prazo, validade, notas) visíveis | ✅ **caso 4, parte itens+Q8** |
+| 11 | App → Orçamentos | Localizar `HOMOLOG-F9-unknown` | badge **Rascunho** + badge de aviso ao lado `⚠ status bruto: "xyz"`; banner acima dos KPIs mostra "1 orçamento(s) com status vindo da nuvem..." | ✅ **caso 4, parte 3º caso** — nunca mascarado de rascunho puro (item4b) |
+| 12 | App → Orçamentos | Clicar **Novo orçamento**, preencher título `HOMOLOG-F9-deveria-falhar`, salvar | toast de **erro** ("Edição de orçamentos no modo Supabase...") | ✅ **caso 5, criar** — nenhuma linha nova, diálogo continua aberto |
+| 13 | App → Orçamentos | Menu ⋮ de `HOMOLOG-F9-pt` → tentar **Marcar como recusado** | toast de erro, mesma mensagem | ✅ **caso 5, mudar status** — sem toast de sucesso |
+| 14 | App → Orçamentos | Menu ⋮ de `HOMOLOG-F9-pt` → tentar **Duplicar** | toast de erro | ✅ **caso 5, duplicar** — nenhuma linha nova |
+| 15 | App → Orçamentos | Menu ⋮ de `HOMOLOG-F9-pt` → tentar **Arquivar** | toast de erro | ✅ **caso 5, arquivar** |
+| 16 | App → Orçamentos | Menu ⋮ de `HOMOLOG-F9-pt` → **Excluir** → confirmar no diálogo | toast de erro (não some da tabela) | ✅ **caso 5, excluir** |
+| 17 | SQL Editor | Rodar prova 11.4 **(5)** | — | as 3 quotes `HOMOLOG-F9-*` continuam com o `status`/`archived`/valores originais do seed, sem nenhuma linha nova |
+| 18 | App → Orçamentos | Clicar **Local** (volta o seletor) | banner de modo leitura some | ✅ início do **caso 6 (rollback)** |
+| 19 | App → Orçamentos | Reabrir a tela | mostra os orçamentos locais de sempre; nenhum `HOMOLOG-F9-*` visível | ✅ **caso 6** — local nunca foi tocado |
+| 20 | SQL Editor | Rodar prova 11.4 **(6)** | — | as 3 quotes `HOMOLOG-F9-*` continuam intactas na nuvem (rollback não apaga nada) |
+| 21 | App → Configurações | Abrir **Importar orçamentos locais** | candidato `HOMOLOG-F9-import` aparece como **Novo** | — |
+| 22 | App → Configurações | Selecionar o candidato → **Importar selecionados** | toast de sucesso | ✅ início do **caso 7 (import continua funcionando)** |
+| 23 | SQL Editor | Rodar prova 11.4 **(7)** | — | 1 linha nova em `quotes`, `source_local_id` preenchido (guarde o valor), `company`/`notes` batendo com o seed JS — prova que a RPC estendida (item 1) persiste os 6 campos Q8 de verdade |
+| 24 | App → Configurações | Reabrir **Importar orçamentos locais** | candidato aparece como **Já Importada** | — |
+| 25 | App → Configurações | Marcar de novo (se permitir) e **Importar selecionados** | toast — nenhuma duplicata | ✅ **caso 7, idempotência** |
+| 26 | SQL Editor | Rodar prova 11.4 **(7b)** | — | `count = 1` pro `source_local_id` guardado no passo 23 (nunca 2) |
+| 27 | SQL Editor + Console | Rodar a **limpeza §11.5** (nuvem + local) — só depois de todas as provas confirmadas | — | contagens finais batem com o baseline do passo 1; caso 8 (limpeza) fechado |
+
+### 11.4 Provas SQL por caso
+
+```sql
+-- (4) tradução + agrupamento — confirma que o BANCO guarda os vocabulários originais intactos
+-- (a tradução é só client-side, no mapper) — a UI que unifica na leitura.
+select title, status, archived from public.quotes
+where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and title in ('HOMOLOG-F9-pt', 'HOMOLOG-F9-en');
+-- esperado: 2 linhas, status = 'aprovado' e 'approved' respectivamente (nunca convertidos no banco)
+```
+
+```sql
+-- (5) escrita bloqueada — nenhuma das 3 sintéticas mudou depois das tentativas dos passos 12-16.
+select title, status, archived, total from public.quotes
+where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and title like 'HOMOLOG-F9-%'
+order by title;
+-- esperado: 3 linhas (pt/en/unknown), valores idênticos ao seed do §11.2.1 — nenhuma quarta linha
+-- (prova que "Novo orçamento" do passo 12 não criou nada)
+```
+
+```sql
+-- (6) rollback — nuvem intacta depois de voltar o seletor pra Local.
+select count(*) as sobrando from public.quotes
+where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and title like 'HOMOLOG-F9-%' and title <> 'HOMOLOG-F9-import';
+-- esperado: 3 (as 3 sintéticas da nuvem, rollback não apaga nada)
+```
+
+```sql
+-- (7) import continua funcionando — a linha nova carrega os 6 campos Q8 do seed local.
+select id, title, source_local_id, company, notes, client_whatsapp, payment_condition, delivery_deadline, validity_days
+from public.quotes
+where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and title = 'HOMOLOG-F9-import';
+-- esperado: 1 linha, source_local_id preenchido, company = 'HOMOLOG-F9 Empresa Import',
+-- notes = 'Semente Fatia 9 — prova de import + propagação dos 6 campos Q8' — GUARDE source_local_id
+```
+
+```sql
+-- (7b) idempotência do reimport (troque <SOURCE_LOCAL_ID> pelo valor guardado na prova (7))
+select count(*) as total from public.quotes
+where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and source_local_id = '<SOURCE_LOCAL_ID>';
+-- esperado: count = 1 (nunca 2)
+```
+
+### 11.5 Limpeza (só depois de TODAS as provas confirmadas)
+
+```sql
+-- Ordem por FK: quote_items antes de quotes.
+delete from public.quote_items
+where quote_id in (
+  select id from public.quotes
+  where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and title like 'HOMOLOG-F9-%'
+);
+
+delete from public.quotes
+where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and title like 'HOMOLOG-F9-%';
+
+select count(*) as restantes from public.quotes
+where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and title like 'HOMOLOG-F9-%';
+-- esperado: 0
+
+select count(*) as quotes_final from public.quotes
+where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and deleted_at is null;
+-- esperado: bate com quotes_baseline do passo 1
+```
+
+```js
+// Limpeza do quote local sintético — remove só o HOMOLOG-F9-import, preserva o resto.
+const quotes = JSON.parse(localStorage["orbyt.quotes.v1"] || "[]");
+localStorage.setItem("orbyt.quotes.v1", JSON.stringify(quotes.filter((q) => q.id !== "homolog-f9-import-quote-1")));
+console.log("✅ Limpeza F9 (local) feita — sobrando:", JSON.parse(localStorage["orbyt.quotes.v1"]).length);
+```
+
+Restaurar o seletor `kora.quotes.dataSource.v1` ao valor anotado no passo 2 (normalmente: remover
+de novo, já que o esperado era ausente) + **F5** final.
+
+**Critério de aceite: 8/8 casos verdes** (1 baseline, 2 seed, 3 modo local intacto, 4
+flip+tradução+agrupamento+itens+Q8+3º caso, 5 escrita bloqueada em todas as ações tentadas, 6
+rollback, 7 import continua funcionando + idempotente, 8 limpeza). Sem caso de escrita
+bem-sucedida — é o recorte desta fatia (§7, leitura + fundação).
+
+---
+
+**PARADO aqui.** Runbook da Fase D pronto para execução — 8 casos, seed sintético, provas SQL e
+limpeza, tudo em blocos prontos para colar. **NADA EXECUTA sem o "vai" literal do revisor** — a
+execução é do operador, com revisão passo a passo.
