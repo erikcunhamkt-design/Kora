@@ -709,3 +709,83 @@ a fatia em que foi descoberta, ambas bloqueiam uma fatia futura específica (cut
 **O1**, `opportunities` (`Lead.tags[]`/`Lead.history[]` sem coluna em `crm_opportunities`), ver
 [`etapa-5-fatia-2-opportunities.md` §10](etapa-5-fatia-2-opportunities.md#10-o1--pendência-pós-fechamento-paridade-de-schema-localnuvem-bloqueia-cutover-de-escrita).
 Bloqueia especificamente o cutover de **escrita** de `opportunities`, proposto pela Fatia 8.
+
+**Atualização (Etapa 5 · Fatia 9, 2026-07-23) — DECIDIDO:** confirmado por auditoria de uso real
+(grep + leitura de `QuotesSection.tsx`) que os 6 campos têm uso ativo comprovado — todos
+editáveis no wizard de criação e renderizados de volta no "Preview do orçamento" (o documento
+que o cliente vê); `company`/`validityDays` aparecem até na tabela principal da lista. Decisão:
+**migration aditiva para os 6 campos, sem exceção** — nenhuma degradação aceita, nenhum campo
+morto. Detalhamento completo em
+[`etapa-5-fatia-9-quotes-cutover.md` §2](etapa-5-fatia-9-quotes-cutover.md#2-q8--decisão-por-campo-o-o1-desta-fatia-já-mapeado-falta-decidir).
+Migration escrita na Fase B da Fatia 9.
+
+---
+
+## 13. Q9 — achado novo (Etapa 5 · Fatia 9): vocabulário de `status` disjunto entre local e nuvem, sem tradução
+
+> Registrado em 2026-07-23, durante a Fase A da Etapa 5 · Fatia 9 (fundação + cutover de leitura
+> de `quotes`). Mesma família de achado que a tradução `"orçamento"→"quote"` da Fatia 7
+> (`Project.source`) e `income/expense→receivable/payable` da Fatia 6 (`Transaction.type`) — aqui
+> o campo é o próprio `status` de `quotes`, não um campo de origem para outra entidade. Detalhe
+> completo em
+> [`etapa-5-fatia-9-quotes-cutover.md` §4.2](etapa-5-fatia-9-quotes-cutover.md#42-achado-novo--q9-vocabulário-de-status-é-completamente-disjunto-sem-tradução).
+
+**Achado:** `QuoteStatus` local (`useQuotes.ts:5-11`) usa valores em português — `"rascunho"|
+"enviado"|"aprovado"|"recusado"|"vencido"|"arquivado"`. `quotesRepository.approveQuote`/
+`rejectQuote` gravam valores em **inglês** diretamente na coluna `status` (`"approved"`/
+`"rejected"`, `quotesRepository.ts:223,240`). `SupabaseQuotesViewerCard.tsx`/
+`LinkedQuotesSection.tsx` conferem contra os literais em inglês (incluindo `"draft"`).
+`mapSupabaseQuoteToLocalQuote` (`quoteMapper.ts:97`) faz um cast cru sem nenhuma tradução:
+`status: sq.status as unknown as Quote["status"]`.
+
+**Por que é inofensivo hoje:** os dois vocabulários nunca se encontram na prática —
+`QuotesSection.tsx` (tela principal, 100% local) só lê/escreve os valores em português; as duas
+únicas superfícies Supabase só leem/escrevem os valores em inglês. Nenhuma tela lê um `status`
+gravado pelo outro lado.
+
+**Classificação:**
+- Não bloqueante para nenhuma fatia já fechada.
+- **Bloqueante para o cutover de leitura da Fatia 9** — assim que `QuotesSection.tsx` ganhar um
+  seletor de dataSource e puder mostrar dados Supabase, o `status` lido precisa ser traduzido de
+  volta pro vocabulário local, senão a UI mostraria literais em inglês ou quebraria comparações
+  que esperam os valores em português.
+
+**Recomendação (registrada, decisão final na Fase B da Fatia 9):** tabela de tradução bidirecional
+no mapper, incluindo tratamento explícito de estados sem par óbvio (`"vencido"` é calculado
+localmente a partir de `validityDays`, não é um valor de `status` gravado — sem equivalente cloud
+a mapear; `"enviado"`/`"rascunho"`/`"arquivado"` não têm hoje nenhuma escrita Supabase
+correspondente, já que só `approveQuote`/`rejectQuote` existem no repository).
+
+---
+
+## 14. Q10 — achado novo (Etapa 5 · Fatia 9): criação de quote+items no Supabase não é atômica fora do import
+
+> Registrado em 2026-07-23, durante a Fase A da Etapa 5 · Fatia 9. **Roteado para a Fatia 10**
+> (cutover de escrita) — não é resolvido na Fatia 9, que é escopo só-leitura. Detalhe completo em
+> [`etapa-5-fatia-9-quotes-cutover.md` §3](etapa-5-fatia-9-quotes-cutover.md#3-tabela-filha-quote_items--atomicidade).
+
+**Achado:** a RPC atômica `import_quote_with_items` (upsert do pai + replace do filho numa única
+transação) tem um único chamador em todo o código: o assistente de import
+(`useLocalQuotesImport.ts:241`). O único caminho de UI viva que cria uma quote com itens
+diretamente no Supabase — `CreateCrmSupabaseQuoteDialog.tsx` (acionado a partir de uma
+oportunidade no CRM, em modo Supabase + flag `crmSupabaseCreateQuote`) — **não usa a RPC**: faz
+`createQuote` (insert simples) seguido de `replaceQuoteItems` (que por si é `delete`+`insert`, 2
+chamadas separadas) — 3 chamadas sequenciais, não-transacionais. Existe um rollback de
+compensação (`softDeleteQuote` na quote recém-criada se o passo de itens falhar,
+`CreateCrmSupabaseQuoteDialog.tsx:176-188`), mas é *best-effort*: não cobre falha parcial dentro
+do próprio `replaceQuoteItems` (delete ok, insert falha) nem cobre o próprio rollback falhando (só
+loga, não repropaga).
+
+**Classificação:**
+- Não bloqueante para a Fatia 9 (escopo só-leitura, não toca esse caminho de escrita).
+- **Bloqueante para o cutover de escrita da Fatia 10** — qualquer decisão de "criação de quote é
+  atômica" precisa rotear esse diálogo pela RPC (ou equivalente) antes, ou aceitar e documentar
+  explicitamente a janela de falha parcial já existente (diferente do §8.1 da Fatia 7: lá não
+  havia RPC alternativa pronta; aqui já existe e já funciona no import — não rotear por ela seria
+  um retrocesso deliberado, não uma limitação de infraestrutura).
+
+**Recomendação (registrada, roteada para a Fatia 10, não executada agora):** avaliar se
+`CreateCrmSupabaseQuoteDialog.tsx` deve passar a chamar `importQuoteWithItems` (com um
+`source_local_id` sintético gerado no momento da criação, já que essa quote não nasce de um
+registro local a importar) ou se merece uma RPC irmã dedicada a criação-nativa (sem
+`source_local_id`).
