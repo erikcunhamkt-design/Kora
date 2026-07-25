@@ -19,6 +19,9 @@ import {
   setCrmDataSource,
   getTechnicalSheetDataSource,
   setTechnicalSheetDataSource,
+  QUOTES_DATA_SOURCE_KEY,
+  getQuotesDataSource,
+  setQuotesDataSource,
 } from "@/config/flags";
 
 beforeEach(() => {
@@ -152,6 +155,55 @@ describe("flags · seletor de fonte do CRM (string plana, default supabase)", ()
     expect(localStorage.getItem(CRM_DATA_SOURCE_KEY)).toBe("local");
     setCrmDataSource("supabase");
     expect(localStorage.getItem(CRM_DATA_SOURCE_KEY)).toBe("supabase");
+  });
+});
+
+// Etapa 5 · Fatia 9 — INVERSO do CRM de propósito: default "local", só
+// "supabase" explícito seleciona nuvem. Lição da Fatia 8 (O2/O3/O4):
+// valor explícito já persistido pelo usuário nunca deve ser pisado por um
+// flip de default de código — os 2 últimos testes provam isso nos dois
+// sentidos (quem já tinha "local" OU "supabase" gravado continua exatamente
+// onde estava, mesmo que o código mude o que "ausente" significa amanhã).
+describe("flags · seletor de fonte de quotes (string plana, default LOCAL — Fatia 9)", () => {
+  it("default é \"local\" quando ausente (inverso do CRM/ficha técnica)", () => {
+    expect(localStorage.getItem(QUOTES_DATA_SOURCE_KEY)).toBeNull();
+    expect(getQuotesDataSource()).toBe("local");
+  });
+
+  it("só o literal \"supabase\" seleciona nuvem", () => {
+    localStorage.setItem(QUOTES_DATA_SOURCE_KEY, "supabase");
+    expect(getQuotesDataSource()).toBe("supabase");
+  });
+
+  it("\"local\" e qualquer lixo resolvem para \"local\"", () => {
+    localStorage.setItem(QUOTES_DATA_SOURCE_KEY, "local");
+    expect(getQuotesDataSource()).toBe("local");
+    localStorage.setItem(QUOTES_DATA_SOURCE_KEY, "xpto");
+    expect(getQuotesDataSource()).toBe("local");
+    localStorage.setItem(QUOTES_DATA_SOURCE_KEY, "");
+    expect(getQuotesDataSource()).toBe("local");
+  });
+
+  it("grava a string plana crua na chave certa", () => {
+    setQuotesDataSource("supabase");
+    expect(localStorage.getItem(QUOTES_DATA_SOURCE_KEY)).toBe("supabase");
+    setQuotesDataSource("local");
+    expect(localStorage.getItem(QUOTES_DATA_SOURCE_KEY)).toBe("local");
+  });
+
+  it("valor explícito \"local\" já persistido sobrevive (não é o caso ambíguo, mas confirma round-trip)", () => {
+    setQuotesDataSource("local");
+    expect(getQuotesDataSource()).toBe("local");
+  });
+
+  it("valor explícito \"supabase\" já persistido nunca é sobrescrito por uma leitura", () => {
+    setQuotesDataSource("supabase");
+    // Ler o valor várias vezes (simula múltiplos componentes montando) nunca
+    // grava nada de volta — getQuotesDataSource é read-only.
+    getQuotesDataSource();
+    getQuotesDataSource();
+    expect(localStorage.getItem(QUOTES_DATA_SOURCE_KEY)).toBe("supabase");
+    expect(getQuotesDataSource()).toBe("supabase");
   });
 });
 
