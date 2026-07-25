@@ -315,8 +315,162 @@ precisar da tela separada `SupabaseQuotesViewerCard`) e prova o seletor antes de
 
 ---
 
-**PARADO aqui.** Levantamento de Fase A entregue — nenhum código alterado, nenhuma migration
-escrita, nenhum dado acessado. Proposta de recorte: **Fatia 9 = fundação + cutover de leitura**
-(migration Q8, decisão Q9, seletor de dataSource só-leitura); escrita fica para uma Fatia 10
-futura. **NADA EXECUTA sem o "vai" literal do revisor, colado neste chat pelo operador** —
-inclusive a própria Fase B (design) desta fatia.
+## 8. Fase B — Design (fundação + cutover de leitura)
+
+### 8.0 Achado que refina o Q9 (descoberto escrevendo este design, não na Fase A)
+
+A Fase A registrou Q9 como "inofensivo hoje — os dois vocabulários nunca se encontram". Isso
+estava certo para **leitura de UI**, mas incompleto para **dado já gravado**: `quoteMapper.ts:71`
+— `mapLocalQuoteToSupabaseQuote` (usado pela RPC `import_quote_with_items`, ou seja, por **todo**
+orçamento já importado desde a Fatia 3) grava `status: quote.status` **sem nenhuma tradução** —
+o literal em português (`"rascunho"`, `"aprovado"` etc.) vai direto pra coluna `status` do banco.
+Ou seja, **hoje já existem linhas reais em `public.quotes` com `status` em português**,
+convivendo na mesma coluna com linhas criadas nativamente (`CreateCrmSupabaseQuoteDialog.tsx:129`,
+`status: "draft"`) ou aprovadas/recusadas (`approveQuote`/`rejectQuote`, inglês). Isso não muda a
+classificação de Q9 (ainda não bloqueia nenhuma fatia fechada), mas muda o design da tradução:
+**não dá pra assumir que a coluna `status` só tem valores em inglês** — a função de tradução
+precisa reconhecer os dois vocabulários simultaneamente, não só EN→PT.
+
+### 8.1 Migration Q8 — 6 colunas, todas nullable, sem rewrite
+
+| Coluna | Tipo | Justificativa (1 linha) |
+|---|---|---|
+| `client_whatsapp` | `text` | espelha `Quote.clientWhatsapp` — telefone formatado livre, mesmo padrão de `client_name`/`client_email` já existentes na tabela |
+| `company` | `text` | espelha `Quote.company` — razão social opcional, texto livre |
+| `payment_condition` | `text` | espelha `Quote.paymentCondition` — **é um rótulo livre** ("À vista no Pix"), não um enum; `text` evita modelar um enum que a UI local também não tem |
+| `delivery_deadline` | `text` | espelha `Quote.deliveryDeadline` — **também é rótulo livre** ("15 dias"), não uma data; `QuoteToProjectDialog.tsx:73` já faz o parse próprio (`parseDeliveryDeadlineToISO`) a partir do texto — a coluna não deve antecipar esse parse |
+| `validity_days` | `integer` | espelha `Quote.validityDays` — número inteiro de dias, usado em aritmética de data (`getQuoteExpiryDate`) |
+| `notes` | `text` | espelha `Quote.notes` — observações livres, textarea de 600 caracteres no form local |
+
+Nenhuma tem `NOT NULL` nem `DEFAULT` — todas `ADD COLUMN` **metadata-only** (Postgres 11+, mesmo
+raciocínio já usado no O1 da Fatia 8). Nenhum índice novo — nenhuma das 6 participa de chave de
+idempotência ou de busca — **não precisa de `CONCURRENTLY`/autocommit**, roda em transação normal.
+
+**Backfill:** necessário só para linhas já importadas antes desta migration (as colunas não
+existiam, então os 6 campos estão fisicamente ausentes, não só `NULL` por opção) — mas como o
+import é idempotente (`ON CONFLICT` por `source_local_id`), rodar o assistente de import de novo
+para os workspaces já migrados **naturalmente faz o backfill**, sem precisar de UPDATE manual —
+desde que o mapper (§8.2) já esteja estendido para mandar os 6 campos no próximo import/reimport.
+Não incluído como statement de migration (é operação de aplicação, não de schema) — registrado
+como passo do runbook de homologação (§8.6).
+
+Arquivo: `supabase/migrations/20260723000200_etapa5_fatia9_quotes_add_q8_fields.sql` (escrito
+nesta rodada, não aplicado).
+
+### 8.2 Tradução Q9 — tabela bidirecional no mapper, com reconhecimento dos dois vocabulários
+
+**Cloud → Local (leitura, usada por `mapSupabaseQuoteToLocalQuote` — o caminho que a Fatia 9
+liga na tela principal):**
+
+| `status` na coluna | `archived` na coluna | `Quote.status` local resultante |
+|---|---|---|
+| qualquer valor | `true` | `"arquivado"` — `archived` manda, sempre (mesmo espírito do que o mapper já faz na direção local→nuvem hoje, linha 73, só que agora explícito nos dois sentidos) |
+| `"draft"` | `false` | `"rascunho"` |
+| `"sent"` | `false` | `"enviado"` |
+| `"approved"` | `false` | `"aprovado"` |
+| `"rejected"` | `false` | `"recusado"` |
+| `"rascunho"`/`"enviado"`/`"aprovado"`/`"recusado"`/`"arquivado"` (literal PT, ver §8.0) | `false` | mesmo literal, passthrough — já é um `QuoteStatus` local válido |
+| qualquer outro valor / `null` | `false` | `"rascunho"` (fallback seguro, nunca undefined/crash) |
+
+**Consequência prática do fallback de passthrough:** as linhas já gravadas com `status` em
+português (achado do §8.0) **não precisam de backfill separado** — a função de tradução já as
+reconhece corretamente como estão, sem exigir nenhum UPDATE de dado antes do cutover de leitura.
+
+**Local → Cloud (escrita — só relevante pro import nesta fatia, já que a tela principal continua
+sem escrita própria; ver §8.4):**
+
+| `Quote.status` local | `status` gravado | `archived` gravado |
+|---|---|---|
+| `"rascunho"` | `"draft"` | `false` |
+| `"enviado"` | `"sent"` | `false` |
+| `"aprovado"` | `"approved"` | `false` |
+| `"recusado"` | `"rejected"` | `false` |
+| `"arquivado"` | `"draft"` (neutro — local não preserva o status anterior ao arquivar, ver achado §4.4 da Fase A) | `true` |
+| `"vencido"` | **nunca ocorre** — `"vencido"` é sempre computado (`QuotesSection.tsx:70`, `effectiveStatus`), nunca gravado em `Quote.status`; não é um caso a tratar na tradução |
+
+**Requisito de teste dedicado por direção** (Fase C): um teste que prove cada linha das duas
+tabelas acima, mais o caso de fallback de passthrough (§8.0) e o caso `archived=true` sobrepondo
+qualquer `status` (incluindo um `status` "impossível"/desconhecido junto de `archived=true`, pra
+confirmar que `archived` sempre vence).
+
+### 8.3 Seletor de dataSource — `kora.quotes.dataSource.v1`, default LOCAL nesta fatia
+
+Espelha `CRM_DATA_SOURCE_KEY` (`flags.ts:77`): `getQuotesDataSource(): "local" | "supabase"`,
+`setQuotesDataSource(source)`, mesmo formato de leitura (`localStorage.getItem(...) === "local" ?
+"local" : ...` — **mas invertido do CRM**: aqui **só `"supabase"` explícito seleciona nuvem**;
+qualquer outro valor (ausente, `"local"`, malformado) resolve pra `"local"`. Justificativa da
+inversão: o CRM já tinha decidido, antes da Fatia 8, que o default seria Supabase — decisão de
+uma rodada anterior não documentada nesta cadeia de fatias, não algo a replicar às cegas aqui.
+Quotes está começando do zero; o "molde" original (Fatia 1, ficha técnica) também começou com
+default local e só considerou trocar depois de homologar.
+
+**Recomendação sobre quando flipar o default:** **não nesta fatia.** O deliverable da Fatia 9 é
+o seletor construído, testado, e disponível como opção (mesmo card de Configurações que já existe
+hoje, `SupabaseQuotesViewerCard.tsx`, ganha um toggle de dataSource igual ao do CRM — em vez de
+depender só da flag `quotesSupabaseExperimental` pra existir). Decidir o flip do default é
+decisão **pós-homologação**, com "vai" próprio — mesmo padrão da Fatia 1 (nunca decidiu
+sozinha aposentar a flag) e da própria Fatia 8 (o flip de escrita do CRM só aconteceu numa fatia
+inteira depois do seletor de leitura já existir).
+
+`QuotesSection.tsx` passa a ler `getQuotesDataSource()` no mount (mesmo padrão do CRM,
+`useState(() => getQuotesDataSource())`) e a render decide entre `useQuotes()` (local) e
+`useSupabaseQuotes()` (nuvem) — sem os dois rodarem escrita simultânea, só um dos dois alimenta
+a tela por vez, exatamente como `CRM.tsx` já faz pra `leads`/`supabaseOpportunities`.
+
+### 8.4 Leitura Supabase na tela principal — `useSupabaseQuotes()` já serve, sem mudança de hook
+
+Achado ao investigar o hook para este design: **`useSupabaseQuotes()` já retorna exatamente a
+forma que a tela precisa** — `fetchQuotesWithItems` (`useSupabaseQuotes.ts:20-31`) já busca
+quotes **e** os items de cada uma, já mapeia tudo pra `Quote[]` local via
+`mapSupabaseQuoteToLocalQuote` + anexa `.items`. **Nenhum hook novo precisa ser escrito** — o
+trabalho da Fase C nisso é só (a) estender o mapper (§8.1/§8.2) e (b) trocar a fonte de dado que
+`QuotesSection.tsx` lê, condicionada ao seletor do §8.3.
+
+**O que a tela mostra/esconde em modo Supabase — lição direta de O2/O3/O4: nenhuma ação que
+finge funcionar.** Diferente do CRM (que tinha uma flag de escrita pra ligar depois), esta fatia
+**não tem nenhuma flag de escrita** — logo, em modo Supabase, **100% das ações de escrita ficam
+bloqueadas, sem exceção, sem flag**: criar, editar, marcar enviado, aprovar, recusar, duplicar,
+arquivar, restaurar, excluir, gerar recebível, gerar projeto. Toda ação passa a checar
+`dataSource === "supabase"` **antes** de qualquer chamada local, e mostra
+`toast.error("Edição de orçamentos no modo Supabase chega numa próxima fatia — volte para Local
+para editar.")` — mesmo texto/padrão já usado pelo `blockWriteAction` do CRM. Nenhum botão
+desaparece (evita "onde foi parar a ação" — mesma reclamação implícita que o CRM já resolveu
+mantendo os botões visíveis, só bloqueados com aviso) — todos ficam visíveis e clicáveis, só
+bloqueados no primeiro passo do handler, igual ao padrão já estabelecido.
+
+### 8.5 Fora de escopo explícito desta fatia
+
+- Escrita de quotes em qualquer superfície (fica pra Fatia 10).
+- Atomicidade do `CreateCrmSupabaseQuoteDialog.tsx` (Q10, roteado pra Fatia 10).
+- As 4 flags estreitas existentes (`quotesSupabaseExperimental`/`Approval`/
+  `CreateReceivable`/`CreateProject`) e a `crmSupabaseCreateQuote` — intocadas, continuam
+  gateando exatamente o que já gateiam hoje nas 2 superfícies secundárias.
+- Reconciliação das 2 famílias paralelas de quote→projeto/recebível (§5.2 da Fase A).
+- Hard-delete vs. soft-delete (§4.3 da Fase A).
+
+### 8.6 Runbook de homologação — desenho de casos (proposta, não executável ainda)
+
+| Caso | O que prova | Setup necessário |
+|---|---|---|
+| (a) leitura default local intacta | seletor nunca tocado → `QuotesSection.tsx` continua mostrando `orbyt.quotes.v1`, comportamento idêntico a hoje | nenhum |
+| (b) flip manual pro seletor Supabase | toggle no card de Configurações muda a leitura pra nuvem, sem F5 quebrar nada | 1 quote sintética na nuvem |
+| (c) tradução de status visível | quote sintética com `status="approved"`/`archived=false` aparece como "Aprovado" na UI local; outra com `archived=true` aparece como "Arquivado" independente do `status` por baixo | 2-3 quotes sintéticas cobrindo os casos da tabela do §8.2 |
+| (d) passthrough de status legado (achado §8.0) | quote sintética criada via SQL direto com `status='aprovado'` (literal PT, simulando o dado real já existente) aparece corretamente como "Aprovado", sem erro | 1 quote sintética com status PT cru |
+| (e) items renderizados | quote sintética com 2+ itens mostra os itens certos (nome, quantidade, preço) | reusa (b) |
+| (f) campos do Q8 visíveis | quote sintética com os 6 campos preenchidos mostra todos certos no preview/tabela | reusa (b), campos preenchidos no insert |
+| (g) escrita bloqueada, em TODAS as ações | tentar cada uma das ações de escrita (§8.4) em modo Supabase → toast de erro claro, nenhuma delas "funciona sozinha", nenhum toast de sucesso falso | reusa (b) |
+| (h) rollback | voltar o seletor pra Local → `orbyt.quotes.v1` 100% intacto, nenhuma escrita aconteceu nele durante o tempo em modo Supabase | reusa (b) |
+| (i) import continua funcionando | rodar o assistente de import (Fatia 3) depois do cutover de leitura ligado → sem regressão, mesmo comportamento de sempre | seed local não-importado |
+
+**Critério de aceite proposto:** 9/9. Seed sintético dedicado (emenda §11 — `quotes` tem dado
+real, mesma cautela da Fatia 8) fica pra desenhar na Fase D, depois da implementação.
+
+---
+
+**PARADO aqui.** Design de Fase B entregue (§8.0-§8.6) — migration Q8 escrita (não aplicada),
+tradução Q9 completa nos dois sentidos com o achado do passthrough legado (§8.0), seletor de
+dataSource desenhado (default local, flip de default explicitamente adiado pra depois da
+homologação), leitura via hook já existente (`useSupabaseQuotes`, sem hook novo), bloqueio
+uniforme de escrita (lição O2/O3/O4 aplicada desde o design, não descoberta depois), e o runbook
+de 9 casos. **NADA EXECUTA sem o "vai" literal do revisor, colado neste chat pelo operador** —
+inclusive a implementação de Fase C.
