@@ -467,10 +467,86 @@ real, mesma cautela da Fatia 8) fica pra desenhar na Fase D, depois da implement
 
 ---
 
-**PARADO aqui.** Design de Fase B entregue (§8.0-§8.6) — migration Q8 escrita (não aplicada),
-tradução Q9 completa nos dois sentidos com o achado do passthrough legado (§8.0), seletor de
-dataSource desenhado (default local, flip de default explicitamente adiado pra depois da
-homologação), leitura via hook já existente (`useSupabaseQuotes`, sem hook novo), bloqueio
-uniforme de escrita (lição O2/O3/O4 aplicada desde o design, não descoberta depois), e o runbook
-de 9 casos. **NADA EXECUTA sem o "vai" literal do revisor, colado neste chat pelo operador** —
-inclusive a implementação de Fase C.
+## 9. Pré-condições da Fase C (leitura de código, nenhum código alterado)
+
+### 9(a) Tabela de tradução PT↔EN literal, com o terceiro caso (status desconhecido)
+
+Consolidação em forma final de código (implementação em `quoteMapper.ts`, Fase C):
+
+```
+const CLOUD_TO_LOCAL_STATUS: Record<string, QuoteStatus> = {
+  draft: "rascunho",
+  sent: "enviado",
+  approved: "aprovado",
+  rejected: "recusado",
+  // Passthrough legado (achado §8.0): quotes já importadas antes desta fatia
+  // gravaram o literal PT cru na coluna status (mapLocalQuoteToSupabaseQuote
+  // nunca traduziu). Estes 5 literais já são QuoteStatus local válidos.
+  rascunho: "rascunho",
+  enviado: "enviado",
+  aprovado: "aprovado",
+  recusado: "recusado",
+  arquivado: "arquivado",
+};
+
+const LOCAL_TO_CLOUD_STATUS: Record<Exclude<QuoteStatus, "vencido" | "arquivado">, string> = {
+  rascunho: "draft",
+  enviado: "sent",
+  aprovado: "approved",
+  recusado: "rejected",
+};
+```
+
+**Terceiro caso — `status` que não bate com nenhuma chave do mapa (nunca visto até hoje, mas
+não impossível — ex.: valor gravado por uma ferramenta externa, ou corrupção manual via SQL
+Editor):** a instrução desta rodada é explícita — **nunca oculto silenciosamente**. Desenho:
+
+1. **Mapper:** `mapSupabaseQuoteToLocalQuote` retorna `status: "rascunho"` (fallback seguro, o
+   tipo `QuoteStatus` exige um dos 6 literais válidos — não dá pra devolver um 7º valor sem
+   quebrar todo o resto do app que já assume o union fechado). **Mas** o objeto `Quote` ganha um
+   campo novo, só preenchido no sentido nuvem→local: `cloudStatusRaw?: string` — carrega o
+   literal exato que veio do banco sempre que ele não bateu com nenhuma chave do mapa (`undefined`
+   nos demais casos, incluindo todo `Quote` criado localmente). Aditivo, opcional,
+   *backward-compatible* — não muda nenhuma assinatura existente.
+2. **Renderiza:** `QuotesSection.tsx` (modo Supabase) — quando `cloudStatusRaw` está presente,
+   mostra a badge normal de "Rascunho" **mais** um ícone/texto de aviso ao lado (`⚠ status bruto:
+   "{cloudStatusRaw}"`), mesmo padrão visual já usado pelo aviso de "cliente não vinculado" nos
+   cards de import (`⚠ {N} oportunidade(s)... sem vínculo`, `Configuracoes.tsx:1809-1813`).
+3. **Filtra:** cai no filtro "Rascunho" (é onde o fallback o colocou) — **não** some do filtro
+   "Todos" nem fica preso num limbo sem filtro nenhum.
+4. **Conta:** novo contador, mesmo espírito do `totalClientOrphan` já existente — "N com status
+   não reconhecido" — visível, não bloqueia nada, só torna o caso descobrível em vez de invisível.
+
+### 9(b) Simetria da regra `archived` — confirmada, modo local já esconde arquivadas por padrão
+
+Confirmado por leitura de `QuotesSection.tsx:161`: `filtered` quando `filterStatus === "all"` já
+faz `quotes.filter((q) => q.status !== "arquivado")` — **o modo local já esconde arquivadas da
+lista padrão hoje**, mostrando-as só quando o usuário clica explicitamente na aba "Arquivado"
+(`:216`, uma das opções do filtro). **A regra é simétrica por construção**: o design do §8.4 não
+precisa de nenhum tratamento especial pro modo Supabase — a mesma lógica de `filtered`/
+`effectiveStatus` já existente serve os dois modos sem alteração, desde que `q.status` chegue
+normalizado (§9a) antes de tocar esse código. Nenhuma mudança de comportamento a implementar
+aqui além da tradução em si.
+
+### 9(c) Requisito: filtros/contadores operam sobre o vocabulário normalizado
+
+Confirmado por leitura: `openQuotes`, `approvedQuotes`, `approvedPendingFinance`, `expiringSoon`,
+`filtered` (todos em `QuotesSection.tsx:150-163`) leem `q.status`/`effectiveStatus(q)`
+**diretamente do objeto `Quote`** — nenhum deles reimplementa lógica de status própria. **Isso
+significa que a normalização precisa acontecer só uma vez, na fronteira (`quoteMapper.ts`)** —
+uma vez que `mapSupabaseQuoteToLocalQuote` devolve um `Quote` com `status` já traduzido (§9a),
+todo o resto da tela (contadores, filtros, badges, exceto o aviso extra do terceiro caso) funciona
+sem nenhuma mudança adicional, pelo mesmo motivo que já funciona hoje pro modo local. Requisito
+formal pra Fase C: **nenhum novo código de contagem/filtro é escrito** — só a tradução no mapper e
+o aviso do terceiro caso (§9a, item 2/4).
+
+---
+
+**PARADO aqui.** Design de Fase B entregue (§8.0-§8.6) + pré-condições da Fase C verificadas
+(§9) — migration Q8 escrita (não aplicada), tradução Q9 completa nos dois sentidos com o achado
+do passthrough legado (§8.0) e o terceiro caso de status desconhecido nunca oculto (§9a),
+simetria da regra `archived` confirmada (§9b), seletor de dataSource desenhado (default local,
+flip de default explicitamente adiado pra depois da homologação), leitura via hook já existente
+(`useSupabaseQuotes`, sem hook novo), bloqueio uniforme de escrita (lição O2/O3/O4 aplicada desde
+o design, não descoberta depois), e o runbook de 9 casos. **NADA EXECUTA sem o "vai" literal do
+revisor, colado neste chat pelo operador** — inclusive a implementação de Fase C.
