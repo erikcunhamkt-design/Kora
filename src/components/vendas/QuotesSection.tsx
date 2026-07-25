@@ -4,15 +4,18 @@ import { toast } from "sonner";
 import {
   FileText, Plus, X, Download, Send, Copy, Check, Trash2, Archive,
   Link2, AlertTriangle, Eye, MoreHorizontal, XCircle, User as UserIcon, Wallet,
-  FolderKanban,
+  FolderKanban, Database, Cloud,
 } from "lucide-react";
 import {
   useQuotes, type Quote, type QuoteItem, type QuoteStatus, type QuoteSource,
   getQuoteDaysToExpire, isQuoteExpired,
 } from "@/hooks/useQuotes";
+import { useSupabaseQuotes } from "@/hooks/useSupabaseQuotes";
+import { getQuotesDataSource, setQuotesDataSource } from "@/config/flags";
 import { useServices } from "@/hooks/useServices";
 import { useClients } from "@/hooks/useClients";
 import { useLeads } from "@/hooks/useLeads";
+import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -70,11 +73,48 @@ function Metric({
 const effectiveStatus = (q: Quote): QuoteStatus => (isQuoteExpired(q) ? "vencido" : q.status);
 
 export function QuotesSection() {
-  const { quotes, addQuote, updateStatus, updateQuote, duplicateQuote, deleteQuote } = useQuotes();
+  const { quotes: localQuotes, addQuote, updateStatus, updateQuote, duplicateQuote, deleteQuote } = useQuotes();
+  const {
+    quotes: supabaseQuotes,
+    loading: supabaseLoading,
+    error: supabaseError,
+  } = useSupabaseQuotes();
   const { clients } = useClients();
   const { leads, updateLead } = useLeads();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+
+  // Etapa 5 · Fatia 9 — seletor de dataSource, default LOCAL (kora.quotes.dataSource.v1,
+  // config/flags.ts). Os dois hooks acima rodam sempre; só um alimenta a tela por vez —
+  // mesmo padrão já usado em CRM.tsx pra leads/supabaseOpportunities.
+  const [dataSource, setDataSourceState] = useState<"local" | "supabase">(() => getQuotesDataSource());
+  const quotes = dataSource === "supabase" ? supabaseQuotes : localQuotes;
+
+  const handleSourceChange = (next: "local" | "supabase") => {
+    setQuotesDataSource(next);
+    setDataSourceState(next);
+    toast.success(`Fonte dos orçamentos alterada para ${next === "supabase" ? "Supabase (leitura)" : "Local"}.`);
+  };
+
+  // Escrita 100% bloqueada em modo Supabase — sem exceção, sem flag (esta fatia é só
+  // leitura; lição O2/O3/O4 da Fatia 8: nunca deixar uma ação parecer que funcionou sem
+  // ter feito nada). Todo handler chama isto ANTES de qualquer toast/lógica de sucesso —
+  // nunca depois, senão o toast de sucesso dispara mesmo com a escrita bloqueada.
+  const blockWrite = (): boolean => {
+    if (dataSource !== "supabase") return false;
+    toast.error("Edição de orçamentos no modo Supabase chega numa próxima fatia — volte para Local para editar.");
+    return true;
+  };
+
+  const openReceivableDialog = (q: Quote) => {
+    if (blockWrite()) return;
+    setReceivableQuote(q);
+  };
+
+  const openProjectDialog = (q: Quote) => {
+    if (blockWrite()) return;
+    setProjectQuote(q);
+  };
 
   const [modalOpen, setModalOpen] = useState(false);
   const [initialData, setInitialData] = useState<Partial<Quote> | null>(null);
@@ -165,6 +205,7 @@ export function QuotesSection() {
   const preview = quotes.find((q) => q.id === previewId) ?? null;
 
   const handleSave = (data: Omit<Quote, "id" | "createdAt" | "subtotal" | "total" | "isDemo">) => {
+    if (blockWrite()) return;
     const created = addQuote(data);
     if (created.opportunityId) {
       updateLead(created.opportunityId, { quoteId: created.id, quoteTitle: created.title });
@@ -189,6 +230,65 @@ export function QuotesSection() {
           <Plus className="h-4 w-4" /> Novo orçamento
         </button>
       </div>
+
+      {/* Etapa 5 · Fatia 9 — seletor de fonte de dados, mesmo padrão do "Fonte do CRM"
+          (CRM.tsx). Default local; nenhum botão desaparece em modo Supabase, só ficam
+          bloqueados no primeiro passo de cada handler (lição O2/O3/O4). */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-border bg-card/30">
+        <div className="flex items-center gap-2">
+          <Database className="h-4 w-4 text-primary" />
+          <span className="text-xs font-semibold text-foreground">Fonte dos orçamentos:</span>
+          {dataSource === "supabase" && (
+            <Badge variant="outline" className="text-[10px] uppercase font-mono py-0 text-primary border-primary/30 bg-primary/5">
+              Modo leitura
+            </Badge>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => handleSourceChange("local")}
+            className={`text-xs px-3 h-8 rounded-md border transition ${
+              dataSource === "local"
+                ? "bg-primary text-primary-foreground border-primary"
+                : "border-border text-foreground hover:bg-muted/40"
+            }`}
+          >
+            Local
+          </button>
+          <button
+            type="button"
+            onClick={() => handleSourceChange("supabase")}
+            className={`text-xs px-3 h-8 rounded-md border transition ${
+              dataSource === "supabase"
+                ? "bg-primary text-primary-foreground border-primary"
+                : "border-border text-foreground hover:bg-muted/40"
+            }`}
+          >
+            Supabase experimental
+          </button>
+        </div>
+      </div>
+
+      {dataSource === "supabase" && (
+        <div className="flex items-start gap-2.5 p-3 rounded-lg border border-primary/20 bg-primary/5 text-xs text-foreground">
+          <Cloud className="h-4 w-4 shrink-0 mt-0.5 text-primary" />
+          <div className="flex-1">
+            <span className="font-semibold block">Orçamentos em modo leitura (Supabase)</span>
+            <span className="text-muted-foreground">
+              Criação, edição, aprovação/recusa, duplicar, arquivar/restaurar, excluir e gerar
+              recebível/projeto chegam numa próxima fatia. Volte para "Local" para editar.
+            </span>
+          </div>
+        </div>
+      )}
+
+      {dataSource === "supabase" && supabaseLoading && (
+        <p className="text-xs text-muted-foreground">Carregando orçamentos do Supabase...</p>
+      )}
+      {dataSource === "supabase" && supabaseError && (
+        <p className="text-xs text-destructive">Erro ao carregar orçamentos do Supabase: {supabaseError}</p>
+      )}
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Metric label="Em aberto" value={String(openQuotes.length)} sub="Rascunho + enviado" />
@@ -326,26 +426,26 @@ export function QuotesSection() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="bg-card border-border w-52">
                             {q.status !== "enviado" && q.status !== "aprovado" && q.status !== "arquivado" && (
-                              <DropdownMenuItem onClick={() => { updateStatus(q.id, "enviado"); toast.success("Marcado como enviado"); }}>
+                              <DropdownMenuItem onClick={() => { if (blockWrite()) return; updateStatus(q.id, "enviado"); toast.success("Marcado como enviado"); }}>
                                 <Send className="h-3.5 w-3.5 mr-2" /> Marcar como enviado
                               </DropdownMenuItem>
                             )}
                             {q.status !== "aprovado" && q.status !== "arquivado" && (
-                              <DropdownMenuItem onClick={() => { updateStatus(q.id, "aprovado"); toast.success("Orçamento aprovado"); }}>
+                              <DropdownMenuItem onClick={() => { if (blockWrite()) return; updateStatus(q.id, "aprovado"); toast.success("Orçamento aprovado"); }}>
                                 <Check className="h-3.5 w-3.5 mr-2" /> Marcar como aprovado
                               </DropdownMenuItem>
                             )}
                             {q.status !== "recusado" && q.status !== "arquivado" && (
-                              <DropdownMenuItem onClick={() => { updateStatus(q.id, "recusado"); toast("Marcado como recusado"); }}>
+                              <DropdownMenuItem onClick={() => { if (blockWrite()) return; updateStatus(q.id, "recusado"); toast("Marcado como recusado"); }}>
                                 <XCircle className="h-3.5 w-3.5 mr-2" /> Marcar como recusado
                               </DropdownMenuItem>
                             )}
-                            <DropdownMenuItem onClick={() => { duplicateQuote(q.id); toast.success("Orçamento duplicado"); }}>
+                            <DropdownMenuItem onClick={() => { if (blockWrite()) return; duplicateQuote(q.id); toast.success("Orçamento duplicado"); }}>
                               <Copy className="h-3.5 w-3.5 mr-2" /> Duplicar
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             {q.status === "aprovado" && !q.financeEntryId && (
-                              <DropdownMenuItem onClick={() => setReceivableQuote(q)}>
+                              <DropdownMenuItem onClick={() => openReceivableDialog(q)}>
                                 <Wallet className="h-3.5 w-3.5 mr-2" /> Gerar conta a receber
                               </DropdownMenuItem>
                             )}
@@ -355,7 +455,7 @@ export function QuotesSection() {
                               </DropdownMenuItem>
                             )}
                             {q.status === "aprovado" && !q.projectId && (
-                              <DropdownMenuItem onClick={() => setProjectQuote(q)}>
+                              <DropdownMenuItem onClick={() => openProjectDialog(q)}>
                                 <FolderKanban className="h-3.5 w-3.5 mr-2" /> Gerar projeto
                               </DropdownMenuItem>
                             )}
@@ -374,11 +474,11 @@ export function QuotesSection() {
                             )}
                             <DropdownMenuSeparator />
                             {q.status !== "arquivado" ? (
-                              <DropdownMenuItem onClick={() => { updateStatus(q.id, "arquivado"); toast("Orçamento arquivado"); }}>
+                              <DropdownMenuItem onClick={() => { if (blockWrite()) return; updateStatus(q.id, "arquivado"); toast("Orçamento arquivado"); }}>
                                 <Archive className="h-3.5 w-3.5 mr-2" /> Arquivar
                               </DropdownMenuItem>
                             ) : (
-                              <DropdownMenuItem onClick={() => { updateStatus(q.id, "rascunho"); toast.success("Orçamento restaurado"); }}>
+                              <DropdownMenuItem onClick={() => { if (blockWrite()) return; updateStatus(q.id, "rascunho"); toast.success("Orçamento restaurado"); }}>
                                 <Archive className="h-3.5 w-3.5 mr-2" /> Restaurar
                               </DropdownMenuItem>
                             )}
@@ -413,15 +513,18 @@ export function QuotesSection() {
           quote={preview}
           onClose={() => { setPreviewId(null); clearQuoteParam(); }}
           onDuplicate={() => {
+            if (blockWrite()) return;
             duplicateQuote(preview.id);
             toast.success("Orçamento duplicado");
             setPreviewId(null);
           }}
           onSend={() => {
+            if (blockWrite()) return;
             updateStatus(preview.id, "enviado");
             toast.success("Marcado como enviado");
           }}
           onApprove={() => {
+            if (blockWrite()) return;
             const wasApproved = preview.status === "aprovado";
             updateStatus(preview.id, "aprovado");
             toast.success("Orçamento aprovado");
@@ -430,11 +533,11 @@ export function QuotesSection() {
               setTimeout(() => setReceivableQuote({ ...preview, status: "aprovado" }), 250);
             }
           }}
-          onGenerateReceivable={!preview.financeEntryId ? () => setReceivableQuote(preview) : undefined}
+          onGenerateReceivable={!preview.financeEntryId ? () => openReceivableDialog(preview) : undefined}
           onOpenReceivable={preview.financeEntryId ? () => navigate(`/financeiro?tab=receivables&entryId=${preview.financeEntryId}`) : undefined}
           onOpenOpportunity={preview.opportunityId ? () => navigate("/crm") : undefined}
           onOpenClient={preview.clientId ? () => navigate(`/clientes?client=${preview.clientId}`) : undefined}
-          onGenerateProject={preview.status === "aprovado" && !preview.projectId ? () => setProjectQuote(preview) : undefined}
+          onGenerateProject={preview.status === "aprovado" && !preview.projectId ? () => openProjectDialog(preview) : undefined}
           onOpenProject={preview.projectId ? () => navigate(`/portfolio?tab=projetos&projectId=${preview.projectId}`) : undefined}
         />
       )}
@@ -473,7 +576,7 @@ export function QuotesSection() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => { if (confirmDelete) { deleteQuote(confirmDelete.id); toast.success("Orçamento excluído"); setConfirmDelete(null); } }}
+              onClick={() => { if (blockWrite()) return; if (confirmDelete) { deleteQuote(confirmDelete.id); toast.success("Orçamento excluído"); setConfirmDelete(null); } }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Excluir
