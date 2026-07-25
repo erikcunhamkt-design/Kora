@@ -37,6 +37,65 @@ export function resolveQuoteFk(
 /** Orçamento local aceito na migração (inclui `leadId`, usado como id da oportunidade). */
 type LocalQuoteForImport = Quote & { leadId?: string | number };
 
+// Etapa 5 · Fatia 9 (Q9) — tradução bidirecional do vocabulário de `status`, local
+// (português) vs. nuvem (inglês). Achado §8.0 do doc da fatia: o import ANTES desta
+// fatia nunca traduzia — gravava o literal PT cru na coluna `status` — então já
+// existem linhas reais na nuvem com `status` em português. O mapa nuvem→local
+// reconhece os dois vocabulários simultaneamente (passthrough dos 5 literais PT),
+// evitando um backfill separado para essas linhas legadas.
+export const CLOUD_TO_LOCAL_STATUS: Readonly<Record<string, Quote["status"]>> = {
+  draft: "rascunho",
+  sent: "enviado",
+  approved: "aprovado",
+  rejected: "recusado",
+  // Passthrough legado (achado §8.0) — já são QuoteStatus local válidos.
+  rascunho: "rascunho",
+  enviado: "enviado",
+  aprovado: "aprovado",
+  recusado: "recusado",
+  arquivado: "arquivado",
+};
+
+const LOCAL_TO_CLOUD_STATUS: Readonly<Record<"rascunho" | "enviado" | "aprovado" | "recusado", string>> = {
+  rascunho: "draft",
+  enviado: "sent",
+  aprovado: "approved",
+  recusado: "rejected",
+};
+
+/**
+ * Traduz o `status` local pro par (status, archived) da nuvem. `"arquivado"` vira
+ * `archived: true` + `status: "draft"` (neutro — local não preserva o status
+ * anterior ao arquivamento, ver §4.4 do doc da fatia, não é regressão desta
+ * função). `"vencido"` nunca deveria chegar aqui — é sempre computado
+ * (`effectiveStatus`, `QuotesSection.tsx`), nunca gravado em `Quote.status`; se
+ * ocorrer mesmo assim (estado impossível), cai no mesmo neutro de "arquivado"
+ * sem o `archived`, por segurança — nunca propaga um literal inválido pro banco.
+ */
+export function translateLocalStatusToCloud(status: Quote["status"]): { status: string; archived: boolean } {
+  if (status === "arquivado") return { status: "draft", archived: true };
+  if (status === "vencido") return { status: "draft", archived: false };
+  return { status: LOCAL_TO_CLOUD_STATUS[status], archived: false };
+}
+
+/**
+ * Traduz o par (status, archived) da nuvem pro `status` local. `archived` sempre
+ * vence — uma linha arquivada vira `"arquivado"` local independente do `status`
+ * bruto por baixo (mesmo espírito de `mapLocalQuoteToSupabaseQuote`, que já grava
+ * `archived` a partir do status local hoje). Terceiro caso — `status` que não bate
+ * com nenhuma chave conhecida (§9a do doc): cai num fallback seguro (`"rascunho"`)
+ * MAS devolve `cloudStatusRaw` com o valor bruto, pra UI nunca esconder o caso.
+ */
+export function translateCloudStatusToLocal(
+  cloudStatus: string | null | undefined,
+  archived: boolean,
+): { status: Quote["status"]; cloudStatusRaw?: string } {
+  if (archived) return { status: "arquivado" };
+  const translated = cloudStatus ? CLOUD_TO_LOCAL_STATUS[cloudStatus] : undefined;
+  if (translated) return { status: translated };
+  return { status: "rascunho", cloudStatusRaw: cloudStatus ?? undefined };
+}
+
 /**
  * Payload de import de um orçamento — inclui as FKs resolvidas (UUID ou null).
  * Campos exigidos aqui são exatamente os que mapLocalQuoteToSupabaseQuote sempre
@@ -59,18 +118,29 @@ export function mapLocalQuoteToSupabaseQuote(
   quote: LocalQuoteForImport,
   maps: QuoteImportMaps = EMPTY_QUOTE_IMPORT_MAPS,
 ): SupabaseQuoteImportPayload {
+  // Q9: status traduzido — antes desta fatia, o literal PT ia cru pra coluna
+  // (achado §8.0). archived vem da MESMA tradução agora (single source), não mais
+  // de uma comparação separada contra "arquivado".
+  const { status, archived } = translateLocalStatusToCloud(quote.status);
   return {
     client_name: quote.clientName,
     client_email: quote.clientEmail,
+    // Q8: 6 campos sem coluna antes desta fatia — string vazia vira null, não "".
+    client_whatsapp: quote.clientWhatsapp || null,
+    company: quote.company || null,
+    payment_condition: quote.paymentCondition || null,
+    delivery_deadline: quote.deliveryDeadline || null,
+    validity_days: quote.validityDays ?? null,
+    notes: quote.notes || null,
     title: quote.title,
     description: quote.description,
     // Q5: dinheiro quantizado a centavos antes das colunas numeric.
     subtotal: roundMoney(quote.subtotal),
     discount: roundMoney(quote.discount),
     total: roundMoney(quote.total),
-    status: quote.status,
+    status,
     // created_at / updated_at são geridos por defaults do banco.
-    archived: quote.status === "arquivado",
+    archived,
     // Q4: FKs remapeadas para UUID (ou null); NUNCA id local cru em coluna uuid.
     client_id: resolveQuoteFk(quote.clientId, maps.clients),
     opportunity_id: resolveQuoteFk(quote.leadId ?? quote.opportunityId, maps.opportunities),
@@ -80,23 +150,31 @@ export function mapLocalQuoteToSupabaseQuote(
 
 /** Convert a SupabaseQuote record back to the local Quote type */
 export function mapSupabaseQuoteToLocalQuote(sq: SupabaseQuote): Quote {
+  // Q9: archived sempre vence sobre o status bruto; terceiro caso (status
+  // desconhecido) devolve cloudStatusRaw em vez de esconder o valor original.
+  const { status, cloudStatusRaw } = translateCloudStatusToLocal(sq.status, sq.archived);
   return {
     id: sq.id,
     clientName: sq.client_name ?? "",
     clientEmail: sq.client_email ?? "",
-    clientWhatsapp: "",
+    // Q8: 6 campos sem coluna antes desta fatia — null/ausente vira "" (string)
+    // ou 0 (number), mesmo default que o form local já usa pra campo vazio.
+    clientWhatsapp: sq.client_whatsapp ?? "",
     title: sq.title,
     description: sq.description ?? "",
     items: [], // items will be fetched separately via listQuoteItems
     subtotal: Number(sq.subtotal),
     discount: Number(sq.discount),
     total: Number(sq.total),
-    paymentCondition: "",
-    deliveryDeadline: "",
-    validityDays: 0,
-    status: sq.status as unknown as Quote["status"],
+    paymentCondition: sq.payment_condition ?? "",
+    deliveryDeadline: sq.delivery_deadline ?? "",
+    validityDays: sq.validity_days ?? 0,
+    status,
+    cloudStatusRaw,
     createdAt: sq.created_at?.slice(0, 10) ?? "",
     isDemo: false,
+    company: sq.company ?? undefined,
+    notes: sq.notes ?? undefined,
     approvedAt: sq.approved_at ?? undefined,
     rejectedAt: sq.rejected_at ?? undefined,
     // other optional fields left undefined or defaulted

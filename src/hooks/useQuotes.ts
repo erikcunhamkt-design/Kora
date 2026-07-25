@@ -38,6 +38,16 @@ export interface Quote {
   createdAt: string;
   /** Demo data — does not count toward Free plan limit */
   isDemo?: boolean;
+  /**
+   * Etapa 5 · Fatia 9 (Q9, terceiro caso — status desconhecido, nunca oculto
+   * silenciosamente): só preenchido no sentido nuvem→local, quando o `status`
+   * bruto do Supabase não bate com nenhum literal conhecido (`quoteMapper.ts`,
+   * `translateCloudStatusToLocal`). `status` acima já recebe um fallback seguro
+   * (`"rascunho"`) nesse caso — este campo carrega o valor bruto original só
+   * para a UI poder avisar, filtrar e contar o caso, em vez de escondê-lo.
+   * `undefined` em todo `Quote` local/criado nativamente.
+   */
+  cloudStatusRaw?: string;
 
   // --- v2 commercial linkage (optional, backward-compatible) ---
   clientId?: number;

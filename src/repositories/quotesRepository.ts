@@ -11,6 +11,11 @@ import { normalizeSupabaseError } from "@/lib/supabase/errors";
 // for all of these; the generator just doesn't express that.
 type ImportQuoteWithItemsArgs = Database["public"]["Functions"]["import_quote_with_items"]["Args"];
 type QuoteUpsert = Database["public"]["Tables"]["quotes"]["Insert"];
+// Etapa 5 · Fatia 9 (Q8): as 6 colunas novas (client_whatsapp/company/payment_condition/
+// delivery_deadline/validity_days/notes) ainda não existem em types.ts (G10 — gerado,
+// desatualizado até o operador regenerar pós-aplicação desta migration). Mesmo contorno
+// via `unknown` já usado em createQuote/outros repositories para este mesmo gap.
+type QuoteUpdate = Database["public"]["Tables"]["quotes"]["Update"];
 
 export interface SupabaseQuote {
   id: string;
@@ -37,6 +42,18 @@ export interface SupabaseQuote {
   opportunity_id?: string | null;
   /** Etapa 5 · Fatia 3 (Q2): chave de idempotência do import (installId:localId). */
   source_local_id?: string | null;
+  /** Etapa 5 · Fatia 9 (Q8): espelha Quote.clientWhatsapp local. */
+  client_whatsapp?: string | null;
+  /** Etapa 5 · Fatia 9 (Q8): espelha Quote.company local. */
+  company?: string | null;
+  /** Etapa 5 · Fatia 9 (Q8): espelha Quote.paymentCondition local. */
+  payment_condition?: string | null;
+  /** Etapa 5 · Fatia 9 (Q8): espelha Quote.deliveryDeadline local. */
+  delivery_deadline?: string | null;
+  /** Etapa 5 · Fatia 9 (Q8): espelha Quote.validityDays local. */
+  validity_days?: number | null;
+  /** Etapa 5 · Fatia 9 (Q8): espelha Quote.notes local. */
+  notes?: string | null;
 }
 
 /** Payload do orçamento para o RPC import_quote_with_items — ver mapLocalQuoteToSupabaseQuote. */
@@ -52,6 +69,13 @@ export interface ImportQuoteWithItemsInput {
   total: number;
   status: string;
   archived: boolean;
+  /** Etapa 5 · Fatia 9 (Q8). */
+  client_whatsapp?: string | null;
+  company?: string | null;
+  payment_condition?: string | null;
+  delivery_deadline?: string | null;
+  validity_days?: number | null;
+  notes?: string | null;
 }
 
 export interface SupabaseQuoteItem {
@@ -100,7 +124,7 @@ export const quotesRepository = {
   async updateQuote(workspaceId: string, quoteId: string, patch: Partial<SupabaseQuote>) {
     const { data, error } = await supabase
       .from("quotes")
-      .update(patch)
+      .update(patch as unknown as QuoteUpdate)
       .eq("id", quoteId)
       .eq("workspace_id", workspaceId)
       .select()
@@ -199,6 +223,13 @@ export const quotesRepository = {
       p_status: quote.status,
       p_archived: quote.archived,
       p_items: items,
+      // Etapa 5 · Fatia 9 (Q8).
+      p_client_whatsapp: quote.client_whatsapp ?? null,
+      p_company: quote.company ?? null,
+      p_payment_condition: quote.payment_condition ?? null,
+      p_delivery_deadline: quote.delivery_deadline ?? null,
+      p_validity_days: quote.validity_days ?? null,
+      p_notes: quote.notes ?? null,
     } as unknown as ImportQuoteWithItemsArgs);
     if (error) throw normalizeSupabaseError(error);
     return data as SupabaseQuote;

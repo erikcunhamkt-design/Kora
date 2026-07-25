@@ -11,6 +11,8 @@ import {
   mapLocalQuoteToSupabaseQuote,
   mapSupabaseQuoteItemToLocalItem,
   mapSupabaseQuoteToLocalQuote,
+  translateCloudStatusToLocal,
+  translateLocalStatusToCloud,
 } from "@/services/quotes/quoteMapper";
 
 function baseQuote(overrides: Partial<Quote> = {}): Quote {
@@ -55,7 +57,9 @@ describe("quoteMapper — quote", () => {
       subtotal: 1000,
       discount: 100,
       total: 900,
-      status: "enviado",
+      // Etapa 5 · Fatia 9 (Q9): status agora sai traduzido pro vocabulário da
+      // nuvem — "enviado" vira "sent", nunca mais o literal PT cru (achado §8.0).
+      status: "sent",
       archived: false,
     });
   });
@@ -273,5 +277,222 @@ describe("quoteMapper — precisão monetária (Q5)", () => {
   it("mantém quantity inteira intacta (regressão)", () => {
     const out = mapLocalQuoteItemToSupabaseItem({ id: "i", name: "Peça", quantity: 3, unitPrice: 10 } as QuoteItem);
     expect(out.quantity).toBe(3);
+  });
+});
+
+// Etapa 5 · Fatia 9 (Q8) — os 6 campos sem coluna antes desta fatia. Ver
+// docs/qa/etapa-5-fatia-9-quotes-cutover.md §2 (uso real confirmado por grep).
+describe("quoteMapper — Q8 (paridade de schema, 6 campos)", () => {
+  it("local -> nuvem: envia os 6 campos preenchidos", () => {
+    const quote = baseQuote({
+      clientWhatsapp: "(11) 99999-9999",
+      company: "Acme Ltda",
+      paymentCondition: "À vista no Pix",
+      deliveryDeadline: "15 dias",
+      validityDays: 30,
+      notes: "Observações do orçamento",
+    });
+    const out = mapLocalQuoteToSupabaseQuote(quote);
+    expect(out.client_whatsapp).toBe("(11) 99999-9999");
+    expect(out.company).toBe("Acme Ltda");
+    expect(out.payment_condition).toBe("À vista no Pix");
+    expect(out.delivery_deadline).toBe("15 dias");
+    expect(out.validity_days).toBe(30);
+    expect(out.notes).toBe("Observações do orçamento");
+  });
+
+  it("local -> nuvem: string vazia vira null, não \"\" (0 permanece 0, não vira null)", () => {
+    const out = mapLocalQuoteToSupabaseQuote(
+      baseQuote({ clientWhatsapp: "", company: undefined, paymentCondition: "", validityDays: 0, notes: undefined }),
+    );
+    expect(out.client_whatsapp).toBeNull();
+    expect(out.company).toBeNull();
+    expect(out.payment_condition).toBeNull();
+    expect(out.validity_days).toBe(0);
+    expect(out.notes).toBeNull();
+  });
+
+  it("nuvem -> local: lê os 6 campos de volta corretos", () => {
+    const sq: SupabaseQuote = {
+      id: "q4",
+      workspace_id: "w1",
+      title: "Com Q8",
+      subtotal: 100,
+      discount: 0,
+      total: 100,
+      status: "draft",
+      created_at: "2026-07-23T00:00:00.000Z",
+      updated_at: "2026-07-23T00:00:00.000Z",
+      archived: false,
+      client_whatsapp: "(11) 98888-8888",
+      company: "Beta SA",
+      payment_condition: "30/60/90",
+      delivery_deadline: "30 dias",
+      validity_days: 20,
+      notes: "czcszc",
+    };
+    const local = mapSupabaseQuoteToLocalQuote(sq);
+    expect(local.clientWhatsapp).toBe("(11) 98888-8888");
+    expect(local.company).toBe("Beta SA");
+    expect(local.paymentCondition).toBe("30/60/90");
+    expect(local.deliveryDeadline).toBe("30 dias");
+    expect(local.validityDays).toBe(20);
+    expect(local.notes).toBe("czcszc");
+  });
+
+  it("nuvem -> local: linha pré-migration (6 campos NULL) não quebra — vira \"\"/0, nunca undefined/crash", () => {
+    const sq = {
+      id: "q5",
+      workspace_id: "w1",
+      title: "Pré-Q8",
+      subtotal: 0,
+      discount: 0,
+      total: 0,
+      status: "draft",
+      created_at: "2026-07-01T00:00:00.000Z",
+      updated_at: "2026-07-01T00:00:00.000Z",
+      archived: false,
+      client_whatsapp: null,
+      company: null,
+      payment_condition: null,
+      delivery_deadline: null,
+      validity_days: null,
+      notes: null,
+    } as unknown as SupabaseQuote;
+    const local = mapSupabaseQuoteToLocalQuote(sq);
+    expect(local.clientWhatsapp).toBe("");
+    expect(local.paymentCondition).toBe("");
+    expect(local.deliveryDeadline).toBe("");
+    expect(local.validityDays).toBe(0);
+    expect(local.company).toBeUndefined();
+    expect(local.notes).toBeUndefined();
+  });
+
+  it("round-trip completo: local -> nuvem -> local preserva os 6 campos", () => {
+    const original = baseQuote({
+      clientWhatsapp: "(21) 97777-7777",
+      company: "Gama ME",
+      paymentCondition: "Parcelado 3x",
+      deliveryDeadline: "45 dias",
+      validityDays: 10,
+      notes: "Observação final",
+    });
+    const payload = mapLocalQuoteToSupabaseQuote(original);
+    const sq = {
+      ...payload,
+      id: "q6",
+      workspace_id: "w1",
+      created_at: "2026-07-23T00:00:00.000Z",
+      updated_at: "2026-07-23T00:00:00.000Z",
+    } as SupabaseQuote;
+    const back = mapSupabaseQuoteToLocalQuote(sq);
+    expect(back.clientWhatsapp).toBe(original.clientWhatsapp);
+    expect(back.company).toBe(original.company);
+    expect(back.paymentCondition).toBe(original.paymentCondition);
+    expect(back.deliveryDeadline).toBe(original.deliveryDeadline);
+    expect(back.validityDays).toBe(original.validityDays);
+    expect(back.notes).toBe(original.notes);
+  });
+});
+
+// Etapa 5 · Fatia 9 (Q9) — tradução bidirecional de status, incluindo o achado
+// §8.0 (passthrough legado) e o terceiro caso (status desconhecido, nunca
+// oculto — docs/qa/etapa-5-fatia-9-quotes-cutover.md §9a).
+describe("quoteMapper — Q9 (tradução de status PT<->EN)", () => {
+  it("local -> nuvem: os 4 status vivos traduzem para o literal em inglês", () => {
+    expect(translateLocalStatusToCloud("rascunho")).toEqual({ status: "draft", archived: false });
+    expect(translateLocalStatusToCloud("enviado")).toEqual({ status: "sent", archived: false });
+    expect(translateLocalStatusToCloud("aprovado")).toEqual({ status: "approved", archived: false });
+    expect(translateLocalStatusToCloud("recusado")).toEqual({ status: "rejected", archived: false });
+  });
+
+  it("local -> nuvem: \"arquivado\" vira archived=true + status neutro, nunca um 7º literal", () => {
+    expect(translateLocalStatusToCloud("arquivado")).toEqual({ status: "draft", archived: true });
+  });
+
+  it("local -> nuvem: \"vencido\" (estado impossível — é sempre computado, nunca armazenado) tem fallback seguro", () => {
+    expect(translateLocalStatusToCloud("vencido")).toEqual({ status: "draft", archived: false });
+  });
+
+  it("nuvem -> local: os 4 literais em inglês traduzem para o vocabulário local", () => {
+    expect(translateCloudStatusToLocal("draft", false)).toEqual({ status: "rascunho" });
+    expect(translateCloudStatusToLocal("sent", false)).toEqual({ status: "enviado" });
+    expect(translateCloudStatusToLocal("approved", false)).toEqual({ status: "aprovado" });
+    expect(translateCloudStatusToLocal("rejected", false)).toEqual({ status: "recusado" });
+  });
+
+  it("nuvem -> local: archived=true SEMPRE vence, independente do status bruto por baixo", () => {
+    expect(translateCloudStatusToLocal("approved", true)).toEqual({ status: "arquivado" });
+    expect(translateCloudStatusToLocal("draft", true)).toEqual({ status: "arquivado" });
+    expect(translateCloudStatusToLocal("qualquer-coisa-invalida", true)).toEqual({ status: "arquivado" });
+  });
+
+  it("achado §8.0 — passthrough legado: literais PT crus (gravados antes desta fatia) são reconhecidos sem backfill", () => {
+    expect(translateCloudStatusToLocal("rascunho", false)).toEqual({ status: "rascunho" });
+    expect(translateCloudStatusToLocal("enviado", false)).toEqual({ status: "enviado" });
+    expect(translateCloudStatusToLocal("aprovado", false)).toEqual({ status: "aprovado" });
+    expect(translateCloudStatusToLocal("recusado", false)).toEqual({ status: "recusado" });
+  });
+
+  it("terceiro caso — status desconhecido: fallback seguro + cloudStatusRaw preenchido, NUNCA oculto silenciosamente", () => {
+    const result = translateCloudStatusToLocal("pending_review", false);
+    expect(result.status).toBe("rascunho");
+    expect(result.cloudStatusRaw).toBe("pending_review");
+  });
+
+  it("terceiro caso não ocorre quando archived=true (arquivado vence antes de checar o mapa)", () => {
+    const result = translateCloudStatusToLocal("valor-desconhecido", true);
+    expect(result.status).toBe("arquivado");
+    expect(result.cloudStatusRaw).toBeUndefined();
+  });
+
+  it("status null/undefined da nuvem cai no terceiro caso, sem crash", () => {
+    expect(translateCloudStatusToLocal(null, false)).toEqual({ status: "rascunho", cloudStatusRaw: undefined });
+    expect(translateCloudStatusToLocal(undefined, false)).toEqual({ status: "rascunho", cloudStatusRaw: undefined });
+  });
+
+  it("mapSupabaseQuoteToLocalQuote propaga cloudStatusRaw pro objeto Quote completo", () => {
+    const sq = {
+      id: "q7",
+      workspace_id: "w1",
+      title: "Status estranho",
+      subtotal: 0,
+      discount: 0,
+      total: 0,
+      status: "in_negotiation",
+      created_at: "2026-07-23T00:00:00.000Z",
+      updated_at: "2026-07-23T00:00:00.000Z",
+      archived: false,
+    } as unknown as SupabaseQuote;
+    const local = mapSupabaseQuoteToLocalQuote(sq);
+    expect(local.status).toBe("rascunho");
+    expect(local.cloudStatusRaw).toBe("in_negotiation");
+  });
+
+  it("mapSupabaseQuoteToLocalQuote não seta cloudStatusRaw para status reconhecido (undefined, não string vazia)", () => {
+    const sq = {
+      id: "q8",
+      workspace_id: "w1",
+      title: "Status normal",
+      subtotal: 0,
+      discount: 0,
+      total: 0,
+      status: "approved",
+      created_at: "2026-07-23T00:00:00.000Z",
+      updated_at: "2026-07-23T00:00:00.000Z",
+      archived: false,
+    } as unknown as SupabaseQuote;
+    const local = mapSupabaseQuoteToLocalQuote(sq);
+    expect(local.status).toBe("aprovado");
+    expect(local.cloudStatusRaw).toBeUndefined();
+  });
+
+  it("round-trip: local -> nuvem -> local preserva o status pros 4 estados vivos", () => {
+    for (const status of ["rascunho", "enviado", "aprovado", "recusado"] as const) {
+      const payload = mapLocalQuoteToSupabaseQuote(baseQuote({ status }));
+      const back = translateCloudStatusToLocal(payload.status, payload.archived);
+      expect(back.status).toBe(status);
+      expect(back.cloudStatusRaw).toBeUndefined();
+    }
   });
 });
