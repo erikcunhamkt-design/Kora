@@ -25,7 +25,21 @@
 -- parâmetros e as duas colunas extras no INSERT/UPDATE do upsert do pai.
 --
 -- >>> PRÉ-REQUISITO: 20260723000200 (as 6 colunas) já aplicada.
+--
+-- CORREÇÃO (pós-tentativa de aplicação): CREATE OR REPLACE FUNCTION com
+-- parâmetros IN novos acrescentados no fim NÃO substitui a função existente
+-- de 14 argumentos — a identidade de uma função no Postgres é a lista de
+-- TIPOS dos argumentos, e 14→20 tipos é uma assinatura diferente. Sem o DROP
+-- abaixo, o CREATE OR REPLACE cria uma SEGUNDA função sobrecarregada, e
+-- qualquer referência sem lista de tipos (ex.: COMMENT ON FUNCTION sem
+-- argumentos) fica ambígua entre as duas ("function name ... is not
+-- unique"). O DROP explícito da assinatura antiga resolve isso e garante
+-- que só existe UMA função com este nome depois desta migration.
 -- ============================================================================
+
+DROP FUNCTION IF EXISTS public.import_quote_with_items(
+  uuid, text, uuid, uuid, text, text, text, text, numeric, numeric, numeric, text, boolean, jsonb
+);
 
 CREATE OR REPLACE FUNCTION public.import_quote_with_items(
   p_workspace_id uuid,
@@ -132,5 +146,8 @@ GRANT EXECUTE ON FUNCTION public.import_quote_with_items(
   text, text, text, text, integer, text
 ) TO authenticated, service_role;
 
-COMMENT ON FUNCTION public.import_quote_with_items IS
+COMMENT ON FUNCTION public.import_quote_with_items(
+  uuid, text, uuid, uuid, text, text, text, text, numeric, numeric, numeric, text, boolean, jsonb,
+  text, text, text, text, integer, text
+) IS
   'Etapa 5 · Fatia 3 (Q3) + Fatia 9 (Q8): import atômico de um orçamento + seus itens, incluindo os 6 campos de paridade de schema (client_whatsapp/company/payment_condition/delivery_deadline/validity_days/notes). SECURITY INVOKER de propósito — roda sob a RLS do chamador.';
