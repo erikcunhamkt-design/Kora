@@ -542,11 +542,122 @@ o aviso do terceiro caso (§9a, item 2/4).
 
 ---
 
-**PARADO aqui.** Design de Fase B entregue (§8.0-§8.6) + pré-condições da Fase C verificadas
-(§9) — migration Q8 escrita (não aplicada), tradução Q9 completa nos dois sentidos com o achado
-do passthrough legado (§8.0) e o terceiro caso de status desconhecido nunca oculto (§9a),
-simetria da regra `archived` confirmada (§9b), seletor de dataSource desenhado (default local,
-flip de default explicitamente adiado pra depois da homologação), leitura via hook já existente
-(`useSupabaseQuotes`, sem hook novo), bloqueio uniforme de escrita (lição O2/O3/O4 aplicada desde
-o design, não descoberta depois), e o runbook de 9 casos. **NADA EXECUTA sem o "vai" literal do
-revisor, colado neste chat pelo operador** — inclusive a implementação de Fase C.
+## 10. Fase C — Resultado (implementação + aplicação da DDL Q8)
+
+### 10.1 Itens 1-4 + pré-condições — implementados, testados, commitados
+
+| Etapa | Hash | O quê |
+|---|---|---|
+| Pré-condições §9 | `38abfc7` | Tabela PT↔EN literal + regra do 3º caso; simetria `archived`; requisito de normalização único no mapper |
+| Item 1 (código) | `14788ba` | 2 migrations SQL + interfaces/RPC-call do repository + cast `QuoteUpdate` (G10) |
+| Item 2 | `72536c4` | Tradução Q9 bidirecional + campos Q8 no mapper — 17 testes novos (33 no arquivo) |
+| Item 3 | `ee12955` | Seletor `kora.quotes.dataSource.v1`, default LOCAL — 6 testes novos (28 no arquivo) |
+| Item 4 | `46b690d` | `QuotesSection` lê do seletor; escrita 100% bloqueada via guarda por handler (não wrapper transparente — lição O2/O3/O4 da Fatia 8, aplicada por design, não corrigida depois) — 8 testes novos |
+
+Gates confirmados pós-item-4: `tsc -p tsconfig.app.json --noEmit` → 0 erros · `vitest run` → 28
+arquivos, 255/255 (247 + 8 novos) · `node scripts/lint-gate.mjs` → 37/37 erros (baseline), 34/34
+`no-explicit-any` (baseline), sem supressão nova.
+
+### 10.2 Migration Q8 — escrita, corrigida em campo, e **APLICADA** (2026-07-23, sob §8)
+
+`20260723000200_etapa5_fatia9_quotes_add_q8_fields.sql` (6 `ADD COLUMN IF NOT EXISTS` +
+`COMMENT`) aplicou limpo na primeira tentativa:
+
+```
+ALTER TABLE
+COMMENT
+COMMENT
+COMMENT
+COMMENT
+COMMENT
+COMMENT
+```
+
+`20260723000300_etapa5_fatia9_import_quote_with_items_add_q8_params.sql` (RPC
+`import_quote_with_items` estendida com os 6 parâmetros novos) **falhou na primeira tentativa**
+com um bug real de design, não um problema do operador:
+
+```
+psql:...20260723000300...sql:136: ERROR:  function name "public.import_quote_with_items" is not unique
+DICA:  Specify the argument list to select the function unambiguously.
+```
+
+**Causa:** a migration assumia que `CREATE OR REPLACE FUNCTION` com parâmetros novos
+acrescentados só no fim (todos `DEFAULT NULL`) preserva a identidade da função existente de 14
+argumentos. Isso está errado — no Postgres a identidade de uma função é a lista de **tipos** dos
+argumentos, e 14→20 tipos é uma assinatura diferente. Sem um `DROP` explícito da assinatura
+antiga, o `CREATE OR REPLACE` cria uma **segunda função sobrecarregada** ao lado da original, e o
+`COMMENT ON FUNCTION` final do arquivo (sem lista de argumentos) ficou ambíguo entre as duas.
+
+**Correção** (no próprio arquivo `20260723000300...sql`, antes do `CREATE OR REPLACE FUNCTION`):
+
+```sql
+DROP FUNCTION IF EXISTS public.import_quote_with_items(
+  uuid, text, uuid, uuid, text, text, text, text, numeric, numeric, numeric, text, boolean, jsonb
+);
+```
+
+mais a qualificação do `COMMENT ON FUNCTION` final com a lista completa de 20 tipos. Reaplicada:
+
+```
+DROP FUNCTION
+CREATE FUNCTION
+REVOKE
+GRANT
+COMMENT
+```
+
+**Verificação pós-aplicação** (pré-check → pós-check, output bruto conferido pelo Code):
+
+```
+-- overloads de import_quote_with_items: 1 (não mais ambíguo)
+-- colunas: client_whatsapp, company, delivery_deadline, notes, payment_condition (text) +
+--          validity_days (integer) — todas nullable
+-- import_quote_with_items: assinatura completa de 20 parâmetros, os 6 novos com DEFAULT NULL
+-- quotes_count: 1 antes, 1 depois — zero linhas alteradas (só schema)
+```
+
+Bate exatamente com o esperado. Item 1 da Fase C encerrado.
+
+### 10.3 Incidente §15 — credencial exposta em chat (2×), já rotacionada
+
+**Incidente de sessão (registrado, não catalogado como novo achado):** durante o troubleshooting
+da aplicação (múltiplas falhas de conexão do terminal do operador — `winpty`, diretório errado,
+variável de ambiente não propagada entre janelas), o operador colou o histórico completo do
+terminal no chat para diagnóstico. A connection string com a senha em texto puro apareceu **2
+vezes** dentro desse texto colado: uma tentativa de colar a string solta no prompt (ecoada de
+volta pelo PowerShell como comando não reconhecido) e a linha do `$env:DATABASE_URL = '...'` em
+si. O Code identificou a exposição no ato, recusou usar/reproduzir o valor em qualquer resposta
+subsequente, e instruiu rotação imediata. **O operador confirmou a rotação da senha do banco**
+antes do fechamento desta rodada — mesmo critério já em vigor (protocolo §15, motivada
+originalmente por um incidente equivalente na Fatia 8).
+
+**Vetor específico deste incidente, distinto do da Fatia 8:** lá foram prints/mensagens avulsas
+com a connection string colada isoladamente; aqui foi um **histórico completo de terminal**
+colado para diagnóstico de uma falha de conexão — a credencial estava "no meio" de dezenas de
+linhas de output legítimo (pré-checks, migrations, pós-checks), não isolada. O protocolo §15
+cobre "print/mensagem colada/comando ecoado" em geral, mas não nomeia esse vetor específico
+(diagnóstico via histórico completo).
+
+**Proposta de emenda §15-b (revisor, pendente de aprovação formal no sign-off):**
+> Ao colar terminal para diagnóstico de falha, colar **apenas do comando que falhou em diante**,
+> nunca o histórico completo da sessão. Blocos de comando que contêm `export`/`$env:` de
+> atribuição de credencial nunca são colados no chat, mesmo como parte de um histórico maior —
+> nem o comando em si, nem sua confirmação de sucesso/eco.
+
+### 10.4 Confirmação — arquivo commitado idêntico ao aplicado no banco
+
+O `DROP FUNCTION IF EXISTS` e o `COMMENT ON FUNCTION` qualificado foram adicionados ao arquivo
+`20260723000300_etapa5_fatia9_import_quote_with_items_add_q8_params.sql` **antes** de instruir o
+operador a rodar o retry (§10.2) — não houve edição posterior à aplicação. A sequência de saída
+do retry (`DROP FUNCTION` → `CREATE FUNCTION` → `REVOKE` → `GRANT` → `COMMENT`, todas sem erro,
+`exit code: 0`) corresponde exatamente às 5 instruções presentes no arquivo committado, na mesma
+ordem. **Arquivo em disco = DDL de fato aplicada no banco.**
+
+---
+
+**PARADO aqui.** Fase C encerrada — implementação (itens 1-4) e aplicação da DDL (item 1) ambas
+concluídas e verificadas, gates verdes, 1 incidente de credencial registrado e já mitigado
+(rotação confirmada pelo operador), proposta de emenda §15-b registrada para aprovação no
+sign-off. **NADA EXECUTA sem o "vai" literal do revisor** — Fase D (homologação) fica para a
+próxima rodada, com "vai" próprio.
