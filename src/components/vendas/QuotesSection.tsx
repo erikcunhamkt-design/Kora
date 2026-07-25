@@ -187,6 +187,12 @@ export function QuotesSection() {
   };
 
   // KPIs ---
+  // Etapa 5 · Fatia 9 (§9a, 3º caso) — quote com status vindo da nuvem que não bate
+  // com nenhuma chave conhecida (CLOUD_TO_LOCAL_STATUS). O mapper já cai pro fallback
+  // seguro "rascunho" (union fechado de QuoteStatus não comporta um 7º valor), mas
+  // nunca pode ficar indistinguível de um rascunho real — daí o contador aditivo
+  // (mesmo espírito de totalClientOrphan, Configuracoes.tsx) + a badge por linha abaixo.
+  const totalUnknownStatus = quotes.filter((q) => q.cloudStatusRaw).length;
   const openQuotes = quotes.filter((q) => effectiveStatus(q) === "rascunho" || effectiveStatus(q) === "enviado");
   const openValue = openQuotes.reduce((s, q) => s + q.total, 0);
   const approvedQuotes = quotes.filter((q) => q.status === "aprovado");
@@ -290,6 +296,14 @@ export function QuotesSection() {
         <p className="text-xs text-destructive">Erro ao carregar orçamentos do Supabase: {supabaseError}</p>
       )}
 
+      {totalUnknownStatus > 0 && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5 text-[11px] text-amber-300/90">
+          ⚠ {totalUnknownStatus} orçamento(s) com status vindo da nuvem que não reconhecemos —
+          exibidos como <strong>Rascunho</strong> por padrão de segurança, com o valor bruto na
+          badge da linha. Confira o status real na origem.
+        </div>
+      )}
+
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Metric label="Em aberto" value={String(openQuotes.length)} sub="Rascunho + enviado" />
         <Metric label="Valor em propostas" value={BRL(openValue)} tone="primary" />
@@ -390,6 +404,14 @@ export function QuotesSection() {
                       <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${STATUS_STYLE[eff]}`}>
                         {STATUS_LABEL[eff]}
                       </span>
+                      {q.cloudStatusRaw && (
+                        <span
+                          className="ml-1.5 inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-bold text-amber-300/90"
+                          title={`Status bruto da nuvem, não reconhecido: "${q.cloudStatusRaw}"`}
+                        >
+                          ⚠ status bruto: "{q.cloudStatusRaw}"
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-right font-black text-foreground">{BRL(q.total)}</td>
                     <td className="px-4 py-3">

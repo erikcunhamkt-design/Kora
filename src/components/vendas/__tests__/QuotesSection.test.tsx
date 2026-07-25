@@ -206,6 +206,51 @@ describe("QuotesSection · modo Supabase (leitura)", () => {
   });
 });
 
+describe("QuotesSection · 3º caso (§9a) — status desconhecido nunca mascarado de rascunho", () => {
+  it("quote com cloudStatusRaw mostra a badge de aviso na linha e é contada à parte", async () => {
+    vi.mocked(useQuotes).mockReturnValue({
+      quotes: [], addQuote: vi.fn(), updateStatus: vi.fn(), updateQuote: vi.fn(),
+      duplicateQuote: vi.fn(), deleteQuote: vi.fn(),
+    } as never);
+    vi.mocked(useSupabaseQuotes).mockReturnValue({
+      quotes: [makeSupabaseMappedQuote({ status: "rascunho", cloudStatusRaw: "xyz" })],
+      loading: false, error: null,
+    } as never);
+
+    renderSection();
+    fireEvent.click(screen.getByText("Supabase experimental"));
+
+    const titleEl = await screen.findByText("Orçamento Nuvem");
+    const row = titleEl.closest("tr") as HTMLElement;
+    // Nunca mascarado: a badge normal de "Rascunho" continua, MAIS a badge de
+    // aviso com o valor bruto ao lado — a presença das duas é o que prova que
+    // não ficou indistinguível de um rascunho de verdade.
+    expect(within(row).getByText("Rascunho")).toBeInTheDocument();
+    expect(within(row).getByText('⚠ status bruto: "xyz"')).toBeInTheDocument();
+    // Contado à parte: banner aditivo com a contagem, mesmo espírito do
+    // totalClientOrphan (Configuracoes.tsx) — não substitui nenhum KPI existente.
+    expect(screen.getByText(/1 orçamento\(s\) com status vindo da nuvem/)).toBeInTheDocument();
+  });
+
+  it("quote com status conhecido NÃO mostra a badge de aviso nem soma no contador", async () => {
+    vi.mocked(useQuotes).mockReturnValue({
+      quotes: [], addQuote: vi.fn(), updateStatus: vi.fn(), updateQuote: vi.fn(),
+      duplicateQuote: vi.fn(), deleteQuote: vi.fn(),
+    } as never);
+    vi.mocked(useSupabaseQuotes).mockReturnValue({
+      quotes: [makeSupabaseMappedQuote({ status: "aprovado", cloudStatusRaw: undefined })],
+      loading: false, error: null,
+    } as never);
+
+    renderSection();
+    fireEvent.click(screen.getByText("Supabase experimental"));
+
+    await screen.findByText("Orçamento Nuvem");
+    expect(screen.queryByText(/status bruto/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/com status vindo da nuvem/)).not.toBeInTheDocument();
+  });
+});
+
 describe("QuotesSection · escrita bloqueada em modo Supabase (lição O2/O3/O4)", () => {
   async function renderInSupabaseMode(localFns: {
     updateStatus?: ReturnType<typeof vi.fn>;
