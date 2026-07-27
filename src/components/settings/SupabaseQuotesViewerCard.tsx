@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { useSupabaseQuotes } from "@/hooks/useSupabaseQuotes";
+import { quotesRepository } from "@/repositories/quotesRepository";
+import { isQuotesApprovalReachable } from "@/hooks/useSupabaseQuotesWriteFlag";
 import { SettingsCard } from "@/components/settings/SettingsCard";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +21,7 @@ interface ImportMeta {
 
 export function SupabaseQuotesViewerCard() {
   const { workspace } = useCurrentWorkspace();
-  const { quotes, loading, error, refresh, approveQuote, rejectQuote } = useSupabaseQuotes();
+  const { quotes, loading, error, refresh } = useSupabaseQuotes();
   const [metadata, setMetadata] = useState<ImportMeta | null>(null);
 
   const [submittingId, setSubmittingId] = useState<string | null>(null);
@@ -82,8 +84,11 @@ export function SupabaseQuotesViewerCard() {
   }, []);
 
   const handleActionClick = (quoteId: string, title: string, type: "approve" | "reject") => {
-    const flagEnabled = getBooleanFlag("quotesSupabaseApproval");
-    if (!flagEnabled) {
+    // Etapa 5 · Fatia 10 (item 6, §8.1) — coexistência temporária: aprovar/
+    // rejeitar continua alcançável tanto pelo master flag novo quanto pela
+    // flag legada (quem já tinha quotesSupabaseApproval ligada não perde a
+    // capacidade). As duas saem juntas só no pacote do flip.
+    if (!isQuotesApprovalReachable()) {
       toast.info("Aprovação de orçamentos Supabase entra nesta etapa experimental. Ative em Configurações.");
       return;
     }
@@ -93,13 +98,15 @@ export function SupabaseQuotesViewerCard() {
   };
 
   const handleConfirmAction = async () => {
-    if (!selectedQuoteId || !actionType) return;
+    if (!selectedQuoteId || !actionType || !workspace) return;
     setSubmittingId(selectedQuoteId);
 
     try {
       if (actionType === "approve") {
-        await approveQuote(selectedQuoteId);
-        
+        // Etapa 5 · Fatia 10 (item 6, §3) — método genérico traduzido, nunca
+        // mais o literal hardcoded de approveQuote (aposentado, item 7).
+        await quotesRepository.updateStatus(workspace.id, selectedQuoteId, "aprovado");
+
         // Log local approval
         try {
           const logRaw = localStorage.getItem("kora.quotes.supabaseApprovals.v1") || "[]";
@@ -116,8 +123,8 @@ export function SupabaseQuotesViewerCard() {
 
         toast.success("Orçamento aprovado com sucesso!");
       } else {
-        await rejectQuote(selectedQuoteId);
-        
+        await quotesRepository.updateStatus(workspace.id, selectedQuoteId, "recusado");
+
         // Log local rejection
         try {
           const logRaw = localStorage.getItem("kora.quotes.supabaseRejections.v1") || "[]";
@@ -219,12 +226,12 @@ export function SupabaseQuotesViewerCard() {
                             Validade: {intlDate((quote as any).validUntil)}
                           </p>
                         )}
-                        {quote.approvedAt && (quote.status as string) === "approved" && (
+                        {quote.approvedAt && quote.status === "aprovado" && (
                           <p className="text-[10px] text-emerald-400 mt-0.5 truncate font-medium">
                             Aprovado em: {intlDateTime(quote.approvedAt, { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" })}
                           </p>
                         )}
-                        {quote.rejectedAt && (quote.status as string) === "rejected" && (
+                        {quote.rejectedAt && quote.status === "recusado" && (
                           <p className="text-[10px] text-destructive mt-0.5 truncate font-medium">
                             Rejeitado em: {intlDateTime(quote.rejectedAt, { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" })}
                           </p>
@@ -235,8 +242,8 @@ export function SupabaseQuotesViewerCard() {
                           {intlCurrency(quote.total)}
                         </span>
                         <Badge variant="outline" className={`text-[10px] uppercase py-0 px-1.5 capitalize ${
-                          (quote.status as string) === "approved" ? "border-emerald-500/30 text-emerald-400 bg-emerald-500/10" :
-                          (quote.status as string) === "rejected" ? "border-destructive/30 text-destructive bg-destructive/10" :
+                          quote.status === "aprovado" ? "border-emerald-500/30 text-emerald-400 bg-emerald-500/10" :
+                          quote.status === "recusado" ? "border-destructive/30 text-destructive bg-destructive/10" :
                           "bg-muted"
                         }`}>
                           {quote.status}
@@ -244,7 +251,7 @@ export function SupabaseQuotesViewerCard() {
                       </div>
                     </div>
 
-                    {(quote.status as string) === "draft" && (
+                    {quote.status === "rascunho" && (
                       <div className="flex items-center gap-1.5">
                         <Button
                           size="sm"
@@ -267,7 +274,7 @@ export function SupabaseQuotesViewerCard() {
                       </div>
                     )}
 
-                    {(quote.status as string) === "approved" && (
+                    {quote.status === "aprovado" && (
                       <div className="flex items-center gap-1.5">
                         <Button
                           size="sm"

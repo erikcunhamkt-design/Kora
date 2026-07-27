@@ -3,12 +3,47 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { SupabaseQuotesViewerCard } from "@/components/settings/SupabaseQuotesViewerCard";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { useSupabaseQuotes } from "@/hooks/useSupabaseQuotes";
+import { quotesRepository } from "@/repositories/quotesRepository";
 import type { Quote } from "@/hooks/useQuotes";
 import { vi, describe, it, expect, beforeEach } from "vitest";
 
 // Mock hooks
 vi.mock("@/hooks/useCurrentWorkspace");
 vi.mock("@/hooks/useSupabaseQuotes");
+vi.mock("@/repositories/quotesRepository");
+
+const mockWorkspace = {
+  id: "ws-1",
+  name: "Test Workspace",
+  slug: "test-workspace",
+  owner_id: "owner-1",
+  created_at: "2024-01-01T00:00:00Z",
+  updated_at: "2024-01-01T00:00:00Z",
+  currency: "BRL",
+  locale: "pt-BR",
+  timezone: null,
+};
+
+function baseQuote(overrides: Partial<Quote> = {}): Quote {
+  return {
+    id: "supabase-uuid-123",
+    title: "Orçamento de Teste",
+    clientName: "Cliente QA",
+    clientEmail: "qa@kora.com",
+    clientWhatsapp: "",
+    description: "",
+    total: 1500.5,
+    status: "rascunho",
+    items: [],
+    subtotal: 1500.5,
+    discount: 0,
+    paymentCondition: "",
+    deliveryDeadline: "",
+    validityDays: 0,
+    createdAt: "2024-01-01T00:00:00Z",
+    ...overrides,
+  } as Quote;
+}
 
 describe("SupabaseQuotesViewerCard - QA Scenarios", () => {
   const mockRefresh = vi.fn();
@@ -109,5 +144,74 @@ describe("SupabaseQuotesViewerCard - QA Scenarios", () => {
     // Check badges
     expect(screen.getByText("Supabase")).toBeInTheDocument();
     expect(screen.getByText("Importado do local")).toBeInTheDocument();
+  });
+});
+
+describe("SupabaseQuotesViewerCard · item 6 (Fatia 10) — comparação de status corrigida (era 'draft'/'approved' em inglês)", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.clearAllMocks();
+    localStorage.setItem("kora.quotes.supabaseExperimental.enabled", "true");
+    vi.mocked(useCurrentWorkspace).mockReturnValue({
+      workspace: mockWorkspace, membership: null, loading: false, error: null,
+    });
+  });
+
+  it("status 'rascunho' (já traduzido pelo mapper) mostra os botões Aprovar/Rejeitar", () => {
+    vi.mocked(useSupabaseQuotes).mockReturnValue({
+      quotes: [baseQuote({ status: "rascunho" })],
+      loading: false, error: null, refresh: vi.fn(),
+    } as never);
+
+    render(<SupabaseQuotesViewerCard />);
+
+    expect(screen.getByText("Aprovar")).toBeInTheDocument();
+    expect(screen.getByText("Rejeitar")).toBeInTheDocument();
+  });
+
+  it("status 'aprovado' mostra os botões Gerar recebível/Gerar projeto, não Aprovar/Rejeitar", () => {
+    vi.mocked(useSupabaseQuotes).mockReturnValue({
+      quotes: [baseQuote({ status: "aprovado" })],
+      loading: false, error: null, refresh: vi.fn(),
+    } as never);
+
+    render(<SupabaseQuotesViewerCard />);
+
+    expect(screen.queryByText("Aprovar")).not.toBeInTheDocument();
+    expect(screen.queryByText("Rejeitar")).not.toBeInTheDocument();
+    expect(screen.getByText("Gerar recebível")).toBeInTheDocument();
+    expect(screen.getByText("Gerar projeto")).toBeInTheDocument();
+  });
+
+  it("clicar Aprovar (flag reachable) chama quotesRepository.updateStatus('aprovado'), nunca approveQuote", async () => {
+    localStorage.setItem("kora.quotes.supabaseApproval.enabled", "true");
+    const refresh = vi.fn();
+    vi.mocked(useSupabaseQuotes).mockReturnValue({
+      quotes: [baseQuote({ status: "rascunho" })],
+      loading: false, error: null, refresh,
+    } as never);
+    vi.mocked(quotesRepository.updateStatus).mockResolvedValue({} as never);
+
+    render(<SupabaseQuotesViewerCard />);
+    fireEvent.click(screen.getByText("Aprovar"));
+    fireEvent.click(await screen.findByText("Aprovar orçamento"));
+
+    await waitFor(() =>
+      expect(quotesRepository.updateStatus).toHaveBeenCalledWith("ws-1", "supabase-uuid-123", "aprovado"),
+    );
+    expect(refresh).toHaveBeenCalled();
+  });
+
+  it("sem nenhuma das duas flags: clicar Aprovar não abre o diálogo de confirmação (toast informativo)", () => {
+    vi.mocked(useSupabaseQuotes).mockReturnValue({
+      quotes: [baseQuote({ status: "rascunho" })],
+      loading: false, error: null, refresh: vi.fn(),
+    } as never);
+
+    render(<SupabaseQuotesViewerCard />);
+    fireEvent.click(screen.getByText("Aprovar"));
+
+    expect(screen.queryByText("Aprovar orçamento")).not.toBeInTheDocument();
+    expect(quotesRepository.updateStatus).not.toHaveBeenCalled();
   });
 });
