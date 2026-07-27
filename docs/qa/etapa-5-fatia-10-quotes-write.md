@@ -275,6 +275,147 @@ própria noutras fatias).
 
 ---
 
-**PARADO aqui.** Levantamento entregue (§1-§7). Nenhum código alterado, nenhuma migration
-escrita. **NADA EXECUTA sem o "vai" literal do revisor** — Fase B (design) só começa com "vai"
-próprio.
+Levantamento entregue (§1-§7). Nenhum código alterado, nenhuma migration escrita.
+
+---
+
+## 8. Fase B — Design (autorizada pelo "vai" do revisor)
+
+> **Escopo desta rodada: DESIGN.** Nenhum código de implementação. Migrations, se necessárias,
+> escritas mas **não aplicadas**. As 4 exigências abaixo vieram explicitamente do revisor, além
+> do recorte já recomendado em §7.
+
+### 8.1 Janela de regressão do `Approval` — coexistência temporária
+
+**Situação:** `quotesSupabaseApproval` já faz escrita real em produção hoje (§1.2) — se o design
+desta fatia simplesmente substituir o mecanismo de escrita sem prever transição, quem já tem essa
+flag ligada perde a capacidade de aprovar/rejeitar até migrar pro novo master flag. Inaceitável.
+
+**Decisão do revisor, formalizada aqui:** os 2 consumidores passam a checar
+`masterFlagEnabled || legacyApprovalEnabled` — nenhuma flag some sozinha, as duas saem juntas
+só no pacote do flip (mesmo padrão da Fatia 8, que aposentou as 6 flags mortas do CRM de uma vez,
+não uma a uma). Isso só se aplica a **`quotesSupabaseApproval`** — as outras 3 flags
+(`quotesSupabaseExperimental`/`CreateProject`/`CreateReceivable`) nunca alcançaram escrita real
+na nuvem (§1.2 da Fase A), então não têm janela de regressão a proteger: migram direto pro
+master flag novo, sem fallback OR.
+
+**Mecanismo concreto:** uma função auxiliar exportada por `useSupabaseQuotesWriteFlag.ts` (novo
+hook, molde de `useSupabaseCrmWriteFlag.ts`):
+```ts
+export function isQuotesApprovalReachable(): boolean {
+  return isSupabaseQuotesWriteEnabled() || getBooleanFlag("quotesSupabaseApproval");
+}
+```
+usada SÓ no ponto de decisão de aprovar/rejeitar dos 2 componentes legados — o resto da escrita
+(criar, status enviado/arquivar/restaurar, duplicar, excluir) não existe hoje nesses 2
+componentes, então não precisa de fallback nenhum: só o master flag novo já é suficiente ali.
+
+**Consumidores nomeados, com o item de Fase C que migra cada um** (ver §8.5 pro plano completo
+de itens):
+| Componente | Uso hoje de `quotesSupabaseApproval` | Item de Fase C que migra |
+|---|---|---|
+| `src/components/settings/SupabaseQuotesViewerCard.tsx` | `handleActionClick`/`handleConfirmAction` (linhas citadas na Fase A, §1.2) chamam `useSupabaseQuotes().approveQuote/rejectQuote` | **Item 6** |
+| `src/components/crm/LinkedQuotesSection.tsx` | `handleConfirmAction` chama `quotesRepository.approveQuote/rejectQuote` direto | **Item 7** |
+
+**Critério de retirada das 2 flags (registrado, não executado nesta fatia):** quando o flip de
+leitura+escrita for decidido (default ON), ambas as chaves (`kora.quotes.supabaseWrite.enabled`
+passa a ON por padrão, `kora.quotes.supabaseApproval.enabled` fica órfã) saem do código nessa
+mesma rodada de flip — nunca antes, nunca uma sem a outra.
+
+### 8.2 Semântica de exclusão — soft delete, decisão formal
+
+**Decisão: soft delete**, reaproveitando o mecanismo já existente
+(`quotesRepository.softDeleteQuote`, coluna `deleted_at`/`deleted_reason` já no schema desde
+2026-05-31). Justificativa: (a) mesmo padrão já usado no CRM (O2, Fatia 8) — nunca perder o
+registro de negócio de verdade por uma ação de UI; (b) preserva a possibilidade de auditoria/
+recuperação futura; (c) zero migration nova necessária, o campo já existe e já tem um método de
+repository testado.
+
+**Campo:** `deleted_at timestamptz` (+ `deleted_reason text`, opcional, já aceito pelo método).
+
+**Comportamento no seletor de leitura — achado que exige um ajuste de código (não migration) em
+Fase C:** `quotesRepository.listQuotes` (usado tanto por `useSupabaseQuotes` quanto por
+`useLocalQuotesImport`'s analisador de duplicatas) **não filtra `deleted_at`** hoje — só
+`listQuotesByOpportunity` já filtra (`.is("deleted_at", null)`, linha confirmada na Fase A). Sem
+esse ajuste, uma quote excluída continuaria aparecendo na tela principal em modo nuvem. **Decisão:
+`listQuotes` ganha o mesmo filtro `.is("deleted_at", null)`, uniformizando com
+`listQuotesByOpportunity`** — vira item de Fase C (item 3, §8.5), não uma migration.
+
+**Impacto na idempotência do import:** analisado e considerado **não-bloqueante, sem mudança
+necessária**. A cláusula `ON CONFLICT (workspace_id, source_local_id) DO UPDATE SET` da RPC
+`import_quote_with_items` não toca `deleted_at`/`deleted_reason`/`deleted_by` — em tese, se uma
+quote fosse soft-deleted e depois reimportada com o MESMO `source_local_id`, o `UPDATE` atualizaria
+os demais campos mas deixaria `deleted_at` intacto (quote "ressuscitada" ficaria invisível mesmo
+com dado fresco). Na prática isso não pode acontecer no recorte desta fatia: quotes criadas
+nativamente ou duplicadas usam `source_local_id` sintético (`native:${uuid}`, §8.3) — nunca gerado
+de novo pro mesmo registro, então nunca colidem consigo mesmas via `ON CONFLICT`. Só reimports
+reais (via `useLocalQuotesImport`, `source_local_id` determinístico `installId:localId`) passam
+pelo `DO UPDATE` — e nada nesta fatia permite excluir (soft-delete) uma quote que se origina de
+import sem que o usuário también possa reimportá-la propositalmente esperando uma "ressurreição".
+Registrado como risco teórico residual, não como bloqueante — se algum dia um caso real de reimport
+pós-delete aparecer, a correção é acrescentar `deleted_at = NULL, deleted_reason = NULL` ao `DO
+UPDATE SET`, mas escrever essa mudança agora seria especular sobre um cenário que o recorte atual
+não produz.
+
+### 8.3 Duplicar via RPC compartilhada — confirmado
+
+Duplicar **não ganha um método de repository novo** — reaproveita exatamente
+`quotesRepository.importQuoteWithItems`, a mesma RPC usada por criação nativa (§2 da Fase A) e por
+import real. Mecânica: ler a quote+itens de origem (já em memória via `useSupabaseQuotes`, sem
+round-trip extra), montar um payload com `title` sufixado ("cópia"), `status` resetado pro
+equivalente de "rascunho" (`translateLocalStatusToCloud("rascunho")` → `{status:"draft",
+archived:false}`), e chamar a RPC com um **novo** `source_local_id` sintético `native:${uuid}`
+(nunca o mesmo da origem — duplicar cria uma linha nova, não atualiza a original). Herda de graça:
+atomicidade pai+filhos (mesma transação da RPC) e proteção contra duplo-clique (retry com o mesmo
+`source_local_id` sintético cairia no `ON CONFLICT` e faria upsert idempotente em vez de criar
+duas cópias).
+
+### 8.4 G11 — assinatura da RPC: nenhuma mudança necessária
+
+Avaliado explicitamente se a RPC precisa de um parâmetro novo pra distinguir "criação nativa/
+duplicação" de "import real" (ex.: pra evitar um efeito colateral só-de-import, como um
+hipotético `imported_at`). **Conclusão: não precisa, e por isso nenhuma migration nova é
+escrita nesta Fase B.** Dois motivos:
+1. **A RPC já é agnóstica de origem** — leitura completa do corpo de
+   `import_quote_with_items` (migration `20260723000300_etapa5_fatia9_import_quote_with_items_add_q8_params.sql`)
+   confirma que não existe hoje nenhum efeito colateral condicionado a "isso veio de um import"
+   (não há coluna `imported_at`, não há branch de lógica por origem) — não há nada de
+   import-específico que uma chamada nativa/duplicada precisasse evitar.
+2. **O prefixo do `source_local_id` já carrega a distinção**, sem precisar de coluna ou parâmetro
+   novo: `installId:localId` (formato real de import, determinístico) vs. `native:${uuid}`
+   (criação nativa/duplicação, aleatório) são namespaces distintos por construção — suficiente
+   pra qualquer análise futura (ex.: `WHERE source_local_id LIKE 'native:%'`) sem custo de schema.
+
+**Regra permanente registrada de qualquer forma (satisfaz a exigência do revisor pro caso de uma
+fatia futura precisar):** se algum dia a RPC precisar mesmo de um parâmetro novo pra distinguir
+origem (ou qualquer outro motivo), a migration correspondente **DEVE** incluir `DROP FUNCTION
+IF EXISTS` da assinatura antiga antes do `CREATE OR REPLACE FUNCTION` com a assinatura nova —
+lição G11 (catálogo mestre, `docs/architecture/kora-hub-auditoria-e-plano.md`), motivada por um
+bug real desta mesma cadeia de fatias. Não se aplica agora porque não há mudança de assinatura
+nesta fatia, mas fica escrita aqui pra nunca precisar redescobrir.
+
+**Consequência prática: esta Fase B não produz nenhuma migration SQL.** Todos os 4 pontos do
+pedido do revisor (§8.1-§8.4) resolvem-se com métodos/hooks já existentes (`softDeleteQuote`,
+`importQuoteWithItems`, o padrão de `useSupabaseCrmWriteFlag`) ou com ajustes de TypeScript
+(filtro em `listQuotes`, novo hook de flag, novo método genérico de status) — nenhum requer DDL.
+
+### 8.5 Plano de itens da Fase C (nomeado, pra rastrear qual commit resolve o quê)
+
+| Item | O quê | Arquivo(s) principais |
+|---|---|---|
+| 1 | Criação atômica via RPC — `NewQuoteWizard`/`handleSave` e `CreateCrmSupabaseQuoteDialog.tsx` passam a usar `importQuoteWithItems` com `source_local_id` sintético (`native:${uuid}`) | `QuotesSection.tsx`, `CreateCrmSupabaseQuoteDialog.tsx`, `useSupabaseQuotes.ts` |
+| 2 | Método genérico de transição de status (`quotesRepository.updateStatus` via `translateLocalStatusToCloud`); aposenta `approveQuote`/`rejectQuote` como métodos separados | `quotesRepository.ts`, `quoteMapper.ts` (reuso, sem mudança) |
+| 3 | Soft-delete: correção do filtro em `listQuotes` (`.is("deleted_at", null)`) + wiring da ação "Excluir" | `quotesRepository.ts` |
+| 4 | Duplicar via RPC compartilhada (§8.3) | `useSupabaseQuotes.ts`, `QuotesSection.tsx` |
+| 5 | Flag mestre `kora.quotes.supabaseWrite.enabled` (novo hook) + decisão de flip do default de leitura, como um pacote só (§5 da Fase A) | novo `useSupabaseQuotesWriteFlag.ts`, `flags.ts` |
+| 6 | Migra `SupabaseQuotesViewerCard.tsx` pro método novo + `isQuotesApprovalReachable()` (§8.1) | `SupabaseQuotesViewerCard.tsx` |
+| 7 | Migra `LinkedQuotesSection.tsx` — mesmo tratamento | `LinkedQuotesSection.tsx` |
+| 8 | `QuotesSection.tsx`: liga os handlers de escrita aos métodos novos (itens 1-4), sob o master flag (item 5), com a disciplina de guarda-antes-do-toast (lição O2/O3/O4, já aplicada no read-cutover) | `QuotesSection.tsx` |
+
+Retirada das 4 flags granulares antigas (§5 da Fase A) fica para o pacote do flip (fora desta
+lista — é pós-homologação, não item de Fase C).
+
+---
+
+**PARADO aqui.** Fase B entregue (§8.1-§8.5) — sem código, sem migration (justificado em §8.4).
+**NADA EXECUTA sem o "vai" literal do revisor** — Fase C só começa com "vai" próprio.
