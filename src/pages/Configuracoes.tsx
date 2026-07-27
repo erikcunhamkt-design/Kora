@@ -1729,7 +1729,7 @@ function SupabaseExperimentalToggleCard() {
   );
 }
 
-function LocalOpportunitiesImportCard() {
+export function LocalOpportunitiesImportCard() {
   const { workspace } = useCurrentWorkspace();
   const { candidates, importing, importSelected, metadata } = useLocalOpportunitiesImport();
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
@@ -1821,7 +1821,7 @@ function LocalOpportunitiesImportCard() {
           <DialogTrigger asChild>
             <Button
               onClick={handleOpenDialog}
-              disabled={eligibleCandidates.length === 0 || importing}
+              disabled={importing}
               className="w-full gap-2 orbit-gradient text-white border-0"
             >
               Analisar importação
