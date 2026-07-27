@@ -87,6 +87,7 @@ interface BotReplyRequestBody {
   gcpServiceAccount?: string;
   history?: BotReplyHistoryItem[];
   messageText?: string;
+  flowData?: unknown;
 }
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -267,7 +268,18 @@ Deno.serve(async (req) => {
           // ignore
         }
       }
-      
+
+      // Optional flow preview: lets the simulator exercise the Send Node template
+      if (body.flowData) {
+        try {
+          flowNodes = (typeof body.flowData === "string"
+            ? JSON.parse(body.flowData)
+            : body.flowData) as BotFlowNode[];
+        } catch (err) {
+          console.error("[bot-reply] failed to parse test flowData:", err);
+        }
+      }
+
       // Build test contents
       const testHistory = body.history || [];
       if (testHistory.length > 0) {
