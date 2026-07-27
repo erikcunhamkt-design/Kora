@@ -167,7 +167,14 @@ Regra dura, sem exceção — vale inclusive para QA:
    `DELETE` sem `WHERE`, `DROP COLUMN`. Nenhuma autorização do operador nesta emenda cobre
    essas operações — pedido explícito de qualquer uma delas exige um runbook **novo e
    separado**, não uma extensão desta emenda.
-5. **Demais gates permanentes (seções 0–7) inalterados** — export manual, print pré-clique,
+5. **Item 8-b (emenda 2026-07-27, Etapa 5 · Fatia 9) — modo preferencial de DDL:** o operador
+   aplica os blocos no **próprio terminal** (credencial exportada só na sessão dele) e o Code
+   **valida os outputs brutos** colados contra os pré/pós-checks do runbook — a credencial
+   **nunca chega ao processo do Code**, nem mesmo por referência simbólica a `$DATABASE_URL`
+   (item 2 acima continua valendo como modo alternativo, quando o Code roda `psql` diretamente).
+   Preferência registrada após uma rodada real (Fatia 9, migration Q8) em que esse modo evitou
+   qualquer necessidade de o Code tocar a credencial, mesmo indiretamente.
+6. **Demais gates permanentes (seções 0–7) inalterados** — export manual, print pré-clique,
    indisvalid explícito, contas QA descartáveis, sequência canônica e provas mínimas continuam
    valendo integralmente.
 
@@ -326,5 +333,12 @@ Regra dura, sem exceção — vale inclusive para QA:
    vetor, e a confirmação de que o Code nunca usou/reproduziu o valor — mesmo padrão de
    transparência já usado nos registros de incidente de homologação anteriores (Fatia 7 §13.7,
    Fatia 8 §6.8).
-4. **Demais gates permanentes (seções 0–14) inalterados.**
-4. **Demais gates permanentes (seções 0–13) inalterados.**
+4. **Item 15-b (emenda 2026-07-27, Etapa 5 · Fatia 9) — vetor "histórico completo colado":**
+   motivada por um 2º incidente equivalente (`etapa-5-fatia-9-quotes-cutover.md` §10.3) — a
+   credencial apareceu em chat dentro de um histórico de terminal colado inteiro para
+   diagnóstico de falha de conexão, não isolada como nos vetores já cobertos pelos itens 1-2. Ao
+   colar terminal para diagnóstico de falha, colar **apenas do comando que falhou em diante**,
+   nunca o histórico completo da sessão. Blocos de comando que contêm `export`/`$env:` de
+   atribuição de credencial **nunca são colados no chat**, mesmo como parte de um histórico
+   maior — nem o comando em si, nem sua confirmação de sucesso/eco.
+5. **Demais gates permanentes (seções 0–14) inalterados.**
