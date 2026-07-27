@@ -15,6 +15,7 @@ import {
   mapSupabaseQuoteItemToLocalItem,
 } from "@/services/quotes/quoteMapper";
 import { getFriendlyMessage } from "@/lib/supabase/errors";
+import { buildNativeSourceLocalId } from "@/lib/installId";
 import type { Quote, QuoteItem } from "@/hooks/useQuotes";
 
 async function fetchQuotesWithItems(workspaceId: string): Promise<Quote[]> {
@@ -48,9 +49,21 @@ export function useSupabaseQuotes() {
     [queryClient, workspaceId],
   );
 
+  // Etapa 5 · Fatia 10 (item 1, Q10) — caminho único de criação: sempre via RPC
+  // atômica (import_quote_with_items), nunca createQuote+replaceQuoteItems em
+  // separado. source_local_id sintético ("native:...") já que não existe um
+  // registro local de origem a importar — ver src/lib/installId.ts.
   const createMutation = useMutation({
-    mutationFn: (quote: Quote) =>
-      quotesRepository.createQuote(workspaceId, mapLocalQuoteToSupabaseQuote(quote)),
+    mutationFn: async ({ quote, items }: { quote: Quote; items: QuoteItem[] }) => {
+      const payload = mapLocalQuoteToSupabaseQuote(quote);
+      const supaItems = items.map(mapLocalQuoteItemToSupabaseItem);
+      return quotesRepository.importQuoteWithItems(
+        workspaceId,
+        buildNativeSourceLocalId(),
+        payload,
+        supaItems,
+      );
+    },
     onSuccess: invalidate,
   });
 
@@ -99,10 +112,12 @@ export function useSupabaseQuotes() {
     error: query.error ? getFriendlyMessage(query.error) : null,
     refresh: () => query.refetch(),
 
-    createQuote: async (quote: Quote) => {
-      const supa = await createMutation.mutateAsync(quote);
+    createQuoteWithItems: async (quote: Quote, items: QuoteItem[]) => {
+      const supa = await createMutation.mutateAsync({ quote, items });
       const newQuote = mapSupabaseQuoteToLocalQuote(supa);
-      newQuote.items = [];
+      // A RPC devolve só a linha-pai; os itens já são conhecidos localmente
+      // (acabaram de ser enviados) — evita um round-trip extra só pra reler.
+      newQuote.items = items;
       return newQuote;
     },
     updateQuote: (quoteId: string, patch: Partial<Quote>) =>

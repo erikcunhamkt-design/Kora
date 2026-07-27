@@ -15,6 +15,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { quotesRepository } from "@/repositories/quotesRepository";
+import { buildNativeSourceLocalId } from "@/lib/installId";
 import type { Lead } from "@/hooks/useLeads";
 import { formatCurrency as intlCurrency } from "@/lib/format";
 
@@ -94,7 +95,6 @@ export function CreateCrmSupabaseQuoteDialog({
     }
 
     setSubmitting(true);
-    let createdQuoteId: string | null = null;
 
     try {
       // 1. Resolve potential Supabase UUID for client_id from client mapping
@@ -116,39 +116,54 @@ export function CreateCrmSupabaseQuoteDialog({
 
       const totalVal = calculateTotal();
 
-      // 2. Insert Quote row
-      const quotePayload = {
-        title: title.trim(),
-        client_name: clientName.trim(),
-        client_email: email.trim(),
-        client_phone: phone.trim() || null,
-        client_company: company.trim() || null,
-        valid_until: validUntil || null,
-        description: description.trim() || null,
-        terms: terms.trim() || null,
-        status: "draft" as const,
-        total: totalVal,
-        subtotal: totalVal,
-        opportunity_id: lead.supabaseId || null,
-        client_id: supabaseClientId,
-      };
+      // Etapa 5 · Fatia 10 (item 1, Q10) — criação atômica via RPC, sempre: pai +
+      // itens na MESMA transação (import_quote_with_items), nunca duas chamadas
+      // separadas. source_local_id sintético — esta quote não vem de um registro
+      // local a importar (ver src/lib/installId.ts, buildNativeSourceLocalId).
+      //
+      // Nomes de coluna corrigidos aqui de propósito: a versão anterior deste
+      // payload usava client_phone/client_company/valid_until/terms/description
+      // (item)/total_price/order_index — NENHUMA dessas colunas existe no schema
+      // real (public.quotes/public.quote_items). Toda invocação real desta tela
+      // teria falhado com "column does not exist" antes mesmo do problema de
+      // atomicidade se manifestar — um bug pré-existente e não documentado,
+      // corrigido de quebra ao reconstruir o payload pra bater com a RPC.
+      // validUntil/terms não têm coluna própria — preservados em `notes`, não
+      // descartados. O campo "descrição" por item também nunca teve coluna real
+      // em quote_items (só name/quantity/unit_price) — continua sem persistir,
+      // mesma limitação de antes, não uma regressão desta correção.
+      const notesParts: string[] = [];
+      if (validUntil) notesParts.push(`Validade: ${validUntil}`);
+      if (terms.trim()) notesParts.push(`Termos: ${terms.trim()}`);
 
-      const resultQuote = await quotesRepository.createQuote(workspace.id, quotePayload);
-      createdQuoteId = resultQuote.id;
+      const resultQuote = await quotesRepository.importQuoteWithItems(
+        workspace.id,
+        buildNativeSourceLocalId(),
+        {
+          client_id: supabaseClientId,
+          opportunity_id: lead.supabaseId || null,
+          client_name: clientName.trim(),
+          client_email: email.trim(),
+          title: title.trim(),
+          description: description.trim() || null,
+          subtotal: totalVal,
+          discount: 0,
+          total: totalVal,
+          status: "draft",
+          archived: false,
+          client_whatsapp: phone.trim() || null,
+          company: company.trim() || null,
+          notes: notesParts.length ? notesParts.join(" · ") : null,
+        },
+        items.map((item) => ({
+          name: item.name.trim(),
+          quantity: item.quantity,
+          unit_price: item.price,
+        })),
+      );
+      const createdQuoteId = resultQuote.id;
 
-      // 3. Insert Quote Items
-      const mappedItems = items.map((item, idx) => ({
-        name: item.name.trim(),
-        description: item.description.trim() || null,
-        quantity: item.quantity,
-        unit_price: item.price,
-        total_price: item.quantity * item.price,
-        order_index: idx,
-      }));
-
-      await quotesRepository.replaceQuoteItems(workspace.id, createdQuoteId, mappedItems);
-
-      // 4. Log successful creation locally
+      // Log successful creation locally
       try {
         const logRaw = localStorage.getItem("kora.crm.supabaseCreatedQuotes.v1") || "[]";
         const logParsed = JSON.parse(logRaw);
@@ -171,21 +186,8 @@ export function CreateCrmSupabaseQuoteDialog({
       const err = error instanceof Error ? error : new Error(String(error));
       console.error("Erro ao criar orçamento no Supabase:", err);
       toast.error(`Falha ao criar orçamento: ${err.message || "Erro desconhecido"}`);
-
-
-      // Rollback logical trigger using softDelete if quote created but items failed
-      if (createdQuoteId) {
-        try {
-          await quotesRepository.softDeleteQuote(
-            workspace.id,
-            createdQuoteId,
-            "Rollback: Falha ao inserir itens do orçamento durante criação a partir do CRM"
-          );
-          console.log("Rollback executado com sucesso para o quote:", createdQuoteId);
-        } catch (rollbackErr) {
-          console.error("Falha ao executar rollback do orçamento:", rollbackErr);
-        }
-      }
+      // Sem rollback manual: a RPC é transacional (pai+itens na mesma transação),
+      // uma falha aqui nunca deixa uma quote "decapitada" (sem itens) na nuvem.
     } finally {
       setSubmitting(false);
     }

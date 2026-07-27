@@ -41,3 +41,16 @@ export function getInstallId(): string {
 export function buildSourceLocalId(installId: string, localId: string | number): string {
   return `${installId}:${localId}`;
 }
+
+/**
+ * Etapa 5 · Fatia 10 (Q10, §2/§8.3 do doc da fatia) — source_local_id SINTÉTICO para
+ * quotes criadas/duplicadas diretamente na nuvem (não vêm de um registro local a
+ * importar). Prefixo "native:" nunca colide com o formato real de import
+ * ("${installId}:${localId}") — installId nunca é o literal "native". Cada chamada
+ * gera um valor novo (mesmo em duplicações), garantindo que o arbiter
+ * UNIQUE(workspace_id, source_local_id) trate cada criação/duplicação como uma
+ * linha nova, nunca um upsert sobre a original.
+ */
+export function buildNativeSourceLocalId(): string {
+  return `native:${randomId()}`;
+}
