@@ -261,6 +261,14 @@ normal do app (Vercel/host do SPA), não passa pelo `supabase functions deploy`.
    `whatsapp_messages`/`whatsapp_conversations` (`index.ts:605-607`). **Zero side effect**,
    nenhum dado sintético precisa ser criado/limpo, diferente do runbook padrão de
    `protocolo-homologacao.md` (§11) — este caso é mais simples que a média.
+   Essa garantia é **por construção, não por convenção**: em `isTest`, o `return
+   json({ ok: true, reply: finalReply })` de `index.ts:606-608` interrompe a execução
+   *antes* do disparo `uazapi`/inserts em `index.ts:610+`; e o único outro ponto que fala
+   com `uazapi` (o envio de handover, `index.ts:385-410`) fica dentro do `else` do
+   `if (isTest) { ... } else { ... }` (`index.ts:252`) — inalcançável quando `isTest` é
+   verdadeiro. Não é um `if` que poderia ser burlado por outro caminho de código: são um
+   early-return e um aninhamento de bloco, os dois únicos lugares da função que tocam
+   `uazapi`/gravação de mensagem.
 5. Só depois da confirmação visual no simulador, o operador decide se quer também validar
    com uma conversa real (`isTest: false`) — recomendo pular esse passo dado que o simulador
    já cobre o caminho exato do bug; só faria sentido se o operador quiser ver o disparo real
