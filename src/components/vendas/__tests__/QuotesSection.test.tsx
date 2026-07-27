@@ -14,6 +14,7 @@ import { useSupabaseQuotes } from "@/hooks/useSupabaseQuotes";
 import { useClients } from "@/hooks/useClients";
 import { useLeads } from "@/hooks/useLeads";
 import { QUOTES_DATA_SOURCE_KEY } from "@/config/flags";
+import { QUOTES_SUPABASE_WRITE_FLAG_KEY } from "@/hooks/useSupabaseQuotesWriteFlag";
 
 vi.mock("@/hooks/useQuotes", async () => {
   const actual = await vi.importActual<typeof import("@/hooks/useQuotes")>("@/hooks/useQuotes");
@@ -328,5 +329,67 @@ describe("QuotesSection · escrita bloqueada em modo Supabase (lição O2/O3/O4)
     await renderInSupabaseMode();
     const newQuoteBtn = screen.getByText("Novo orçamento");
     expect(newQuoteBtn).toBeEnabled();
+  });
+});
+
+describe("QuotesSection · item 3 (Fatia 10) — exclusão real quando o master flag está ON", () => {
+  it("excluir com o master flag ligado chama o soft-delete real, nunca deleteQuote local", async () => {
+    localStorage.setItem(QUOTES_SUPABASE_WRITE_FLAG_KEY, "true");
+    const localDeleteQuote = vi.fn();
+    const softDeleteSupabaseQuote = vi.fn().mockResolvedValue(undefined);
+
+    vi.mocked(useQuotes).mockReturnValue({
+      quotes: [], addQuote: vi.fn(), updateStatus: vi.fn(), updateQuote: vi.fn(),
+      duplicateQuote: vi.fn(), deleteQuote: localDeleteQuote,
+    } as never);
+    vi.mocked(useSupabaseQuotes).mockReturnValue({
+      quotes: [makeSupabaseMappedQuote()], loading: false, error: null,
+      softDeleteQuote: softDeleteSupabaseQuote,
+    } as never);
+
+    renderSection();
+    fireEvent.click(screen.getByText("Supabase experimental"));
+    await screen.findByText("Orçamento Nuvem");
+    vi.mocked(toast.success).mockClear();
+    vi.mocked(toast.error).mockClear();
+
+    await openQuoteMenu("Orçamento Nuvem");
+    fireEvent.click(screen.getByText("Excluir"));
+    const confirmBtn = await screen.findByRole("button", { name: "Excluir" });
+    fireEvent.click(confirmBtn);
+
+    await waitFor(() => expect(softDeleteSupabaseQuote).toHaveBeenCalledWith("q-cloud-1"));
+    expect(localDeleteQuote).not.toHaveBeenCalled();
+    expect(toast.success).toHaveBeenCalledWith("Orçamento excluído");
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("excluir com o master flag ligado, mas a chamada falha: toast de erro, nunca toast de sucesso", async () => {
+    localStorage.setItem(QUOTES_SUPABASE_WRITE_FLAG_KEY, "true");
+    const softDeleteSupabaseQuote = vi.fn().mockRejectedValue(new Error("falhou"));
+
+    vi.mocked(useQuotes).mockReturnValue({
+      quotes: [], addQuote: vi.fn(), updateStatus: vi.fn(), updateQuote: vi.fn(),
+      duplicateQuote: vi.fn(), deleteQuote: vi.fn(),
+    } as never);
+    vi.mocked(useSupabaseQuotes).mockReturnValue({
+      quotes: [makeSupabaseMappedQuote()], loading: false, error: null,
+      softDeleteQuote: softDeleteSupabaseQuote,
+    } as never);
+
+    renderSection();
+    fireEvent.click(screen.getByText("Supabase experimental"));
+    await screen.findByText("Orçamento Nuvem");
+    vi.mocked(toast.success).mockClear();
+    vi.mocked(toast.error).mockClear();
+
+    await openQuoteMenu("Orçamento Nuvem");
+    fireEvent.click(screen.getByText("Excluir"));
+    const confirmBtn = await screen.findByRole("button", { name: "Excluir" });
+    fireEvent.click(confirmBtn);
+
+    await waitFor(() => expect(softDeleteSupabaseQuote).toHaveBeenCalled());
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalledWith("Erro ao excluir orçamento no Supabase.");
   });
 });

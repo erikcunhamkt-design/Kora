@@ -12,6 +12,7 @@ import {
 } from "@/hooks/useQuotes";
 import { useSupabaseQuotes } from "@/hooks/useSupabaseQuotes";
 import { getQuotesDataSource, setQuotesDataSource } from "@/config/flags";
+import { isSupabaseQuotesWriteEnabled } from "@/hooks/useSupabaseQuotesWriteFlag";
 import { useServices } from "@/hooks/useServices";
 import { useClients } from "@/hooks/useClients";
 import { useLeads } from "@/hooks/useLeads";
@@ -78,6 +79,7 @@ export function QuotesSection() {
     quotes: supabaseQuotes,
     loading: supabaseLoading,
     error: supabaseError,
+    softDeleteQuote: softDeleteSupabaseQuote,
   } = useSupabaseQuotes();
   const { clients } = useClients();
   const { leads, updateLead } = useLeads();
@@ -219,6 +221,31 @@ export function QuotesSection() {
     toast.success("Orçamento salvo");
     setModalOpen(false);
     setInitialData(null);
+  };
+
+  // Etapa 5 · Fatia 10 (item 3, §8.2) — exclusão é soft-delete real no modo nuvem,
+  // sob o master flag (item 5). Guarda ANTES de qualquer toast/fechamento de
+  // diálogo — nunca depois (lição O2/O3/O4). Único handler desta fatia que já
+  // sai do bloqueio uniforme de blockWrite(); os demais migram no item 8.
+  const handleConfirmDelete = async () => {
+    if (!confirmDelete) return;
+    if (dataSource === "supabase") {
+      if (!isSupabaseQuotesWriteEnabled()) {
+        toast.error("Edição de orçamentos no modo Supabase chega numa próxima fatia — volte para Local para editar.");
+        return;
+      }
+      try {
+        await softDeleteSupabaseQuote(confirmDelete.id);
+        toast.success("Orçamento excluído");
+        setConfirmDelete(null);
+      } catch {
+        toast.error("Erro ao excluir orçamento no Supabase.");
+      }
+      return;
+    }
+    deleteQuote(confirmDelete.id);
+    toast.success("Orçamento excluído");
+    setConfirmDelete(null);
   };
 
   return (
@@ -598,7 +625,7 @@ export function QuotesSection() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => { if (blockWrite()) return; if (confirmDelete) { deleteQuote(confirmDelete.id); toast.success("Orçamento excluído"); setConfirmDelete(null); } }}
+              onClick={handleConfirmDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Excluir

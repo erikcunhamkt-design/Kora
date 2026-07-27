@@ -91,11 +91,16 @@ export interface SupabaseQuoteItem {
 }
 
 export const quotesRepository = {
+  // Etapa 5 · Fatia 10 (item 3, §8.2 do doc da fatia) — exclui soft-deleted
+  // (deleted_at preenchido), uniformizando com listQuotesByOpportunity (que já
+  // filtrava). Sem este filtro, uma quote excluída continuaria aparecendo na
+  // tela principal em modo nuvem — mesmo achado que motivou este ajuste.
   async listQuotes(workspaceId: string) {
     const { data, error } = await supabase
       .from("quotes")
       .select("*")
       .eq("workspace_id", workspaceId)
+      .is("deleted_at", null)
       .order("created_at", { ascending: false });
     if (error) throw normalizeSupabaseError(error);
     return data as SupabaseQuote[];
