@@ -1157,7 +1157,7 @@ function DataCard({
   );
 }
 
-function LocalClientsImportCard() {
+export function LocalClientsImportCard() {
   const { workspace } = useCurrentWorkspace();
   const { candidates, importing, importSelected, metadata } = useLocalClientsImport();
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
@@ -1257,7 +1257,7 @@ function LocalClientsImportCard() {
           <DialogTrigger asChild>
             <Button
               onClick={handleOpenDialog}
-              disabled={eligibleCandidates.length === 0 || importing}
+              disabled={importing}
               className="w-full gap-2 orbit-gradient text-white border-0"
             >
               Analisar importação
