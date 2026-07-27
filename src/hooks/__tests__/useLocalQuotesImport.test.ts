@@ -14,6 +14,7 @@ import { useQuotes, type Quote } from "@/hooks/useQuotes";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { quotesRepository, type SupabaseQuote } from "@/repositories/quotesRepository";
 import { getInstallId } from "@/lib/installId";
+import { emitNotification } from "@/lib/notify";
 
 vi.mock("@/hooks/useQuotes", () => ({ useQuotes: vi.fn() }));
 vi.mock("@/hooks/useCurrentWorkspace", () => ({ useCurrentWorkspace: vi.fn() }));
@@ -257,6 +258,49 @@ describe("useLocalQuotesImport", () => {
     const meta = JSON.parse(localStorage.getItem(META_KEY) ?? "{}");
     expect(meta.importedMap["3"]).toBe("new-id");
     expect(meta.importedLocalIds).toContain("3");
+  });
+
+  it("reimport de uma quote soft-deleted na nuvem (item 9): avisa, não comemora um sucesso falso", async () => {
+    // Etapa 5 · Fatia 10 (item 9, §9 do doc) — a RPC não limpa deleted_at no
+    // ON CONFLICT DO UPDATE (decisão deliberada: excluir é ação explícita do
+    // usuário, reimport não ressuscita sozinho). O reimport "funciona"
+    // (atualiza os campos, grava no importedMap), mas a quote continua
+    // invisível — a notificação precisa refletir isso, nunca um "sucesso"
+    // puro e simples (lição O2/O3/O4 aplicada a este caso específico).
+    vi.mocked(quotesRepository.importQuoteWithItems).mockResolvedValue({
+      id: "new-id",
+      workspace_id: "ws1",
+      created_at: "2024-01-01T00:00:00Z",
+      updated_at: "2024-01-01T00:00:00Z",
+      title: "Orc 3",
+      subtotal: 150,
+      discount: 0,
+      total: 150,
+      status: "draft",
+      archived: false,
+      deleted_at: "2024-06-01T00:00:00Z",
+    } as SupabaseQuote);
+
+    const { result } = renderHook(useLocalQuotesImport);
+    await waitFor(() => expect(result.current.candidates.length).toBe(2));
+    await act(async () => {
+      await result.current.importSelected(["3"]);
+    });
+
+    // Ainda registra a metadata (o RPC de fato rodou e devolveu um id) —
+    // "avisar" não é o mesmo que "tratar como se tivesse falhado".
+    const meta = JSON.parse(localStorage.getItem(META_KEY) ?? "{}");
+    expect(meta.importedMap["3"]).toBe("new-id");
+
+    expect(vi.mocked(emitNotification)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Orçamento reimportado, mas continua excluído",
+        type: "warning",
+      }),
+    );
+    expect(vi.mocked(emitNotification)).not.toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Orçamento importado", type: "success" }),
+    );
   });
 
   it("falha no RPC marca como skipped e não como imported (nada gravado no map)", async () => {

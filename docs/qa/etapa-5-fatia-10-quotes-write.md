@@ -417,5 +417,46 @@ lista — é pós-homologação, não item de Fase C).
 
 ---
 
-**PARADO aqui.** Fase B entregue (§8.1-§8.5) — sem código, sem migration (justificado em §8.4).
-**NADA EXECUTA sem o "vai" literal do revisor** — Fase C só começa com "vai" próprio.
+## 9. Item 9 — semântica de re-import pós-soft-delete (decisão formal)
+
+**Cenário:** import de uma quote local → soft delete no cloud (item 3, ação "Excluir" com o
+master flag ligado) → re-import da MESMA quote local (mesmo `source_local_id` real,
+`installId:localId`).
+
+**Decisão: "atualiza oculta, nunca ressuscita automaticamente".** O reimport atualiza os campos
+da linha (o `ON CONFLICT (workspace_id, source_local_id) DO UPDATE SET` da RPC roda
+normalmente), mas **`deleted_at`/`deleted_reason`/`deleted_by` continuam intactos** — a cláusula
+`SET` da RPC nunca os tocou, nem antes nem depois desta fatia (confirmado por leitura direta da
+migration `20260723000300_etapa5_fatia9_import_quote_with_items_add_q8_params.sql`, sem
+`DEALLOC`/mudança de assinatura — consistente com a conclusão do §8.4, zero DDL nesta fatia). A
+quote **continua invisível** na tela principal (filtro `deleted_at IS NULL` do item 3).
+
+**Justificativa — por que não "ressuscitar" automaticamente:** exclusão é uma ação **explícita**
+do usuário na nuvem (item 3). Um reimport disparado por um evento totalmente não relacionado
+(reabrir o assistente de import, rodando sobre o array LOCAL que nunca soube da exclusão) não
+deveria desfazer silenciosamente essa decisão do usuário — seria uma "ressurreição" surpresa,
+sem o usuário ter pedido. Não é uma limitação técnica forçada pelo "zero DDL" — é a semântica
+correta mesmo que a RPC pudesse ser mudada livremente.
+
+**Risco fechado (lição O2/O3/O4 aplicada a este caso específico):** sem tratamento, o import
+reportaria "Orçamento importado" (sucesso pleno) mesmo a quote continuando invisível — uma ação
+que parece ter dado certo por completo quando não deu. Corrigido em
+`useLocalQuotesImport.ts`'s `importSelected`: quando a resposta da RPC vem com `deleted_at`
+preenchido, a notificação muda para **"Orçamento reimportado, mas continua excluído"** (tipo
+`warning`, não `success`) — a metadata de import (`importedMap`) ainda é gravada normalmente (o
+RPC de fato rodou e devolveu um id; "avisar" não é o mesmo que "tratar como se tivesse
+falhado").
+
+**Coberto por teste:** `useLocalQuotesImport.test.ts` — mock da RPC devolvendo `deleted_at`
+preenchido, confirma a notificação de aviso (não a de sucesso) e que `importedMap` é gravado de
+qualquer forma.
+
+**Registrado para a Fase D:** este caso (seed → soft-delete → reimport → confirmar o aviso, não
+o toast de sucesso pleno) **entra no runbook de homologação** como um caso próprio, a ser
+desenhado quando a Fase D for autorizada — não escrito agora (fora do escopo desta Fase C).
+
+---
+
+**PARADO aqui.** Fase C implementada — itens 1-9 completos, código + testes. Gates finais e
+sincronização com `main` ficam para o fechamento desta rodada. **NADA EXECUTA sem o "vai"
+literal do revisor** — Fase D (runbook + homologação) só começa com "vai" próprio.

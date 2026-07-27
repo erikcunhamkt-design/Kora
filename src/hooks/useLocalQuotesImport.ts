@@ -253,12 +253,29 @@ export function useLocalQuotesImport() {
         meta.lastImportedAt = new Date().toISOString();
         writeMeta(meta);
         result.successIds.push(local.id);
-        emitNotification({
-          title: "Orçamento importado",
-          description: local.title,
-          category: "commercial",
-          type: "success",
-        });
+        // Etapa 5 · Fatia 10 (item 9, §9 do doc da fatia) — a RPC não limpa
+        // deleted_at/deleted_reason/deleted_by no ON CONFLICT DO UPDATE (decisão
+        // deliberada: "excluir" é uma ação explícita do usuário, um reimport
+        // não deveria ressuscitá-la sozinho). Isso significa que reimportar uma
+        // quote cujo par na nuvem já foi soft-deleted ATUALIZA os campos mas
+        // continua invisível (listQuotes filtra deleted_at, item 3) — avisar
+        // em vez de comemorar um sucesso que não é totalmente verdade (lição
+        // O2/O3/O4: nunca deixar a UI parecer que deu certo por completo).
+        if (created.deleted_at) {
+          emitNotification({
+            title: "Orçamento reimportado, mas continua excluído",
+            description: `${local.title} — os dados foram atualizados na nuvem, mas o orçamento segue oculto (excluído). Restaure antes de usar, se necessário.`,
+            category: "commercial",
+            type: "warning",
+          });
+        } else {
+          emitNotification({
+            title: "Orçamento importado",
+            description: local.title,
+            category: "commercial",
+            type: "success",
+          });
+        }
       } catch (e: unknown) {
         // Erro do RPC = candidato marcado com erro; NADA é gravado no importedMap.
         result.failedIds.push(id);
