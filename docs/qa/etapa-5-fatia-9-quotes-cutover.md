@@ -767,11 +767,18 @@ returning id;
 // Etapa 5 · Fatia 9 (quotes) — SEED do quote local não-importado. Preserva o que já existe em
 // orbyt.quotes.v1. Prefixo "HOMOLOG-F9-". Inclui 2 campos Q8 (company/notes) — prova, depois do
 // import, que a RPC estendida (item 1) de fato persiste os 6 campos novos, não só as colunas.
+//
+// CORREÇÃO (pós-execução, §12.2): a versão original desta seed tinha
+// clientEmail: "" (string vazia) — isso disparou o gate LEGÍTIMO de campos
+// essenciais do analisador (useLocalQuotesImport.ts:192-198, pré-existente
+// desde a Fatia 3, `!local.clientEmail` → status "blocked"), não uma
+// regressão desta fatia. clientEmail preenchido abaixo evita o falso
+// incidente — mesmo achado, ver §12.2.
 const existingQuotes = JSON.parse(localStorage["orbyt.quotes.v1"] || "[]");
 const seedQuote = {
   id: "homolog-f9-import-quote-1",
   clientName: "HOMOLOG-F9-cliente-import",
-  clientEmail: "",
+  clientEmail: "homolog-f9-import@teste.local",
   clientWhatsapp: "",
   title: "HOMOLOG-F9-import",
   description: "",
@@ -904,6 +911,57 @@ bem-sucedida — é o recorte desta fatia (§7, leitura + fundação).
 
 ---
 
-**PARADO aqui.** Runbook da Fase D pronto para execução — 8 casos, seed sintético, provas SQL e
-limpeza, tudo em blocos prontos para colar. **NADA EXECUTA sem o "vai" literal do revisor** — a
-execução é do operador, com revisão passo a passo.
+## 12. Fase D — Resultado da rodada executada (vai do revisor)
+
+Homologação executada pelo operador com revisão passo a passo. **Aceite 8/8.** Confirmado pelo
+revisor via prints.
+
+| Caso | Resultado | Evidência |
+|---|---|---|
+| (1) baseline | ✅ verde | 1 quote (workspace de teste) |
+| (2) seed | ✅ verde | nuvem: PT `859d35ff` / EN `5ede1c52` (+2 itens) / unknown `0bcb00b9` |
+| (3) modo local intacto | ✅ verde | seletor visível, lista mostra só os orçamentos locais |
+| (4) leitura — coração da fatia | ✅ verde | tradução Q9: `'aprovado'` e `'approved'` com o MESMO badge **Aprovado**, KPI contando as duas juntas (agrupamento normalizado provado); 3º caso (item4b): `unknown` visível com badge **Rascunho** + `⚠ status bruto: "xyz"` na linha **e** banner acima dos KPIs — nunca mascarada; preview da EN com os 2 itens corretos + os 6 campos Q8 renderizados |
+| (5) escrita bloqueada | ✅ verde | wizard de criação salvou com toast honesto de erro ("volte para Local para editar"); prova SQL de imutabilidade — as 3 linhas `HOMOLOG-F9-*` idênticas ao seed; passos 13-16 (mudar status/duplicar/arquivar/excluir) atestados pelo mesmo bloqueio do passo 12 + a mesma prova SQL |
+| (6) rollback | ✅ verde | `count = 3` pós-flip de volta — nada perdido |
+| (7) import continua funcionando | ✅ verde | RPC estendida (item 1) provada em produção: os 6 campos Q8 chegaram na nuvem via import real (`company`/`notes`/`payment_condition`/`delivery_deadline`/`validity_days`); `client_whatsapp` null corretamente (não preenchido no seed local) |
+| (8) idempotência + limpeza | ✅ verde | reimport: `count = 1`; importador reaberto mostra **"Já Importada"** com o diálogo **abrindo normalmente** (ver comparação com O5 abaixo); limpeza confirmada pelo operador (nuvem 0, local + `kora.quotes.supabaseImport.v1` limpos, seletor restaurado, baseline final = 1 — bate com o passo 1) |
+
+### 12.1 Comparação com O5 (Fatia 8) — padrão do importador de quotes já é o "bom"
+
+O achado O5 (catálogo mestre, `docs/architecture/kora-hub-auditoria-e-plano.md`) registrou que o
+card de import de **opportunities** trava o diálogo fechado quando não sobra nenhum candidato
+"novo" (`disabled={eligibleCandidates.length === 0 || importing}`), diferente dos cards mais
+recentes (`LocalProjectsImportCard`/`LocalTasksImportCard`), que sempre abrem. **O importador de
+`quotes` (Fatia 3) segue o padrão bom**: no passo (8) desta rodada, com o candidato já em estado
+"Já Importada" (zero candidatos novos restantes), o diálogo **abriu normalmente**, mostrando o
+badge correto — mesmo comportamento dos cards de Projects/Tasks, não o de Opportunities.
+Confirma, por evidência direta de homologação, que **O5 é específico do card de opportunities**,
+não um padrão espalhado — reforça a recomendação já registrada em O5 (alinhar só aquele card aos
+demais), sem novo achado necessário aqui.
+
+### 12.2 Incidentes de runbook (zero de produto)
+
+**Incidente nº 1 (inócuo — resquício de tela):** o `INSERT` da quote `HOMOLOG-F9-pt` (§11.2.1) não
+executou na 1ª tentativa (nenhuma linha retornada). Refeito na sequência, sem investigação
+adicional necessária — resquício de estado da aba do SQL Editor, não um problema do SQL em si (a
+mesma query, reexecutada, criou a linha normalmente, `id 859d35ff`).
+
+**Incidente nº 2 (achado de processo, não de produto — investigado antes de qualquer código):** o
+seed local do §11.2.2 tinha `clientEmail: ""` (string vazia), o que classificou o candidato
+`HOMOLOG-F9-import` como **`blocked`** no assistente ("dado essencial faltando"), não `new` como o
+runbook esperava. Investigação (só-leitura, sem alterar código) confirmou:
+`useLocalQuotesImport.ts:192-198` — gate **pré-existente desde a Fatia 3** (`!local.clientName ||
+!local.clientEmail || typeof local.total !== "number"` → `blocked`); `git log` nos 5 commits que já
+tocaram esse arquivo confirma todos anteriores a esta fatia — **zero regressão da Fase C**. O
+campo `status` (rascunho/enviado/etc.) **não é lido** por esse gate, ao contrário da hipótese
+inicial. Corrigido no próprio seed do runbook (§11.2.2, `clientEmail` preenchido) — o gate, na
+prática, funcionou como **prova extra não planejada** de que o critério de "dados essenciais" do
+importador segue ativo e correto mesmo após as mudanças de Q8/Q9 desta fatia.
+
+---
+
+**PARADO aqui.** Fase D encerrada — 8/8, 1 incidente de runbook inócuo (resquício de tela), 1
+achado de processo investigado e corrigido no próprio runbook (gate legítimo da Fatia 3,
+zero regressão), 1 comparação positiva com O5 registrada. **NADA EXECUTA sem o "vai" literal do
+revisor** — sync com `main` e sign-off ficam para a próxima rodada, com "vai" próprio.
