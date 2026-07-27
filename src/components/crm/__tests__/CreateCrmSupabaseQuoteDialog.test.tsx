@@ -1,8 +1,7 @@
-// @ts-nocheck
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { CreateCrmSupabaseQuoteDialog } from "@/components/crm/CreateCrmSupabaseQuoteDialog";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
-import { quotesRepository } from "@/repositories/quotesRepository";
+import { quotesRepository, type SupabaseQuote } from "@/repositories/quotesRepository";
 import { vi, describe, it, expect, beforeEach } from "vitest";
 
 vi.mock("@/hooks/useCurrentWorkspace");
@@ -16,6 +15,9 @@ const mockLead = {
   phone: "11999999999",
   serviceType: "Design Digital",
   estimatedValue: 2500,
+  priority: "média" as const,
+  lastInteraction: "2024-01-01T00:00:00Z",
+  description: "",
   stage: "proposta" as const,
   stageId: "proposta",
   pipelineId: "default",
@@ -42,9 +44,20 @@ describe("CreateCrmSupabaseQuoteDialog - QA & Rollback", () => {
     localStorage.setItem("kora.clients.supabaseImport.v1", JSON.stringify(clientMap));
 
     vi.mocked(useCurrentWorkspace).mockReturnValue({
-      workspace: { id: "ws-1", name: "QA Workspace" },
+      workspace: {
+        id: "ws-1",
+        name: "QA Workspace",
+        slug: "qa-workspace",
+        owner_id: "owner-1",
+        created_at: "2024-01-01T00:00:00Z",
+        updated_at: "2024-01-01T00:00:00Z",
+        currency: "BRL",
+        locale: "pt-BR",
+        timezone: null,
+      },
       membership: null,
       loading: false,
+      error: null,
     });
 
     render(
@@ -65,13 +78,24 @@ describe("CreateCrmSupabaseQuoteDialog - QA & Rollback", () => {
 
   it("triggers logical rollback (softDeleteQuote) if quote items creation fails", async () => {
     vi.mocked(useCurrentWorkspace).mockReturnValue({
-      workspace: { id: "ws-1", name: "QA Workspace" },
+      workspace: {
+        id: "ws-1",
+        name: "QA Workspace",
+        slug: "qa-workspace",
+        owner_id: "owner-1",
+        created_at: "2024-01-01T00:00:00Z",
+        updated_at: "2024-01-01T00:00:00Z",
+        currency: "BRL",
+        locale: "pt-BR",
+        timezone: null,
+      },
       membership: null,
       loading: false,
+      error: null,
     });
 
     // Mock createQuote success but items replacement failure
-    vi.mocked(quotesRepository.createQuote).mockResolvedValue({ id: "quote-created-uuid-1" } as unknown as Parameters<typeof CreateCrmSupabaseQuoteDialog>[0]["lead"]);
+    vi.mocked(quotesRepository.createQuote).mockResolvedValue({ id: "quote-created-uuid-1" } as unknown as SupabaseQuote);
 
     vi.mocked(quotesRepository.replaceQuoteItems).mockRejectedValue(new Error("Database write error"));
 

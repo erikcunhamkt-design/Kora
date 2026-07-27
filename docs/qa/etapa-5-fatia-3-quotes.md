@@ -738,6 +738,13 @@ Migration escrita na Fase B da Fatia 9.
 `mapSupabaseQuoteToLocalQuote` (`quoteMapper.ts:97`) faz um cast cru sem nenhuma tradução:
 `status: sq.status as unknown as Quote["status"]`.
 
+**Confirmação (rodada `qualidade-lint`, 2026-07-25):** mismatch já tolerado em produção via cast a
+string em `LinkedQuotesSection.tsx`/`SupabaseQuotesViewerCard.tsx` (comparações com
+`"approved"`/`"draft"`) — consumidor a cobrir pela tradução da Fatia 9. Ao remover o último
+`@ts-nocheck` de `LinkedQuotesSection.test.tsx`, a fixture do teste precisou de um tipo local
+(`status: string`, não `QuoteStatus`) só para refletir honestamente esse mesmo cast já existente no
+componente, sem alterar nenhuma asserção — evidência independente batendo com o achado acima.
+
 **Por que é inofensivo hoje:** os dois vocabulários nunca se encontram na prática —
 `QuotesSection.tsx` (tela principal, 100% local) só lê/escreve os valores em português; as duas
 únicas superfícies Supabase só leem/escrevem os valores em inglês. Nenhuma tela lê um `status`
