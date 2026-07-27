@@ -2,7 +2,8 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { normalizeSupabaseError } from "@/lib/supabase/errors";
-// Removed unused import of local Quote types
+import { translateLocalStatusToCloud } from "@/services/quotes/quoteMapper";
+import type { Quote } from "@/hooks/useQuotes";
 
 // import_quote_with_items's generated Args type has no null unions for its
 // text params (p_client_id/p_opportunity_id/p_client_name/p_client_email/
@@ -131,6 +132,21 @@ export const quotesRepository = {
       .single();
     if (error) throw normalizeSupabaseError(error);
     return data as SupabaseQuote;
+  },
+
+  /**
+   * Etapa 5 · Fatia 10 (item 2, Q9 reverso) — transição de status GENÉRICA,
+   * cobrindo as transições da UI local (enviado/aprovado/recusado/arquivar,
+   * e "restaurar" — volta pro equivalente cloud de "rascunho") através da
+   * MESMA tradução usada na leitura (`translateLocalStatusToCloud`,
+   * `quoteMapper.ts`) — nunca um literal hardcoded à parte. Ver
+   * docs/qa/etapa-5-fatia-10-quotes-write.md §3: substitui
+   * `approveQuote`/`rejectQuote` como caminho de escrita (retirados quando
+   * os 2 únicos consumidores atuais migrarem, itens 6/7).
+   */
+  async updateStatus(workspaceId: string, quoteId: string, localStatus: Quote["status"]) {
+    const { status, archived } = translateLocalStatusToCloud(localStatus);
+    return quotesRepository.updateQuote(workspaceId, quoteId, { status, archived });
   },
 
   async archiveQuote(workspaceId: string, quoteId: string, archived: boolean) {
