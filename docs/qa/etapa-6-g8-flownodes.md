@@ -207,3 +207,79 @@ ampliado — sem precisar decidir harness de novo.
   - Recomendo (1) por ser mais barato, mais seguro (zero side effect) e
     resolver dois problemas com uma mudança — mas é decisão de Fase B, não
     desta rodada.
+
+---
+
+## 6. Fase B — fix aplicado (rodada "vai" do revisor)
+
+**Branch:** `etapa-6-g8-flownodes`. Um commit por item, na ordem do design:
+
+| Commit | O que |
+| :-- | :-- |
+| `ad1ee7f` | Extração: `supabase/functions/_shared/botFlowTemplate.ts` — `findEnabledNode`/`applySendTemplate`, sem `Deno.*`/`npm:`. |
+| `f6496a9` | Fix do G8: `flowNodes` movido para o escopo externo (junto de `conv`/`instance`); `finalReply` passa a usar `applySendTemplate`; removido o `(n: any)` da linha 592 original e a `const sendNode` morta da linha 329. |
+| `2db6a38` | Harness: `vitest.config.ts` ganha um segundo glob (`supabase/functions/**/*.{test,spec}.ts`) sem tocar o gate de `tsc` (segue só `src/`, decisão registrada no §3); 8 testes novos em `_shared/__tests__/botFlowTemplate.test.ts` cobrindo template customizado (regressão G8), template default (documenta por que era invisível), template estático, ausência de flow_data, nó desabilitado, e `findEnabledNode` isolado. |
+| `032c31d` | Simulador: `isTest` aceita `flowData` opcional (mesmo parse best-effort do modo normal); `WhatsAppBotConfig.tsx` manda os `nodes` atuais no payload do playground. |
+
+**Gates:**
+
+- `npx tsc -p tsconfig.app.json --noEmit` → **0 erros**.
+- `npx vitest run` → **265/265** (257 preexistentes + 8 novos), 29 arquivos de teste.
+- `npm run build` (Vite) → build limpo (só o warning pré-existente de chunk size, não relacionado).
+- Lint (`node scripts/lint-gate.mjs`): o `any` da linha 592 saiu junto com o fix (não era coincidência — era o próprio bug, mal-tipado). Contagem real caiu de **34→33** em ambos os contadores. Por convenção do próprio `ci/lint-baseline.json` ("quando corrigir dívida legada, baixe o teto na mesma PR"), **o teto foi apertado para 33/33 nesta rodada** (`measuredOn` atualizado para 2026-07-27). Gate roda verde exatamente no novo teto — zero folga, então qualquer PR futura que reintroduza `any`/erro já falha.
+
+**Nenhum deploy foi feito.** A Edge Function publicada continua rodando o código antigo (com o bug) até o operador rodar o deploy — ver §7.
+
+---
+
+## 7. Plano de deploy (fase separada — não executar sem "vai" próprio)
+
+**O que muda no deploy:** só `supabase/functions/whatsapp-bot-reply/index.ts` e o novo
+`supabase/functions/_shared/botFlowTemplate.ts` precisam ir ao ar — nenhuma migration,
+nenhuma mudança de schema. O frontend (`WhatsAppBotConfig.tsx`) já vai no próximo build
+normal do app (Vercel/host do SPA), não passa pelo `supabase functions deploy`.
+
+**Passo a passo (operador, credencial própria):**
+
+1. `supabase login` (se a sessão não estiver autenticada) — token do operador, nunca da Lane C.
+2. `npx supabase functions deploy whatsapp-bot-reply --project-ref ewamvzncsloagtcvkbxv`
+   — o CLI empacota `index.ts` **e** `_shared/` junto (import relativo resolvido em build).
+3. Merge/deploy do frontend (`WhatsAppBotConfig.tsx`) pelo pipeline normal do SPA.
+
+**Homologação antes de liberar (sem afetar o bot de produção):**
+
+1. Abrir o construtor de fluxo visual (`WhatsAppBotConfig.tsx`) em um workspace de teste.
+2. No nó "Enviar Mensagem", trocar o template default por algo customizado
+   (ex.: `"Oi! {{reply}} — Att, equipe"`), **sem salvar/publicar** (o simulador roda sobre
+   o estado local dos `nodes`, ainda não persistido).
+3. Rodar uma mensagem no simulador (agora manda `flowData`, item 4). **Esperado pós-deploy:**
+   a resposta do simulador vem com o template aplicado, não a resposta crua da IA.
+   **Pré-deploy** (função antiga ainda no ar): o simulador roda a mesma função de sempre —
+   sem o fix, se o `isTest` antigo não tinha o parse de `flowData`, o teste simplesmente
+   não muda nada visível (comportamento idêntico ao de hoje) até o deploy acontecer.
+4. Esse fluxo usa exclusivamente o modo `isTest` — não dispara `uazapi`, não grava em
+   `whatsapp_messages`/`whatsapp_conversations` (`index.ts:605-607`). **Zero side effect**,
+   nenhum dado sintético precisa ser criado/limpo, diferente do runbook padrão de
+   `protocolo-homologacao.md` (§11) — este caso é mais simples que a média.
+5. Só depois da confirmação visual no simulador, o operador decide se quer também validar
+   com uma conversa real (`isTest: false`) — recomendo pular esse passo dado que o simulador
+   já cobre o caminho exato do bug; só faria sentido se o operador quiser ver o disparo real
+   via uazapi por outros motivos.
+
+**Reversão se der errado:**
+
+- **Sem downtime a reverter de banco** — não há migration nesta rodada.
+- Reverter a function: `git revert` dos commits `f6496a9`/`ad1ee7f`/`032c31d` (ou checkout
+  do commit anterior do arquivo) + `supabase functions deploy whatsapp-bot-reply` de novo
+  com o código revertido. Como o fix é puramente de escopo/lógica (sem mudança de shape de
+  dado gravado), reverter é seguro a qualquer momento, inclusive depois de mensagens reais
+  terem sido enviadas com o fix ativo — não há estado a des-migrar.
+- Se o problema for só no `_shared/botFlowTemplate.ts` (ex. edge case não coberto pelos 8
+  testes), dá pra reverter só a lógica interna do módulo sem tocar no resto do fix de escopo
+  — os dois ficaram em commits separados (`ad1ee7f` vs `f6496a9`) exatamente para permitir
+  isso, mas nesse caso o `import` de `f6496a9` ficaria quebrado — na prática, reverter os
+  três juntos é o caminho limpo.
+
+**Autorização:** este deploy só roda com um "vai" literal e explícito do revisor, e é o
+operador quem executa (credencial própria, fora desta sessão) — nenhuma ação de deploy foi
+tomada nesta rodada.
