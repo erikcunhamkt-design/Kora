@@ -18,6 +18,32 @@ import { getFriendlyMessage } from "@/lib/supabase/errors";
 import { buildNativeSourceLocalId } from "@/lib/installId";
 import type { Quote, QuoteItem } from "@/hooks/useQuotes";
 
+// Etapa 5 · Fatia 10 (item 8) — mesmos import-maps local→UUID já usados por
+// useLocalQuotesImport.ts/CreateCrmSupabaseQuoteDialog.tsx, pra resolver
+// client_id/opportunity_id na criação nativa (QuotesSection.tsx). Sem isso,
+// mapLocalQuoteToSupabaseQuote resolveria as duas FKs sempre como null (o
+// default de `maps`), mesmo quando o usuário criou o orçamento a partir de
+// um cliente/oportunidade real já migrado.
+function readClientImportMap(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem("kora.clients.supabaseImport.v1");
+    if (raw) return JSON.parse(raw).importedMap as Record<string, string>;
+  } catch {
+    /* ignore — sem mapa, FK vira null (comportamento seguro já estabelecido) */
+  }
+  return {};
+}
+
+function readOpportunityImportMap(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem("kora.crm.supabaseImport.v1");
+    if (raw) return JSON.parse(raw).importedMap as Record<string, string>;
+  } catch {
+    /* ignore */
+  }
+  return {};
+}
+
 async function fetchQuotesWithItems(workspaceId: string): Promise<Quote[]> {
   const supabaseQuotes = await quotesRepository.listQuotes(workspaceId);
   const itemsByQuoteId = await quotesRepository.listQuoteItemsForQuotes(
@@ -55,7 +81,10 @@ export function useSupabaseQuotes() {
   // registro local de origem a importar — ver src/lib/installId.ts.
   const createMutation = useMutation({
     mutationFn: async ({ quote, items }: { quote: Quote; items: QuoteItem[] }) => {
-      const payload = mapLocalQuoteToSupabaseQuote(quote);
+      const payload = mapLocalQuoteToSupabaseQuote(quote, {
+        clients: readClientImportMap(),
+        opportunities: readOpportunityImportMap(),
+      });
       const supaItems = items.map(mapLocalQuoteItemToSupabaseItem);
       return quotesRepository.importQuoteWithItems(
         workspaceId,
@@ -64,6 +93,15 @@ export function useSupabaseQuotes() {
         supaItems,
       );
     },
+    onSuccess: invalidate,
+  });
+
+  // Etapa 5 · Fatia 10 (item 8, §3) — mesmo método genérico do repository
+  // (item 2), exposto como mutation pra QuotesSection.tsx poder usar com
+  // invalidação automática de cache, igual às demais mutations deste hook.
+  const updateStatusMutation = useMutation({
+    mutationFn: ({ quoteId, status }: { quoteId: string; status: Quote["status"] }) =>
+      quotesRepository.updateStatus(workspaceId, quoteId, status),
     onSuccess: invalidate,
   });
 
@@ -112,6 +150,8 @@ export function useSupabaseQuotes() {
     },
     updateQuote: (quoteId: string, patch: Partial<Quote>) =>
       updateMutation.mutateAsync({ quoteId, patch }),
+    updateStatus: (quoteId: string, status: Quote["status"]) =>
+      updateStatusMutation.mutateAsync({ quoteId, status }),
     archiveQuote: (quoteId: string, archived: boolean) =>
       archiveMutation.mutateAsync({ quoteId, archived }),
     softDeleteQuote: (quoteId: string, reason?: string) =>

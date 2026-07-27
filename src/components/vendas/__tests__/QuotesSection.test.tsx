@@ -454,3 +454,128 @@ describe("QuotesSection · item 4 (Fatia 10) — duplicar via RPC compartilhada 
     expect(toast.success).not.toHaveBeenCalled();
   });
 });
+
+describe("QuotesSection · item 8 (Fatia 10) — status/criação sob o master flag", () => {
+  it("aprovar com o master flag ligado chama updateStatus real, nunca updateStatus local", async () => {
+    localStorage.setItem(QUOTES_SUPABASE_WRITE_FLAG_KEY, "true");
+    const localUpdateStatus = vi.fn();
+    const updateSupabaseQuoteStatus = vi.fn().mockResolvedValue(undefined);
+
+    vi.mocked(useQuotes).mockReturnValue({
+      quotes: [], addQuote: vi.fn(), updateStatus: localUpdateStatus, updateQuote: vi.fn(),
+      duplicateQuote: vi.fn(), deleteQuote: vi.fn(),
+    } as never);
+    vi.mocked(useSupabaseQuotes).mockReturnValue({
+      quotes: [makeSupabaseMappedQuote({ status: "rascunho" })], loading: false, error: null,
+      updateStatus: updateSupabaseQuoteStatus,
+    } as never);
+
+    renderSection();
+    fireEvent.click(screen.getByText("Supabase experimental"));
+    await screen.findByText("Orçamento Nuvem");
+    vi.mocked(toast.success).mockClear();
+    vi.mocked(toast.error).mockClear();
+
+    await openQuoteMenu("Orçamento Nuvem");
+    fireEvent.click(screen.getByText("Marcar como aprovado"));
+
+    await waitFor(() => expect(updateSupabaseQuoteStatus).toHaveBeenCalledWith("q-cloud-1", "aprovado"));
+    expect(localUpdateStatus).not.toHaveBeenCalled();
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Orçamento aprovado"));
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("mudança de status falhando: toast de erro, nunca de sucesso", async () => {
+    localStorage.setItem(QUOTES_SUPABASE_WRITE_FLAG_KEY, "true");
+    const updateSupabaseQuoteStatus = vi.fn().mockRejectedValue(new Error("falhou"));
+
+    vi.mocked(useQuotes).mockReturnValue({
+      quotes: [], addQuote: vi.fn(), updateStatus: vi.fn(), updateQuote: vi.fn(),
+      duplicateQuote: vi.fn(), deleteQuote: vi.fn(),
+    } as never);
+    vi.mocked(useSupabaseQuotes).mockReturnValue({
+      quotes: [makeSupabaseMappedQuote({ status: "rascunho" })], loading: false, error: null,
+      updateStatus: updateSupabaseQuoteStatus,
+    } as never);
+
+    renderSection();
+    fireEvent.click(screen.getByText("Supabase experimental"));
+    await screen.findByText("Orçamento Nuvem");
+    vi.mocked(toast.success).mockClear();
+    vi.mocked(toast.error).mockClear();
+
+    await openQuoteMenu("Orçamento Nuvem");
+    fireEvent.click(screen.getByText("Marcar como aprovado"));
+
+    await waitFor(() => expect(updateSupabaseQuoteStatus).toHaveBeenCalled());
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Erro ao atualizar status do orçamento no Supabase."));
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it("sem o master flag: aprovar continua bloqueado (nunca chama updateStatus real)", async () => {
+    const updateSupabaseQuoteStatus = vi.fn();
+    vi.mocked(useQuotes).mockReturnValue({
+      quotes: [], addQuote: vi.fn(), updateStatus: vi.fn(), updateQuote: vi.fn(),
+      duplicateQuote: vi.fn(), deleteQuote: vi.fn(),
+    } as never);
+    vi.mocked(useSupabaseQuotes).mockReturnValue({
+      quotes: [makeSupabaseMappedQuote({ status: "rascunho" })], loading: false, error: null,
+      updateStatus: updateSupabaseQuoteStatus,
+    } as never);
+
+    renderSection();
+    fireEvent.click(screen.getByText("Supabase experimental"));
+    await screen.findByText("Orçamento Nuvem");
+    vi.mocked(toast.success).mockClear();
+    vi.mocked(toast.error).mockClear();
+
+    await openQuoteMenu("Orçamento Nuvem");
+    fireEvent.click(screen.getByText("Marcar como aprovado"));
+
+    expect(updateSupabaseQuoteStatus).not.toHaveBeenCalled();
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalled();
+  });
+
+  it("criar (handleSave) com o master flag ligado chama createQuoteWithItems, nunca addQuote local", async () => {
+    localStorage.setItem(QUOTES_SUPABASE_WRITE_FLAG_KEY, "true");
+    const localAddQuote = vi.fn();
+    const createSupabaseQuoteWithItems = vi.fn().mockResolvedValue(makeSupabaseMappedQuote({ id: "q-new" }));
+
+    vi.mocked(useQuotes).mockReturnValue({
+      quotes: [], addQuote: localAddQuote, updateStatus: vi.fn(), updateQuote: vi.fn(),
+      duplicateQuote: vi.fn(), deleteQuote: vi.fn(),
+    } as never);
+    vi.mocked(useSupabaseQuotes).mockReturnValue({
+      quotes: [], loading: false, error: null,
+      createQuoteWithItems: createSupabaseQuoteWithItems,
+    } as never);
+
+    renderSection();
+    fireEvent.click(screen.getByText("Supabase experimental"));
+    vi.mocked(toast.success).mockClear();
+    vi.mocked(toast.error).mockClear();
+
+    fireEvent.click(screen.getByText("Novo orçamento"));
+    fireEvent.change(screen.getByPlaceholderText("Nome do cliente"), { target: { value: "Cliente Novo" } });
+    fireEvent.change(screen.getByPlaceholderText("Ex: Rebranding 2026"), { target: { value: "Orçamento Novo" } });
+    fireEvent.click(screen.getByText("Continuar")); // passo 1 -> 2
+
+    fireEvent.click(screen.getByText("+ Item manual"));
+    fireEvent.change(screen.getByPlaceholderText("Nome do item"), { target: { value: "Item X" } });
+    // Spinbuttons na ordem do JSX: [0] quantidade do item, [1] preço unitário
+    // do item, [2] desconto da página — só o preço precisa de valor > 0 pra
+    // passar da validação do passo 2 (quantidade já nasce em 1, válida).
+    const spinbuttons = screen.getAllByRole("spinbutton");
+    fireEvent.change(spinbuttons[1], { target: { value: "100" } });
+    fireEvent.click(screen.getByText("Continuar")); // passo 2 -> 3
+
+    fireEvent.click(screen.getByText("Continuar")); // passo 3 -> 4
+    fireEvent.click(screen.getByText("Salvar orçamento"));
+
+    await waitFor(() => expect(createSupabaseQuoteWithItems).toHaveBeenCalledTimes(1));
+    expect(localAddQuote).not.toHaveBeenCalled();
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Orçamento salvo"));
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+});

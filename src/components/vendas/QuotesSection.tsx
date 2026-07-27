@@ -81,6 +81,7 @@ export function QuotesSection() {
     error: supabaseError,
     softDeleteQuote: softDeleteSupabaseQuote,
     createQuoteWithItems: createSupabaseQuoteWithItems,
+    updateStatus: updateSupabaseQuoteStatus,
   } = useSupabaseQuotes();
   const { clients } = useClients();
   const { leads, updateLead } = useLeads();
@@ -99,10 +100,14 @@ export function QuotesSection() {
     toast.success(`Fonte dos orçamentos alterada para ${next === "supabase" ? "Supabase (leitura)" : "Local"}.`);
   };
 
-  // Escrita 100% bloqueada em modo Supabase — sem exceção, sem flag (esta fatia é só
-  // leitura; lição O2/O3/O4 da Fatia 8: nunca deixar uma ação parecer que funcionou sem
-  // ter feito nada). Todo handler chama isto ANTES de qualquer toast/lógica de sucesso —
-  // nunca depois, senão o toast de sucesso dispara mesmo com a escrita bloqueada.
+  // Etapa 5 · Fatia 10 (item 8) — o ciclo de vida da PRÓPRIA quote (criar,
+  // status, duplicar, excluir) já tem caminho real no modo Supabase (guardas
+  // dedicadas abaixo/nos itens 1-4). `blockWrite()` continua existindo só
+  // para "Gerar conta a receber"/"Gerar projeto" — as 2 famílias cruzadas
+  // ficam fora de escopo desta fatia por decisão (Fase A §4), não por
+  // limitação técnica. Guarda sempre ANTES de qualquer toast/lógica de
+  // sucesso (lição O2/O3/O4) — vale pra `blockWrite()` e pra toda guarda
+  // dedicada desta tela.
   const blockWrite = (): boolean => {
     if (dataSource !== "supabase") return false;
     toast.error("Edição de orçamentos no modo Supabase chega numa próxima fatia — volte para Local para editar.");
@@ -213,8 +218,55 @@ export function QuotesSection() {
 
   const preview = quotes.find((q) => q.id === previewId) ?? null;
 
+  // Etapa 5 · Fatia 10 (item 8) — transição de status genérica, cobrindo as 5
+  // usadas nesta tela (enviado/aprovado/recusado/arquivar/restaurar) com um
+  // único helper. Guarda antes de qualquer toast (lição O2/O3/O4);
+  // `onSuccessToast` roda só depois da escrita de verdade (síncrona local,
+  // ou já resolvida no `.then()` do caminho nuvem) — nunca antes.
+  const updateQuoteStatusEverywhere = (
+    quote: Quote,
+    status: Quote["status"],
+    onSuccessToast: () => void,
+  ): boolean => {
+    if (dataSource === "supabase") {
+      if (!isSupabaseQuotesWriteEnabled()) {
+        toast.error("Edição de orçamentos no modo Supabase chega numa próxima fatia — volte para Local para editar.");
+        return false;
+      }
+      updateSupabaseQuoteStatus(quote.id, status)
+        .then(onSuccessToast)
+        .catch(() => toast.error("Erro ao atualizar status do orçamento no Supabase."));
+      return true;
+    }
+    updateStatus(quote.id, status);
+    onSuccessToast();
+    return true;
+  };
+
   const handleSave = (data: Omit<Quote, "id" | "createdAt" | "subtotal" | "total" | "isDemo">) => {
-    if (blockWrite()) return;
+    if (dataSource === "supabase") {
+      if (!isSupabaseQuotesWriteEnabled()) {
+        toast.error("Edição de orçamentos no modo Supabase chega numa próxima fatia — volte para Local para editar.");
+        return;
+      }
+      const subtotal = data.items.reduce((s, i) => s + i.quantity * i.unitPrice, 0);
+      const total = Math.max(subtotal - data.discount, 0);
+      const draftQuote: Quote = { ...data, id: "", createdAt: "", subtotal, total };
+      createSupabaseQuoteWithItems(draftQuote, data.items)
+        .then((created) => {
+          // data.opportunityId (não created.opportunityId): o mapper de
+          // leitura ainda não devolve opportunityId de volta — usar o valor
+          // já conhecido antes da chamada, não o round-trip incompleto.
+          if (data.opportunityId) {
+            updateLead(data.opportunityId, { quoteId: created.id, quoteTitle: created.title });
+          }
+          toast.success("Orçamento salvo");
+        })
+        .catch(() => toast.error("Erro ao salvar orçamento no Supabase."));
+      setModalOpen(false);
+      setInitialData(null);
+      return;
+    }
     const created = addQuote(data);
     if (created.opportunityId) {
       updateLead(created.opportunityId, { quoteId: created.id, quoteTitle: created.title });
@@ -251,8 +303,7 @@ export function QuotesSection() {
 
   // Etapa 5 · Fatia 10 (item 3, §8.2) — exclusão é soft-delete real no modo nuvem,
   // sob o master flag (item 5). Guarda ANTES de qualquer toast/fechamento de
-  // diálogo — nunca depois (lição O2/O3/O4). Único handler desta fatia que já
-  // sai do bloqueio uniforme de blockWrite(); os demais migram no item 8.
+  // diálogo — nunca depois (lição O2/O3/O4).
   const handleConfirmDelete = async () => {
     if (!confirmDelete) return;
     if (dataSource === "supabase") {
@@ -299,7 +350,7 @@ export function QuotesSection() {
           <span className="text-xs font-semibold text-foreground">Fonte dos orçamentos:</span>
           {dataSource === "supabase" && (
             <Badge variant="outline" className="text-[10px] uppercase font-mono py-0 text-primary border-primary/30 bg-primary/5">
-              Modo leitura
+              {isSupabaseQuotesWriteEnabled() ? "Modo operacional" : "Modo leitura"}
             </Badge>
           )}
         </div>
@@ -333,11 +384,22 @@ export function QuotesSection() {
         <div className="flex items-start gap-2.5 p-3 rounded-lg border border-primary/20 bg-primary/5 text-xs text-foreground">
           <Cloud className="h-4 w-4 shrink-0 mt-0.5 text-primary" />
           <div className="flex-1">
-            <span className="font-semibold block">Orçamentos em modo leitura (Supabase)</span>
-            <span className="text-muted-foreground">
-              Criação, edição, aprovação/recusa, duplicar, arquivar/restaurar, excluir e gerar
-              recebível/projeto chegam numa próxima fatia. Volte para "Local" para editar.
-            </span>
+            {isSupabaseQuotesWriteEnabled() ? (
+              <>
+                <span className="font-semibold block">Orçamentos operacionais (Supabase)</span>
+                <span className="text-muted-foreground">
+                  Criar, mudar status, duplicar e excluir já gravam na nuvem. Gerar recebível/
+                  projeto a partir de um orçamento aprovado ainda chega numa próxima fatia.
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="font-semibold block">Orçamentos em modo leitura (Supabase)</span>
+                <span className="text-muted-foreground">
+                  Escrita ainda desligada nesta sessão — volte para "Local" para editar.
+                </span>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -501,17 +563,17 @@ export function QuotesSection() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="bg-card border-border w-52">
                             {q.status !== "enviado" && q.status !== "aprovado" && q.status !== "arquivado" && (
-                              <DropdownMenuItem onClick={() => { if (blockWrite()) return; updateStatus(q.id, "enviado"); toast.success("Marcado como enviado"); }}>
+                              <DropdownMenuItem onClick={() => updateQuoteStatusEverywhere(q, "enviado", () => toast.success("Marcado como enviado"))}>
                                 <Send className="h-3.5 w-3.5 mr-2" /> Marcar como enviado
                               </DropdownMenuItem>
                             )}
                             {q.status !== "aprovado" && q.status !== "arquivado" && (
-                              <DropdownMenuItem onClick={() => { if (blockWrite()) return; updateStatus(q.id, "aprovado"); toast.success("Orçamento aprovado"); }}>
+                              <DropdownMenuItem onClick={() => updateQuoteStatusEverywhere(q, "aprovado", () => toast.success("Orçamento aprovado"))}>
                                 <Check className="h-3.5 w-3.5 mr-2" /> Marcar como aprovado
                               </DropdownMenuItem>
                             )}
                             {q.status !== "recusado" && q.status !== "arquivado" && (
-                              <DropdownMenuItem onClick={() => { if (blockWrite()) return; updateStatus(q.id, "recusado"); toast("Marcado como recusado"); }}>
+                              <DropdownMenuItem onClick={() => updateQuoteStatusEverywhere(q, "recusado", () => toast("Marcado como recusado"))}>
                                 <XCircle className="h-3.5 w-3.5 mr-2" /> Marcar como recusado
                               </DropdownMenuItem>
                             )}
@@ -549,11 +611,11 @@ export function QuotesSection() {
                             )}
                             <DropdownMenuSeparator />
                             {q.status !== "arquivado" ? (
-                              <DropdownMenuItem onClick={() => { if (blockWrite()) return; updateStatus(q.id, "arquivado"); toast("Orçamento arquivado"); }}>
+                              <DropdownMenuItem onClick={() => updateQuoteStatusEverywhere(q, "arquivado", () => toast("Orçamento arquivado"))}>
                                 <Archive className="h-3.5 w-3.5 mr-2" /> Arquivar
                               </DropdownMenuItem>
                             ) : (
-                              <DropdownMenuItem onClick={() => { if (blockWrite()) return; updateStatus(q.id, "rascunho"); toast.success("Orçamento restaurado"); }}>
+                              <DropdownMenuItem onClick={() => updateQuoteStatusEverywhere(q, "rascunho", () => toast.success("Orçamento restaurado"))}>
                                 <Archive className="h-3.5 w-3.5 mr-2" /> Restaurar
                               </DropdownMenuItem>
                             )}
@@ -590,20 +652,16 @@ export function QuotesSection() {
           onDuplicate={() => {
             if (handleDuplicate(preview)) setPreviewId(null);
           }}
-          onSend={() => {
-            if (blockWrite()) return;
-            updateStatus(preview.id, "enviado");
-            toast.success("Marcado como enviado");
-          }}
+          onSend={() => updateQuoteStatusEverywhere(preview, "enviado", () => toast.success("Marcado como enviado"))}
           onApprove={() => {
-            if (blockWrite()) return;
             const wasApproved = preview.status === "aprovado";
-            updateStatus(preview.id, "aprovado");
-            toast.success("Orçamento aprovado");
-            if (!wasApproved && !preview.financeEntryId) {
-              // Offer receivable generation as a natural next step.
-              setTimeout(() => setReceivableQuote({ ...preview, status: "aprovado" }), 250);
-            }
+            updateQuoteStatusEverywhere(preview, "aprovado", () => {
+              toast.success("Orçamento aprovado");
+              if (!wasApproved && !preview.financeEntryId) {
+                // Offer receivable generation as a natural next step.
+                setTimeout(() => setReceivableQuote({ ...preview, status: "aprovado" }), 250);
+              }
+            });
           }}
           onGenerateReceivable={!preview.financeEntryId ? () => openReceivableDialog(preview) : undefined}
           onOpenReceivable={preview.financeEntryId ? () => navigate(`/financeiro?tab=receivables&entryId=${preview.financeEntryId}`) : undefined}
