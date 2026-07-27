@@ -80,6 +80,7 @@ export function QuotesSection() {
     loading: supabaseLoading,
     error: supabaseError,
     softDeleteQuote: softDeleteSupabaseQuote,
+    createQuoteWithItems: createSupabaseQuoteWithItems,
   } = useSupabaseQuotes();
   const { clients } = useClients();
   const { leads, updateLead } = useLeads();
@@ -221,6 +222,31 @@ export function QuotesSection() {
     toast.success("Orçamento salvo");
     setModalOpen(false);
     setInitialData(null);
+  };
+
+  // Etapa 5 · Fatia 10 (item 4, §8.3) — duplicar reaproveita a MESMA RPC atômica
+  // da criação (createQuoteWithItems), com um novo source_local_id sintético —
+  // nunca o mesmo da origem, então nunca faz upsert sobre a quote original.
+  // Guarda antes de qualquer toast/close (lição O2/O3/O4); retorna se a ação
+  // foi PERMITIDA (não se o resultado assíncrono já chegou), pra quem chama
+  // decidir se fecha o preview — mesmo comportamento síncrono de antes.
+  const handleDuplicate = (quote: Quote): boolean => {
+    if (dataSource === "supabase") {
+      if (!isSupabaseQuotesWriteEnabled()) {
+        toast.error("Edição de orçamentos no modo Supabase chega numa próxima fatia — volte para Local para editar.");
+        return false;
+      }
+      createSupabaseQuoteWithItems(
+        { ...quote, title: `${quote.title} (cópia)`, status: "rascunho" },
+        quote.items,
+      )
+        .then(() => toast.success("Orçamento duplicado"))
+        .catch(() => toast.error("Erro ao duplicar orçamento no Supabase."));
+      return true;
+    }
+    duplicateQuote(quote.id);
+    toast.success("Orçamento duplicado");
+    return true;
   };
 
   // Etapa 5 · Fatia 10 (item 3, §8.2) — exclusão é soft-delete real no modo nuvem,
@@ -489,7 +515,7 @@ export function QuotesSection() {
                                 <XCircle className="h-3.5 w-3.5 mr-2" /> Marcar como recusado
                               </DropdownMenuItem>
                             )}
-                            <DropdownMenuItem onClick={() => { if (blockWrite()) return; duplicateQuote(q.id); toast.success("Orçamento duplicado"); }}>
+                            <DropdownMenuItem onClick={() => handleDuplicate(q)}>
                               <Copy className="h-3.5 w-3.5 mr-2" /> Duplicar
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
@@ -562,10 +588,7 @@ export function QuotesSection() {
           quote={preview}
           onClose={() => { setPreviewId(null); clearQuoteParam(); }}
           onDuplicate={() => {
-            if (blockWrite()) return;
-            duplicateQuote(preview.id);
-            toast.success("Orçamento duplicado");
-            setPreviewId(null);
+            if (handleDuplicate(preview)) setPreviewId(null);
           }}
           onSend={() => {
             if (blockWrite()) return;

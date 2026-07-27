@@ -393,3 +393,64 @@ describe("QuotesSection · item 3 (Fatia 10) — exclusão real quando o master 
     expect(toast.error).toHaveBeenCalledWith("Erro ao excluir orçamento no Supabase.");
   });
 });
+
+describe("QuotesSection · item 4 (Fatia 10) — duplicar via RPC compartilhada quando o master flag está ON", () => {
+  it("duplicar chama createQuoteWithItems com título sufixado e status rascunho, nunca duplicateQuote local", async () => {
+    localStorage.setItem(QUOTES_SUPABASE_WRITE_FLAG_KEY, "true");
+    const localDuplicateQuote = vi.fn();
+    const createSupabaseQuoteWithItems = vi.fn().mockResolvedValue(makeSupabaseMappedQuote());
+
+    vi.mocked(useQuotes).mockReturnValue({
+      quotes: [], addQuote: vi.fn(), updateStatus: vi.fn(), updateQuote: vi.fn(),
+      duplicateQuote: localDuplicateQuote, deleteQuote: vi.fn(),
+    } as never);
+    vi.mocked(useSupabaseQuotes).mockReturnValue({
+      quotes: [makeSupabaseMappedQuote()], loading: false, error: null,
+      createQuoteWithItems: createSupabaseQuoteWithItems,
+    } as never);
+
+    renderSection();
+    fireEvent.click(screen.getByText("Supabase experimental"));
+    await screen.findByText("Orçamento Nuvem");
+    vi.mocked(toast.success).mockClear();
+    vi.mocked(toast.error).mockClear();
+
+    await openQuoteMenu("Orçamento Nuvem");
+    fireEvent.click(screen.getByText("Duplicar"));
+
+    await waitFor(() => expect(createSupabaseQuoteWithItems).toHaveBeenCalledTimes(1));
+    expect(localDuplicateQuote).not.toHaveBeenCalled();
+    const [quoteArg, itemsArg] = createSupabaseQuoteWithItems.mock.calls[0];
+    expect(quoteArg).toMatchObject({ title: "Orçamento Nuvem (cópia)", status: "rascunho" });
+    expect(itemsArg).toEqual(makeSupabaseMappedQuote().items);
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Orçamento duplicado"));
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("duplicar com a chamada falhando: toast de erro, nunca toast de sucesso", async () => {
+    localStorage.setItem(QUOTES_SUPABASE_WRITE_FLAG_KEY, "true");
+    const createSupabaseQuoteWithItems = vi.fn().mockRejectedValue(new Error("falhou"));
+
+    vi.mocked(useQuotes).mockReturnValue({
+      quotes: [], addQuote: vi.fn(), updateStatus: vi.fn(), updateQuote: vi.fn(),
+      duplicateQuote: vi.fn(), deleteQuote: vi.fn(),
+    } as never);
+    vi.mocked(useSupabaseQuotes).mockReturnValue({
+      quotes: [makeSupabaseMappedQuote()], loading: false, error: null,
+      createQuoteWithItems: createSupabaseQuoteWithItems,
+    } as never);
+
+    renderSection();
+    fireEvent.click(screen.getByText("Supabase experimental"));
+    await screen.findByText("Orçamento Nuvem");
+    vi.mocked(toast.success).mockClear();
+    vi.mocked(toast.error).mockClear();
+
+    await openQuoteMenu("Orçamento Nuvem");
+    fireEvent.click(screen.getByText("Duplicar"));
+
+    await waitFor(() => expect(createSupabaseQuoteWithItems).toHaveBeenCalled());
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Erro ao duplicar orçamento no Supabase."));
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+});
