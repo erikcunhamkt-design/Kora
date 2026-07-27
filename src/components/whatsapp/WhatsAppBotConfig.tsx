@@ -308,7 +308,8 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
           gcpRegion: aiNode.properties.provider === "vertex_ai" ? aiNode.properties.gcpRegion : "us-central1",
           gcpServiceAccount: aiNode.properties.provider === "vertex_ai" ? aiNode.properties.gcpServiceAccount : null,
           messageText: userText,
-          history: updatedHistory.slice(1).map(m => ({ role: m.role, text: m.text }))
+          history: updatedHistory.slice(1).map(m => ({ role: m.role, text: m.text })),
+          flowData: nodes
         }
       });
 

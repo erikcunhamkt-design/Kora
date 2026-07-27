@@ -342,3 +342,47 @@ Regra dura, sem exceção — vale inclusive para QA:
    atribuição de credencial **nunca são colados no chat**, mesmo como parte de um histórico
    maior — nem o comando em si, nem sua confirmação de sucesso/eco.
 5. **Demais gates permanentes (seções 0–14) inalterados.**
+
+---
+
+## 16. Emenda 2026-07-27 — Isolamento de worktree por lane
+
+> **Motivada por:** fechamento da Etapa 6 · G8 (`flowNodes`/Send Node, `whatsapp-bot-reply`,
+> [`etapa-6-g8-flownodes.md`](etapa-6-g8-flownodes.md)). A Lane C mergeou `etapa-6-g8-flownodes`
+> em `main` (fast-forward) na worktree principal do repo — a única onde `main` pode estar
+> checked out, por restrição do próprio git (uma branch só fica checked out numa worktree por
+> vez). Enquanto a Lane C rodava os gates pós-merge nessa mesma worktree, a Lane B (rodada O5,
+> `qualidade-lint`) mergeou e publicou sua branch **na mesma worktree/checkout de `main`**, sem
+> coordenação prévia — catalogado como [`O7`](../architecture/kora-hub-auditoria-e-plano.md)
+> no plano mestre. Nenhum dado ou commit foi perdido, e o merge da Lane B foi limpo (sem
+> conflito) — mas os gates da Lane C passaram a verificar um tree que mudou por baixo dela a
+> meio da checagem (o commit no início da chamada já não era o commit no fim dela), e o
+> `git push origin main` da Lane C encontrou o remoto já sincronizado pelo push da Lane B — a
+> trilha de auditoria (quem publicou o quê, e sob qual verificação) ficou ambígua a partir do
+> log isolado de cada lane. Padrão recorrente (já observado antes, com arquivos de
+> WhatsApp em progresso de outra lane aparecendo/desaparecendo de um `git status` de sessão),
+> nunca catalogado como gate até agora.
+
+1. **Cada lane opera exclusivamente na própria worktree.** `git worktree list` deve mostrar uma
+   worktree dedicada por lane ativa. Trabalho de feature/fix/fatia nunca acontece na worktree de
+   outra lane, mesmo que ela esteja momentaneamente ociosa.
+2. **Checagem de abertura de sessão, obrigatória antes de qualquer comando:** confirmar `pwd` +
+   `git worktree list`, e **declarar no início do relatório** em qual worktree a sessão está
+   operando. Uma sessão que se descubra num diretório de trabalho compartilhado com outra lane
+   ativa **PARA e reporta** — não opera, não tenta adivinhar se é seguro prosseguir.
+3. **Push é sempre da própria lane.** Nenhuma sessão publica (`git push`) commits que não criou,
+   **exceto** merges de sincronização explicitamente reportados como tal (ex.: absorver
+   `origin/main` antes de abrir uma branch, ou o próprio merge-para-main de uma feature já
+   aprovada — sempre nomeado como sincronização no relatório, nunca silencioso).
+4. **A exceção estrutural de `main`:** `main` só pode estar checked out em **uma** worktree por
+   vez (restrição do git, não de processo) — por isso o passo "merge da feature em `main` +
+   push" é, por natureza, um ponto de contenção compartilhado entre lanes, não algo que dê para
+   isolar por worktree como o resto do trabalho. Nessa janela especificamente: a lane declara
+   que está prestes a tocar `main` compartilhado, confere `git log`/`git worktree list`
+   imediatamente antes de mergear (não confiar em estado checado minutos antes), e trata
+   qualquer commit alheio encontrado no meio da operação como o item 2 manda — reporta, não
+   ignora e não reverte.
+5. **Sessões de DDL e deploy: exclusividade total.** Nenhuma outra sessão ativa no repositório
+   (em qualquer worktree) durante a janela — coordenar com o operador **antes** de abrir a
+   sessão, não durante.
+6. **Demais gates permanentes (seções 0–15) inalterados.**

@@ -109,14 +109,31 @@ Achado durante a aplicação real da DDL da Etapa 5 · Fatia 9 (`quotes`, migrat
 
 ---
 
-**O5 — cards de import locais divergem em padrão de abertura do diálogo: 4 sempre abrem, 1 (opportunities) trava fechado sem candidato "novo". [BAIXO — confirmado, não bloqueante]**
+**O5 — cards de import locais divergiam em padrão de abertura do diálogo. [BAIXO — RESOLVIDO na rodada `qualidade-lint`]**
 Achado durante a homologação (Fase D) da Etapa 5 · Fatia 8 (cutover de escrita de `opportunities`) — não corrigido nela por ser um achado de consistência entre cards, pré-existente da Fatia 2, não uma regressão da fatia que o encontrou. Detalhamento completo em
 [`etapa-5-fatia-8-crm-cutover.md` §8](../qa/etapa-5-fatia-8-crm-cutover.md#8-fase-d--resultado-da-rodada-executada-vai-do-revisor) (observação registrada do caso (j) do runbook).
 
-- **A causa:** `src/pages/Configuracoes.tsx` (card "Importar Oportunidades Locais", Fatia 2) usa `<DialogTrigger asChild><Button disabled={eligibleCandidates.length === 0 || importing}>` — o botão que abre o diálogo fica desabilitado assim que não sobra nenhum candidato com `matchStatus === "new"`. Uma vez que todos os candidatos locais já foram importados, o diálogo **nunca mais abre**, mesmo o estado interno (`candidates`) continuando correto com o badge "Já Importada" pronto pra renderizar.
-- **Divergência confirmada com os cards mais recentes:** `LocalProjectsImportCard.tsx`/`LocalTasksImportCard.tsx` (Fatias 6/7) usam o `Card` inteiro como `DialogTrigger`, sempre clicável — só o botão **Importar selecionados**, já dentro do diálogo aberto, é que desabilita por seleção vazia. `LocalClientsImportCard`/ficha técnica (Fatias 1/4) seguem o mesmo padrão mais novo.
-- **Não bloqueante para nenhuma fatia já fechada** — a garantia de idempotência real (linha no banco, `count=1` contra `source_local_id`) independe deste gap de UX; é só o card de opportunities não deixar o operador **ver** o estado "Já Importada" depois que não sobra nada novo.
-- **Recomendação (registrada, não executada em nenhuma fatia):** alinhar o card de opportunities ao padrão dos 4 cards mais recentes — trocar o botão-com-`disabled` por um `Card`/gatilho sempre abrível, movendo o `disabled` só para o botão de confirmação de import dentro do diálogo. Fatia candidata a fazer isso: qualquer rodada futura de consistência entre os 5 cards de import, não uma fatia de escopo maior.
+- **Correção ao escopo original:** o achado listado acima dizia "4 sempre abrem, 1 (opportunities) trava" e citava `LocalClientsImportCard` como já no padrão bom. A auditoria da rodada O5 (`qualidade-lint`) encontrou que **`LocalClientsImportCard` tinha o mesmo bug** (`disabled={eligibleCandidates.length === 0 || importing}` idêntico) — eram 2 cards travados (clients + opportunities), não 1. `LocalQuotesImportCard.tsx`/`LocalProjectsImportCard.tsx`/`LocalTasksImportCard.tsx` de fato já seguiam o padrão bom (`Card` inteiro como `DialogTrigger`, sempre clicável).
+- **Fix aplicado:** removida a condição `eligibleCandidates.length === 0` do `disabled` do botão-gatilho nos 2 cards (`src/pages/Configuracoes.tsx`), mantendo só `disabled={importing}` — mesma mudança mínima nos dois, zero alteração em `analyze`/`importSelected`. Commits `1b1e385` (clients) e `177af53` (opportunities, + testes).
+- **Teste de regressão:** `src/pages/__tests__/Configuracoes.import-cards.test.tsx` (2 casos — um por card) renderiza cada card com todos os candidatos já `"imported"`, confirma que o botão-gatilho não está desabilitado, clica e confirma que o diálogo abre mostrando o badge "Já Importado(a)". Verificado que os testes realmente pegam a regressão (revertida a condição temporariamente antes de commitar — os 2 casos falharam exatamente no `not.toBeDisabled()`).
+- **Não bloqueante para nenhuma fatia já fechada** — a garantia de idempotência real (linha no banco, `count=1` contra `source_local_id`) sempre foi independente deste gap de UX.
+
+---
+
+**O6 — `LocalTechnicalSheetsImportCard` tem o mesmo bug de trigger do O5, ainda não corrigido. [BAIXO — confirmado, não bloqueante]**
+Achado durante a auditoria da rodada O5 (`qualidade-lint`), fora do escopo dos 5 cards nomeados (clients/opportunities/quotes/projects/tasks) — não corrigido nesta rodada.
+
+- **A causa:** mesmo padrão do O5 — `src/pages/Configuracoes.tsx` (card de fichas técnicas), `<DialogTrigger asChild><Button disabled={eligibleCandidates.length === 0 || importing}>`. Uma vez que todos os candidatos locais já estejam importados, o diálogo não abre mais.
+- **Recomendação:** aplicar o mesmo fix mínimo do O5 (remover `eligibleCandidates.length === 0` do `disabled`, manter só `importing`) + teste equivalente. Candidato natural para a próxima rodada de LANE B.
+
+---
+
+**O7 — Duas lanes mergeando/publicando na mesma worktree de `main` ao mesmo tempo. [MITIGADO pela seção 16 do protocolo de homologação]**
+Achado durante o fechamento da Etapa 6 · G8 (`flowNodes`/Send Node, `whatsapp-bot-reply`) — a Lane C mergeou `etapa-6-g8-flownodes` em `main` (fast-forward) na worktree principal do repo, a única onde `main` pode estar checked out (restrição do próprio git). Enquanto a Lane C rodava os gates pós-merge nessa mesma worktree, a Lane B (rodada O5, `qualidade-lint`) mergeou e publicou sua branch no mesmo `main` compartilhado, sem coordenação prévia — commits `aec949b`/`52715e5`. Detalhamento completo em [`etapa-6-g8-flownodes.md`](../qa/etapa-6-g8-flownodes.md).
+
+- **Nenhum dado ou commit foi perdido**, e o merge da Lane B foi limpo (`ort`, sem conflito). O risco observado foi **verificação invalidada silenciosamente**, não corrupção: os gates da Lane C passaram a checar um tree que mudou por baixo dela a meio da checagem, e o `git push origin main` da Lane C encontrou o remoto já sincronizado pelo push da Lane B — a trilha de auditoria (quem publicou o quê, sob qual verificação) ficou ambígua a partir do log isolado de cada lane.
+- **Padrão recorrente, não um caso isolado:** já observado antes desta rodada, com arquivos de WhatsApp em progresso de outra lane aparecendo/desaparecendo de um `git status` de sessão — nunca catalogado como gate até o G8.
+- **Mitigação:** [`docs/qa/protocolo-homologacao.md` §16](../qa/protocolo-homologacao.md#16-emenda-2026-07-27--isolamento-de-worktree-por-lane) — checagem de abertura de sessão (`pwd` + `git worktree list`, declarada no relatório), push só da própria lane exceto sincronização explicitamente reportada, e reconhecimento explícito de que o merge-para-`main` é um ponto de contenção estrutural entre lanes (não isolável por worktree, por restrição do git), não um caso a resolver por isolamento total.
 
 ---
 

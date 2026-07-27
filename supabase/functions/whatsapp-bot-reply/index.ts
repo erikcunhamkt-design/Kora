@@ -2,6 +2,7 @@
 // and sends it back via uazapi. Invoked fire-and-forget by whatsapp-webhook.
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { applySendTemplate } from "../_shared/botFlowTemplate.ts";
 
 interface BotFlowNodeProperties {
   respondAll?: boolean;
@@ -86,6 +87,7 @@ interface BotReplyRequestBody {
   gcpServiceAccount?: string;
   history?: BotReplyHistoryItem[];
   messageText?: string;
+  flowData?: unknown;
 }
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -245,6 +247,7 @@ Deno.serve(async (req) => {
     let contents: GeminiContent[] = [];
     let conv: ConversationRow | null = null;
     let instance: InstanceRow | null = null;
+    let flowNodes: BotFlowNode[] = [];
 
     if (isTest) {
       // Direct testing mode from UI playground
@@ -265,7 +268,18 @@ Deno.serve(async (req) => {
           // ignore
         }
       }
-      
+
+      // Optional flow preview: lets the simulator exercise the Send Node template
+      if (body.flowData) {
+        try {
+          flowNodes = (typeof body.flowData === "string"
+            ? JSON.parse(body.flowData)
+            : body.flowData) as BotFlowNode[];
+        } catch (err) {
+          console.error("[bot-reply] failed to parse test flowData:", err);
+        }
+      }
+
       // Build test contents
       const testHistory = body.history || [];
       if (testHistory.length > 0) {
@@ -313,7 +327,6 @@ Deno.serve(async (req) => {
       }
 
       // Respect respond_all setting (parsed from trigger node if available)
-      let flowNodes: BotFlowNode[] = [];
       try {
         if (bot.flow_data) {
           flowNodes = (typeof bot.flow_data === "string"
@@ -326,7 +339,6 @@ Deno.serve(async (req) => {
 
       const triggerNode = flowNodes.find((n) => n.type === "trigger" && n.enabled);
       const aiNode = flowNodes.find((n) => n.type === "ai" && n.enabled);
-      const sendNode = flowNodes.find((n) => n.type === "send" && n.enabled);
       const handoverNode = flowNodes.find((n) => n.type === "handover" && n.enabled);
 
       const respondAll = triggerNode ? triggerNode.properties?.respondAll : bot.respond_all;
@@ -586,21 +598,10 @@ Deno.serve(async (req) => {
       throw new Error(`Configuração do provedor '${provider}' inválida ou chaves/credenciais não preenchidas.`);
     }
 
-    // Format reply using Send Node template if available
-    let finalReply = reply;
-    try {
-      const sendNode = flowNodes.find((n: any) => n.type === "send" && n.enabled);
-      if (sendNode && sendNode.properties?.template) {
-        const template = sendNode.properties.template;
-        if (template.includes("{{reply}}")) {
-          finalReply = template.replace("{{reply}}", reply);
-        } else {
-          finalReply = template;
-        }
-      }
-    } catch (e) {
-      console.warn("[bot-reply] failed to format reply template:", e);
-    }
+    // Format reply using Send Node template if available (G8 fix: flowNodes is
+    // now declared in the outer scope, so it's actually in scope here — see
+    // docs/qa/etapa-6-g8-flownodes.md)
+    const finalReply = applySendTemplate(flowNodes, reply);
 
     if (isTest) {
       return json({ ok: true, reply: finalReply });
