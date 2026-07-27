@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { RefreshCw, FileText, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { quotesRepository } from "@/repositories/quotesRepository";
+import { isQuotesApprovalReachable } from "@/hooks/useSupabaseQuotesWriteFlag";
 import { QuoteActionDialog } from "@/components/crm/QuoteActionDialog";
 import { CreateReceivableDialog } from "@/components/crm/CreateReceivableDialog";
 import { CreateProjectFromQuoteDialog } from "@/components/crm/CreateProjectFromQuoteDialog";
@@ -65,9 +66,9 @@ export function LinkedQuotesSection({
   }, [opportunityId, triggerRefreshToggle, refresh]);
 
   const handleActionClick = (quoteId: string, title: string, type: "approve" | "reject") => {
-    // 1. Verify feature flag
-    const flagEnabled = getBooleanFlag("quotesSupabaseApproval");
-    if (!flagEnabled) {
+    // Etapa 5 · Fatia 10 (item 7, §8.1) — coexistência temporária: mesma regra
+    // do item 6 (SupabaseQuotesViewerCard.tsx), master flag OU flag legada.
+    if (!isQuotesApprovalReachable()) {
       toast.info("Aprovação de orçamentos Supabase entra nesta etapa experimental. Ative em Configurações.");
       return;
     }
@@ -82,8 +83,9 @@ export function LinkedQuotesSection({
     setSubmittingId(selectedQuoteId);
     try {
       if (actionType === "approve") {
-        await quotesRepository.approveQuote(workspaceId, selectedQuoteId);
-        
+        // Etapa 5 · Fatia 10 (item 7, §3) — método genérico traduzido.
+        await quotesRepository.updateStatus(workspaceId, selectedQuoteId, "aprovado");
+
         // Log local approval
         try {
           const logRaw = localStorage.getItem("kora.quotes.supabaseApprovals.v1") || "[]";
@@ -100,8 +102,8 @@ export function LinkedQuotesSection({
 
         toast.success("Orçamento aprovado com sucesso!");
       } else {
-        await quotesRepository.rejectQuote(workspaceId, selectedQuoteId);
-        
+        await quotesRepository.updateStatus(workspaceId, selectedQuoteId, "recusado");
+
         // Log local rejection
         try {
           const logRaw = localStorage.getItem("kora.quotes.supabaseRejections.v1") || "[]";
@@ -174,8 +176,8 @@ export function LinkedQuotesSection({
                       Supabase
                     </Badge>
                     <Badge variant="outline" className={`text-[9px] uppercase tracking-wide py-0 px-1 capitalize ${
-                      (quote.status as string) === "approved" ? "border-emerald-500/30 text-emerald-400 bg-emerald-500/10" :
-                      (quote.status as string) === "rejected" ? "border-destructive/30 text-destructive bg-destructive/10" :
+                      quote.status === "aprovado" ? "border-emerald-500/30 text-emerald-400 bg-emerald-500/10" :
+                      quote.status === "recusado" ? "border-destructive/30 text-destructive bg-destructive/10" :
                       "bg-muted"
                     }`}>
                       {quote.status}
@@ -189,18 +191,18 @@ export function LinkedQuotesSection({
                     <span>Criado em: {intlDate(quote.createdAt)}</span>
                   )}
                 </div>
-                {quote.approvedAt && (quote.status as string) === "approved" && (
+                {quote.approvedAt && quote.status === "aprovado" && (
                   <p className="text-[10px] text-emerald-400 mt-0.5 truncate font-medium">
                     Aprovado em: {intlDateTime(quote.approvedAt, { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" })}
                   </p>
                 )}
-                {quote.rejectedAt && (quote.status as string) === "rejected" && (
+                {quote.rejectedAt && quote.status === "recusado" && (
                   <p className="text-[10px] text-destructive mt-0.5 truncate font-medium">
                     Rejeitado em: {intlDateTime(quote.rejectedAt, { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" })}
                   </p>
                 )}
 
-                {(quote.status as string) === "draft" && (
+                {quote.status === "rascunho" && (
                   <div className="flex items-center gap-1.5 mt-1">
                     <Button
                       size="sm"
@@ -223,7 +225,7 @@ export function LinkedQuotesSection({
                   </div>
                 )}
 
-                {(quote.status as string) === "approved" && (
+                {quote.status === "aprovado" && (
                   <div className="flex items-center gap-1.5 mt-1">
                     <Button
                       size="sm"

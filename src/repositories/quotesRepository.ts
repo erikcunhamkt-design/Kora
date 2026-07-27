@@ -146,12 +146,26 @@ export const quotesRepository = {
    * MESMA tradução usada na leitura (`translateLocalStatusToCloud`,
    * `quoteMapper.ts`) — nunca um literal hardcoded à parte. Ver
    * docs/qa/etapa-5-fatia-10-quotes-write.md §3: substitui
-   * `approveQuote`/`rejectQuote` como caminho de escrita (retirados quando
-   * os 2 únicos consumidores atuais migrarem, itens 6/7).
+   * `approveQuote`/`rejectQuote` como caminho de escrita (retirados no
+   * item 7, após os 2 únicos consumidores migrarem).
+   *
+   * Preserva o efeito colateral de `approved_at`/`rejected_at` que
+   * `approveQuote`/`rejectQuote` já tinham (mesmo espírito do `updateStatus`
+   * LOCAL, `useQuotes.ts`, que também grava o carimbo de tempo da transição)
+   * — sem isso, os badges "Aprovado em"/"Rejeitado em" (SupabaseQuotesViewerCard.tsx,
+   * LinkedQuotesSection.tsx) parariam de atualizar.
    */
   async updateStatus(workspaceId: string, quoteId: string, localStatus: Quote["status"]) {
     const { status, archived } = translateLocalStatusToCloud(localStatus);
-    return quotesRepository.updateQuote(workspaceId, quoteId, { status, archived });
+    const patch: Partial<SupabaseQuote> = { status, archived };
+    if (localStatus === "aprovado") {
+      patch.approved_at = new Date().toISOString();
+      patch.rejected_at = null;
+    } else if (localStatus === "recusado") {
+      patch.rejected_at = new Date().toISOString();
+      patch.approved_at = null;
+    }
+    return quotesRepository.updateQuote(workspaceId, quoteId, patch);
   },
 
   async archiveQuote(workspaceId: string, quoteId: string, archived: boolean) {
@@ -268,37 +282,4 @@ export const quotesRepository = {
     return data as SupabaseQuote[];
   },
 
-  async approveQuote(workspaceId: string, quoteId: string) {
-    const { data, error } = await supabase
-      .from("quotes")
-      .update({
-        status: "approved",
-        approved_at: new Date().toISOString(),
-        rejected_at: null,
-      })
-      .eq("id", quoteId)
-      .eq("workspace_id", workspaceId)
-      .is("deleted_at", null)
-      .select()
-      .single();
-    if (error) throw normalizeSupabaseError(error);
-    return data as SupabaseQuote;
-  },
-
-  async rejectQuote(workspaceId: string, quoteId: string) {
-    const { data, error } = await supabase
-      .from("quotes")
-      .update({
-        status: "rejected",
-        rejected_at: new Date().toISOString(),
-        approved_at: null,
-      })
-      .eq("id", quoteId)
-      .eq("workspace_id", workspaceId)
-      .is("deleted_at", null)
-      .select()
-      .single();
-    if (error) throw normalizeSupabaseError(error);
-    return data as SupabaseQuote;
-  },
 };

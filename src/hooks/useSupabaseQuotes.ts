@@ -96,16 +96,6 @@ export function useSupabaseQuotes() {
     onSuccess: invalidate,
   });
 
-  const approveMutation = useMutation({
-    mutationFn: (quoteId: string) => quotesRepository.approveQuote(workspaceId, quoteId),
-    onSuccess: invalidate,
-  });
-
-  const rejectMutation = useMutation({
-    mutationFn: (quoteId: string) => quotesRepository.rejectQuote(workspaceId, quoteId),
-    onSuccess: invalidate,
-  });
-
   return {
     quotes: query.data ?? [],
     loading: query.isLoading || query.isFetching,
@@ -128,7 +118,5 @@ export function useSupabaseQuotes() {
       softDeleteMutation.mutateAsync({ quoteId, reason }),
     replaceQuoteItems: (quoteId: string, items: QuoteItem[]) =>
       replaceItemsMutation.mutateAsync({ quoteId, items }),
-    approveQuote: (quoteId: string) => approveMutation.mutateAsync(quoteId),
-    rejectQuote: (quoteId: string) => rejectMutation.mutateAsync(quoteId),
   };
 }

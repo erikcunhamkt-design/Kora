@@ -22,15 +22,25 @@ beforeEach(() => {
 });
 
 describe("quotesRepository.updateStatus — traduz via translateLocalStatusToCloud", () => {
-  it("aprovado -> status 'approved', archived false", async () => {
+  it("aprovado -> status 'approved', archived false, approved_at preenchido + rejected_at limpo (paridade com o antigo approveQuote)", async () => {
     await quotesRepository.updateStatus("ws1", "q1", "aprovado");
     expect(mocks.from).toHaveBeenCalledWith("quotes");
-    expect(mocks.update).toHaveBeenCalledWith({ status: "approved", archived: false });
+    expect(mocks.update).toHaveBeenCalledWith({
+      status: "approved",
+      archived: false,
+      approved_at: expect.any(String),
+      rejected_at: null,
+    });
   });
 
-  it("recusado -> status 'rejected', archived false", async () => {
+  it("recusado -> status 'rejected', archived false, rejected_at preenchido + approved_at limpo (paridade com o antigo rejectQuote)", async () => {
     await quotesRepository.updateStatus("ws1", "q1", "recusado");
-    expect(mocks.update).toHaveBeenCalledWith({ status: "rejected", archived: false });
+    expect(mocks.update).toHaveBeenCalledWith({
+      status: "rejected",
+      archived: false,
+      rejected_at: expect.any(String),
+      approved_at: null,
+    });
   });
 
   it("enviado -> status 'sent', archived false", async () => {

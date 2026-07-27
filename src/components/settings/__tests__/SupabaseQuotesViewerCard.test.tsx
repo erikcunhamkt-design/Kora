@@ -65,8 +65,6 @@ describe("SupabaseQuotesViewerCard - QA Scenarios", () => {
       archiveQuote: vi.fn(),
       softDeleteQuote: vi.fn(),
       replaceQuoteItems: vi.fn(),
-      approveQuote: vi.fn(),
-      rejectQuote: vi.fn(),
     });
 
     const { container } = render(<SupabaseQuotesViewerCard />);
@@ -130,8 +128,6 @@ describe("SupabaseQuotesViewerCard - QA Scenarios", () => {
       archiveQuote: vi.fn(),
       softDeleteQuote: vi.fn(),
       replaceQuoteItems: vi.fn(),
-      approveQuote: vi.fn(),
-      rejectQuote: vi.fn(),
     });
 
     render(<SupabaseQuotesViewerCard />);
