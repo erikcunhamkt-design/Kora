@@ -160,11 +160,13 @@ Achado durante a homologação (Fase D) da Etapa 5 · Fatia 8 (cutover de escrit
 
 ---
 
-**O6 — `LocalTechnicalSheetsImportCard` tem o mesmo bug de trigger do O5, ainda não corrigido. [BAIXO — confirmado, não bloqueante]**
-Achado durante a auditoria da rodada O5 (`qualidade-lint`), fora do escopo dos 5 cards nomeados (clients/opportunities/quotes/projects/tasks) — não corrigido nesta rodada.
+**O6 — `LocalTechnicalSheetsImportCard` tinha o mesmo bug de trigger do O5. [BAIXO — RESOLVIDO na rodada `qualidade-lint-o6`]**
+Achado durante a auditoria da rodada O5 (`qualidade-lint`), fora do escopo dos 5 cards nomeados (clients/opportunities/quotes/projects/tasks) naquela rodada — corrigido em rodada dedicada subsequente.
 
-- **A causa:** mesmo padrão do O5 — `src/pages/Configuracoes.tsx` (card de fichas técnicas), `<DialogTrigger asChild><Button disabled={eligibleCandidates.length === 0 || importing}>`. Uma vez que todos os candidatos locais já estejam importados, o diálogo não abre mais.
-- **Recomendação:** aplicar o mesmo fix mínimo do O5 (remover `eligibleCandidates.length === 0` do `disabled`, manter só `importing`) + teste equivalente. Candidato natural para a próxima rodada de LANE B.
+- **A causa:** mesmo padrão do O5 — `src/pages/Configuracoes.tsx` (card de fichas técnicas), `<DialogTrigger asChild><Button disabled={eligibleCandidates.length === 0 || importing}>`. Uma vez que todos os candidatos locais já estejam importados, o diálogo não abria mais.
+- **Fix aplicado:** removida a condição `eligibleCandidates.length === 0` do `disabled` do botão-gatilho (`LocalTechnicalSheetsImportCard`), mantendo só `disabled={importing}` — mesma mudança mínima do O5, zero alteração em `analyze`/`importSelected`. `export` adicionado à função para permitir teste direto. Commit `b7b4100`.
+- **Teste de regressão:** caso adicionado em `src/pages/__tests__/Configuracoes.import-cards.test.tsx` (mesmo molde dos 2 casos do O5) — renderiza o card com o único candidato já `"existe"`, confirma que o botão-gatilho não está desabilitado, clica e confirma que o diálogo abre mostrando o badge "Já Importada". Verificado que o teste pega a regressão (condição revertida temporariamente antes de restaurar o fix — o caso falhou exatamente no `not.toBeDisabled()`).
+- **Interseção com Fatia 10 (Lane A, Fase D em andamento):** nenhum caminho de `quotes` foi tocado — só `Configuracoes.tsx` (card de fichas técnicas) e o arquivo de teste dos import cards.
 
 ---
 
