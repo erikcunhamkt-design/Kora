@@ -109,6 +109,46 @@ Achado durante a aplicação real da DDL da Etapa 5 · Fatia 9 (`quotes`, migrat
 
 ---
 
+**G12 — Comparar campo traduzido contra o literal cru da fonte, em vez do vocabulário do mapper. [MÉDIO — confirmado, lição para toda fatia que introduzir tradução de vocabulário]**
+Achado durante a Etapa 5 · Fatia 10 (cutover de escrita de `quotes`). Detalhamento completo em
+[`etapa-5-fatia-10-quotes-write.md`](../qa/etapa-5-fatia-10-quotes-write.md) (itens 6/7 da Fase C).
+
+- **A causa:** a Fatia 9 introduziu tradução de vocabulário (`status` cru da nuvem → português,
+  via `mapSupabaseQuoteToLocalQuote`), mas dois componentes que já liam quotes traduzidas
+  (`SupabaseQuotesViewerCard.tsx`, `LinkedQuotesSection.tsx`) continuaram comparando
+  `quote.status` contra os literais em inglês antigos ("draft"/"approved"/"rejected") em vez do
+  vocabulário novo ("rascunho"/"aprovado"/"recusado") que o mapper já entrega.
+- **Sintoma:** nenhuma comparação batia — os botões Aprovar/Rejeitar e Gerar recebível/projeto
+  **nunca renderizavam**, silenciosamente, sem erro, desde o merge da Fatia 9 até a correção na
+  Fatia 10. Um teste existente de um dos dois componentes mascarava o bug: fixava o literal
+  errado ("draft") como premissa da fixture, em vez de importar o tipo real traduzido.
+- **Checklist para toda fatia futura que introduzir tradução de vocabulário** (status, categoria,
+  ou qualquer enum que muda de representação entre camadas): antes de considerar a tradução
+  completa, `grep` exaustivo por TODOS os literais do vocabulário ANTIGO no restante do código —
+  não só nos arquivos que o design/plano nomeou como "consumidores conhecidos". Preferir o TYPE
+  do vocabulário traduzido (união fechada de literais) em vez de `string` solto nas comparações —
+  o compilador pega a maioria desses casos de graça, um teste com fixture errada não pega.
+
+---
+
+**G13 — Mutation de criação nativa resolvia FKs (`client_id`/`opportunity_id`) sempre como `null` — import-map nunca passado. [MÉDIO — confirmado, corrigido antes do primeiro chamador real]**
+Achado durante a Etapa 5 · Fatia 10 (item 8). Detalhamento em
+[`etapa-5-fatia-10-quotes-write.md`](../qa/etapa-5-fatia-10-quotes-write.md).
+
+- **A causa:** `useSupabaseQuotes.ts`'s `createMutation` (escrita no item 1) chamava
+  `mapLocalQuoteToSupabaseQuote(quote)` sem o 2º argumento (`maps`) — que tem default
+  `EMPTY_QUOTE_IMPORT_MAPS`. Toda criação nativa gravaria `client_id`/`opportunity_id` como
+  `null`, mesmo quando o usuário criava o orçamento a partir de um cliente/oportunidade já
+  migrado.
+- **Não chegou a produção:** a mutation só ganhou seu primeiro chamador de UI real no mesmo item
+  (8) que corrigiu o problema — nunca esteve reachable com o bug ativo.
+- **Lembrete permanente:** o default vazio de `mapLocalQuoteToSupabaseQuote`/funções de mapper
+  equivalentes é seguro (nunca grava um id local cru numa coluna `uuid`), mas silenciosamente
+  incorreto quando o import-map deveria existir e não foi passado. Qualquer chamada nova a esse
+  tipo de função precisa passar os mapas explicitamente, não confiar no default.
+
+---
+
 **O5 — cards de import locais divergiam em padrão de abertura do diálogo. [BAIXO — RESOLVIDO na rodada `qualidade-lint`]**
 Achado durante a homologação (Fase D) da Etapa 5 · Fatia 8 (cutover de escrita de `opportunities`) — não corrigido nela por ser um achado de consistência entre cards, pré-existente da Fatia 2, não uma regressão da fatia que o encontrou. Detalhamento completo em
 [`etapa-5-fatia-8-crm-cutover.md` §8](../qa/etapa-5-fatia-8-crm-cutover.md#8-fase-d--resultado-da-rodada-executada-vai-do-revisor) (observação registrada do caso (j) do runbook).
