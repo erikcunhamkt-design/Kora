@@ -857,3 +857,112 @@ retomada.
 
 Pronto para o operador prosseguir. Resultado por passo, incidentes registrados como sempre; caso
 vermelho para o runbook naquele ponto.
+
+---
+
+## 13. Fase D — Incidente #2 (parada no caso 5, 5a e 5b vermelhos) — diagnóstico e correção
+
+**Placar até a parada:** casos 1-4 ✅ verdes com provas SQL (criação nativa + FKs, idempotência/
+retry, duplicar, transições PT com badges corretas). Caso 6 com revalidação pendente (reexecutar
+no retorno). Casos 7-9 não executados. Quotes vivas no banco (seeds, não limpar): mãe
+`4ea62308-...` (`HOMOLOG-F10-retry`, sent), cópia `7bcf3421-...` (rejected), wizard `0c2380d1-...`
+(**título/cliente invertidos** — `title='zsczcs'`, `client_name='HOMOLOG-F10-wizard'`, draft).
+
+### Vermelho 5b — loading infinito em "Orçamentos vinculados" (CRM)
+
+**Evidência:** loop contínuo de `GET /rest/v1/quotes?...`, dezenas em sequência, todas 200.
+
+**Diagnóstico — bug real, confirmado por leitura de código e por `git show` da migração A2
+(`fb5828f`, item da lista de tarefas B/A2, ANTERIOR a esta fatia):** `useSupabaseOpportunityQuotes.ts`
+e `useSupabaseQuotes.ts` expunham `refresh: () => query.refetch()` — uma função NOVA a cada
+render. Antes da migração pra React Query, `refresh` era `useCallback` com deps estáveis
+(`[workspaceId, opportunityId]`). `LinkedQuotesSection.tsx` tem um `useEffect` PRÉ-EXISTENTE
+(desde `4b1a8f2`, também anterior a esta fatia) com `refresh` na dependência — a combinação gera
+loop: chamar `refresh` → `isFetching` muda → re-render → nova identidade de `refresh` → efeito
+roda de novo → chama `refresh` de novo, indefinidamente. **Não é código desta fatia** (item 7 só
+mudou `handleActionClick`/`handleConfirmAction`), mas bloqueia a homologação porque é a primeira
+vez que esta tela é exercida de ponta a ponta com um `opportunityId` real sob observação de rede.
+
+**Por que os testes existentes não pegaram:** `LinkedQuotesSection.test.tsx` mocka
+`@/hooks/useSupabaseOpportunityQuotes` por inteiro — o mock devolve `refresh: vi.fn()`, de
+identidade estável por construção. A instabilidade real do hook nunca era exercida.
+
+**Correção** (commit `5fd1fab`): `refresh` agora tem identidade permanentemente estável via
+`useRef` + `useCallback` vazio, nos dois hooks (`useSupabaseQuotes.ts` tem o mesmo padrão, mesmo
+sem consumidor afetado hoje — mesma classe de bug, corrigida nos dois pontos). Efeito colateral
+seguro: `quotes: query.data ?? []` virou uma constante `EMPTY_QUOTES` compartilhada, evitando um
+array novo por render enquanto a query ainda carrega.
+
+**Novo teste** (`src/hooks/__tests__/useSupabaseOpportunityQuotes.test.tsx`) — exercita o hook
+REAL (só o repository é mockado), reproduzindo o padrão de consumo real (`refresh` numa
+dependência de `useEffect`). Verificado nos dois sentidos: falha no código antigo (contagem de
+chamadas cresce sem parar — 3584 → 28672 em 300ms, medido) e passa no código corrigido.
+
+### Vermelho 5a — SupabaseQuotesViewerCard não aparece em Configurações
+
+**Diagnóstico — bug PRÓPRIO, não consequência do loop acima (confirmado, não hipótese):**
+`experimentalEnabled` era `useMemo(() => getBooleanFlag(...), [])` — lê a flag UMA VEZ no mount e
+nunca mais. `QuotesSupabaseExperimentalToggleCard.tsx` (o card do TOGGLE, distinto do card do
+VIEWER) já tentava avisar a mudança via `window.dispatchEvent(new Event("storage"))` — mas nada
+escutava esse evento no viewer. Resultado: ligar a flag pela UI (sem F5) nunca fazia o card
+aparecer, em nenhum ponto da tela — exatamente o sintoma relatado. Também pré-existente (não é
+código do item 6 desta fatia), exposto agora pela primeira homologação real desta tela.
+
+**Correção** (commit `5fd1fab`): `experimentalEnabled` virou `useState` + listener de `"storage"`
+(mesmo padrão já usado em `useSupabaseQuotesWriteFlag.ts`) — reage tanto a eventos reais de outra
+aba quanto ao dispatch sintético same-tab que o toggle já fazia. Novo teste confirma nos dois
+sentidos (falha sem a correção, passa com ela).
+
+**Gates:** tsc 0 · vitest 306/306 · lint-gate 33/33 (sem regressão).
+
+### Achados adicionais registrados pelo operador (para o runbook/protocolo)
+
+1. **Nomenclatura — não era o runbook, era o próprio bug 5a.** Investigado: o título citado no
+   runbook (§10.3, passo 22, "Orçamentos no Supabase (Experimental)") já bate exatamente com
+   `SupabaseQuotesViewerCard.tsx:160` — o texto do runbook está e sempre esteve correto. O card
+   parecia "inexistente" porque, de fato, ele nunca renderizava (retornava `null` por causa do
+   `experimentalEnabled` congelado, corrigido acima) — o operador viu só os outros 3 cards que
+   ELE PRÓPRIO alcançou clicando: `QuotesSupabaseExperimentalToggleCard` ("Visualização
+   Experimental de Orçamentos Supabase" — só o TOGGLE da flag, não a lista),
+   `QuotesSupabaseApprovalToggleCard` ("Orçamentos Supabase - Aprovação Experimental" — toggle da
+   flag legada), `SupabaseOperationalDashboardToggleCard` ("Visão Operacional Supabase
+   (Experimental)" — feature separada, não relacionada ao viewer de quotes). Nenhuma mudança de
+   texto necessária no runbook — só reforçar (abaixo) que são 4 cards distintos, pra não
+   confundir de novo na retomada.
+2. **Sub-caso pendente de prova:** com a flag legada `quotesSupabaseApproval` OFF e só o master
+   flag ON, `isQuotesApprovalReachable()` deve continuar permitindo Aprovar/Rejeitar (já coberto
+   por teste unitário, `LinkedQuotesSection.test.tsx`/`SupabaseQuotesViewerCard.test.tsx` — falta
+   a prova visual/E2E). Adicionado como sub-caso explícito da retomada do caso 5 (abaixo).
+3. **Desvio de dado no seed:** a quote `HOMOLOG-F10-wizard` (id `0c2380d1-...`) foi criada com
+   título e cliente invertidos (`title='zsczcs'`). Como o título NÃO começa com `HOMOLOG-F10-`, a
+   limpeza padrão (`title like 'HOMOLOG-F10-%'`, §10.5) NÃO vai apagá-la — precisa de um `DELETE`
+   por id explícito na limpeza final (registrado abaixo).
+4. **localStorage é por origem (porta incluída)** — a troca de dev server (`8090` → `8095`, ambos
+   `localhost`, portas diferentes) exigiu re-seed completo (flags + quote local) porque
+   `localStorage` não é compartilhado entre origens diferentes, mesmo no mesmo host. Registrar
+   como item explícito da emenda §16-b (pendente de redação formal no sign-off, §12): sessões
+   trocando de dev server devem esperar ter que re-seedar local, não é um bug.
+
+### Runbook — correções para a retomada do caso 5
+
+- **Card do viewer (item 5a):** título já correto no runbook — "Orçamentos no Supabase
+  (Experimental)". É um card SEPARADO dos 3 toggles; agora aparece de verdade assim que a flag
+  liga (fix do incidente #2), sem precisar de F5. Localizar rolando Configurações até esse título
+  exato, depois de ativar "Visualização Experimental de Orçamentos Supabase".
+- **Sub-caso novo (achado 2):** antes de encerrar o caso 5, com a flag legada
+  `quotesSupabaseApproval` OFF e só o master flag ON, confirmar visualmente que Aprovar/Rejeitar
+  aparecem e funcionam nas 2 telas (prova de que o master flag sozinho já alcança, sem depender
+  da legada).
+- **Limpeza (achado 3):** adicionar à §10.5, antes do `DELETE ... title like 'HOMOLOG-F10-%'`:
+  ```sql
+  delete from public.quote_items where quote_id = '0c2380d1-...'; -- confirmar id exato no banco
+  delete from public.quotes where id = '0c2380d1-...';
+  ```
+
+**Não executado:** runbook não re-rodado, seeds não limpos (mãe, cópia, wizard com dado
+invertido, oportunidade, quote local) — tudo reaproveitado na retomada.
+
+---
+
+**PARADO aqui.** Diagnóstico + correção do incidente #2 completos, pushados (`5fd1fab`).
+Retomada do caso 5 (com o sub-caso novo do achado 2) e seguimento do runbook só com novo "vai".
