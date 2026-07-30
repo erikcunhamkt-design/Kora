@@ -1025,3 +1025,86 @@ que pelo motivo errado — caso 6 do incidente #1).
 **PARADO aqui.** Incidente #3 diagnosticado e corrigido, pushado (`83ea446`). Retomada do caso 5
 (runbook, com o sub-caso do achado 2 do incidente #2) só com novo "vai" — o operador deve conferir
 o `[Kora] BUILD` no console ANTES do passo 1, per o novo mecanismo de prova.
+
+---
+
+## 15. Fase D — Incidente #4 (retomada: G14 provado, 5a vermelho definitivo, achado do 400) — diagnóstico e correção
+
+**Ambiente validado pelo operador:** BUILD `1451bf3 (fatia-10-quotes-write)` confirmado por hash
+no console — §16-b (item 2 do incidente #3) funcionando como desenhado.
+
+**G14 provado em runtime ✅** — "Orçamentos vinculados" carregou normalmente, sem loop, contra
+código provado por hash. Fix do incidente #2 confirmado ao vivo.
+
+### 5a — vermelho definitivo, causa raiz DIFERENTE da hipótese anterior
+
+Testado ao vivo, em todas as combinações de flag (mestre ON/legada OFF, mestre ON/legada ON,
+com e sem F5): `SupabaseQuotesViewerCard` nunca aparecia em Configurações. O fix do G15
+(§13 — `useState` + listener de `storage`) era necessário mas **não suficiente**.
+
+**Causa raiz real, confirmada por `git log -S` e `grep`, não hipótese:** `SupabaseQuotesViewerCard`
+é **importado** em `Configuracoes.tsx` (linha 80), mas **nunca aparece no JSX** — nenhuma
+combinação de flag o faria renderizar porque ele simplesmente não está na árvore. Rastreado até
+o commit `79bb252` ("Remove experimental toggle cards and simplify Settings UI..."), que removeu
+~20 cards de uma vez (incluindo `SupabaseQuotesViewerCard`, `SupabaseCrmViewerCard`,
+`SupabaseClientsViewerCard`, `SupabaseOperationalDashboardCard`) como parte de uma reorganização
+deliberada da página — mas deixou o `import` órfão. `@typescript-eslint/no-unused-vars` está
+**desligado** em `eslint.config.js` (confirmado), então nada acusou o import morto. Uma seção
+posterior ("Sincronização Cloud & CRM", adicionada em fatias subsequentes) reintroduziu o
+TOGGLE (`QuotesSupabaseExperimentalToggleCard`) mas nunca o VIEWER correspondente — daí o
+operador ver os toggles funcionando (é por isso que "Visualização Experimental" e "Aprovação
+Experimental" existem e respondem) mas nunca o card com a lista.
+
+**Achado correlato, mesma classe, não corrigido (fora do escopo de `quotes`):**
+`SupabaseOperationalDashboardCard` também está importado em `Configuracoes.tsx` e também nunca é
+renderizado — confirmado por `grep`, mesma causa (`79bb252`). Registrado para a fatia/rodada que
+homologar o domínio operacional.
+
+**Correção** (commit `093df68`): `<SupabaseQuotesViewerCard />` adicionado de volta, full-width,
+na seção "Sincronização Cloud & CRM", ao lado do próprio toggle que gateia a mesma flag.
+
+### Achado novo — 400 real na Network (workspace_id vazio)
+
+`GET /rest/v1/quotes?select=*&workspace_id=eq.&opportunity_id=eq.ca4ccaf1-...` → `400`.
+
+**Causa raiz confirmada:** `LinkedQuotesSection.tsx` tem um `useEffect` PRÉ-EXISTENTE (desde
+`4b1a8f2`, anterior a esta fatia) que chama `refresh()` sempre que `opportunityId` está presente
+— verdade desde o primeiro mount (`CRM.tsx` só renderiza a seção quando `lead.supabaseId` já
+existe, `pages/CRM.tsx:2213-2218`). `refresh()` é `query.refetch()` do React Query, que **ignora
+`enabled`** por design — dispara mesmo que `useCurrentWorkspace()` (chamado em paralelo, no
+mesmo componente) ainda não tenha resolvido, produzindo uma chamada com `workspace_id` vazio. O
+erro é engolido silenciosamente porque a busca automática seguinte (queryKey diferente, já com
+`workspaceId` correto) mascara completamente o sintoma na UI — só aparece na aba Network.
+
+**Auditoria dos hooks irmãos** (pedida explicitamente): `SupabaseOperationalDashboardCard.tsx`
+também usa `useSupabaseQuotes()` e expõe `quotesRefresh`, mas só o chama dentro de
+`handleRefreshAll` (clique manual, nunca em efeito de mount) — sem o mesmo risco.
+`SupabaseQuotesViewerCard.tsx` não tem nenhum efeito chamando `refresh()`. `LinkedQuotesSection.tsx`
+era o único consumidor com o padrão perigoso.
+
+**Correção** (commit `093df68`): o efeito passou a checar também `workspaceId` antes de chamar
+`refresh()` — `if (opportunityId && workspaceId) refresh();`, com `workspaceId` também na
+dependência.
+
+**Testes novos** (verificados nos dois sentidos — falham no código antigo, passam no corrigido):
+- `Configuracoes.quotes-viewer-mount.test.tsx` — renderiza `Configuracoes` na aba "Dados" e
+  confirma que o TÍTULO real do card aparece (não só o toggle).
+- `LinkedQuotesSection.test.tsx` (2 casos novos) — `refresh` não é chamado com `workspace: null`;
+  é chamado exatamente uma vez assim que o workspace resolve.
+
+**Gates:** tsc 0 · vitest 310/310 · lint-gate 33/33.
+
+**Catalogado no plano mestre** (`kora-hub-auditoria-e-plano.md`, commit `1b4ca57`, main): **G16**
+(import órfão nunca renderizado — inclui o achado correlato do
+`SupabaseOperationalDashboardCard`) e **G17** (`refetch()` ignora `enabled`, regra permanente
+pra qualquer efeito de mount que chame uma função de ação de hook de dados).
+
+**Não executado:** runbook não re-rodado, seeds não limpos (mãe, cópia, wizard com dado
+invertido, oportunidade, quote local, e agora também os dados do teste de "Orçamentos
+vinculados" já confirmados verdes no G14) — tudo reaproveitado na retomada.
+
+---
+
+**PARADO aqui.** Incidente #4 diagnosticado e corrigido, pushado (`093df68`), catalogado em main
+(`1b4ca57`). Retomada do caso 5 completo (incluindo o sub-caso do achado 2 do incidente #2 e a
+revalidação do caso 6 pendente desde o incidente #1) só com novo "vai".
