@@ -810,3 +810,50 @@ por instrução explícita do revisor — reaproveitado na próxima rodada.
 
 **PARADO aqui.** Diagnóstico + correção do incidente #1 completos e pushados. Re-execução do
 runbook (retomando do passo 11, contra `http://localhost:8095`) só com novo "vai" do revisor.
+
+---
+
+## 12. Fase D — Retomada ("vai" do revisor) — placar corrigido + passo 0
+
+**Correção de placar da rodada anterior** (registrado pelo revisor):
+- **Passos 1-4 (baseline + seeds): VÁLIDOS** — SQL/localStorage diretos, independentes do
+  frontend. `quotes_baseline = 1`, `opps_baseline = 0`. Oportunidade seed:
+  `ca4ccaf1-56e3-47a8-a331-c27ac3970a66` (`HOMOLOG-F10-opp`). Quote local seed
+  (`homolog-f10-import-quote-1`) presente.
+- **Passos 5-10: INVÁLIDOS** — rodaram contra `main` via `localhost:8090` (incidente #1, §11).
+- **Caso 6, parte OFF (bloqueio de escrita): verde ANULADO** — o toast que apareceu no passo 7
+  veio de `main`'s `blockWrite()` incondicional (código pré-Fase-C), não do master flag desta
+  fatia. Precisa ser re-executado contra o código real, com a mensagem nova
+  (`QUOTES_WRITE_FLAG_OFF_MESSAGE`, §11 achado B) como prova adicional de que é o código certo.
+
+**Novo passo 0 — prova de correspondência código↔servidor (obrigatório antes de qualquer outro
+passo da retomada):** em `http://localhost:8095`, com as flags atuais da sessão anterior
+(`kora.quotes.supabaseWrite.enabled=true`, `kora.quotes.supabaseExperimental.enabled=true` — ainda
+ligadas de antes da parada), confirmar:
+- Badge = **"Modo operacional"** (não "Modo leitura").
+- Banner = **"Orçamentos operacionais (Supabase)"** (não "...em modo leitura...").
+
+Se aparecer o texto antigo, **PARAR IMEDIATAMENTE** — servidor errado de novo, não prosseguir.
+
+### Sequência da retomada
+
+| # | Ação | Onde | Verde quando |
+|---|---|---|---|
+| 0 | Prova de servidor (acima) | `localhost:8095`, visual | badge/banner em modo operacional |
+| 0b | Desligar `kora.quotes.supabaseWrite.enabled` (`experimental` pode ficar ligada) → **F5** | Console + navegador | banner some ou volta a "modo leitura" |
+| 0c | Re-executar passos 5-8 do runbook original (§10.3) — **Caso 6 completo**: banner "modo leitura", tentar criar/salvar, toast de **erro com o texto NOVO** (contém "Escrita de orçamentos no Supabase"), prova SQL 10.4(6a) = `quotes_baseline` (1) inalterado | `localhost:8095` | ✅ caso 6 (revalidado) |
+| 0d | Religar `kora.quotes.supabaseWrite.enabled=true` → **F5** → confirmar banner volta a "operacional" | Console + navegador | ✅ pronto pra retomar |
+| 11+ | Seguir o runbook original (§10.3) a partir do passo 11, provas SQL §10.4 e limpeza §10.5 inalteradas | `localhost:8095` | 9/9 casos verdes |
+
+Tudo mais (papéis das quotes A-E, provas SQL por caso, critério de aceite 9/9, limpeza) permanece
+exatamente como em §10 — nenhuma mudança de conteúdo, só o servidor-alvo e a revalidação do caso 6.
+
+**Emenda §16-b (protocolo) — registrada para aplicar no fechamento desta fatia, não agora:**
+sessões de homologação passam a declarar, antes do passo 1: worktree em uso, URL do dev server, e
+uma prova explícita de correspondência código↔servidor (o mesmo espírito do passo 0 acima).
+Motivada pelo incidente #1 desta fatia. Fica pendente de redação formal em
+`docs/qa/protocolo-homologacao.md` no momento do sign-off/merge — não é código, não bloqueia a
+retomada.
+
+Pronto para o operador prosseguir. Resultado por passo, incidentes registrados como sempre; caso
+vermelho para o runbook naquele ponto.
