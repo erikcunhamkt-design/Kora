@@ -966,3 +966,62 @@ invertido, oportunidade, quote local) — tudo reaproveitado na retomada.
 
 **PARADO aqui.** Diagnóstico + correção do incidente #2 completos, pushados (`5fd1fab`).
 Retomada do caso 5 (com o sub-caso novo do achado 2) e seguimento do runbook só com novo "vai".
+
+---
+
+## 14. Fase D — Incidente #3 (pausa operacional: 8095 servindo bundle antigo) — diagnóstico e correção
+
+**Sintoma:** na retomada, o teste discriminador (Orçamentos vinculados no CRM) reproduziu o loop
+de refetch do G14 — mas o fix já estava em `5fd1fab`. Conclusão do revisor: `localhost:8095` não
+estava servindo o tip da branch. Rodada de testes desta janela marcada como INVÁLIDA.
+
+**Diagnóstico — confirmado, não hipótese:** o mecanismo usado pra apontar o dev server pra
+`Kora-laneA` (§11) dependia de um symlink `Kora/kora-laneA -> ../Kora-laneA`, criado via `ln -s`
+do Git Bash. Esse symlink **não é um reparse point real do Windows** — confirmado via
+`fsutil reparsepoint query` ("O arquivo ou pasta não é um ponto de nova análise") e `dir /AL`
+(não lista a entrada), mesmo aparecendo como uma pasta navegável e com conteúdo correto pra
+ferramentas nativas (PowerShell `Get-ChildItem` mostrava os arquivos certos). Efeito prático:
+Vite/chokidar liam o conteúdo através dele UMA VEZ, no boot, mas não enxergavam escritas
+subsequentes no arquivo real — confirmado interceptando a resposta de rede de `/src/main.tsx` em
+uma aba nova (nunca aberta antes, sem cache de navegador possível): o servidor devolveu `200 OK`
+com o `main.tsx` **anterior a todas as edições desta fatia**, sourcemap incluído, mesmo após parar
+e reiniciar o processo do zero e limpar `node_modules/.vite`.
+
+**Por que reiniciar o processo não bastou:** o restart usa o MESMO `cwd` (o caminho symlinkado)
+— cada boot volta a ler através do mesmo atalho quebrado, reproduzindo o mesmo problema. Não era
+um problema de HMR nem de cache do navegador (testado com `location.reload()` e com uma aba
+nova); era o próprio processo lendo, na raiz, um caminho que o Windows não resolve como link.
+
+**Correção:**
+1. Symlink `Kora/kora-laneA` removido; entrada `kora-laneA-verify` retirada de
+   `Kora/.claude/launch.json`.
+2. Dev server de verificação (`localhost:8095`) agora sobe **direto via `npm run dev` na própria
+   pasta `Kora-laneA`** (processo em background, sem indireção nenhuma de symlink).
+3. **Prova de correspondência código↔servidor por hash de commit** (item 2 da instrução), não
+   mais por texto de UI reaproveitado: commit `83ea446` — `vite.config.ts` calcula
+   `git rev-parse --short HEAD` + branch no boot do dev server (`define`, resolvido uma vez no
+   boot — não é prova de HMR ao vivo, só de qual código o processo carregou); `main.tsx` loga
+   `[Kora] BUILD <hash> (<branch>)` no console, só em modo dev (`import.meta.env.DEV`).
+   **Verificado ao vivo, numa aba nova, depois da correção:** console mostrou
+   `[Kora] BUILD 1451bf3 (fatia-10-quotes-write)` — tip correto da branch no momento, confirmado
+   por hash, não por comportamento de feature.
+
+**Gates:** tsc 0 · vitest 306/306 · lint-gate 33/33.
+
+**Para a emenda §16-b (registrado, redação formal ainda pendente pro sign-off):** incidente #1
+(worktree errada) e incidente #3 (worktree certa, bundle velho por symlink quebrado) são a MESMA
+classe de risco em camadas diferentes — "o servidor que o operador vê não é garantidamente o
+código que a lane escreveu". §16-b deve exigir, antes do passo 1 de qualquer runbook: (a)
+declaração de worktree + URL do dev server (já previsto), e (b) conferência do hash de commit no
+console do navegador contra `git log` da branch — nunca inferir correspondência por texto de
+feature/UI, que pode coincidir por acidente (ex.: código antigo que também bloqueia escrita, só
+que pelo motivo errado — caso 6 do incidente #1).
+
+**Servidor atual, pronto pra retomada:** `http://localhost:8095`, processo direto (sem symlink),
+`[Kora] BUILD` confirmado no console batendo com o tip da branch (`83ea446` após este commit).
+
+---
+
+**PARADO aqui.** Incidente #3 diagnosticado e corrigido, pushado (`83ea446`). Retomada do caso 5
+(runbook, com o sub-caso do achado 2 do incidente #2) só com novo "vai" — o operador deve conferir
+o `[Kora] BUILD` no console ANTES do passo 1, per o novo mecanismo de prova.
