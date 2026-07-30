@@ -105,6 +105,17 @@ describe("LinkedQuotesSection · item 7 (Fatia 10) — comparação de status co
     expect(screen.getByText("Rejeitar")).toBeInTheDocument();
   });
 
+  it("incidente #5 (pendência 1) — status 'enviado' também mostra os botões Aprovar/Rejeitar (não é beco sem saída)", () => {
+    vi.mocked(useSupabaseOpportunityQuotes).mockReturnValue({
+      quotes: [baseQuote({ status: "enviado" })], loading: false, error: null, refresh: vi.fn(),
+    });
+
+    render(<LinkedQuotesSection opportunityId="opp-uuid-123" />);
+
+    expect(screen.getByText("Aprovar")).toBeInTheDocument();
+    expect(screen.getByText("Rejeitar")).toBeInTheDocument();
+  });
+
   it("status 'aprovado' mostra Gerar recebível/Gerar projeto, não Aprovar/Rejeitar", () => {
     vi.mocked(useSupabaseOpportunityQuotes).mockReturnValue({
       quotes: [baseQuote({ status: "aprovado" })], loading: false, error: null, refresh: vi.fn(),

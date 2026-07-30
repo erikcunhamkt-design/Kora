@@ -167,6 +167,18 @@ describe("SupabaseQuotesViewerCard · item 6 (Fatia 10) — comparação de stat
     expect(screen.getByText("Rejeitar")).toBeInTheDocument();
   });
 
+  it("incidente #5 (pendência 1) — status 'enviado' também mostra os botões Aprovar/Rejeitar", () => {
+    vi.mocked(useSupabaseQuotes).mockReturnValue({
+      quotes: [baseQuote({ status: "enviado" })],
+      loading: false, error: null, refresh: vi.fn(),
+    } as never);
+
+    render(<SupabaseQuotesViewerCard />);
+
+    expect(screen.getByText("Aprovar")).toBeInTheDocument();
+    expect(screen.getByText("Rejeitar")).toBeInTheDocument();
+  });
+
   it("status 'aprovado' mostra os botões Gerar recebível/Gerar projeto, não Aprovar/Rejeitar", () => {
     vi.mocked(useSupabaseQuotes).mockReturnValue({
       quotes: [baseQuote({ status: "aprovado" })],

@@ -212,7 +212,15 @@ export function LinkedQuotesSection({
                   </p>
                 )}
 
-                {quote.status === "rascunho" && (
+                {/* Etapa 5 · Fatia 10 · Fase D (incidente #5, pendência 1) — "enviado" só
+                    passou a existir de verdade na nuvem a partir do item 8 desta fatia
+                    (updateQuoteStatusEverywhere unificou as 5 transições); antes disso o
+                    único caminho de escrita real era aprovar/rejeitar a partir de
+                    "rascunho". O gate ficou desatualizado: uma quote "enviado" chegava
+                    aqui sem NENHUM controle de ação — beco sem saída na revisão. Rascunho
+                    e enviado são os 2 estados "aguardando decisão"; aprovado/recusado já
+                    decididos, arquivado fora do fluxo ativo. */}
+                {(quote.status === "rascunho" || quote.status === "enviado") && (
                   <div className="flex items-center gap-1.5 mt-1">
                     <Button
                       size="sm"

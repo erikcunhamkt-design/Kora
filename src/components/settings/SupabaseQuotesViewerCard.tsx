@@ -261,7 +261,11 @@ export function SupabaseQuotesViewerCard() {
                       </div>
                     </div>
 
-                    {quote.status === "rascunho" && (
+                    {/* Etapa 5 · Fatia 10 · Fase D (incidente #5, pendência 1) — mesmo
+                        gate de LinkedQuotesSection.tsx: "enviado" só existe de verdade na
+                        nuvem desde o item 8; rascunho e enviado são os 2 estados
+                        "aguardando decisão". */}
+                    {(quote.status === "rascunho" || quote.status === "enviado") && (
                       <div className="flex items-center gap-1.5">
                         <Button
                           size="sm"
