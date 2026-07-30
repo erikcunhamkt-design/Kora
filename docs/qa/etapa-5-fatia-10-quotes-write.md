@@ -1224,6 +1224,67 @@ sessão.
 
 ---
 
-**PARADO aqui.** Placar final registrado, pendências 1 (corrigida) e 2 (decidida) fechadas.
-Emenda §16-b formal e gates finais a seguir. Sign-off, merge e decisão do flip só com novo "vai"
-do revisor.
+## 17. Sign-off e merge ("vai" do revisor) — fatia encerrada
+
+### Decisão do flip
+
+**O flip NÃO acompanha este pacote.** Merge feito com os defaults conservadores já em vigor desde
+o design (§5 da Fase A, §8.3 da Fase B) — sem alteração nesta rodada:
+- `kora.quotes.supabaseWrite.enabled` — default **OFF** (opt-in, `=== "true"` liga).
+- `kora.quotes.dataSource.v1` — default **LOCAL** (só `"supabase"` seleciona nuvem).
+
+Confirmado por leitura direta do código já mesclado em `main`. O flip (ligar os dois defaults
+juntos, mesmo padrão da Fatia 8 pro CRM) fica pra um **pacote próprio, futuro**, após o smoke
+pós-merge — não decidido agora, não implícito no merge.
+
+### Correção da nota de honestidade (§16)
+
+A nota de §16 sobre "não ter acesso autenticado pra reverificar 5a/5b ao vivo" fica **superada**:
+os seeds já foram limpos (reconciliação 0/0, confirmada antes do fechamento da Fase D) — não há
+mais dado sintético vivo pra reverificar contra. A conferência visual do fix da Pendência 1
+(status "enviado" mostrando Aprovar/Rejeitar nas 2 telas) **migra para o smoke pós-merge**, com
+este roteiro:
+1. Criar 1 quote sintética via UI (CRM ou wizard), com o master flag ligado.
+2. Marcar como "enviado".
+3. Verificar Aprovar/Rejeitar aparecem e funcionam nas 2 telas migradas (Configurações e painel
+   CRM) para essa quote em "enviado".
+4. Excluir a quote sintética ao final (limpeza do próprio smoke, sem deixar resíduo).
+
+### Sync final e merge
+
+1. **Sync:** `git merge origin/main --no-edit` na branch `fatia-10-quotes-write` (worktree
+   `Kora-laneA`) — absorveu G12-G17 (catálogo mestre), a Emenda §17 do protocolo, e uma pequena
+   mudança de `Configuracoes.tsx`/teste da rodada `qualidade-lint-o6` (auto-merge limpo, sem
+   conflito). Commit de sync: `ac367ad`.
+2. **Gates no estado combinado** (worktree `Kora-laneA`, antes do merge pra main): tsc 0 ·
+   vitest 313/313 · lint-gate 33/33. Push do sync: `6d9f6f3..ac367ad` em
+   `fatia-10-quotes-write`.
+3. **Checagem de contenção imediatamente antes do merge** (§16 item 4, §17): `orbit-designer-hub`
+   (única worktree com `main`), `git fetch` + comparação de hash — `main` local idêntico a
+   `origin/main` (`2773b1b`), sem commit estranho no meio da operação.
+4. **Merge `fatia-10-quotes-write` → `main`: fast-forward** (`2773b1b..ac367ad`) — histórico
+   linear, sem commit de merge extra, porque a branch já continha `origin/main` como ancestral
+   direto pelo sync do passo 1.
+5. **Gates repetidos diretamente em `main`** pós fast-forward, mesmo commit: tsc 0 ·
+   vitest 313/313 · lint-gate 33/33.
+6. **Push:** `2773b1b..ac367ad` em `origin/main`, sem drift (confirmado imediatamente antes).
+
+**Hash final mesclado em `main`: `ac367ad`.**
+
+### Fechamento do ciclo
+
+- **Catálogo mestre conferido:** G11 (RPC/DROP FUNCTION, pré-existente) até **G17** (`refetch()`
+  ignora `enabled`) — sequência contígua, sem duplicidade, todos com link de volta pro doc desta
+  fatia. Nenhum O-number novo desta fatia (a série O é de `opportunities`; esta fatia tocou só
+  `quotes` — O5/O6/O7 são de rodadas anteriores/paralelas, não desta fatia).
+- **PDF/relatório:** artefato web publicado com o relatório completo da fatia (índice, placar,
+  incidentes #1-#5, catálogo) e botão "Imprimir / Salvar como PDF" — geração do PDF em si e
+  arquivamento em "Documentação Kora" ficam com o operador.
+- **Worktrees ao fechar:** `Kora-laneA` (`fatia-10-quotes-write`) e `orbit-designer-hub` (`main`)
+  ambas em `ac367ad`, idênticas — a branch de fatia pode ser considerada encerrada (merge
+  absorvido, sem trabalho pendente nela).
+
+---
+
+**PARADO aqui.** Fatia 10 encerrada — merge em `main` @ `ac367ad`, gates verdes nos dois lados,
+flip explicitamente NÃO incluído. Smoke pós-merge e pacote do flip só com novo "vai" do revisor.
