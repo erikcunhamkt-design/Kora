@@ -161,3 +161,44 @@ describe("LinkedQuotesSection · item 7 (Fatia 10) — comparação de status co
     expect(await screen.findByText("Aprovar orçamento")).toBeInTheDocument();
   });
 });
+
+describe("LinkedQuotesSection · incidente #4 (Fatia 10, Fase D, achado 400) — refresh de mount espera o workspace resolver", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.clearAllMocks();
+  });
+
+  it("workspace ainda resolvendo (null) no mount: NÃO chama refresh (evita o 400 de workspace_id vazio)", () => {
+    const refresh = vi.fn();
+    vi.mocked(useCurrentWorkspace).mockReturnValue({
+      workspace: null, membership: null, loading: true, error: null,
+    });
+    vi.mocked(useSupabaseOpportunityQuotes).mockReturnValue({
+      quotes: [], loading: false, error: null, refresh,
+    });
+
+    render(<LinkedQuotesSection opportunityId="opp-uuid-123" />);
+
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("workspace resolve depois do mount: refresh é chamado só então, nunca antes", () => {
+    const refresh = vi.fn();
+    vi.mocked(useCurrentWorkspace).mockReturnValue({
+      workspace: null, membership: null, loading: true, error: null,
+    });
+    vi.mocked(useSupabaseOpportunityQuotes).mockReturnValue({
+      quotes: [], loading: false, error: null, refresh,
+    });
+
+    const { rerender } = render(<LinkedQuotesSection opportunityId="opp-uuid-123" />);
+    expect(refresh).not.toHaveBeenCalled();
+
+    vi.mocked(useCurrentWorkspace).mockReturnValue({
+      workspace: mockWorkspace, membership: null, loading: false, error: null,
+    });
+    rerender(<LinkedQuotesSection opportunityId="opp-uuid-123" />);
+
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+});

@@ -874,6 +874,16 @@ const Configuracoes = () => {
                 </div>
               </div>
 
+              {/* Etapa 5 · Fatia 10 · Fase D (incidente #4) — o card acima
+                  (QuotesSupabaseExperimentalToggleCard) só liga a flag; o
+                  card com a LISTA de verdade nunca tinha sido montado nesta
+                  seção (existia só antes de 79bb252, quando a página inteira
+                  foi reorganizada). Full-width, fora do grid de toggles —
+                  mostra uma lista, não um switch compacto. */}
+              <div className="mt-6">
+                <SupabaseQuotesViewerCard />
+              </div>
+
               <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-300/90 flex items-start gap-2 mt-6">
                 <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
                 Alguns dados ainda estão em modo local/protótipo e serão migrados para Supabase antes da produção.

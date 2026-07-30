@@ -59,11 +59,21 @@ export function LinkedQuotesSection({
   };
 
   // Trigger refresh when requested from parent (e.g. after a quote is successfully created)
+  //
+  // Etapa 5 · Fatia 10 · Fase D (incidente #4, achado 400) — `refresh()` (via
+  // React Query `refetch()`) IGNORA `enabled`/`workspaceId`: sem a guarda de
+  // `workspaceId` abaixo, este efeito disparava no primeiro mount com
+  // `opportunityId` já presente, mas `workspace` (useCurrentWorkspace, ainda
+  // resolvendo em paralelo) resultando num `workspace_id=eq.` VAZIO na query —
+  // 400 real na rede em toda montagem, engolido silenciosamente porque a
+  // busca automática seguinte (com workspaceId correto, chave de cache
+  // diferente) mascarava o erro. `workspaceId` na dependência garante que só
+  // dispara quando o workspace já resolveu.
   React.useEffect(() => {
-    if (opportunityId) {
+    if (opportunityId && workspaceId) {
       refresh();
     }
-  }, [opportunityId, triggerRefreshToggle, refresh]);
+  }, [opportunityId, workspaceId, triggerRefreshToggle, refresh]);
 
   const handleActionClick = (quoteId: string, title: string, type: "approve" | "reject") => {
     // Etapa 5 · Fatia 10 (item 7, §8.1) — coexistência temporária: mesma regra
