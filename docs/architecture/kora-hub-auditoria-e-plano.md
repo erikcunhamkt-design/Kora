@@ -204,6 +204,62 @@ Detalhamento completo em [`etapa-5-fatia-10-quotes-write.md`](../qa/etapa-5-fati
 
 ---
 
+**G16 — Componente importado numa página nunca chega a ser renderizado (import órfão, sem lint que pegue). [ALTO — confirmado]**
+Achado durante a Etapa 5 · Fatia 10 (Fase D, homologação, incidente #4 — caso 5a vermelho
+definitivo, mesmo após o fix de G15). Detalhamento completo em
+[`etapa-5-fatia-10-quotes-write.md`](../qa/etapa-5-fatia-10-quotes-write.md) (§15).
+
+- **A causa:** `SupabaseQuotesViewerCard` era importado em `Configuracoes.tsx`, mas nunca
+  aparecia no JSX — removido (junto de ~20 outros cards) no commit `79bb252` ("Remove
+  experimental toggle cards and simplify Settings UI"), uma reorganização deliberada da página
+  que aparentemente esqueceu de também remover o import morto. `@typescript-eslint/no-unused-vars`
+  está **desligado** em `eslint.config.js` — nada detecta um import nunca usado.
+- **Sintoma:** nenhuma combinação de flags fazia o card aparecer — G15 (flag congelada) era um
+  bug real e teve de ser corrigido, mas não era a causa raiz completa: o componente nunca estava
+  na árvore, independente do estado de qualquer flag.
+- **Correção** (commit `093df68`, `Kora-laneA`): `<SupabaseQuotesViewerCard />` adicionado de
+  volta à seção "Sincronização Cloud & CRM" de `Configuracoes.tsx`, ao lado do toggle que já
+  gateia a mesma flag.
+- **Achado correlato, MESMA classe, domínio diferente, NÃO corrigido (fora do escopo de
+  `quotes`):** `SupabaseOperationalDashboardCard` também está importado em `Configuracoes.tsx` e
+  também nunca é renderizado em lugar nenhum do app — confirmado por grep, não hipótese. Fica
+  registrado aqui para a fatia/rodada que homologar o domínio operacional/dashboard.
+- **Checklist pra qualquer fatia que remover/reorganizar cards de uma página de configurações:**
+  ao apagar uma linha de JSX, sempre conferir (grep) se o import correspondente também deve sair
+  — e não confiar no lint pra pegar isso, porque a regra que pegaria está desligada neste
+  projeto. Se um card tem uma flag de toggle própria em Configurações, um teste de integração
+  (renderizar a página/seção com a flag ligada e afirmar que o CONTEÚDO do card aparece, não só
+  que o toggle existe) pega esse tipo de regressão — teste que checa só a existência do toggle
+  não prova que o card real está na árvore.
+
+---
+
+**G17 — `refetch()`/funções de ação de hooks de dados IGNORAM `enabled` — efeito de mount que chama uma delas sem esperar a dependência resolver dispara requisição inválida. [MÉDIO — confirmado]**
+Achado durante a Etapa 5 · Fatia 10 (Fase D, homologação, incidente #4 — achado do 400 na
+Network). Detalhamento completo em
+[`etapa-5-fatia-10-quotes-write.md`](../qa/etapa-5-fatia-10-quotes-write.md) (§15).
+
+- **A causa:** `LinkedQuotesSection.tsx` tem um `useEffect` pré-existente (desde `4b1a8f2`,
+  anterior a esta fatia) que chama `refresh()` (== `query.refetch()` de
+  `useSupabaseOpportunityQuotes.ts`) sempre que `opportunityId` está presente — o que é verdade
+  desde o primeiro mount (`CRM.tsx` só renderiza a seção quando `lead.supabaseId` já existe).
+  `refetch()` do React Query **ignora `enabled`** por design — dispara mesmo que a query esteja
+  desabilitada. Se `useCurrentWorkspace()` (chamado em paralelo, no mesmo componente) ainda não
+  resolveu, a chamada manual roda com `workspace_id` vazio.
+- **Sintoma:** `GET /rest/v1/quotes?...&workspace_id=eq.&opportunity_id=eq....` → `400`, em TODA
+  montagem da seção, engolido silenciosamente — a busca automática seguinte (queryKey diferente,
+  workspaceId já correto) mascara o erro completamente na UI.
+- **Correção** (commit `093df68`, `Kora-laneA`): o efeito passou a checar também `workspaceId`
+  antes de chamar `refresh()`.
+- **Regra permanente:** `enabled: false` numa query do React Query bloqueia o fetch automático,
+  **não** bloqueia uma chamada manual a `refetch()`/à função de ação exposta pelo hook. Qualquer
+  `useEffect` que chame essa função de ação precisa incluir, na própria condição do efeito
+  (não só na dependência), todo valor do qual a query depende pra ser válida (workspace, ids
+  externos) — nunca assumir que "a query não vai rodar porque `enabled` está falso" cobre
+  chamadas manuais.
+
+---
+
 **O5 — cards de import locais divergiam em padrão de abertura do diálogo. [BAIXO — RESOLVIDO na rodada `qualidade-lint`]**
 Achado durante a homologação (Fase D) da Etapa 5 · Fatia 8 (cutover de escrita de `opportunities`) — não corrigido nela por ser um achado de consistência entre cards, pré-existente da Fatia 2, não uma regressão da fatia que o encontrou. Detalhamento completo em
 [`etapa-5-fatia-8-crm-cutover.md` §8](../qa/etapa-5-fatia-8-crm-cutover.md#8-fase-d--resultado-da-rodada-executada-vai-do-revisor) (observação registrada do caso (j) do runbook).
