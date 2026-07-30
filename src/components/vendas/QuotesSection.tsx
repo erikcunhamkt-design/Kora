@@ -73,6 +73,17 @@ function Metric({
 /** Resolve effective status (computes "vencido" on the fly without mutating data). */
 const effectiveStatus = (q: Quote): QuoteStatus => (isQuoteExpired(q) ? "vencido" : q.status);
 
+// Etapa 5 · Fatia 10 (incidente pós-Fase-D, runbook parado no passo 11) — a
+// escrita real de quotes (criar/status/duplicar/excluir) já existe atrás do
+// master flag desde o item 8; a mensagem antiga ("chega numa próxima fatia")
+// ficou incorreta pra esses 4 pontos — dava a entender que o recurso não
+// tinha sido construído, quando na verdade só está desligado por flag nesta
+// sessão. `blockWrite()` (Gerar recebível/projeto, fora do escopo desta
+// fatia) MANTÉM sua própria mensagem — pra esses dois, "chega numa próxima
+// fatia" continua verdade.
+const QUOTES_WRITE_FLAG_OFF_MESSAGE =
+  "Escrita de orçamentos no Supabase ainda está desligada nesta sessão (flag mestre) — volte para Local para editar.";
+
 export function QuotesSection() {
   const { quotes: localQuotes, addQuote, updateStatus, updateQuote, duplicateQuote, deleteQuote } = useQuotes();
   const {
@@ -230,7 +241,7 @@ export function QuotesSection() {
   ): boolean => {
     if (dataSource === "supabase") {
       if (!isSupabaseQuotesWriteEnabled()) {
-        toast.error("Edição de orçamentos no modo Supabase chega numa próxima fatia — volte para Local para editar.");
+        toast.error(QUOTES_WRITE_FLAG_OFF_MESSAGE);
         return false;
       }
       updateSupabaseQuoteStatus(quote.id, status)
@@ -246,7 +257,7 @@ export function QuotesSection() {
   const handleSave = (data: Omit<Quote, "id" | "createdAt" | "subtotal" | "total" | "isDemo">) => {
     if (dataSource === "supabase") {
       if (!isSupabaseQuotesWriteEnabled()) {
-        toast.error("Edição de orçamentos no modo Supabase chega numa próxima fatia — volte para Local para editar.");
+        toast.error(QUOTES_WRITE_FLAG_OFF_MESSAGE);
         return;
       }
       const subtotal = data.items.reduce((s, i) => s + i.quantity * i.unitPrice, 0);
@@ -285,7 +296,7 @@ export function QuotesSection() {
   const handleDuplicate = (quote: Quote): boolean => {
     if (dataSource === "supabase") {
       if (!isSupabaseQuotesWriteEnabled()) {
-        toast.error("Edição de orçamentos no modo Supabase chega numa próxima fatia — volte para Local para editar.");
+        toast.error(QUOTES_WRITE_FLAG_OFF_MESSAGE);
         return false;
       }
       createSupabaseQuoteWithItems(
@@ -308,7 +319,7 @@ export function QuotesSection() {
     if (!confirmDelete) return;
     if (dataSource === "supabase") {
       if (!isSupabaseQuotesWriteEnabled()) {
-        toast.error("Edição de orçamentos no modo Supabase chega numa próxima fatia — volte para Local para editar.");
+        toast.error(QUOTES_WRITE_FLAG_OFF_MESSAGE);
         return;
       }
       try {

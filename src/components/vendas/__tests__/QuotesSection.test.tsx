@@ -205,6 +205,33 @@ describe("QuotesSection · modo Supabase (leitura)", () => {
     await waitFor(() => expect(localStorage.getItem(QUOTES_DATA_SOURCE_KEY)).toBe("supabase"));
     expect(await screen.findByText("Orçamentos em modo leitura (Supabase)")).toBeInTheDocument();
   });
+
+  // Fatia 10 — incidente pós-Fase-D (runbook parado no passo 11): o operador
+  // reportou que a badge/banner não refletia o master flag ligado. Prova
+  // por reprodução: o componente lê a flag a cada render via
+  // isSupabaseQuotesWriteEnabled() (import direto, sem memoização) — este
+  // teste trava esse contrato. Causa raiz real do incidente (confirmada por
+  // diagnóstico separado): o navegador do operador apontava pro dev server
+  // do worktree `main` (sem o código desta fatia), não pro worktree da
+  // branch `fatia-10-quotes-write` — não uma regressão de código.
+  it("com o master flag ligado, badge e banner mostram 'operacional', não 'leitura'", async () => {
+    localStorage.setItem(QUOTES_SUPABASE_WRITE_FLAG_KEY, "true");
+    vi.mocked(useQuotes).mockReturnValue({
+      quotes: [], addQuote: vi.fn(), updateStatus: vi.fn(), updateQuote: vi.fn(),
+      duplicateQuote: vi.fn(), deleteQuote: vi.fn(),
+    } as never);
+    vi.mocked(useSupabaseQuotes).mockReturnValue({
+      quotes: [makeSupabaseMappedQuote()], loading: false, error: null,
+    } as never);
+
+    renderSection();
+    fireEvent.click(screen.getByText("Supabase experimental"));
+
+    expect(await screen.findByText("Orçamentos operacionais (Supabase)")).toBeInTheDocument();
+    expect(screen.getByText("Modo operacional")).toBeInTheDocument();
+    expect(screen.queryByText("Orçamentos em modo leitura (Supabase)")).not.toBeInTheDocument();
+    expect(screen.queryByText("Modo leitura")).not.toBeInTheDocument();
+  });
 });
 
 describe("QuotesSection · 3º caso (§9a) — status desconhecido nunca mascarado de rascunho", () => {
@@ -290,7 +317,7 @@ describe("QuotesSection · escrita bloqueada em modo Supabase (lição O2/O3/O4)
     expect(localUpdateStatus).not.toHaveBeenCalled();
     expect(toast.success).not.toHaveBeenCalled();
     expect(toast.error).toHaveBeenCalledWith(
-      expect.stringContaining("Edição de orçamentos no modo Supabase"),
+      expect.stringContaining("Escrita de orçamentos no Supabase"),
     );
   });
 
