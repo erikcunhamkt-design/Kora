@@ -1499,7 +1499,7 @@ function SupabaseClientsViewerCard() {
   );
 }
 
-function LocalTechnicalSheetsImportCard() {
+export function LocalTechnicalSheetsImportCard() {
   const { workspace } = useCurrentWorkspace();
   const { candidates, importing, importSelected, metadata } = useLocalTechnicalSheetsImport();
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
@@ -1582,7 +1582,7 @@ function LocalTechnicalSheetsImportCard() {
           <DialogTrigger asChild>
             <Button
               onClick={handleOpenDialog}
-              disabled={eligibleCandidates.length === 0 || importing}
+              disabled={importing}
               className="w-full gap-2 orbit-gradient text-white border-0"
             >
               Analisar importação

@@ -109,6 +109,157 @@ Achado durante a aplicação real da DDL da Etapa 5 · Fatia 9 (`quotes`, migrat
 
 ---
 
+**G12 — Comparar campo traduzido contra o literal cru da fonte, em vez do vocabulário do mapper. [MÉDIO — confirmado, lição para toda fatia que introduzir tradução de vocabulário]**
+Achado durante a Etapa 5 · Fatia 10 (cutover de escrita de `quotes`). Detalhamento completo em
+[`etapa-5-fatia-10-quotes-write.md`](../qa/etapa-5-fatia-10-quotes-write.md) (itens 6/7 da Fase C).
+
+- **A causa:** a Fatia 9 introduziu tradução de vocabulário (`status` cru da nuvem → português,
+  via `mapSupabaseQuoteToLocalQuote`), mas dois componentes que já liam quotes traduzidas
+  (`SupabaseQuotesViewerCard.tsx`, `LinkedQuotesSection.tsx`) continuaram comparando
+  `quote.status` contra os literais em inglês antigos ("draft"/"approved"/"rejected") em vez do
+  vocabulário novo ("rascunho"/"aprovado"/"recusado") que o mapper já entrega.
+- **Sintoma:** nenhuma comparação batia — os botões Aprovar/Rejeitar e Gerar recebível/projeto
+  **nunca renderizavam**, silenciosamente, sem erro, desde o merge da Fatia 9 até a correção na
+  Fatia 10. Um teste existente de um dos dois componentes mascarava o bug: fixava o literal
+  errado ("draft") como premissa da fixture, em vez de importar o tipo real traduzido.
+- **Checklist para toda fatia futura que introduzir tradução de vocabulário** (status, categoria,
+  ou qualquer enum que muda de representação entre camadas): antes de considerar a tradução
+  completa, `grep` exaustivo por TODOS os literais do vocabulário ANTIGO no restante do código —
+  não só nos arquivos que o design/plano nomeou como "consumidores conhecidos". Preferir o TYPE
+  do vocabulário traduzido (união fechada de literais) em vez de `string` solto nas comparações —
+  o compilador pega a maioria desses casos de graça, um teste com fixture errada não pega.
+
+---
+
+**G13 — Mutation de criação nativa resolvia FKs (`client_id`/`opportunity_id`) sempre como `null` — import-map nunca passado. [MÉDIO — confirmado, corrigido antes do primeiro chamador real]**
+Achado durante a Etapa 5 · Fatia 10 (item 8). Detalhamento em
+[`etapa-5-fatia-10-quotes-write.md`](../qa/etapa-5-fatia-10-quotes-write.md).
+
+- **A causa:** `useSupabaseQuotes.ts`'s `createMutation` (escrita no item 1) chamava
+  `mapLocalQuoteToSupabaseQuote(quote)` sem o 2º argumento (`maps`) — que tem default
+  `EMPTY_QUOTE_IMPORT_MAPS`. Toda criação nativa gravaria `client_id`/`opportunity_id` como
+  `null`, mesmo quando o usuário criava o orçamento a partir de um cliente/oportunidade já
+  migrado.
+- **Não chegou a produção:** a mutation só ganhou seu primeiro chamador de UI real no mesmo item
+  (8) que corrigiu o problema — nunca esteve reachable com o bug ativo.
+- **Lembrete permanente:** o default vazio de `mapLocalQuoteToSupabaseQuote`/funções de mapper
+  equivalentes é seguro (nunca grava um id local cru numa coluna `uuid`), mas silenciosamente
+  incorreto quando o import-map deveria existir e não foi passado. Qualquer chamada nova a esse
+  tipo de função precisa passar os mapas explicitamente, não confiar no default.
+
+---
+
+**G14 — `refresh`/`refetch` com identidade instável numa dependência de `useEffect` causa loop infinito de refetch. [ALTO — confirmado, VIVO EM PRODUÇÃO nesta branch main]**
+Achado durante a Etapa 5 · Fatia 10 (Fase D, homologação, incidente #2 — caso 5b vermelho).
+Detalhamento completo em [`etapa-5-fatia-10-quotes-write.md`](../qa/etapa-5-fatia-10-quotes-write.md) (§13).
+
+- **A causa:** a migração A2 pra React Query (`fb5828f`, anterior a esta fatia) trocou o
+  `refresh` estável (`useCallback` com deps `[workspaceId, opportunityId]`) de
+  `useSupabaseQuotes.ts`/`useSupabaseOpportunityQuotes.ts` por `refresh: () => query.refetch()`
+  inline — uma função NOVA a cada render. `LinkedQuotesSection.tsx` já tinha (desde `4b1a8f2`,
+  também anterior) um `useEffect` com `refresh` na lista de dependências.
+- **Sintoma:** ao abrir o detalhe de uma oportunidade com orçamentos vinculados, a seção nunca
+  sai do estado de carregamento — loop contínuo de requisições idênticas
+  (`GET /rest/v1/quotes?...`), dezenas por segundo, sem parar sozinho.
+- **Está VIVO em produção nesta branch `main` hoje**, alcançável por qualquer workspace com a
+  flag legada `quotesSupabaseApproval` ligada (única flag pré-Fatia-10 com escrita real neste
+  domínio) que abra uma oportunidade com orçamentos vinculados no CRM — custo contínuo de
+  rede/banco, não um problema só de UX. **O merge de `fatia-10-quotes-write` é o veículo do
+  fix** (commit `5fd1fab`, worktree `Kora-laneA`): `refresh` passou a ter identidade
+  permanentemente estável via `useRef`, nos dois hooks.
+- **Checklist — por que os testes existentes não pegaram, lição pra qualquer hook novo que
+  devolva uma função "de ação" (`refresh`/`refetch`/`reload`/etc.) consumida por outro
+  componente:** testes que mockam o hook de dados por inteiro (`vi.mock("@/hooks/useX")`)
+  substituem a função real por um `vi.fn()` de identidade estável — isso ESCONDE qualquer bug de
+  identidade/estabilidade do hook real, porque o mock nunca reproduz a instabilidade. Sempre que
+  um componente tiver um `useEffect`/`useMemo`/etc. com uma função de um hook de dados na lista de
+  dependências, cobrir com PELO MENOS um teste que exercite o hook REAL (só a camada de
+  repository/rede mockada) e conte quantas vezes a chamada de rede/repository ocorre — não deixar
+  só testes com o hook inteiro mockado (mesmo espírito de G11/G12: um teste que assume a premissa
+  errada, ou que não exercita o mecanismo real, mascara o bug em vez de pegá-lo).
+
+---
+
+**G15 — Flag lida uma única vez via `useMemo(() => ..., [])` nunca reflete mudança na mesma aba. [MÉDIO — confirmado]**
+Achado durante a Etapa 5 · Fatia 10 (Fase D, homologação, incidente #2 — caso 5a vermelho).
+Detalhamento completo em [`etapa-5-fatia-10-quotes-write.md`](../qa/etapa-5-fatia-10-quotes-write.md) (§13).
+
+- **A causa:** `SupabaseQuotesViewerCard.tsx`'s `experimentalEnabled` (gate de renderização do
+  card inteiro) era `useMemo(() => getBooleanFlag("quotesSupabaseExperimental"), [])` — lê a
+  flag uma única vez no mount e nunca recalcula. O card irmão que liga essa mesma flag
+  (`QuotesSupabaseExperimentalToggleCard.tsx`) já tentava avisar a mudança via
+  `window.dispatchEvent(new Event("storage"))` (comentário no próprio código: "Force a custom
+  event ... to update viewer visibility in same tab") — mas nada escutava esse evento no viewer.
+- **Sintoma:** ligar a flag pela UI de Configurações (sem recarregar a página) nunca fazia o
+  card da lista aparecer, em NENHUM ponto da tela — indistinguível de "o card não existe".
+- **Correção** (commit `5fd1fab`, `Kora-laneA`): `experimentalEnabled` virou `useState` +
+  `window.addEventListener("storage", ...)`, o mesmo padrão já usado em
+  `useSupabaseQuotesWriteFlag.ts` — capta tanto eventos reais de outra aba quanto o dispatch
+  sintético same-tab que o toggle já fazia.
+- **Regra pra qualquer flag lida via `useMemo`/`useState` com dependência vazia que controle
+  renderização condicional de um componente inteiro:** se existe (ou pode existir) uma UI que
+  liga/desliga essa flag SEM forçar reload, o componente que a lê precisa de um listener ativo
+  (`storage` + custom event, mesmo par já usado em `useSupabaseQuotesWriteFlag.ts`) — não basta
+  ler uma vez no mount.
+
+---
+
+**G16 — Componente importado numa página nunca chega a ser renderizado (import órfão, sem lint que pegue). [ALTO — confirmado]**
+Achado durante a Etapa 5 · Fatia 10 (Fase D, homologação, incidente #4 — caso 5a vermelho
+definitivo, mesmo após o fix de G15). Detalhamento completo em
+[`etapa-5-fatia-10-quotes-write.md`](../qa/etapa-5-fatia-10-quotes-write.md) (§15).
+
+- **A causa:** `SupabaseQuotesViewerCard` era importado em `Configuracoes.tsx`, mas nunca
+  aparecia no JSX — removido (junto de ~20 outros cards) no commit `79bb252` ("Remove
+  experimental toggle cards and simplify Settings UI"), uma reorganização deliberada da página
+  que aparentemente esqueceu de também remover o import morto. `@typescript-eslint/no-unused-vars`
+  está **desligado** em `eslint.config.js` — nada detecta um import nunca usado.
+- **Sintoma:** nenhuma combinação de flags fazia o card aparecer — G15 (flag congelada) era um
+  bug real e teve de ser corrigido, mas não era a causa raiz completa: o componente nunca estava
+  na árvore, independente do estado de qualquer flag.
+- **Correção** (commit `093df68`, `Kora-laneA`): `<SupabaseQuotesViewerCard />` adicionado de
+  volta à seção "Sincronização Cloud & CRM" de `Configuracoes.tsx`, ao lado do toggle que já
+  gateia a mesma flag.
+- **Achado correlato, MESMA classe, domínio diferente, NÃO corrigido (fora do escopo de
+  `quotes`):** `SupabaseOperationalDashboardCard` também está importado em `Configuracoes.tsx` e
+  também nunca é renderizado em lugar nenhum do app — confirmado por grep, não hipótese. Fica
+  registrado aqui para a fatia/rodada que homologar o domínio operacional/dashboard.
+- **Checklist pra qualquer fatia que remover/reorganizar cards de uma página de configurações:**
+  ao apagar uma linha de JSX, sempre conferir (grep) se o import correspondente também deve sair
+  — e não confiar no lint pra pegar isso, porque a regra que pegaria está desligada neste
+  projeto. Se um card tem uma flag de toggle própria em Configurações, um teste de integração
+  (renderizar a página/seção com a flag ligada e afirmar que o CONTEÚDO do card aparece, não só
+  que o toggle existe) pega esse tipo de regressão — teste que checa só a existência do toggle
+  não prova que o card real está na árvore.
+
+---
+
+**G17 — `refetch()`/funções de ação de hooks de dados IGNORAM `enabled` — efeito de mount que chama uma delas sem esperar a dependência resolver dispara requisição inválida. [MÉDIO — confirmado]**
+Achado durante a Etapa 5 · Fatia 10 (Fase D, homologação, incidente #4 — achado do 400 na
+Network). Detalhamento completo em
+[`etapa-5-fatia-10-quotes-write.md`](../qa/etapa-5-fatia-10-quotes-write.md) (§15).
+
+- **A causa:** `LinkedQuotesSection.tsx` tem um `useEffect` pré-existente (desde `4b1a8f2`,
+  anterior a esta fatia) que chama `refresh()` (== `query.refetch()` de
+  `useSupabaseOpportunityQuotes.ts`) sempre que `opportunityId` está presente — o que é verdade
+  desde o primeiro mount (`CRM.tsx` só renderiza a seção quando `lead.supabaseId` já existe).
+  `refetch()` do React Query **ignora `enabled`** por design — dispara mesmo que a query esteja
+  desabilitada. Se `useCurrentWorkspace()` (chamado em paralelo, no mesmo componente) ainda não
+  resolveu, a chamada manual roda com `workspace_id` vazio.
+- **Sintoma:** `GET /rest/v1/quotes?...&workspace_id=eq.&opportunity_id=eq....` → `400`, em TODA
+  montagem da seção, engolido silenciosamente — a busca automática seguinte (queryKey diferente,
+  workspaceId já correto) mascara o erro completamente na UI.
+- **Correção** (commit `093df68`, `Kora-laneA`): o efeito passou a checar também `workspaceId`
+  antes de chamar `refresh()`.
+- **Regra permanente:** `enabled: false` numa query do React Query bloqueia o fetch automático,
+  **não** bloqueia uma chamada manual a `refetch()`/à função de ação exposta pelo hook. Qualquer
+  `useEffect` que chame essa função de ação precisa incluir, na própria condição do efeito
+  (não só na dependência), todo valor do qual a query depende pra ser válida (workspace, ids
+  externos) — nunca assumir que "a query não vai rodar porque `enabled` está falso" cobre
+  chamadas manuais.
+
+---
+
 **O5 — cards de import locais divergiam em padrão de abertura do diálogo. [BAIXO — RESOLVIDO na rodada `qualidade-lint`]**
 Achado durante a homologação (Fase D) da Etapa 5 · Fatia 8 (cutover de escrita de `opportunities`) — não corrigido nela por ser um achado de consistência entre cards, pré-existente da Fatia 2, não uma regressão da fatia que o encontrou. Detalhamento completo em
 [`etapa-5-fatia-8-crm-cutover.md` §8](../qa/etapa-5-fatia-8-crm-cutover.md#8-fase-d--resultado-da-rodada-executada-vai-do-revisor) (observação registrada do caso (j) do runbook).
@@ -120,11 +271,13 @@ Achado durante a homologação (Fase D) da Etapa 5 · Fatia 8 (cutover de escrit
 
 ---
 
-**O6 — `LocalTechnicalSheetsImportCard` tem o mesmo bug de trigger do O5, ainda não corrigido. [BAIXO — confirmado, não bloqueante]**
-Achado durante a auditoria da rodada O5 (`qualidade-lint`), fora do escopo dos 5 cards nomeados (clients/opportunities/quotes/projects/tasks) — não corrigido nesta rodada.
+**O6 — `LocalTechnicalSheetsImportCard` tinha o mesmo bug de trigger do O5. [BAIXO — RESOLVIDO na rodada `qualidade-lint-o6`]**
+Achado durante a auditoria da rodada O5 (`qualidade-lint`), fora do escopo dos 5 cards nomeados (clients/opportunities/quotes/projects/tasks) naquela rodada — corrigido em rodada dedicada subsequente.
 
-- **A causa:** mesmo padrão do O5 — `src/pages/Configuracoes.tsx` (card de fichas técnicas), `<DialogTrigger asChild><Button disabled={eligibleCandidates.length === 0 || importing}>`. Uma vez que todos os candidatos locais já estejam importados, o diálogo não abre mais.
-- **Recomendação:** aplicar o mesmo fix mínimo do O5 (remover `eligibleCandidates.length === 0` do `disabled`, manter só `importing`) + teste equivalente. Candidato natural para a próxima rodada de LANE B.
+- **A causa:** mesmo padrão do O5 — `src/pages/Configuracoes.tsx` (card de fichas técnicas), `<DialogTrigger asChild><Button disabled={eligibleCandidates.length === 0 || importing}>`. Uma vez que todos os candidatos locais já estejam importados, o diálogo não abria mais.
+- **Fix aplicado:** removida a condição `eligibleCandidates.length === 0` do `disabled` do botão-gatilho (`LocalTechnicalSheetsImportCard`), mantendo só `disabled={importing}` — mesma mudança mínima do O5, zero alteração em `analyze`/`importSelected`. `export` adicionado à função para permitir teste direto. Commit `b7b4100`.
+- **Teste de regressão:** caso adicionado em `src/pages/__tests__/Configuracoes.import-cards.test.tsx` (mesmo molde dos 2 casos do O5) — renderiza o card com o único candidato já `"existe"`, confirma que o botão-gatilho não está desabilitado, clica e confirma que o diálogo abre mostrando o badge "Já Importada". Verificado que o teste pega a regressão (condição revertida temporariamente antes de restaurar o fix — o caso falhou exatamente no `not.toBeDisabled()`).
+- **Interseção com Fatia 10 (Lane A, Fase D em andamento):** nenhum caminho de `quotes` foi tocado — só `Configuracoes.tsx` (card de fichas técnicas) e o arquivo de teste dos import cards.
 
 ---
 

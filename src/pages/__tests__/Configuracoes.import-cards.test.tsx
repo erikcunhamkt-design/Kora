@@ -7,14 +7,16 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { vi, describe, it, expect, beforeEach } from "vitest";
 
-import { LocalClientsImportCard, LocalOpportunitiesImportCard } from "@/pages/Configuracoes";
+import { LocalClientsImportCard, LocalOpportunitiesImportCard, LocalTechnicalSheetsImportCard } from "@/pages/Configuracoes";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { useLocalClientsImport } from "@/hooks/useLocalClientsImport";
 import { useLocalOpportunitiesImport } from "@/hooks/useLocalOpportunitiesImport";
+import { useLocalTechnicalSheetsImport } from "@/hooks/useLocalTechnicalSheetsImport";
 
 vi.mock("@/hooks/useCurrentWorkspace");
 vi.mock("@/hooks/useLocalClientsImport");
 vi.mock("@/hooks/useLocalOpportunitiesImport");
+vi.mock("@/hooks/useLocalTechnicalSheetsImport");
 
 const mockWorkspace = {
   workspace: {
@@ -103,6 +105,45 @@ describe("Configuracoes import cards — O5 (dialog opens with zero eligible can
     fireEvent.click(trigger);
 
     expect(screen.getByText("Análise de Importação de Oportunidades")).toBeInTheDocument();
+    expect(screen.getByText("Já Importada")).toBeInTheDocument();
+  });
+});
+
+describe("Configuracoes import cards — O6 (LocalTechnicalSheetsImportCard, same trigger regression as O5)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(useCurrentWorkspace).mockReturnValue(mockWorkspace);
+  });
+
+  it("LocalTechnicalSheetsImportCard: trigger is not disabled and opens the dialog when every candidate already exists in Supabase", () => {
+    vi.mocked(useLocalTechnicalSheetsImport).mockReturnValue({
+      candidates: [
+        {
+          localClientId: 1,
+          name: "Cliente Já Importado",
+          company: "Empresa QA",
+          status: "existe",
+          statusText: "Já existe no Supabase",
+          supabaseClientId: "supabase-uuid-1",
+          supabaseTechnicalSheetId: "supabase-sheet-1",
+          rawLocalSheet: {},
+        },
+      ],
+      importing: false,
+      importSelected: vi.fn(),
+      metadata: { lastImportedAt: "2024-01-01T00:00:00Z", importedLocalClientIds: [1], importedMap: { "1": "supabase-sheet-1" } },
+      refresh: vi.fn(),
+      loading: false,
+    });
+
+    render(<LocalTechnicalSheetsImportCard />);
+
+    const trigger = screen.getByRole("button", { name: "Analisar importação" });
+    expect(trigger).not.toBeDisabled();
+
+    fireEvent.click(trigger);
+
+    expect(screen.getByText("Análise de Importação de Fichas Técnicas")).toBeInTheDocument();
     expect(screen.getByText("Já Importada")).toBeInTheDocument();
   });
 });

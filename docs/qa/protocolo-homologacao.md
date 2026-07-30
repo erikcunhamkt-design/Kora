@@ -386,3 +386,52 @@ Regra dura, sem exceção — vale inclusive para QA:
    (em qualquer worktree) durante a janela — coordenar com o operador **antes** de abrir a
    sessão, não durante.
 6. **Demais gates permanentes (seções 0–15) inalterados.**
+
+## 17. Emenda 2026-07-30 — Prova de correspondência código↔servidor por hash de commit
+
+> **Motivada por:** dois incidentes na mesma janela de homologação (Etapa 5 · Fatia 10 — Fase D,
+> [`etapa-5-fatia-10-quotes-write.md`](etapa-5-fatia-10-quotes-write.md) §11 e §14), a mesma
+> classe de risco em camadas diferentes. **Incidente #1:** o dev server que o operador testava
+> rodava a partir do symlink `app` do hub local, resolvendo pro worktree de `main` — não pro
+> worktree/branch da fatia. O caso de teste que "passou" (bloqueio de escrita com o master flag
+> OFF) só bateu por coincidência: o código de `main` bloqueia TODA escrita incondicionalmente
+> (comportamento pré-fatia), então o resultado observado foi indistinguível do comportamento
+> correto pela flag — a homologação inteira daquela rodada rodou contra o código errado, sem
+> nenhum sinal visual que denunciasse isso. **Incidente #3:** já no worktree certo, um symlink
+> criado via `ln -s` (Git Bash) pra apontar o dev server de verificação pra fora do diretório-raiz
+> do hub não era um reparse point real do Windows — Vite/chokidar liam o conteúdo através dele
+> só no boot, nunca enxergavam escritas subsequentes no arquivo real. Reiniciar o processo não
+> resolvia (o restart usa o mesmo `cwd` symlinkado). Confirmado por rede (`main.tsx` servido era
+> anterior a todas as edições da fatia) numa aba nova, sem cache de navegador possível.
+> Em ambos os casos, texto de UI/feedback de feature **não bastou como prova** — em nenhum dos
+> dois incidentes um observador só olhando comportamento visual teria detectado o problema antes
+> de gastar uma rodada inteira de homologação em vão.
+
+1. **Prova de build por hash de commit, não por texto de feature.** Toda sessão de dev server
+   usada pra homologação deve expor, de forma verificável pelo operador ANTES do passo 1 de
+   qualquer runbook, o hash curto do commit (e a branch) que o processo carregou — nunca inferir
+   correspondência código↔servidor por comportamento observado (um bloqueio de escrita, um
+   texto de banner, etc. podem coincidir por motivo errado, como no incidente #1). Mecanismo de
+   referência (Fatia 10, `Kora-laneA/vite.config.ts` + `src/main.tsx`, commit `83ea446`):
+   `vite.config.ts` calcula `git rev-parse --short HEAD` + branch via `define`, resolvido no
+   boot do processo; o app loga `[Kora] BUILD <hash> (<branch>)` no console, só em modo dev.
+   Qualquer outro mecanismo equivalente (endpoint de health-check com o hash, etc.) serve, desde
+   que seja calculado no boot do PROCESSO (não em runtime/HMR) e comparável contra `git log` da
+   branch que se pretende homologar.
+2. **Declaração de worktree + URL do dev server, antes do passo 1.** Complementa o item 2 da
+   emenda §16: a sessão declara não só a worktree, mas o endereço exato do dev server que o
+   operador vai usar, e confirma (item 1 acima) que esse endereço serve o código daquela
+   worktree — nunca assumir que "a porta X sempre serve Y" permanece verdade entre sessões
+   (dev servers podem ser reiniciados, symlinks podem apontar errado, outra sessão pode ter
+   subido um processo diferente na mesma porta).
+3. **Symlinks como atalho de `cwd` pra dev server: desaconselhados.** Se for necessário rodar um
+   dev server fora do caminho padrão de uma ferramenta de preview (ex.: sandboxing que restringe
+   `cwd` à raiz do projeto), preferir subir o processo diretamente na pasta real (`npm run dev`
+   na própria worktree, via terminal) a criar um symlink de conveniência — `ln -s` no Git Bash
+   nem sempre produz um reparse point que ferramentas nativas do Windows (Vite/chokidar via
+   Node) resolvem corretamente, e o sintoma (bundle antigo, sem erro) é silencioso.
+4. **`localStorage` é por origem, porta incluída.** Trocar de dev server/porta no meio de uma
+   homologação (mesmo `localhost`, porta diferente) reseta flags e dados locais semeados — não é
+   um bug, é esperado; re-seed completo (flags + dados locais) faz parte da retomada, e deve ser
+   antecipado no runbook quando uma troca de servidor for necessária no meio da rodada.
+5. **Demais gates permanentes (seções 0–16) inalterados.**
