@@ -1063,6 +1063,13 @@ homologar o domínio operacional.
 **Correção** (commit `093df68`): `<SupabaseQuotesViewerCard />` adicionado de volta, full-width,
 na seção "Sincronização Cloud & CRM", ao lado do próprio toggle que gateia a mesma flag.
 
+**Decisão sobre a recomendação de UX do operador (card clicável, mesmo padrão dos importadores):**
+NÃO implementada nesta fatia — optei pelo fix mínimo (remontar o card existente) em vez do
+redesenho, pela opção explicitamente oferecida ("avaliar implementar já... ou catalogar para a
+etapa UX/Produto"). Redesenhar a apresentação do card é uma decisão de produto/UX (layout da
+página de Configurações como um todo), não uma correção de bug — misturaria escopo. Catalogado
+como sugestão de UX pra uma rodada futura de Configurações/UX, não perdida.
+
 ### Achado novo — 400 real na Network (workspace_id vazio)
 
 `GET /rest/v1/quotes?select=*&workspace_id=eq.&opportunity_id=eq.ca4ccaf1-...` → `400`.
