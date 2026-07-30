@@ -4,7 +4,7 @@
 // consumers (SupabaseQuotesViewerCard, SupabaseOperationalDashboardCard) need
 // no edits. Internally React Query now provides caching, request dedup,
 // background refetch and automatic invalidation after mutations.
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { quotesRepository } from "@/repositories/quotesRepository";
@@ -43,6 +43,8 @@ function readOpportunityImportMap(): Record<string, string> {
   }
   return {};
 }
+
+const EMPTY_QUOTES: Quote[] = [];
 
 async function fetchQuotesWithItems(workspaceId: string): Promise<Quote[]> {
   const supabaseQuotes = await quotesRepository.listQuotes(workspaceId);
@@ -134,11 +136,22 @@ export function useSupabaseQuotes() {
     onSuccess: invalidate,
   });
 
+  // Fatia 10 · Fase D (incidente #2) — mesma correção de
+  // useSupabaseOpportunityQuotes.ts: `refresh` precisa de identidade estável
+  // entre renders (via ref), nunca `() => query.refetch()` inline — um
+  // consumidor que a coloque numa dependência de useEffect entraria no mesmo
+  // loop de refetch em cascata.
+  const refetchRef = useRef(query.refetch);
+  refetchRef.current = query.refetch;
+  const refresh = useCallback(() => {
+    refetchRef.current();
+  }, []);
+
   return {
-    quotes: query.data ?? [],
+    quotes: query.data ?? EMPTY_QUOTES,
     loading: query.isLoading || query.isFetching,
     error: query.error ? getFriendlyMessage(query.error) : null,
-    refresh: () => query.refetch(),
+    refresh,
 
     createQuoteWithItems: async (quote: Quote, items: QuoteItem[]) => {
       const supa = await createMutation.mutateAsync({ quote, items });

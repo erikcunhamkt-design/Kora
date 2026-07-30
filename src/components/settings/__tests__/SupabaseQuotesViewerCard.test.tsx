@@ -213,3 +213,32 @@ describe("SupabaseQuotesViewerCard · item 6 (Fatia 10) — comparação de stat
     expect(quotesRepository.updateStatus).not.toHaveBeenCalled();
   });
 });
+
+describe("SupabaseQuotesViewerCard · incidente #2 (Fatia 10, Fase D, achado 5a) — flag reage sem F5", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.clearAllMocks();
+    vi.mocked(useCurrentWorkspace).mockReturnValue({
+      workspace: mockWorkspace, membership: null, loading: false, error: null,
+    } as never);
+    vi.mocked(useSupabaseQuotes).mockReturnValue({
+      quotes: [], loading: false, error: null, refresh: vi.fn(),
+      createQuoteWithItems: vi.fn(), updateQuote: vi.fn(), archiveQuote: vi.fn(),
+      softDeleteQuote: vi.fn(), replaceQuoteItems: vi.fn(), updateStatus: vi.fn(),
+    } as never);
+  });
+
+  it("liga a flag depois do mount (mesmo evento 'storage' que o toggle card já dispara) e o card passa a renderizar, sem precisar de F5", async () => {
+    // Flag desligada no mount — card não aparece (mesmo comportamento de antes).
+    render(<SupabaseQuotesViewerCard />);
+    expect(screen.queryByText("Orçamentos no Supabase (Experimental)")).not.toBeInTheDocument();
+
+    // QuotesSupabaseExperimentalToggleCard.tsx liga a flag e dispara exatamente
+    // este evento (window.dispatchEvent(new Event("storage"))) — sem F5. Antes
+    // da correção, ninguém escutava e o card nunca aparecia (achado 5a).
+    localStorage.setItem("kora.quotes.supabaseExperimental.enabled", "true");
+    fireEvent(window, new Event("storage"));
+
+    expect(await screen.findByText("Orçamentos no Supabase (Experimental)")).toBeInTheDocument();
+  });
+});
