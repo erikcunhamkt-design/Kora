@@ -149,6 +149,61 @@ Achado durante a Etapa 5 · Fatia 10 (item 8). Detalhamento em
 
 ---
 
+**G14 — `refresh`/`refetch` com identidade instável numa dependência de `useEffect` causa loop infinito de refetch. [ALTO — confirmado, VIVO EM PRODUÇÃO nesta branch main]**
+Achado durante a Etapa 5 · Fatia 10 (Fase D, homologação, incidente #2 — caso 5b vermelho).
+Detalhamento completo em [`etapa-5-fatia-10-quotes-write.md`](../qa/etapa-5-fatia-10-quotes-write.md) (§13).
+
+- **A causa:** a migração A2 pra React Query (`fb5828f`, anterior a esta fatia) trocou o
+  `refresh` estável (`useCallback` com deps `[workspaceId, opportunityId]`) de
+  `useSupabaseQuotes.ts`/`useSupabaseOpportunityQuotes.ts` por `refresh: () => query.refetch()`
+  inline — uma função NOVA a cada render. `LinkedQuotesSection.tsx` já tinha (desde `4b1a8f2`,
+  também anterior) um `useEffect` com `refresh` na lista de dependências.
+- **Sintoma:** ao abrir o detalhe de uma oportunidade com orçamentos vinculados, a seção nunca
+  sai do estado de carregamento — loop contínuo de requisições idênticas
+  (`GET /rest/v1/quotes?...`), dezenas por segundo, sem parar sozinho.
+- **Está VIVO em produção nesta branch `main` hoje**, alcançável por qualquer workspace com a
+  flag legada `quotesSupabaseApproval` ligada (única flag pré-Fatia-10 com escrita real neste
+  domínio) que abra uma oportunidade com orçamentos vinculados no CRM — custo contínuo de
+  rede/banco, não um problema só de UX. **O merge de `fatia-10-quotes-write` é o veículo do
+  fix** (commit `5fd1fab`, worktree `Kora-laneA`): `refresh` passou a ter identidade
+  permanentemente estável via `useRef`, nos dois hooks.
+- **Checklist — por que os testes existentes não pegaram, lição pra qualquer hook novo que
+  devolva uma função "de ação" (`refresh`/`refetch`/`reload`/etc.) consumida por outro
+  componente:** testes que mockam o hook de dados por inteiro (`vi.mock("@/hooks/useX")`)
+  substituem a função real por um `vi.fn()` de identidade estável — isso ESCONDE qualquer bug de
+  identidade/estabilidade do hook real, porque o mock nunca reproduz a instabilidade. Sempre que
+  um componente tiver um `useEffect`/`useMemo`/etc. com uma função de um hook de dados na lista de
+  dependências, cobrir com PELO MENOS um teste que exercite o hook REAL (só a camada de
+  repository/rede mockada) e conte quantas vezes a chamada de rede/repository ocorre — não deixar
+  só testes com o hook inteiro mockado (mesmo espírito de G11/G12: um teste que assume a premissa
+  errada, ou que não exercita o mecanismo real, mascara o bug em vez de pegá-lo).
+
+---
+
+**G15 — Flag lida uma única vez via `useMemo(() => ..., [])` nunca reflete mudança na mesma aba. [MÉDIO — confirmado]**
+Achado durante a Etapa 5 · Fatia 10 (Fase D, homologação, incidente #2 — caso 5a vermelho).
+Detalhamento completo em [`etapa-5-fatia-10-quotes-write.md`](../qa/etapa-5-fatia-10-quotes-write.md) (§13).
+
+- **A causa:** `SupabaseQuotesViewerCard.tsx`'s `experimentalEnabled` (gate de renderização do
+  card inteiro) era `useMemo(() => getBooleanFlag("quotesSupabaseExperimental"), [])` — lê a
+  flag uma única vez no mount e nunca recalcula. O card irmão que liga essa mesma flag
+  (`QuotesSupabaseExperimentalToggleCard.tsx`) já tentava avisar a mudança via
+  `window.dispatchEvent(new Event("storage"))` (comentário no próprio código: "Force a custom
+  event ... to update viewer visibility in same tab") — mas nada escutava esse evento no viewer.
+- **Sintoma:** ligar a flag pela UI de Configurações (sem recarregar a página) nunca fazia o
+  card da lista aparecer, em NENHUM ponto da tela — indistinguível de "o card não existe".
+- **Correção** (commit `5fd1fab`, `Kora-laneA`): `experimentalEnabled` virou `useState` +
+  `window.addEventListener("storage", ...)`, o mesmo padrão já usado em
+  `useSupabaseQuotesWriteFlag.ts` — capta tanto eventos reais de outra aba quanto o dispatch
+  sintético same-tab que o toggle já fazia.
+- **Regra pra qualquer flag lida via `useMemo`/`useState` com dependência vazia que controle
+  renderização condicional de um componente inteiro:** se existe (ou pode existir) uma UI que
+  liga/desliga essa flag SEM forçar reload, o componente que a lê precisa de um listener ativo
+  (`storage` + custom event, mesmo par já usado em `useSupabaseQuotesWriteFlag.ts`) — não basta
+  ler uma vez no mount.
+
+---
+
 **O5 — cards de import locais divergiam em padrão de abertura do diálogo. [BAIXO — RESOLVIDO na rodada `qualidade-lint`]**
 Achado durante a homologação (Fase D) da Etapa 5 · Fatia 8 (cutover de escrita de `opportunities`) — não corrigido nela por ser um achado de consistência entre cards, pré-existente da Fatia 2, não uma regressão da fatia que o encontrou. Detalhamento completo em
 [`etapa-5-fatia-8-crm-cutover.md` §8](../qa/etapa-5-fatia-8-crm-cutover.md#8-fase-d--resultado-da-rodada-executada-vai-do-revisor) (observação registrada do caso (j) do runbook).
