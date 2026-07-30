@@ -291,3 +291,62 @@ normal do app (Vercel/host do SPA), não passa pelo `supabase functions deploy`.
 **Autorização:** este deploy só roda com um "vai" literal e explícito do revisor, e é o
 operador quem executa (credencial própria, fora desta sessão) — nenhuma ação de deploy foi
 tomada nesta rodada.
+
+---
+
+## 8. Fase C — deploy executado e homologado
+
+**"Vai" do revisor recebido**, janela exclusiva §16 declarada (worktree única, sem outra lane
+ativa confirmada pelo operador). Sync pré-deploy: `main` em `ede580c`, descendente confirmado
+de `ac367ad` (conteúdo verificado, não só o hash — `applySendTemplate`/`flowData` presentes).
+
+**Deploy:** operador rodou `npx supabase functions deploy whatsapp-bot-reply --project-ref
+ewamvzncsloagtcvkbxv` (via `npx.cmd`, contornando bloqueio de execution policy do PowerShell
+em `npx.ps1`/`npm.ps1` — problema local do terminal, não do CLI). Output confirmou upload dos
+dois arquivos esperados:
+```
+Uploading asset (whatsapp-bot-reply): supabase/functions/whatsapp-bot-reply/index.ts
+Uploading asset (whatsapp-bot-reply): supabase/functions/_shared/botFlowTemplate.ts
+Deployed Functions on project ewamvzncsloagtcvkbxv: whatsapp-bot-reply
+```
+`WARNING: Docker is not running` apareceu mas não bloqueou — confirma que o CLI atual não
+depende de Docker pra este tipo de deploy. **Hash deployado: `ede580c`.** Horário local:
+2026-07-30 17:32:55.
+
+**Desvio do plano original de homologação:** o plano previa usar o simulador de
+`WhatsAppBotConfig.tsx` via navegador (§7, item 1-5). Na prática, o ambiente de homologação
+não tinha WhatsApp conectado — `src/pages/WhatsApp.tsx:486` faz early-return pra tela "WhatsApp
+não conectado" **antes** de renderizar `WhatsAppBotConfig` (linha 999), então o simulador ficou
+inacessível pela UI sem uma instância real (QR code) pareada. Não registrado como risco no
+plano original — corrigido aqui.
+
+**Homologação real, via chamada direta à function deployada** (contorna a UI, testa o mesmo
+código): a `SUPABASE_PUBLISHABLE_KEY` (anon key) é pública por design — já commitada em
+`src/integrations/supabase/client.ts`, protegida por RLS/gates da própria function, não é
+segredo. `isTest: true` não toca instância/conversa nenhuma, então dá pra chamar a function
+via `curl` direto, exercitando exatamente o caminho `isTest` + `flowData` do item 4 sem
+depender do simulador.
+
+- **Caso positivo** (`flowData` com Send Node customizado, template `"Oi! {{reply}} — Att,
+  equipe"`): resposta veio `"Oi! Olá! Tudo ótimo por aqui, obrigado por perguntar.\n\nEm que
+  posso te ajudar hoje? [...] Att, equipe"` — template aplicado (prefixo + resposta da IA +
+  sufixo), sem erro. **Prova que o fix está ativo na function deployada.** Um caractere do
+  em-dash do template saiu corrompido (`�`) na resposta — artefato de encoding do comando
+  `curl` rodado via Git Bash no Windows, não da lógica de `applySendTemplate` (que é só
+  `String.replace`, já coberta sem esse problema pelos 8 testes unitários em Node).
+- **Caso negativo de controle** (sem `flowData`): resposta veio `"Olá! Tudo bem, e com
+  você?..."` — resposta crua da IA, sem template, sem erro, sem crash. Fallback correto pra
+  bots sem Send Node configurado (mesmo comportamento de antes do fix, como esperado).
+- **Zero side effect confirmado na prática**, não só por construção: nenhuma linha nova em
+  `whatsapp_messages`/`whatsapp_conversations`, nenhum disparo `uazapi` — consistente com a
+  garantia documentada no §7.
+
+**Achado à parte (fora do escopo do G8, registrado e corrigido em separado):** a porta padrão
+do dev server local (`vite.config.ts`, `8080` hardcoded) colidia com outro processo já rodando
+na máquina do operador — corrigido em `3d08649` (`fix-vite-dev-port`, fora desta branch,
+já mergeado em `main`) pra respeitar `$PORT` com fallback pro mesmo `8080`. Sem efeito em
+produção (config de dev server).
+
+**Fechamento:** G8 corrigido, testado (unitário + integração via curl na function real),
+deployado e homologado. Etapa 6 segue com G5 (rate limit) como próximo item candidato,
+reaproveitando o harness `_shared/` já validado aqui (§3/§4).
