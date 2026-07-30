@@ -744,6 +744,69 @@ transições de status, 5 aprovação nas 2 telas, 6 escrita bloqueada com flag 
 
 ---
 
-**PARADO aqui.** Runbook da Fase D pronto para execução — 9 casos, seed sintético (1 oportunidade
-+ 1 quote local), provas SQL e limpeza, tudo em blocos prontos para colar. **NADA EXECUTA sem o
-"vai" literal do revisor** — a execução é do operador, com revisão passo a passo.
+## 11. Fase D — Incidente #1 (execução parada no passo 11) — diagnóstico e correção
+
+**Sintoma reportado pelo operador:** após ligar `kora.quotes.supabaseWrite.enabled` e
+`kora.quotes.supabaseExperimental.enabled` (passo 9) e recarregar (passo 10), o badge/banner de
+Orçamentos continuou em "Modo leitura", com o texto antigo — como se o master flag do item 5/8
+não estivesse sendo lido.
+
+**Diagnóstico — NÃO é regressão de código desta fatia.** Causa raiz confirmada por leitura direta
+de dois worktrees: o dev server que o operador testava (`localhost:8090`) roda com `cwd` apontando
+pro symlink `app` do hub `Kora`, que resolve para o worktree `orbit-designer-hub`, na branch
+**`main`** — não para `Kora-laneA`/`fatia-10-quotes-write`, onde todo o código desta fatia vive.
+Confirmado por `grep` direto: `main`'s `QuotesSection.tsx` não tem nenhuma referência a
+`isSupabaseQuotesWriteEnabled` — a badge ali é um texto fixo "Modo leitura" (código anterior à
+Fase C desta fatia, ainda não mesclado). Ou seja: **o operador homologou contra o código errado**
+— o master flag realmente não existe no lado que estava sendo testado, então o sintoma é
+esperado, não um bug.
+
+Consequência prática: os passos 1-10 do runbook não validam nem invalidam o código desta fatia —
+eles rodaram contra `main`. Nenhum dano: as escritas SQL (baseline, seed) foram diretas ao banco,
+independentes do frontend; a única ação de UI tentada (passo 7, criar com o flag ainda OFF em
+ambos os lados) foi bloqueada em ambos os códigos (por motivos diferentes, mas o resultado —
+nenhuma linha criada — é o mesmo). Seed preservado, nada precisa ser refeito no banco.
+
+**Verificação de que o código de `Kora-laneA` está correto:** os handlers (`updateQuoteStatusEverywhere`,
+`handleSave`, `handleDuplicate`, `handleConfirmDelete`) e a badge/banner já liam
+`isSupabaseQuotesWriteEnabled()` corretamente (confirmado por leitura direta — chamada direta,
+sem memoização, reavaliada a cada render). Os testes item 3/4/8 (Fase C) já cobriam o
+comportamento dos HANDLERS sob o flag; o que faltava era um teste cobrindo especificamente o
+texto visível da badge/banner — adicionado agora (ver achado B abaixo). **Severidade revista para
+BAIXA:** não há handlers cegos ao flag, só faltava esse teste específico.
+
+**Achado B — bug real, minor, encontrado durante o diagnóstico (correlato ao incidente, registrado
+pelo operador):** a mensagem de bloqueio usada em 4 pontos (`updateQuoteStatusEverywhere`,
+`handleSave`, `handleDuplicate`, `handleConfirmDelete`) — "Edição de orçamentos no modo Supabase
+chega numa próxima fatia — volte para Local para editar." — ficou desatualizada: o recurso EXISTE
+desde o item 8 desta fatia, só está desligado pela flag mestre nesta sessão. A mensagem antiga dá
+a entender (incorretamente) que o recurso não foi construído. `blockWrite()` (usado só pelos 2
+diálogos fora de escopo — Gerar recebível/projeto) mantém sua mensagem original, que continua
+correta (esses dois de fato chegam numa fatia futura).
+
+**Correção aplicada** (commit `3786f06`, branch `fatia-10-quotes-write`):
+1. Nova constante `QUOTES_WRITE_FLAG_OFF_MESSAGE` em `QuotesSection.tsx`, com texto que reflete a
+   flag ("... ainda está desligada nesta sessão (flag mestre) ..."), usada nos 4 pontos acima.
+   `blockWrite()` não foi tocado.
+2. Novo teste em `QuotesSection.test.tsx` — com o master flag ligado, confirma que a badge mostra
+   "Modo operacional" e o banner "Orçamentos operacionais (Supabase)", nunca os textos de modo
+   leitura. Fecha a lacuna de cobertura apontada pelo incidente.
+3. Teste existente (bloqueio sem flag) atualizado pro novo texto da mensagem.
+
+**Gates:** tsc 0 erros · vitest 303/303 (suite completa) · lint-gate 33/33 (sem regressão, mesmo
+teto do fechamento da Fase C).
+
+**Ambiente corrigido para a re-execução:** dev server dedicado do worktree `Kora-laneA` publicado
+em `http://localhost:8095` (config `kora-laneA-verify` em `Kora/.claude/launch.json`, `cwd` via
+symlink `Kora/kora-laneA -> ../Kora-laneA`) — este é o único endereço que serve o código real desta
+fatia. `http://localhost:8090` continua servindo `main` e **não deve ser usado** para homologar
+esta fatia enquanto o merge não acontecer.
+
+**Não executado:** o runbook (§10) NÃO foi re-rodado e o seed sintético (oportunidade + quote
+local, workspace `2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9`, prefixo `HOMOLOG-F10-`) NÃO foi limpo,
+por instrução explícita do revisor — reaproveitado na próxima rodada.
+
+---
+
+**PARADO aqui.** Diagnóstico + correção do incidente #1 completos e pushados. Re-execução do
+runbook (retomando do passo 11, contra `http://localhost:8095`) só com novo "vai" do revisor.
