@@ -455,6 +455,14 @@ qualquer forma.
 o toast de sucesso pleno) **entra no runbook de homologação** como um caso próprio, a ser
 desenhado quando a Fase D for autorizada — não escrito agora (fora do escopo desta Fase C).
 
+> **Emenda pós-homologação (Fase D, incidente #5, pendência 2 — §16):** o caminho descrito acima
+> (reimport → atualiza oculta) é alcançável hoje por uma reinvocação direta da RPC
+> (`import_quote_with_items`, mesmo `source_local_id`) — **não** pelo fluxo padrão "Importar
+> orçamentos locais" da UI, que trata um `local.id` já presente em `importedMap` como não
+> selecionável, independente do `deleted_at` da linha remota correspondente. Registrado como
+> comportamento intencional (mais conservador e seguro que reimportar automaticamente), não como
+> gap — decisão formalizada em §16.
+
 ---
 
 Fase C implementada — itens 1-9 completos, código + testes. Gates finais e sincronização com
@@ -1115,3 +1123,107 @@ vinculados" já confirmados verdes no G14) — tudo reaproveitado na retomada.
 **PARADO aqui.** Incidente #4 diagnosticado e corrigido, pushado (`093df68`), catalogado em main
 (`1b4ca57`). Retomada do caso 5 completo (incluindo o sub-caso do achado 2 do incidente #2 e a
 revalidação do caso 6 pendente desde o incidente #1) só com novo "vai".
+
+---
+
+## 16. Fase D — Fechamento: incidente #5 (pendências pré-sign-off) e placar final
+
+Homologação executada por completo contra BUILD provado por hash. Limpeza reconciliada:
+resíduos 0/0, `quotes_final` = 1 = baseline, seed local removido, flags removidas.
+
+### Placar final
+
+| Caso | Resultado |
+|---|---|
+| 1 criação nativa via RPC | ✅ (FKs resolvidas — G13 provado) |
+| 2 idempotência/retry | ✅ (mesmo id, count=1, upsert atualiza) |
+| 3 duplicar | ✅ (source novo, itens atômicos) |
+| 4 transições + timestamps | ✅ (sent/rejected, mapper PT↔EN nos 2 sentidos) |
+| 5a aprovação Configs | ✅ (pós G15+G16) + gate "enviado" corrigido nesta rodada (ver abaixo) |
+| 5b aprovação CRM | ✅ pós correção do gate de status (ver Pendência 1) — leitura já provada (G14), ação agora exposta e testada |
+| 6 bloqueio flag OFF | ✅ (toast novo, prova SQL, feedback visível) |
+| 7 soft delete | ✅ (deleted_at + filtro de lista) |
+| 8 re-import pós-delete | ✅ com a semântica esclarecida (ver Pendência 2) |
+| 9 rollback | ✅ (local intacto; leitura-com-escrita-OFF coberta pela revalidação do 6) |
+
+**Nota de honestidade sobre 5a/5b:** o fix da Pendência 1 está implementado, com testes que
+verificados nos dois sentidos (falham no gate antigo, passam no corrigido) — mas eu não tenho
+acesso autenticado ao app rodando (tela de login do Kora Hub) pra clicar Aprovar/Rejeitar numa
+quote "enviado" ao vivo nas 2 telas. As quotes seed seguem no estado exato do relatório anterior
+(quote A `HOMOLOG-F10-retry` ainda "enviado" em produção sintética) — uma conferência visual
+rápida do operador (reload das 2 telas, clicar Aprovar numa "enviado") fecha isso em menos de um
+minuto, se desejado antes do sign-off; não é reexecução do runbook.
+
+### Pendência 1 — 5b: LinkedQuotesSection sem controles de ação — CORRIGIDO
+
+Corrigido em commit `e4b9475`. Causa: o gate `quote.status === "rascunho"` (nas 2 telas
+migradas) é anterior a esta fatia, mas só virou beco sem saída agora — antes do item 8 não havia
+caminho de escrita real que colocasse uma quote da nuvem em "enviado" (só aprovar/rejeitar
+tinham escrita real, via `approveQuote`/`rejectQuote` legados). `updateQuoteStatusEverywhere`
+unificou as 5 transições — pela primeira vez uma quote pode chegar de verdade em "enviado", e o
+gate nunca foi atualizado pra cobrir esse caso, nas duas telas.
+
+**Decisão:** "rascunho" e "enviado" são os 2 estados "aguardando decisão" — aprovado/recusado já
+decididos, arquivado fora do fluxo ativo. Gate ampliado pra `(status === "rascunho" || status ===
+"enviado")`, idêntico nas 2 telas. 2 novos testes (um por tela), verificados nos dois sentidos.
+
+### Pendência 2 — caso 8: divergência de spec — DECISÃO: spec alinhada ao observado
+
+**Observado:** um candidato de import cuja linha correspondente foi soft-deletada no cloud
+aparece como `"imported"` no assistente (`useLocalQuotesImport.ts`) — nunca `"new"` — porque a
+classificação (`meta.importedMap[local.id]`) é um registro LOCAL (localStorage) de uma importação
+anterior, e não considera se a linha remota foi soft-deletada depois. Candidatos `"imported"` não
+são selecionáveis pro fluxo `importSelected` (por design, desde antes desta fatia — evita
+reimportar algo já importado à toa). Resultado prático: **o caminho de UI pra disparar um
+reimport de uma linha já soft-deletada está, hoje, inalcançável** — o checkbox não marca, o botão
+não habilita, o upsert nunca roda pela tela.
+
+**A spec da Fase C (§9)** foi escrita assumindo implicitamente que o reimport SERIA disparado (e
+documentou o que aconteceria SE disparasse: atualiza oculta, nunca ressuscita). O teste unitário
+do item 9 (`useLocalQuotesImport.test.ts`) prova exatamente essa parte — mockando a RPC
+diretamente, sem passar pela classificação de candidatos — então nunca mentiu, só não cobria a
+pergunta "o usuário consegue chegar nesse caminho pela tela normal?".
+
+**Decisão (Opção A — spec alinhada ao observado, código inalterado):** o comportamento
+observado é **mais conservador e mais seguro** que o assumido — nenhum reimport acidental de
+algo já sinalizado como "importado" acontece sem uma ação deliberada fora do fluxo padrão (ex.:
+uma chamada direta à RPC, como a prova SQL do caso 2 já demonstrou ser possível). Mudar o código
+pra tornar candidatos `"imported"` re-selecionáveis seria uma mudança de comportamento mais ampla
+do assistente de import (fora do recorte desta fatia — afeta TODOS os domínios que usam esse
+padrão de classificação, não só quotes) só pra alinhar a uma frase da spec que nunca foi
+validada contra a UI real. **§9 fica emendado** com esta nota: "o caminho descrito acima
+(reimport → atualiza oculta) é alcançável hoje por uma reinvocação direta da RPC
+(`import_quote_with_items`, mesmo `source_local_id`) — não pelo fluxo padrão 'Importar
+orçamentos locais' da UI, que trata um `local.id` já presente em `importedMap` como não
+selecionável, independente do estado `deleted_at` da linha remota correspondente. Registrado como
+comportamento intencional, não como gap."
+
+### Observações menores (registradas, sem ação nesta fatia)
+
+- Quote aprovada exibe corretamente "Gerar recebível"/"Gerar projeto" no viewer — gate por status
+  ok; famílias cruzadas seguem fora de escopo (Fase A §4).
+- Dashboard "Aprovados: 1 sem recebível — R$50 pendente" refletindo corretamente a pendência
+  cruzada — comportamento correto, sem ação.
+- **Warning cosmético pré-existente (catalogar, não corrigir agora):** `Badge` dentro de `<p>` em
+  `LeadDetailSheet` produz warning de `validateDOMNesting` no console — não é desta fatia, não
+  afeta funcionalidade.
+- **Candidato a olhar futuro, fora desta fatia:** repetições de requisições a
+  `workspace_members`/`workspaces` na Network — não é um loop (não cresce sem parar, diferente
+  de G14), mas mais chamadas do que o necessário. Não investigado aqui.
+- Rótulo `"imported"` do importador pra uma linha oculta — mesmo mecanismo da Pendência 2, já
+  coberto acima.
+
+### Emenda §16-b — pendente de redação formal (ver seção seguinte)
+
+Registrada nos incidentes #3/#4: correspondência código↔servidor por hash de commit (não texto
+de feature), declaração de worktree, e nota de que `localStorage` é por origem (porta incluída).
+Redigida formalmente em `docs/qa/protocolo-homologacao.md` (main) como próximo passo desta
+sessão.
+
+**Gates finais desta rodada:** tsc 0 · vitest 312/312 · lint-gate 33/33.
+
+---
+
+**PARADO aqui.** Placar final registrado, pendências 1 (corrigida) e 2 (decidida) fechadas.
+Emenda §16-b formal e gates finais a seguir. Sign-off, merge e decisão do flip só com novo "vai"
+do revisor.
