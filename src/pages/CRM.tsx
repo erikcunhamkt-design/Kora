@@ -626,7 +626,7 @@ const CRM = () => {
   };
 
   // --- Pipeline editor handlers ---
-  const handleSavePipeline = (data: any) => {
+  const handleSavePipeline = (data: Omit<Pipeline, "id" | "createdAt" | "updatedAt" | "isDefault"> & { id?: string }) => {
     if (blockWriteAction()) return;
     if (data.id) {
       updatePipeline(data.id, { name: data.name, stages: data.stages });
