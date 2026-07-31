@@ -895,7 +895,7 @@ const CRM = () => {
               <Archive className="h-3.5 w-3.5" />
               <span className="hidden md:inline">{showArchived ? "Ocultar arquivados" : "Arquivados"}</span>
             </Button>
-            <Tabs value={view} onValueChange={(v) => setView(v as any)}>
+            <Tabs value={view} onValueChange={(v) => setView(v as "kanban" | "list")}>
               <TabsList className="bg-muted/50 border border-border h-8 p-0.5">
                 <TabsTrigger value="kanban" className="gap-1.5 h-7 px-2.5 data-[state=active]:bg-card data-[state=active]:shadow-sm">
                   <LayoutGrid className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Kanban</span>
@@ -928,7 +928,7 @@ const CRM = () => {
               {stages.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Select value={filterTemperature} onValueChange={(v) => setFilterTemperature(v as any)}>
+          <Select value={filterTemperature} onValueChange={(v) => setFilterTemperature(v as "all" | LeadTemperature)}>
             <SelectTrigger className="w-[150px] h-8 bg-muted/40 border-border text-[13px]"><SelectValue placeholder="Temperatura" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Temperaturas</SelectItem>

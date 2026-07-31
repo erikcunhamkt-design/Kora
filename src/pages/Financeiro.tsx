@@ -26,7 +26,7 @@ import {
   useFinance, useFinanceMetrics, useMonthlySeries,
   formatBRL, formatDateBR,
   type Transaction, type TxType, type TxStatus, type PaymentMethod,
-  type FinanceCategory, type Supplier, type RecurringEntry, type CashAccount, type PixSettings, type RecurFreq, type CashAccountType, type PixKeyType,
+  type FinanceCategory, type Supplier, type RecurringEntry, type CashAccount, type PixSettings, type PixMethod, type RecurFreq, type CashAccountType, type PixKeyType,
 } from "@/hooks/useFinance";
 import { useFormat } from "@/hooks/useFormat";
 import { useClients } from "@/hooks/useClients";
@@ -429,7 +429,7 @@ const TransactionsTab = ({ fin, type, onCreate, highlightId }: { fin: ReturnType
       </div>
 
       <div className="orbit-card p-3 flex flex-wrap items-center gap-2">
-        <Select value={period} onValueChange={(v) => setPeriod(v as any)}>
+        <Select value={period} onValueChange={(v) => setPeriod(v as "all" | "month" | "next30" | "overdue")}>
           <SelectTrigger className="w-[160px] h-9"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos períodos</SelectItem>
@@ -438,7 +438,7 @@ const TransactionsTab = ({ fin, type, onCreate, highlightId }: { fin: ReturnType
             <SelectItem value="overdue">Vencidos</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={status} onValueChange={(v) => setStatus(v as any)}>
+        <Select value={status} onValueChange={(v) => setStatus(v as "all" | TxStatus)}>
           <SelectTrigger className="w-[140px] h-9"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos status</SelectItem>
@@ -772,7 +772,7 @@ const PixTab = ({ fin }: { fin: ReturnType<typeof useFinance> }) => {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label className="text-xs">Método</Label>
-            <Select value={form.method} onValueChange={(v) => setForm({ ...form, method: v as any })}>
+            <Select value={form.method} onValueChange={(v) => setForm({ ...form, method: v as PixMethod })}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="manual">PIX próprio / QR manual</SelectItem>
@@ -1373,7 +1373,7 @@ const QuickSaleDialog = ({ open, onOpenChange, fin, clients }: {
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs">Forma</Label>
-            <Select value={form.mode} onValueChange={(v) => setForm({ ...form, mode: v as any })}>
+            <Select value={form.mode} onValueChange={(v) => setForm({ ...form, mode: v as "lump" | "installment" | "recurring" })}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="lump">À vista</SelectItem>
@@ -1490,7 +1490,7 @@ const ExpenseDialog = ({ open, onOpenChange, fin }: { open: boolean; onOpenChang
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs">Tipo</Label>
-            <Select value={form.kind} onValueChange={(v) => setForm({ ...form, kind: v as any })}>
+            <Select value={form.kind} onValueChange={(v) => setForm({ ...form, kind: v as "one" | "recurring" })}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="one">Avulsa</SelectItem>

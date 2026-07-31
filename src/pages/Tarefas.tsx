@@ -489,7 +489,7 @@ const Tarefas = () => {
             {allTags.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Select value={filterScope} onValueChange={(v) => setFilterScope(v as any)}>
+        <Select value={filterScope} onValueChange={(v) => setFilterScope(v as "all" | TaskScope)}>
           <SelectTrigger className="w-[130px] bg-muted/40 h-10"><SelectValue placeholder="Tipo" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos os tipos</SelectItem>
