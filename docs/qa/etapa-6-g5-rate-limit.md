@@ -200,12 +200,18 @@ qualquer. Fix completo aplicado:
   (extrair só a lógica pura, sem `Deno.*`/`npm:`, testável via Vitest). As chamadas de rede em
   si (`getUser()`, a query de membership) continuam inline, inevitavelmente não cobertas por
   unit test — ver §5.3 pra como isso é verificado de verdade (homologação pós-deploy).
-- **Webhook não regride — por construção:** o bloco de auth inteiro fica dentro de
-  `if (isTest) { ... }` (`index.ts`) — o caminho do webhook (`isTest=false`, chamado com
-  `Authorization: Bearer ${SERVICE_ROLE}` por `whatsapp-webhook/index.ts:615-621`) não entra
-  nesse bloco estruturalmente, mesmo raciocínio "por construção" já usado no G8 pro
-  `isTest`/zero-side-effect. Confirmação **empírica** (não só estrutural) fica pra
-  homologação pós-deploy — ver §5.3, item novo.
+- **Webhook não regride — por construção, com citação exata:** o bloco de auth inteiro é
+  `index.ts:248-273` (`if (isTest) { ... }`, abre em 248, fecha em 273 — contagem de chaves
+  confirmada por leitura direta, não estimada). O caminho do webhook nunca entra ali, por
+  **duas** razões independentes, não uma só: (1) `whatsapp-webhook/index.ts:614-622` monta o
+  `fetch` pra `whatsapp-bot-reply` com `body: JSON.stringify({ conversationId, workspaceId })`
+  — **sem** o campo `isTest` — então `Boolean(body.isTest)` resolve pra `false` já na origem,
+  antes de qualquer coisa; (2) mesmo hipoteticamente, esse `fetch` usa
+  `Authorization: Bearer ${SERVICE_ROLE}` (`whatsapp-webhook/index.ts:619`), nunca a sessão de
+  um usuário — o bloco `if (isTest)` simplesmente não seria alcançado de qualquer forma dado
+  (1). Mesmo raciocínio "por construção" já usado no G8 pro `isTest`/zero-side-effect (early
+  return + aninhamento de bloco, não um `if` que dependa de nada externo pra segurar). Confirmação
+  **empírica** (não só estrutural) fica pra homologação pós-deploy — ver §5.3, item novo.
 
 **Teste de regressão** (`_shared/__tests__/isTestAuth.test.ts`, 5 casos): sem header → 401;
 header não-Bearer → 401; Bearer mas sem user (JWT inválido/anon key) → 401; autenticado mas
