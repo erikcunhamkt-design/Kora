@@ -23,6 +23,7 @@ import {
   Briefcase, Tag, MessageSquare, ListChecks, CalendarDays, CircleDot, Flag,
   Inbox, Archive, Copy, Trash2, Sparkles, ChevronRight, Filter, Sun, CalendarRange,
   Bell, BellRing, BellOff, FolderKanban, User, Pencil, FolderPlus, Move,
+  type LucideIcon,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -124,7 +125,7 @@ function parseQuick(text: string): { title: string; priority: TaskPriority; tags
 /* ------------------------------------------------------------------ */
 
 const MetricChip = ({ icon: Icon, label, value, tone = "default", active, onClick }: {
-  icon: any; label: string; value: number;
+  icon: LucideIcon; label: string; value: number;
   tone?: "default" | "danger" | "warn" | "success" | "info";
   active?: boolean; onClick?: () => void;
 }) => {
@@ -154,7 +155,7 @@ const MetricChip = ({ icon: Icon, label, value, tone = "default", active, onClic
 };
 
 const ViewChip = ({ label, count, active, onClick, icon: Icon }: {
-  label: string; count?: number; active?: boolean; onClick: () => void; icon: any;
+  label: string; count?: number; active?: boolean; onClick: () => void; icon: LucideIcon;
 }) => (
   <button
     type="button"
@@ -884,7 +885,7 @@ const TaskRow = ({
 /* ------------------------------------------------------------------ */
 
 const EmptyState = ({ view }: { view: ViewKey }) => {
-  const map: Record<ViewKey, { title: string; sub: string; icon: any }> = {
+  const map: Record<ViewKey, { title: string; sub: string; icon: LucideIcon }> = {
     hoje:       { title: "Nada urgente agora.", sub: "Você está livre para focar no que importa.", icon: Sun },
     proximos:   { title: "Nada agendado pra frente.", sub: "Capture algo novo na barra acima.", icon: CalendarRange },
     entrada:    { title: "Entrada limpa.", sub: "Capture rápido agora, organize depois.", icon: Inbox },
@@ -1220,7 +1221,7 @@ const TaskDetailSheet = ({
   const overdue = isOverdue(task);
   const prio = priorityMeta[task.priority];
 
-  const Section = ({ title, icon: Icon, children }: { title: string; icon: any; children: React.ReactNode }) => (
+  const Section = ({ title, icon: Icon, children }: { title: string; icon: LucideIcon; children: React.ReactNode }) => (
     <div className="space-y-3">
       <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
         <Icon className="h-4 w-4 text-primary" />{title}

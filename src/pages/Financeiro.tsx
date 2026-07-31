@@ -19,6 +19,7 @@ import {
   ArrowDownLeft, ArrowUpRight, AlertCircle, CheckCircle2, Timer, Ban,
   Wallet, Building2, Tags, QrCode, Repeat, FileBarChart, LayoutGrid,
   PiggyBank, Users2, Pencil, Trash2, Archive, HelpCircle, Download,
+  type LucideIcon,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LineChart, Line, PieChart, Pie, Cell } from "recharts";
 import {
@@ -41,7 +42,7 @@ const statusStyles: Record<TxStatus, string> = {
   overdue: "bg-destructive/10 text-destructive border-destructive/20",
   canceled: "bg-muted/40 text-muted-foreground border-border",
 };
-const statusIcons: Record<TxStatus, any> = { paid: CheckCircle2, pending: Timer, overdue: AlertCircle, canceled: Ban };
+const statusIcons: Record<TxStatus, LucideIcon> = { paid: CheckCircle2, pending: Timer, overdue: AlertCircle, canceled: Ban };
 const methodLabels: Record<PaymentMethod, string> = { pix: "PIX", card: "Cartão", boleto: "Boleto", transfer: "Transferência", cash: "Dinheiro", other: "Outro" };
 const cashTypeLabels: Record<CashAccountType, string> = { bank: "Banco", wallet: "Carteira", cash: "Dinheiro", platform: "Plataforma", other: "Outro" };
 const freqLabels: Record<RecurFreq, string> = { weekly: "Semanal", monthly: "Mensal", yearly: "Anual" };
@@ -51,7 +52,7 @@ const pixKeyLabels: Record<PixKeyType, string> = { cpf: "CPF", cnpj: "CNPJ", ema
 // Reusable
 // ============================================================
 const MetricCard = ({ icon: Icon, label, value, sub, tone = "default" }: {
-  icon: any; label: string; value: string; sub?: string;
+  icon: LucideIcon; label: string; value: string; sub?: string;
   tone?: "default" | "income" | "expense" | "warning" | "neutral";
 }) => {
   const palette = {
@@ -76,7 +77,7 @@ const MetricCard = ({ icon: Icon, label, value, sub, tone = "default" }: {
 };
 
 const EmptyState = ({ icon: Icon, title, description, action }: {
-  icon: any; title: string; description?: string; action?: React.ReactNode;
+  icon: LucideIcon; title: string; description?: string; action?: React.ReactNode;
 }) => (
   <div className="py-12 px-4 text-center">
     <div className="mx-auto h-12 w-12 rounded-full bg-muted/40 flex items-center justify-center mb-3">
@@ -117,7 +118,7 @@ const StatusBadge = ({ s }: { s: TxStatus }) => {
 // ============================================================
 type TabKey = "overview" | "receivables" | "payables" | "clients" | "suppliers" | "pix" | "recurring" | "cash" | "reports";
 
-const TAB_DEFS: { key: TabKey; label: string; icon: any }[] = [
+const TAB_DEFS: { key: TabKey; label: string; icon: LucideIcon }[] = [
   { key: "overview", label: "Visão geral", icon: LayoutGrid },
   { key: "receivables", label: "Receber", icon: ArrowDownLeft },
   { key: "payables", label: "Pagar", icon: ArrowUpRight },

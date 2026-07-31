@@ -23,6 +23,7 @@ import {
   StickyNote, X as XIcon, ArrowRight, XCircle, GripVertical, Sparkles,
   Flame, LayoutGrid, List, Settings2, Zap, FileSpreadsheet, MessageCircle,
   Archive, Trash2, Tag as TagIcon, ChevronDown, FileText, Globe,
+  type LucideIcon,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
@@ -97,7 +98,7 @@ const origins = ["Indicação", "Instagram", "LinkedIn", "Site", "WhatsApp", "Ou
 
 const formatCurrency = (v: number) => intlCurrency(v, { minimumFractionDigits: 0 });
 
-const SummaryCard = ({ icon: Icon, label, value, sub, accent }: { icon: any; label: string; value: string; sub?: string; accent?: "primary" | "success" | "danger" | "muted" }) => {
+const SummaryCard = ({ icon: Icon, label, value, sub, accent }: { icon: LucideIcon; label: string; value: string; sub?: string; accent?: "primary" | "success" | "danger" | "muted" }) => {
   const tone =
     accent === "success" ? "text-emerald-400 bg-emerald-500/10"
     : accent === "danger" ? "text-destructive bg-destructive/10"
@@ -2275,7 +2276,7 @@ const LeadDetailSheet = ({
   );
 };
 
-const Section = ({ title, icon: Icon, children }: { title: string; icon: any; children: React.ReactNode }) => (
+const Section = ({ title, icon: Icon, children }: { title: string; icon: LucideIcon; children: React.ReactNode }) => (
   <div className="space-y-3">
     <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
       <Icon className="h-4 w-4 text-primary" />
