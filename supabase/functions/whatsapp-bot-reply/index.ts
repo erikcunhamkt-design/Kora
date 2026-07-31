@@ -3,6 +3,7 @@
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { applySendTemplate } from "../_shared/botFlowTemplate.ts";
+import { authorizeIsTestCaller } from "../_shared/isTestAuth.ts";
 
 interface BotFlowNodeProperties {
   respondAll?: boolean;
@@ -92,6 +93,7 @@ interface BotReplyRequestBody {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SUBDOMAIN = (Deno.env.get("UAZAPI_SUBDOMAIN") ?? "").trim().replace(/\/+$/, "");
 
 const UAZ_BASE = (() => {
@@ -229,8 +231,45 @@ Deno.serve(async (req) => {
     conversationId = body.conversationId;
     workspaceId = body.workspaceId;
 
-    if (!isTest && (!conversationId || !workspaceId)) {
+    // workspaceId is required in both modes (G5: isTest with no attribution at all was
+    // callable with just the public anon key, an unlimited free AI proxy on Kora's own
+    // credentials — see docs/qa/etapa-6-g5-rate-limit.md §4.1).
+    if (!workspaceId || (!isTest && !conversationId)) {
       return json({ error: "missing params" }, 400);
+    }
+
+    // isTest is called directly from the browser (simulator), so workspaceId alone is
+    // just an input value, not proof of identity — it can be forged. Require a real user
+    // JWT and verify workspace membership through it, closing the G18/G5 gap where the
+    // public anon key + isTest was an unauthenticated, unlimited, Kora-paid AI proxy (see
+    // docs/qa/etapa-6-g5-rate-limit.md §4.1). The webhook path (isTest=false) is
+    // server-to-server with its own trust boundary (SERVICE_ROLE bearer) and never reaches
+    // this block.
+    if (isTest) {
+      const auth = req.headers.get("Authorization");
+      let user: { id: string } | null = null;
+      let isMember = false;
+
+      if (auth?.startsWith("Bearer ")) {
+        const userClient = createClient(SUPABASE_URL, ANON_KEY, {
+          global: { headers: { Authorization: auth } },
+        });
+        const { data: userData } = await userClient.auth.getUser();
+        user = userData?.user ?? null;
+
+        if (user) {
+          const { data: membership } = await userClient
+            .from("workspace_members")
+            .select("workspace_id")
+            .eq("workspace_id", workspaceId)
+            .eq("user_id", user.id)
+            .maybeSingle();
+          isMember = Boolean(membership);
+        }
+      }
+
+      const authResult = authorizeIsTestCaller(auth, user, isMember);
+      if (!authResult.ok) return json({ error: authResult.error }, authResult.status!);
     }
 
     adminClient = createClient(SUPABASE_URL, SERVICE_ROLE);
@@ -238,7 +277,7 @@ Deno.serve(async (req) => {
     // Bot settings & details
     let bot: BotSettingsRow | null = null;
     let systemInstruction = "Você é um atendente cordial e prestativo. Responda de forma clara, breve e em português.";
-    let provider = "lovable";
+    let provider = "gemini_api_key";
     let modelName = DEFAULT_MODEL;
     let geminiApiKey: string | null = null;
     let gcpProjectId: string | null = null;
@@ -252,7 +291,7 @@ Deno.serve(async (req) => {
     if (isTest) {
       // Direct testing mode from UI playground
       systemInstruction = body.systemInstruction || systemInstruction;
-      provider = body.provider || "lovable";
+      provider = body.provider || "gemini_api_key";
       modelName = body.modelName || DEFAULT_MODEL;
       geminiApiKey = body.geminiApiKey || null;
       gcpProjectId = body.gcpProjectId || null;
@@ -423,7 +462,7 @@ Deno.serve(async (req) => {
 
       if (aiNode) {
         systemInstruction = aiNode.properties?.instruction || systemInstruction;
-        provider = aiNode.properties?.provider || "lovable";
+        provider = aiNode.properties?.provider || "gemini_api_key";
         modelName = aiNode.properties?.model || DEFAULT_MODEL;
         geminiApiKey = aiNode.properties?.geminiApiKey || null;
         gcpProjectId = aiNode.properties?.gcpProjectId || null;
@@ -432,7 +471,7 @@ Deno.serve(async (req) => {
       } else {
         // Fallback to table root columns
         systemInstruction = bot.system_instruction || systemInstruction;
-        provider = bot.provider || "lovable";
+        provider = bot.provider || "gemini_api_key";
         modelName = bot.model_name || DEFAULT_MODEL;
         geminiApiKey = bot.gemini_api_key || null;
         gcpProjectId = bot.gcp_project_id || null;
