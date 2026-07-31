@@ -302,6 +302,18 @@ Achado durante o fechamento da Etapa 6 · G8 (`flowNodes`/Send Node, `whatsapp-b
 
 ---
 
+**O8 — CRM: "Mover para etapa" (menu do lead) não move nada, sem feedback nenhum. [MÉDIO — achado do revisor, causa PROVÁVEL identificada por leitura, não confirmada ao vivo]**
+Achado durante o smoke pós-merge do Pacote do Flip de `quotes` (Etapa 5) — fora do domínio `quotes`, catalogado aqui sem correção nesta rodada. Detalhamento em
+[`etapa-5-flip-quotes.md`](../qa/etapa-5-flip-quotes.md).
+
+- **Sintoma reportado:** no menu de ações do lead (`CRM.tsx`, `LeadActionsMenu`), o submenu "Mover para etapa" → escolher uma etapa não produz efeito nenhum observável.
+- **Causa provável, por leitura de código (não reproduzida ao vivo — sessão sem acesso autenticado ao app):** `handleMoveToStage` (`CRM.tsx:560`), no ramo `activeDataSource === "supabase"`, tem um retorno silencioso —
+  `if (!lead || !lead.supabaseId) return;` (`:566`) — sem toast, sem log visível, sem nenhum sinal de que a ação foi ignorada. Um lead sem `supabaseId` (ainda não importado/sincronizado, ou qualquer outro motivo que zere o campo) faz o clique parecer não fazer nada, indistinguível de um bug de UI. O restante do fluxo (`crmOpportunitiesRepository.moveOpportunityStage`, toasts de sucesso/erro) está corretamente implementado — o gap é especificamente esse guard silencioso.
+- **Mesma classe de lição já catalogada (O2/O3/O4, Fatia 8):** nenhuma ação deve retornar silenciosamente sem feedback quando bloqueada — aqui o guard nem é sobre uma flag (que já teria um toast dedicado em `blockWriteAction`), é sobre um pré-requisito de dado (`supabaseId` ausente) que hoje não avisa ninguém.
+- **Não corrigido nesta rodada** — fora do escopo do Pacote do Flip de `quotes` (domínio `opportunities`/CRM). Fica registrado para uma fatia/sessão dedicada ao CRM confirmar a causa ao vivo (reproduzir com um lead sem `supabaseId` em modo Supabase) e decidir o feedback correto (toast de erro explicando o motivo, ou impedir a etapa de aparecer no submenu pra leads nesse estado).
+
+---
+
 ## 3. Segurança / vulnerabilidades (verificar e endurecer)
 
 > Vários itens abaixo são **"confirmar no código"** — a arquitetura está certa, mas a implementação precisa ser auditada arquivo a arquivo pelo Code.
