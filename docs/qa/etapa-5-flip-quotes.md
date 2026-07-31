@@ -373,3 +373,33 @@ pra resolver algo sem nenhum impacto funcional. Mesmo raciocínio se aplica à
 
 **PARADO aqui.** Fase D encerrada, 6/6. Achados registrados. Sign-off e merge a seguir, nesta
 mesma janela ("vai" já concedido para ambos).
+
+---
+
+## 7. Sign-off e merge — Pacote do Flip encerrado
+
+1. **Sync final** (worktree `Kora-laneA`): `git merge origin/main --no-edit` absorveu o G8/G18
+   (`WhatsAppBotConfig.tsx`, autenticação real em `isTestAuth.ts`) e o próprio O8/UX1 desta
+   sessão — auto-merge limpo, sem conflito. Commit de sync: `dae6de8`. Gates no estado
+   combinado (`Kora-laneA`): tsc 0 · vitest 321/321 · lint-gate 33/33. Push:
+   `2ce5a22..dae6de8` em `etapa-5-flip-quotes`.
+2. **Checagem de contenção imediatamente antes do merge** (§16 item 4, §17): `orbit-designer-hub`
+   (única worktree com `main`), `git fetch` + comparação de hash — `main` idêntico a
+   `origin/main` (`d174047`), sem commit estranho no meio da operação.
+3. **Merge `etapa-5-flip-quotes` → `main`: fast-forward** (`d174047..dae6de8`) — histórico
+   linear, sem commit de merge extra (a branch já continha `origin/main` como ancestral direto
+   pelo sync do passo 1).
+4. **Gates repetidos diretamente em `main`** pós fast-forward, mesmo commit: tsc 0 ·
+   vitest 321/321 · lint-gate 33/33.
+5. **Push:** `d174047..dae6de8` em `origin/main`, sem drift (confirmado imediatamente antes).
+
+**Hash final mesclado em `main`: `dae6de8`.**
+
+Worktrees ao fechar: `Kora-laneA` (`etapa-5-flip-quotes`) e `orbit-designer-hub` (`main`) ambas
+em `dae6de8`, idênticas.
+
+---
+
+**PARADO aqui.** Pacote do Flip de `quotes` encerrado — merge em `main` @ `dae6de8`. Coordenação
+pós-merge (LANE B re-sync do teto de lint, depois LANE C janela de deploy do G18) conforme
+combinado. Nenhum próximo passo desta lane sem novo "vai".
