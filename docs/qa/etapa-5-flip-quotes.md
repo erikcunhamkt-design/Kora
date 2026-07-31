@@ -279,3 +279,51 @@ outros novos adicionados) · lint-gate 33/33.
 
 **PARADO aqui.** Fase C implementada e testada. Fase D (runbook, com a foto pendente do 5b —
 §3, caso 4) só com novo "vai" do revisor.
+
+---
+
+## 5. Fase D — Runbook executável ("vai" do revisor) — PRONTO PARA EXECUÇÃO
+
+> **Nada foi executado ainda.** Escrito e PARADO — execução conduzida pelo revisor com o
+> operador, passo a passo, mesmo protocolo da Fatia 10.
+
+Workspace de teste (mesmo de sempre): `2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9`. Prefixo
+`HOMOLOG-FLIP-` em todo nome sintético. **Sem SQL de seed** — escrita é default agora, então
+oportunidade e quotes sintéticas são criadas inteiramente pela UI (SQL só como PROVA de
+leitura, nunca pra criar dado).
+
+### 5.0 Passo 0 — prova de servidor (§16/§17, obrigatório antes de qualquer outro passo)
+
+Dev server desta lane já no ar: `http://localhost:8095`, subido direto na pasta `Kora-laneA`
+(sem symlink — lição do incidente #3). Verificado agora mesmo: console mostra
+`[Kora] BUILD 7adefad (etapa-5-flip-quotes)` — bate com o tip atual da branch. Operador confere
+o mesmo antes do passo 1; se vier hash diferente ou branch errada, PARAR e reportar (não é o
+código deste pacote).
+
+### 5.1 Papéis das entidades sintéticas
+
+- **Opp** (`HOMOLOG-FLIP-opp`): criada via CRM → "Nova oportunidade", usada nos casos 4 e 6.
+- **Quote A** (`HOMOLOG-FLIP-nativa`): criada a partir da Opp (CRM → "Criar orçamento a partir
+  da oportunidade") — é a que vira "enviado" pro caso 4 (a foto do 5b).
+- **Quote B** (`HOMOLOG-FLIP-novo-usuario`): criada no caso 1, sob o cenário "localStorage
+  limpo" — prova a escrita default sem nenhuma flag setada manualmente.
+
+### 5.2 Casos obrigatórios
+
+| # | Caso | Passos | Resultado esperado |
+|---|---|---|---|
+| 1 | **Usuário novo** | Console: `localStorage.removeItem("kora.quotes.dataSource.v1"); localStorage.removeItem("kora.quotes.supabaseWrite.enabled"); localStorage.removeItem("kora.quotes.supabaseExperimental.enabled"); localStorage.removeItem("kora.quotes.supabaseApproval.enabled");` → **F5** → abrir Orçamentos → **Novo orçamento**, título `HOMOLOG-FLIP-novo-usuario`, 1 item, valor 500, salvar | Seletor já mostra "Supabase experimental" ativo (fonte default), badge **"Modo operacional"** (não "leitura"), toast de sucesso ao salvar, linha aparece na lista — **escrita funcionando sem setar nenhuma flag manualmente**. Prova SQL (só leitura): `select id, title, status from public.quotes where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and title = 'HOMOLOG-FLIP-novo-usuario';` → 1 linha, `status='draft'`. |
+| 2 | **Override negativo sobrevive** | Console: `localStorage.setItem("kora.quotes.supabaseWrite.enabled", "false")` → **F5** → tentar mudar o status da quote do caso 1 (menu ⋮ → qualquer transição) | Banner volta a **"modo leitura"**; toast de **erro** com o texto exato "Escrita de orçamentos no Supabase ainda está desligada nesta sessão (flag mestre) — volte para Local para editar."; nenhuma mudança persiste (SQL: `status` continua `draft`). Confirma: quem desligou a flag ANTES do flip (ou a qualquer momento) continua desligado depois — override nunca é pisado pelo novo default. |
+| 3 | **Override de dataSource** | Console: `localStorage.setItem("kora.quotes.dataSource.v1", "local")` (mantendo o write flag como estiver) → **F5** | Seletor mostra **"Local"** ativo (não "Supabase experimental"), tela mostra os orçamentos locais do navegador (array `orbyt.quotes.v1`), intactos — nenhuma chamada de rede pra `public.quotes` nesta tela enquanto "Local" estiver selecionado. |
+| 4 | **A foto do 5b (caso obrigatório, 2 telas)** | Religar a escrita: console `localStorage.setItem("kora.quotes.supabaseWrite.enabled", "true"); localStorage.setItem("kora.quotes.dataSource.v1", "supabase");` → F5 → CRM → **Nova oportunidade** `HOMOLOG-FLIP-opp` → abrir o detalhe → **"Criar orçamento a partir da oportunidade"** → título `HOMOLOG-FLIP-nativa`, 1 item, valor 900 → na tela de Orçamentos, menu ⋮ da quote → **Marcar como enviado** → (a) Configurações → rolar até "Sincronização Cloud & CRM" → card **"Orçamentos no Supabase (Experimental)"** → localizar `HOMOLOG-FLIP-nativa` → **PRINT** confirmando botões **Aprovar/Rejeitar visíveis** → (b) CRM → detalhe de `HOMOLOG-FLIP-opp` → seção **"Orçamentos vinculados"** → **PRINT** confirmando os mesmos botões visíveis ali | Botões Aprovar/Rejeitar aparecem nas **2 telas** pra uma quote em "enviado" — prova visual do fix da Pendência 1 (Fatia 10), nunca verificada ao vivo por falta de acesso autenticado nas sessões anteriores. **2 prints obrigatórios**, não pode fechar como "assumido correto". |
+| 5 | **Configs pós-retirada** | Configurações → aba Dados → seção "Sincronização Cloud & CRM" — inspecionar a lista de cards | Cards **"Visualização Experimental de Orçamentos Supabase"** e **"Orçamentos Supabase - Aprovação Experimental"** **NÃO aparecem mais** (retirados, §2.2). Card **"Orçamentos no Supabase (Experimental)"** (o viewer) aparece **incondicionalmente**, com a lista. Cards **"Orçamentos Supabase - Gerar Recebível Experimental"** e **"Orçamentos Supabase - Gerar Projeto Experimental"** continuam presentes — ligar um deles e confirmar que "Gerar recebível"/"Gerar projeto" ainda abre o diálogo correspondente numa quote aprovada (sem regressão, §2.2). |
+| 6 | **Limpeza** | Excluir (soft-delete, menu ⋮) as quotes `HOMOLOG-FLIP-nativa` e `HOMOLOG-FLIP-novo-usuario`; arquivar/excluir `HOMOLOG-FLIP-opp` no CRM; console: remover as chaves setadas manualmente nos casos 2/3 (deixar limpo, estado "usuário novo") | Prova SQL de resíduo: `select count(*) from public.quotes where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and title like 'HOMOLOG-FLIP-%' and deleted_at is null;` → **0**. `select count(*) from public.crm_opportunities where workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' and title = 'HOMOLOG-FLIP-opp' and archived = false;` → **0** (arquivada, não necessariamente apagada — soft delete é o padrão já estabelecido). |
+
+**Critério de aceite:** 6/6 casos verdes. Caso 4 fecha só com os 2 prints anexados ao
+relatório — não pode ser dado como resolvido "de cabeça", é exatamente a lacuna que motivou
+este pacote.
+
+---
+
+**PARADO aqui.** Runbook escrito, ambiente confirmado (`http://localhost:8095`,
+`[Kora] BUILD 7adefad`). Execução conduzida pelo revisor com o operador só com novo "vai".
