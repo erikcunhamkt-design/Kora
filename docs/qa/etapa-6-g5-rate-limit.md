@@ -306,3 +306,76 @@ aqui pra não se perder, **nenhum dos dois executado nesta rodada**:
    `LOVABLE_API_KEY` for efetivamente removida do painel (§5.4) — não antes, pra doc e código
    nunca ficarem dessincronizados de novo (a causa raiz da discrepância original era exatamente
    essa: doc anunciando algo que o código ainda não fazia).
+
+---
+
+## 8. Runbook da janela de deploy (escrito, NÃO executado nesta rodada)
+
+> Só roda com "vai" específico do revisor, na janela exclusiva §16, conduzida pelo revisor
+> junto com o operador. Este runbook cobre G18 (migração de provedor) + G5 (fix de
+> autenticação real do `isTest`) — o mesmo deploy resolve os dois, é a mesma function.
+
+### 8.a Abertura da janela + prova de que o deploy sobe o código certo
+
+1. Declaração §16: `pwd` + `git worktree list` — confirmar que **nenhuma outra lane** está
+   ativa (exclusividade total, mesma exigência de qualquer sessão de deploy/DDL).
+2. `git fetch origin && git log origin/main -1 --oneline` — anotar o hash. Sync do worktree
+   de trabalho pra esse hash exato (`git checkout main && git pull`).
+3. **Prova pré-deploy (espírito do §17 — hash, não comportamento):** rodar
+   `git log --oneline -1` **na pasta de onde o `supabase functions deploy` vai ser
+   executado**, imediatamente antes do comando — confirmar que é o mesmo hash do passo 2.
+   O CLI empacota o diretório de trabalho local tal como está no disco naquele instante, não
+   um ref remoto — se o worktree estiver num commit diferente (checkout errado, mudança não
+   commitada), o deploy sobe **isso**, não o que o `git log origin/main` mostra. É exatamente
+   o incidente #1 do §17 (worktree errada), na versão "deploy" em vez de "dev server".
+4. `npx supabase functions deploy whatsapp-bot-reply --project-ref ewamvzncsloagtcvkbxv`
+   (usar `npx.cmd` se PowerShell bloquear `.ps1` — já resolvido no G8). Confirmar no output
+   que os dois arquivos esperados aparecem: `index.ts` **e** `_shared/isTestAuth.ts` (esse é
+   novo desde o deploy do G8 — se não aparecer no output, o fix de autenticação não foi
+   junto).
+
+### 8.b Verificação ao vivo pós-deploy, nesta ordem exata
+
+1. **`curl` anônimo — repetir EXATAMENTE o atalho do G8** (só a anon key pública, `isTest:
+   true`, sem `Authorization` de usuário real): **esperado `401`** (`missing_auth` ou
+   `unauthorized`, dependendo se manda header ou não). Se ainda devolver resposta de IA, **o
+   fix não está no ar** — não prosseguir, ver 8.c.
+2. **Simulador logado como membro** (operador na UI, sessão real): **esperado `200`** +
+   resposta gerada via Gemini direto (conferir no log da function do Dashboard:
+   `Using Gemini AI Studio mode`, não `Using Lovable AI Gateway`) — prova G5 (auth) e G18
+   (provedor) juntos, um teste só.
+3. **Webhook real:** mandar 1 mensagem de teste pro número conectado de um workspace com bot
+   ativo — **esperado:** fluxo responde normal, prova de não-regressão do caminho
+   `isTest=false` (a garantia "por construção" documentada em §5.1-b, confirmada agora
+   empiricamente).
+4. **`403` de não-membro:** só testar ao vivo se houver uma segunda conta de teste disponível
+   na hora. **Se não houver, não bloquear a janela por isso** — esse caso já está coberto por
+   teste unitário determinístico (`_shared/__tests__/isTestAuth.test.ts`, caso "autenticado
+   mas não membro → 403 forbidden"), que testa a mesma função de decisão (`authorizeIsTestCaller`)
+   que o código de produção usa. Registrar no doc da janela qual dos dois caminhos foi seguido
+   (teste ao vivo ou cobertura unitária).
+
+### 8.c Regra de parada — rollback pronto ANTES de subir
+
+**Parar em qualquer vermelho** dos passos 8.b — não tentar corrigir ao vivo na janela.
+Rollback é simplesmente re-deployar a versão anterior, já que não há migration nesta rodada
+(sem estado de banco pra desfazer, mesmo raciocínio do G8 §7):
+
+```bash
+git checkout ede580c -- supabase/functions/whatsapp-bot-reply supabase/functions/_shared
+npx supabase functions deploy whatsapp-bot-reply --project-ref ewamvzncsloagtcvkbxv
+git checkout main -- supabase/functions/whatsapp-bot-reply supabase/functions/_shared
+```
+
+`ede580c` é o último hash confirmado como deployado e homologado com sucesso (G8, ver
+`etapa-6-g8-flownodes.md` §8) — a versão que está ao vivo agora, antes deste deploy. Preparar
+(copiar, ter pronto) esse comando **antes** de iniciar 8.a, não no meio de um incidente.
+
+### 8.d Pós-validação (só se todos os passos de 8.b passarem)
+
+1. Marcar `LOVABLE_API_KEY` para remoção do painel (Supabase → Edge Functions → Secrets) —
+   remoção em si é ação do operador, fora desta janela se quiser dar um intervalo de
+   observação antes.
+2. **No mesmo commit** em que `LOVABLE_API_KEY` for de fato removida: corrigir
+   `docs/integrations/SUPABASE-WHATSAPP-INBOX-V1.md:91` (§7 item 2) — não antes, decisão já
+   registrada pra doc e código nunca ficarem dessincronizados de novo.
