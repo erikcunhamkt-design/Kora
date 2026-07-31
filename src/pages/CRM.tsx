@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { useLeads, type Lead, type Priority, type StageKey, type LeadTemperature, getLeadTemperature } from "@/hooks/useLeads";
+import { useLeads, type Lead, type Priority, type StageKey, type LeadTemperature, type NewLeadInput, getLeadTemperature } from "@/hooks/useLeads";
 import { usePipelines, type Pipeline, type PipelineStage } from "@/hooks/usePipelines";
 import { usePipelineAutomations } from "@/hooks/usePipelineAutomations";
 import { getBooleanFlag, getCrmDataSource, setCrmDataSource } from "@/config/flags";
@@ -1673,7 +1673,7 @@ const NewLeadDialog = ({
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  onSave: (data: any) => void;
+  onSave: (data: NewLeadInput) => void;
   stages: PipelineStage[];
   pipelineId: string;
   initial?: Partial<Lead> | null;
@@ -1688,7 +1688,7 @@ const NewLeadDialog = ({
   };
   const [form, setForm] = useState(emptyForm);
   const [typeDialogOpen, setTypeDialogOpen] = useState(false);
-  const set = <K extends keyof typeof emptyForm>(k: K, v: any) => setForm((p) => ({ ...p, [k]: v }));
+  const set = <K extends keyof typeof emptyForm>(k: K, v: typeof emptyForm[K]) => setForm((p) => ({ ...p, [k]: v }));
 
   useEffect(() => {
     if (!open) return;
