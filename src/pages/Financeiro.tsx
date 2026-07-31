@@ -21,7 +21,7 @@ import {
   PiggyBank, Users2, Pencil, Trash2, Archive, HelpCircle, Download,
   type LucideIcon,
 } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LineChart, Line, PieChart, Pie, Cell } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LineChart, Line, PieChart, Pie, Cell, type TooltipContentProps } from "recharts";
 import {
   useFinance, useFinanceMetrics, useMonthlySeries,
   formatBRL, formatDateBR,
@@ -89,12 +89,12 @@ const EmptyState = ({ icon: Icon, title, description, action }: {
   </div>
 );
 
-const ChartTooltip = ({ active, payload, label }: any) => {
+const ChartTooltip = ({ active, payload, label }: Partial<TooltipContentProps<number, string>>) => {
   if (!active || !payload) return null;
   return (
     <div className="orbit-card p-3 shadow-lg border-border">
       <p className="text-xs font-semibold text-foreground mb-1">{label}</p>
-      {payload.map((p: any) => (
+      {payload.map((p) => (
         <p key={p.name} className="text-xs" style={{ color: p.color }}>
           {p.name}: {typeof p.value === "number" ? formatBRL(p.value) : p.value}
         </p>
