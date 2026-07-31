@@ -260,6 +260,18 @@ Network). Detalhamento completo em
 
 ---
 
+**G18 — `whatsapp-bot-reply` roda IA via Lovable AI Gateway por padrão (herança do scaffolding Lovable, não do stack oficial). [ALTO — em migração]**
+Achado durante o levantamento do G5 (Etapa 6, rate limit), confirmado pelo operador: o projeto nasceu no Lovable e a `LOVABLE_API_KEY`/gateway (`https://ai.gateway.lovable.dev`) são resíduo do scaffolding — nunca foram uma decisão de stack. Detalhamento completo em [`etapa-6-g5-rate-limit.md`](../qa/etapa-6-g5-rate-limit.md).
+
+- **Risco 1 — custo via intermediário:** toda chamada no provedor `lovable` passa (e é cobrada) pelo gateway da Lovable, não direto na Google — camada extra de custo/latência sem motivo, herdada, não escolhida.
+- **Risco 2 — desativação silenciosa:** a `LOVABLE_API_KEY` não é uma credencial do Kora — é uma chave de uma plataforma terceira à qual o projeto não está mais necessariamente vinculado. Se a Lovable revogar/expirar a chave (fora do controle do Kora, sem aviso), o bot para de responder silenciosamente (mesmo padrão de falha silenciosa do G8: erro cai em `catch`, log apenas).
+- **Migração (Parte 1, esta rodada):** provedor default trocado de `"lovable"` para `"gemini_api_key"` (Google AI Studio direto) nas 4 ocorrências de fallback em `index.ts` (variável inicial, `isTest`, `aiNode.properties.provider`, `bot.provider`) e no default do construtor visual (`WhatsAppBotConfig.tsx`, nó AI novo). **Não precisou trocar endpoint nem parser** — o caminho `gemini_api_key` já existe, já está correto (mesmo formato de resposta `candidates[].content.parts[].text` usado por `vertex_ai`), só não era o default. Operador cria o secret `GEMINI_API_KEY` no painel (nome que o código já espera, `index.ts` já tinha o fallback `Deno.env.get("GEMINI_API_KEY")` morto por falta desse secret).
+- **Não migrado nesta rodada:** bots que já têm `provider: "lovable"` **salvo explicitamente** em `flow_data`/`bot.provider` (não é fallback, é valor persistido) continuam usando Lovable até serem reconfigurados manualmente ou até uma migração de dado futura — mudar só o default do código não afeta configuração já gravada. O branch de código do provedor `lovable` (chamada ao gateway) **não foi removido**, só deixou de ser o default — continua funcional pra quem já está configurado nele.
+- **Plano:** remover a `LOVABLE_API_KEY` do painel **somente após** a migração validada (homologação pós-deploy confirmando resposta vinda do Gemini direto) — ver §8 do doc do G5 pra sequência.
+- **Mini-auditoria de resíduos Lovable** (grep repo inteiro por "lovable", case-insensitive, só listagem, não corrigida nesta fatia) registrada em [`etapa-6-g5-rate-limit.md`](../qa/etapa-6-g5-rate-limit.md) §6.
+
+---
+
 **O5 — cards de import locais divergiam em padrão de abertura do diálogo. [BAIXO — RESOLVIDO na rodada `qualidade-lint`]**
 Achado durante a homologação (Fase D) da Etapa 5 · Fatia 8 (cutover de escrita de `opportunities`) — não corrigido nela por ser um achado de consistência entre cards, pré-existente da Fatia 2, não uma regressão da fatia que o encontrou. Detalhamento completo em
 [`etapa-5-fatia-8-crm-cutover.md` §8](../qa/etapa-5-fatia-8-crm-cutover.md#8-fase-d--resultado-da-rodada-executada-vai-do-revisor) (observação registrada do caso (j) do runbook).
@@ -287,6 +299,18 @@ Achado durante o fechamento da Etapa 6 · G8 (`flowNodes`/Send Node, `whatsapp-b
 - **Nenhum dado ou commit foi perdido**, e o merge da Lane B foi limpo (`ort`, sem conflito). O risco observado foi **verificação invalidada silenciosamente**, não corrupção: os gates da Lane C passaram a checar um tree que mudou por baixo dela a meio da checagem, e o `git push origin main` da Lane C encontrou o remoto já sincronizado pelo push da Lane B — a trilha de auditoria (quem publicou o quê, sob qual verificação) ficou ambígua a partir do log isolado de cada lane.
 - **Padrão recorrente, não um caso isolado:** já observado antes desta rodada, com arquivos de WhatsApp em progresso de outra lane aparecendo/desaparecendo de um `git status` de sessão — nunca catalogado como gate até o G8.
 - **Mitigação:** [`docs/qa/protocolo-homologacao.md` §16](../qa/protocolo-homologacao.md#16-emenda-2026-07-27--isolamento-de-worktree-por-lane) — checagem de abertura de sessão (`pwd` + `git worktree list`, declarada no relatório), push só da própria lane exceto sincronização explicitamente reportada, e reconhecimento explícito de que o merge-para-`main` é um ponto de contenção estrutural entre lanes (não isolável por worktree, por restrição do git), não um caso a resolver por isolamento total.
+
+---
+
+**O8 — CRM: "Mover para etapa" (menu do lead) não move nada, sem feedback nenhum. [MÉDIO — achado do revisor, causa PROVÁVEL identificada por leitura, não confirmada ao vivo]**
+Achado durante o smoke pós-merge do Pacote do Flip de `quotes` (Etapa 5) — fora do domínio `quotes`, catalogado aqui sem correção nesta rodada. Detalhamento em
+[`etapa-5-flip-quotes.md`](../qa/etapa-5-flip-quotes.md).
+
+- **Sintoma reportado:** no menu de ações do lead (`CRM.tsx`, `LeadActionsMenu`), o submenu "Mover para etapa" → escolher uma etapa não produz efeito nenhum observável.
+- **Causa provável, por leitura de código (não reproduzida ao vivo — sessão sem acesso autenticado ao app):** `handleMoveToStage` (`CRM.tsx:560`), no ramo `activeDataSource === "supabase"`, tem um retorno silencioso —
+  `if (!lead || !lead.supabaseId) return;` (`:566`) — sem toast, sem log visível, sem nenhum sinal de que a ação foi ignorada. Um lead sem `supabaseId` (ainda não importado/sincronizado, ou qualquer outro motivo que zere o campo) faz o clique parecer não fazer nada, indistinguível de um bug de UI. O restante do fluxo (`crmOpportunitiesRepository.moveOpportunityStage`, toasts de sucesso/erro) está corretamente implementado — o gap é especificamente esse guard silencioso.
+- **Mesma classe de lição já catalogada (O2/O3/O4, Fatia 8):** nenhuma ação deve retornar silenciosamente sem feedback quando bloqueada — aqui o guard nem é sobre uma flag (que já teria um toast dedicado em `blockWriteAction`), é sobre um pré-requisito de dado (`supabaseId` ausente) que hoje não avisa ninguém.
+- **Não corrigido nesta rodada** — fora do escopo do Pacote do Flip de `quotes` (domínio `opportunities`/CRM). Fica registrado para uma fatia/sessão dedicada ao CRM confirmar a causa ao vivo (reproduzir com um lead sem `supabaseId` em modo Supabase) e decidir o feedback correto (toast de erro explicando o motivo, ou impedir a etapa de aparecer no submenu pra leads nesse estado).
 
 ---
 
