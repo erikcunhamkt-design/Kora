@@ -157,3 +157,80 @@ de `claim_campaign_messages`).
   como fraqueza conhecida em §4.1, decisão de produto em aberto, não bloqueia o mínimo viável
   (contador por-workspace-alegado já reduz o dano de "ilimitado" pra "limitado por identidade
   forjável", que é uma melhoria real mesmo não sendo perfeita).
+- Tabela/RPC de contador (§3, `ai_rate_limit_counters` + `check_and_increment_ai_rate_limit`)
+  não entrou nesta rodada (Parte 1) — só o fix de atribuição (`workspaceId` obrigatório) e a
+  migração de provedor. A rodada seguinte (Parte 2) implementa o contador de verdade.
+
+---
+
+## 5. Parte 1 (implementada) — fix de atribuição + migração de provedor
+
+**Confirmado pelo operador (hipótese 1):** o projeto nasceu no Lovable; a `LOVABLE_API_KEY` é
+herança do scaffolding, não uma decisão de stack. Catalogado como
+[`G18`](../architecture/kora-hub-auditoria-e-plano.md) no plano mestre.
+
+### 5.1 Fix de atribuição do `isTest` (fecha o gap do §4.1 crítico)
+
+`index.ts`: `workspaceId` agora é obrigatório nos dois modos (antes só era exigido fora de
+`isTest`). `conversationId` continua exigido só fora de `isTest`. `WhatsAppBotConfig.tsx`: o
+simulador passa a mandar `workspaceId` no payload do invoke (já disponível como prop do
+componente, não precisou buscar de lugar nenhum). **Continua sendo atribuição fraca** (nada
+valida que o `workspaceId` enviado é real/pertence a quem chama) — registrado como fraqueza
+conhecida, não resolvida nesta Parte 1, ver §4.5.
+
+### 5.2 Migração de provedor default: `lovable` → `gemini_api_key`
+
+4 ocorrências de fallback trocadas em `index.ts` (variável inicial `let provider =`, default do
+`isTest`, default de `aiNode.properties?.provider`, default de `bot.provider`) + o default do
+nó "Agente IA" novo em `WhatsAppBotConfig.tsx`. **Nenhuma troca de endpoint nem de parser foi
+necessária** — o caminho `gemini_api_key` (Google AI Studio direto,
+`generativelanguage.googleapis.com`) já existe no código desde antes, já usa o parser correto
+(mesmo formato `candidates[].content.parts[].text` do `vertex_ai`), só nunca tinha sido o
+default. O branch de código do provedor `lovable` **não foi removido** — continua funcional
+pra quem já estiver explicitamente configurado nele (ver §5.4).
+
+**Secret necessário:** `GEMINI_API_KEY` — nome que o código **já esperava**
+(`Deno.env.get("GEMINI_API_KEY")`, fallback morto até agora por falta do secret). Operador cria
+no painel (Supabase → Edge Functions → Secrets), único touchpoint de credencial desta rodada.
+
+### 5.3 Sequência de homologação do deploy (nota para a janela de deploy)
+
+Este deploy cobre **dois** fixes ao mesmo tempo (atribuição + provedor) — o caso positivo do
+simulador pós-deploy precisa validar **os dois**, não só um:
+1. Simulador autenticado (não o `curl` anônimo usado no G8 — esse exato buraco é o que a Parte 1
+   fecha) roda uma mensagem de teste.
+2. **Confirma que a resposta veio do Gemini direto**, não do gateway Lovable — checar o log da
+   function no Dashboard (deve aparecer `[bot-reply] Using Gemini AI Studio mode`, não `Using
+   Lovable AI Gateway`) ou, mais simples, confirmar que a resposta chega normalmente **sem**
+   `LOVABLE_API_KEY` estar sequer configurada (se o operador ainda não criou `GEMINI_API_KEY`
+   também, o teste vai falhar com erro de "provedor inválido" — sinal claro de que a migração
+   de secret ainda não aconteceu, não um bug de código).
+3. Chamar sem `workspaceId` deve devolver `400 missing params` (confirma o fix de atribuição).
+
+### 5.4 O que não mudou (fora do escopo desta Parte 1)
+
+- Bots com `provider: "lovable"` **já salvo explicitamente** em `flow_data`/`bot.provider`
+  continuam usando Lovable — mudar o default do código não retroage sobre configuração já
+  gravada. Nenhuma migração de dado foi feita.
+- A coluna `whatsapp_bot_settings.provider` no banco ainda tem `DEFAULT 'lovable'` a nível de
+  schema (ver §6, achado da mini-auditoria) — não afeta a aplicação hoje porque o frontend
+  sempre manda o valor explícito, mas é uma inconsistência latente entre código e schema.
+- `LOVABLE_API_KEY` **não foi removida** do painel — só depois da homologação confirmar que
+  tudo funciona no Gemini direto (§5.3), por segurança (rollback fácil enquanto os dois
+  secrets coexistem).
+
+---
+
+## 6. Mini-auditoria de resíduos Lovable (só listagem, nada corrigido nesta fatia)
+
+Grep case-insensitive por "lovable" no repo inteiro (excluindo `node_modules`/`.git`/`dist`):
+
+| Arquivo | O que tem | Avaliação |
+| :-- | :-- | :-- |
+| `supabase/functions/whatsapp-bot-reply/index.ts` | Branch de código do provedor `lovable` (chamada ao gateway) | Mantido, não é mais o default (§5.2) — funcional pra config explícita |
+| `src/components/whatsapp/WhatsAppBotConfig.tsx` | Opção "Créditos KORA" no seletor de provedor (rótulo do `lovable`) | Mantido — usuário ainda pode escolher explicitamente |
+| `supabase/migrations/20260603000000_add_bot_api_keys.sql:2` | `ALTER TABLE ... ADD COLUMN provider TEXT DEFAULT 'lovable'` | **Achado real, não é só texto morto** — o default a nível de banco continua `'lovable'`, latente (app nunca deixa a coluna cair no default hoje, mas é uma inconsistência schema↔código) |
+| `.env.example` | `LOVABLE_API_KEY SEGREDO` na lista de secrets de backend + menção "client.ts gerado pelo Lovable" | Documentação factualmente correta enquanto o secret ainda existir — atualizar quando `LOVABLE_API_KEY` for removida (§5.4) |
+| `bun.lock` / `bun.lockb` | Lockfile inteiro resolve pacotes via registry privado `*.pkg.dev/lovable-core-prod/...` | **Confirmado morto/não usado** — `package-lock.json` existe e `.github/workflows/ci.yml` roda `npm ci`, não `bun install`. Resíduo do scaffold original, sem risco vivo, candidato a deleção numa limpeza futura (fora desta fatia) |
+| `docs/qa/etapa-0-rede-de-seguranca.md`, `docs/architecture/etapa-6-levantamento.md`, `docs/architecture/kora-hub-auditoria-e-plano.md` | Menções informativas (nome de secret, snapshot de arquitetura) | Registro histórico correto, sem ação necessária |
+| `docs/integrations/SUPABASE-WHATSAPP-INBOX-V1.md:91` | **"A Edge Function `whatsapp-bot-reply` foi atualizada... desativando completamente o gateway da Lovable."** | **Discrepância encontrada:** essa afirmação não batia com o código antes desta Parte 1 — `lovable` continuava sendo o *default* em 4 lugares + na coluna do banco. O doc provavelmente descreve a *adição* das opções Vertex/Gemini como se fosse a *desativação* do Lovable — não corrigido aqui (fora do escopo, doc de integração de outra fatia), só registrado como discrepância pro dono daquele doc avaliar |
