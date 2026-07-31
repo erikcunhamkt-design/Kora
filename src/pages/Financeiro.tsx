@@ -246,7 +246,12 @@ const Financeiro = () => {
 // ============================================================
 // OVERVIEW TAB
 // ============================================================
-const OverviewTab = ({ fin, metrics, onNewSale, onNewExpense }: any) => {
+const OverviewTab = ({ fin, metrics, onNewSale, onNewExpense }: {
+  fin: ReturnType<typeof useFinance>;
+  metrics: ReturnType<typeof useFinanceMetrics>;
+  onNewSale: () => void;
+  onNewExpense: () => void;
+}) => {
   const overdueReceivables = fin.transactions.filter((t: Transaction) => t.type === "income" && t.status === "overdue");
   const overduePayables = fin.transactions.filter((t: Transaction) => t.type === "expense" && t.status === "overdue");
   const latest = [...fin.transactions].sort((a: Transaction, b: Transaction) => b.createdAt.localeCompare(a.createdAt)).slice(0, 8);
@@ -1141,7 +1146,11 @@ const CashDialog = ({ open, onOpenChange, fin }: { open: boolean; onOpenChange: 
 // ============================================================
 // REPORTS TAB
 // ============================================================
-const ReportsTab = ({ fin, chartData, metrics }: any) => {
+const ReportsTab = ({ fin, chartData, metrics }: {
+  fin: ReturnType<typeof useFinance>;
+  chartData: ReturnType<typeof useMonthlySeries>;
+  metrics: ReturnType<typeof useFinanceMetrics>;
+}) => {
   const transactions: Transaction[] = fin.transactions;
   const categories: FinanceCategory[] = fin.categories;
 
