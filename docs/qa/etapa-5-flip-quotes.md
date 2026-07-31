@@ -408,13 +408,28 @@ mesma janela ("vai" já concedido para ambos).
    vitest 321/321 · lint-gate 33/33.
 5. **Push:** `d174047..dae6de8` em `origin/main`, sem drift (confirmado imediatamente antes).
 
-**Hash final mesclado em `main`: `dae6de8`.**
+**Hash final mesclado em `main`: `dae6de8`** (commit do fast-forward que trouxe o CÓDIGO).
 
-Worktrees ao fechar: `Kora-laneA` (`etapa-5-flip-quotes`) e `orbit-designer-hub` (`main`) ambas
-em `dae6de8`, idênticas.
+Worktrees ao fechar deste passo: `Kora-laneA` (`etapa-5-flip-quotes`) e `orbit-designer-hub`
+(`main`) ambas em `dae6de8`, idênticas.
+
+**Nota de precisão (achado do revisor, pós-merge):** este documento continuou recebendo commits
+docs-only DEPOIS do fast-forward acima, cada um movendo o tip real de `origin/main` pra frente —
+`b63114b` (esta própria seção §7, na escrita original) e `ed9cee1` (a correção da ressalva do
+caso 2, §6). **O tip real de `origin/main` no fechamento deste pacote é o hash do commit que
+adicionar esta frase** — não `dae6de8` isoladamente. Isso é esperado (documentar o que aconteceu
+sempre produz um commit depois do que documenta), mas fica registrado explicitamente pra quem
+for re-sincronizar (LANE B) usar sempre `git log origin/main -1`, nunca um hash citado num doc
+como referência estática.
+
+### Marco
+
+**G1/`quotes` COMPLETO** — primeiro domínio do Kora Hub 100% Supabase por default, leitura E
+escrita juntas, com reversibilidade preservada via override explícito (nunca uma migração
+forçada, sempre uma escolha do usuário que se mantém).
 
 ---
 
-**PARADO aqui.** Pacote do Flip de `quotes` encerrado — merge em `main` @ `dae6de8`. Coordenação
-pós-merge (LANE B re-sync do teto de lint, depois LANE C janela de deploy do G18) conforme
-combinado. Nenhum próximo passo desta lane sem novo "vai".
+**PARADO aqui.** Pacote do Flip de `quotes` encerrado — merge em `main` @ `dae6de8` (código),
+doc fechado neste commit. Coordenação pós-merge (LANE B re-sync do teto de lint, depois LANE C
+janela de deploy do G18) conforme combinado. Nenhum próximo passo desta lane sem novo "vai".
