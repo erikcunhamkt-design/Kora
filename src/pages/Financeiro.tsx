@@ -19,13 +19,14 @@ import {
   ArrowDownLeft, ArrowUpRight, AlertCircle, CheckCircle2, Timer, Ban,
   Wallet, Building2, Tags, QrCode, Repeat, FileBarChart, LayoutGrid,
   PiggyBank, Users2, Pencil, Trash2, Archive, HelpCircle, Download,
+  type LucideIcon,
 } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LineChart, Line, PieChart, Pie, Cell } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LineChart, Line, PieChart, Pie, Cell, type TooltipContentProps } from "recharts";
 import {
   useFinance, useFinanceMetrics, useMonthlySeries,
   formatBRL, formatDateBR,
   type Transaction, type TxType, type TxStatus, type PaymentMethod,
-  type FinanceCategory, type Supplier, type RecurringEntry, type CashAccount, type PixSettings, type RecurFreq, type CashAccountType, type PixKeyType,
+  type FinanceCategory, type Supplier, type RecurringEntry, type CashAccount, type PixSettings, type PixMethod, type RecurFreq, type CashAccountType, type PixKeyType,
 } from "@/hooks/useFinance";
 import { useFormat } from "@/hooks/useFormat";
 import { useClients } from "@/hooks/useClients";
@@ -41,7 +42,7 @@ const statusStyles: Record<TxStatus, string> = {
   overdue: "bg-destructive/10 text-destructive border-destructive/20",
   canceled: "bg-muted/40 text-muted-foreground border-border",
 };
-const statusIcons: Record<TxStatus, any> = { paid: CheckCircle2, pending: Timer, overdue: AlertCircle, canceled: Ban };
+const statusIcons: Record<TxStatus, LucideIcon> = { paid: CheckCircle2, pending: Timer, overdue: AlertCircle, canceled: Ban };
 const methodLabels: Record<PaymentMethod, string> = { pix: "PIX", card: "Cartão", boleto: "Boleto", transfer: "Transferência", cash: "Dinheiro", other: "Outro" };
 const cashTypeLabels: Record<CashAccountType, string> = { bank: "Banco", wallet: "Carteira", cash: "Dinheiro", platform: "Plataforma", other: "Outro" };
 const freqLabels: Record<RecurFreq, string> = { weekly: "Semanal", monthly: "Mensal", yearly: "Anual" };
@@ -51,7 +52,7 @@ const pixKeyLabels: Record<PixKeyType, string> = { cpf: "CPF", cnpj: "CNPJ", ema
 // Reusable
 // ============================================================
 const MetricCard = ({ icon: Icon, label, value, sub, tone = "default" }: {
-  icon: any; label: string; value: string; sub?: string;
+  icon: LucideIcon; label: string; value: string; sub?: string;
   tone?: "default" | "income" | "expense" | "warning" | "neutral";
 }) => {
   const palette = {
@@ -76,7 +77,7 @@ const MetricCard = ({ icon: Icon, label, value, sub, tone = "default" }: {
 };
 
 const EmptyState = ({ icon: Icon, title, description, action }: {
-  icon: any; title: string; description?: string; action?: React.ReactNode;
+  icon: LucideIcon; title: string; description?: string; action?: React.ReactNode;
 }) => (
   <div className="py-12 px-4 text-center">
     <div className="mx-auto h-12 w-12 rounded-full bg-muted/40 flex items-center justify-center mb-3">
@@ -88,12 +89,12 @@ const EmptyState = ({ icon: Icon, title, description, action }: {
   </div>
 );
 
-const ChartTooltip = ({ active, payload, label }: any) => {
+const ChartTooltip = ({ active, payload, label }: Partial<TooltipContentProps<number, string>>) => {
   if (!active || !payload) return null;
   return (
     <div className="orbit-card p-3 shadow-lg border-border">
       <p className="text-xs font-semibold text-foreground mb-1">{label}</p>
-      {payload.map((p: any) => (
+      {payload.map((p) => (
         <p key={p.name} className="text-xs" style={{ color: p.color }}>
           {p.name}: {typeof p.value === "number" ? formatBRL(p.value) : p.value}
         </p>
@@ -117,7 +118,7 @@ const StatusBadge = ({ s }: { s: TxStatus }) => {
 // ============================================================
 type TabKey = "overview" | "receivables" | "payables" | "clients" | "suppliers" | "pix" | "recurring" | "cash" | "reports";
 
-const TAB_DEFS: { key: TabKey; label: string; icon: any }[] = [
+const TAB_DEFS: { key: TabKey; label: string; icon: LucideIcon }[] = [
   { key: "overview", label: "Visão geral", icon: LayoutGrid },
   { key: "receivables", label: "Receber", icon: ArrowDownLeft },
   { key: "payables", label: "Pagar", icon: ArrowUpRight },
@@ -245,7 +246,12 @@ const Financeiro = () => {
 // ============================================================
 // OVERVIEW TAB
 // ============================================================
-const OverviewTab = ({ fin, metrics, onNewSale, onNewExpense }: any) => {
+const OverviewTab = ({ fin, metrics, onNewSale, onNewExpense }: {
+  fin: ReturnType<typeof useFinance>;
+  metrics: ReturnType<typeof useFinanceMetrics>;
+  onNewSale: () => void;
+  onNewExpense: () => void;
+}) => {
   const overdueReceivables = fin.transactions.filter((t: Transaction) => t.type === "income" && t.status === "overdue");
   const overduePayables = fin.transactions.filter((t: Transaction) => t.type === "expense" && t.status === "overdue");
   const latest = [...fin.transactions].sort((a: Transaction, b: Transaction) => b.createdAt.localeCompare(a.createdAt)).slice(0, 8);
@@ -428,7 +434,7 @@ const TransactionsTab = ({ fin, type, onCreate, highlightId }: { fin: ReturnType
       </div>
 
       <div className="orbit-card p-3 flex flex-wrap items-center gap-2">
-        <Select value={period} onValueChange={(v) => setPeriod(v as any)}>
+        <Select value={period} onValueChange={(v) => setPeriod(v as "all" | "month" | "next30" | "overdue")}>
           <SelectTrigger className="w-[160px] h-9"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos períodos</SelectItem>
@@ -437,7 +443,7 @@ const TransactionsTab = ({ fin, type, onCreate, highlightId }: { fin: ReturnType
             <SelectItem value="overdue">Vencidos</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={status} onValueChange={(v) => setStatus(v as any)}>
+        <Select value={status} onValueChange={(v) => setStatus(v as "all" | TxStatus)}>
           <SelectTrigger className="w-[140px] h-9"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos status</SelectItem>
@@ -771,7 +777,7 @@ const PixTab = ({ fin }: { fin: ReturnType<typeof useFinance> }) => {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label className="text-xs">Método</Label>
-            <Select value={form.method} onValueChange={(v) => setForm({ ...form, method: v as any })}>
+            <Select value={form.method} onValueChange={(v) => setForm({ ...form, method: v as PixMethod })}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="manual">PIX próprio / QR manual</SelectItem>
@@ -1140,7 +1146,11 @@ const CashDialog = ({ open, onOpenChange, fin }: { open: boolean; onOpenChange: 
 // ============================================================
 // REPORTS TAB
 // ============================================================
-const ReportsTab = ({ fin, chartData, metrics }: any) => {
+const ReportsTab = ({ fin, chartData, metrics }: {
+  fin: ReturnType<typeof useFinance>;
+  chartData: ReturnType<typeof useMonthlySeries>;
+  metrics: ReturnType<typeof useFinanceMetrics>;
+}) => {
   const transactions: Transaction[] = fin.transactions;
   const categories: FinanceCategory[] = fin.categories;
 
@@ -1372,7 +1382,7 @@ const QuickSaleDialog = ({ open, onOpenChange, fin, clients }: {
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs">Forma</Label>
-            <Select value={form.mode} onValueChange={(v) => setForm({ ...form, mode: v as any })}>
+            <Select value={form.mode} onValueChange={(v) => setForm({ ...form, mode: v as "lump" | "installment" | "recurring" })}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="lump">À vista</SelectItem>
@@ -1489,7 +1499,7 @@ const ExpenseDialog = ({ open, onOpenChange, fin }: { open: boolean; onOpenChang
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs">Tipo</Label>
-            <Select value={form.kind} onValueChange={(v) => setForm({ ...form, kind: v as any })}>
+            <Select value={form.kind} onValueChange={(v) => setForm({ ...form, kind: v as "one" | "recurring" })}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="one">Avulsa</SelectItem>

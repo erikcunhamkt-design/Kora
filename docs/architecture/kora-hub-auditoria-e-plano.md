@@ -272,6 +272,17 @@ Achado durante o levantamento do G5 (Etapa 6, rate limit), confirmado pelo opera
 
 ---
 
+**G19 — `SupabaseQuotesViewerCard` lia `quote.validUntil`, campo que nunca existiu em `Quote` — "Validade" nunca renderizava, silenciosamente. [BAIXO — RESOLVIDO na rodada `qualidade-lint-tighten` (re-sync pós-flip)]**
+Achado durante a rodada de aperto do teto de lint (`qualidade-lint-tighten`), ao desvetar `SupabaseQuotesViewerCard.tsx` (arquivo liberado após o Pacote do Flip de quotes, Lane A, mergear em `main`). Os 2 `any` remanescentes do lint escondiam este bug — mesmo padrão de achado do G8 (o `any` não era só frouxidão de tipo, era um sintoma).
+
+- **A causa:** `{(quote as any).validUntil && <p>Validade: {intlDate((quote as any).validUntil)}</p>}` — `Quote` (`src/hooks/useQuotes.ts`) nunca teve um campo `validUntil`; o campo real é `validityDays: number` (dias a partir de `createdAt`). Como `validUntil` nunca existiu em nenhum ponto de escrita (criação local, mapper cloud→local, RPC), `(quote as any).validUntil` era **sempre `undefined`** — o bloco de UI nunca montava, para nenhum orçamento, desde que o card foi escrito. O `as any` mascarava isso: sem o cast, o TypeScript teria pego o campo inexistente na hora.
+- **Detalhe curioso:** o próprio `useQuotes.ts` já exporta `getQuoteExpiryDate(q)`/`getQuoteDaysToExpire(q)` — helpers corretos (`createdAt + validityDays`), com o comentário `/** Helpers exported for UI ---------------------------------- */` — mas nunca foram importados em lugar nenhum da UI. O código certo já existia, só não estava conectado.
+- **Fix aplicado:** troca de `(quote as any).validUntil` por `getQuoteExpiryDate(quote)` (calculado uma vez por item da lista, fora do JSX). Commit `8a3535b`.
+- **Teste de regressão:** 2 casos novos em `SupabaseQuotesViewerCard.test.tsx` — orçamento com `validityDays` mostra "Validade:", orçamento sem `validityDays` (0) não mostra. Verificado que o teste pega a regressão (condição revertida temporariamente pro `as any` original antes de restaurar — o caso "mostra a data de validade" falhou exatamente no `getByText(/Validade:/)`).
+- **Por que só apareceu agora:** o card foi escrito, revisado e homologado (Etapa 5 · Fatia 9/10) sem que ninguém notasse a ausência da data de validade na UI — nenhum caso de teste/homologação daquelas fatias cobria especificamente esse campo. Só apareceu ao investigar os 2 últimos `any` do teto de lint, não por um bug report.
+
+---
+
 **O5 — cards de import locais divergiam em padrão de abertura do diálogo. [BAIXO — RESOLVIDO na rodada `qualidade-lint`]**
 Achado durante a homologação (Fase D) da Etapa 5 · Fatia 8 (cutover de escrita de `opportunities`) — não corrigido nela por ser um achado de consistência entre cards, pré-existente da Fatia 2, não uma regressão da fatia que o encontrou. Detalhamento completo em
 [`etapa-5-fatia-8-crm-cutover.md` §8](../qa/etapa-5-fatia-8-crm-cutover.md#8-fase-d--resultado-da-rodada-executada-vai-do-revisor) (observação registrada do caso (j) do runbook).

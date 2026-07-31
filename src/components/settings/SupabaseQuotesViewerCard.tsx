@@ -10,7 +10,7 @@ import { RefreshCw, FileText, Check, X } from "lucide-react";
 import { QuoteActionDialog } from "@/components/crm/QuoteActionDialog";
 import { CreateReceivableDialog } from "@/components/crm/CreateReceivableDialog";
 import { CreateProjectFromQuoteDialog } from "@/components/crm/CreateProjectFromQuoteDialog";
-import type { Quote } from "@/hooks/useQuotes";
+import { getQuoteExpiryDate, type Quote } from "@/hooks/useQuotes";
 import { toast } from "sonner";
 import { formatCurrency as intlCurrency, formatDate as intlDate, formatDateTime as intlDateTime } from "@/lib/format";
 import { getBooleanFlag } from "@/config/flags";
@@ -195,6 +195,7 @@ export function SupabaseQuotesViewerCard() {
             <div className="border border-border/60 rounded-lg overflow-hidden bg-muted/5 divide-y divide-border/40">
               {visibleQuotes.map((quote) => {
                 const imported = isImportedFromLocal.has(quote.id);
+                const expiryDate = getQuoteExpiryDate(quote);
                 return (
                   <div key={quote.id} className="p-3 flex flex-col gap-2 text-xs">
                     <div className="flex items-start justify-between gap-4">
@@ -213,9 +214,9 @@ export function SupabaseQuotesViewerCard() {
                         <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
                           Cliente: {quote.clientName} ({quote.clientEmail})
                         </p>
-                        {(quote as any).validUntil && (
+                        {expiryDate && (
                           <p className="text-[10px] text-muted-foreground/80 mt-0.5 truncate">
-                            Validade: {intlDate((quote as any).validUntil)}
+                            Validade: {intlDate(expiryDate)}
                           </p>
                         )}
                         {quote.approvedAt && quote.status === "aprovado" && (

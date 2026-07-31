@@ -29,6 +29,7 @@ import {
   ClipboardList, ChevronRight, Plus, Trash2, ExternalLink, UserCog,
   Crown, BadgeDollarSign, Users, CheckCircle2, AlertCircle, BookOpen,
   Camera, Loader2,
+  type LucideIcon,
 } from "lucide-react";
 import { clientAssetsStorage } from "@/services/storage/clientAssetsStorage";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
@@ -54,7 +55,7 @@ const statusBadge: Record<ClientStatus, string> = {
   "Arquivado": "bg-muted/40 text-muted-foreground/70 border-border",
 };
 
-const tempConfig: Record<ClientTemperature, { icon: any; cls: string }> = {
+const tempConfig: Record<ClientTemperature, { icon: LucideIcon; cls: string }> = {
   Frio: { icon: Snowflake, cls: "text-sky-400/80" },
   Morno: { icon: Sparkles, cls: "text-amber-400/80" },
   Quente: { icon: Flame, cls: "text-primary" },
@@ -71,7 +72,7 @@ const fmtDateLong = (iso?: string) => {
 
 const onlyDigits = (s: string) => (s || "").replace(/\D+/g, "");
 
-const SectionTitle = ({ icon: Icon, children, action }: { icon: any; children: React.ReactNode; action?: React.ReactNode }) => (
+const SectionTitle = ({ icon: Icon, children, action }: { icon: LucideIcon; children: React.ReactNode; action?: React.ReactNode }) => (
   <div className="flex items-center justify-between mb-2.5">
     <h3 className="text-[11px] uppercase tracking-wider text-muted-foreground/80 flex items-center gap-2">
       <Icon className="h-3.5 w-3.5" />{children}
@@ -83,7 +84,7 @@ const SectionTitle = ({ icon: Icon, children, action }: { icon: any; children: R
 const MiniStat = ({
   icon: Icon, label, value, hint, tone = "neutral",
 }: {
-  icon: any; label: string; value: string; hint?: string;
+  icon: LucideIcon; label: string; value: string; hint?: string;
   tone?: "neutral" | "primary" | "success" | "warning" | "danger";
 }) => {
   const toneCls: Record<string, string> = {
@@ -107,7 +108,7 @@ const MiniStat = ({
   );
 };
 
-const ContactRow = ({ icon: Icon, label, value }: { icon: any; label: string; value?: string }) => {
+const ContactRow = ({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value?: string }) => {
   if (!value) return null;
   return (
     <div className="flex items-center justify-between gap-3 text-sm py-1.5">
@@ -664,7 +665,7 @@ export const ContactsTab = ({
 
 const ContactActionRow = ({
   icon: Icon, value, type,
-}: { icon: any; value: string; type: "email" | "phone" | "whatsapp" }) => {
+}: { icon: LucideIcon; value: string; type: "email" | "phone" | "whatsapp" }) => {
   const openWa = () => {
     const link = waLink(value);
     if (link) window.open(link, "_blank");
@@ -1209,7 +1210,7 @@ const SheetTab = ({ client, onOpen }: { client: Client; onOpen: () => void }) =>
 
 // ============ Empty helper ============
 
-const EmptyBlock = ({ icon: Icon, message }: { icon: any; message: string }) => (
+const EmptyBlock = ({ icon: Icon, message }: { icon: LucideIcon; message: string }) => (
   <div className="rounded-lg border border-dashed border-border/60 bg-card/30 p-6 text-center">
     <Icon className="h-6 w-6 text-muted-foreground/60 mx-auto mb-2" />
     <p className="text-sm text-muted-foreground">{message}</p>

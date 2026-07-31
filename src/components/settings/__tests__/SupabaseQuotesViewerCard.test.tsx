@@ -251,3 +251,35 @@ describe("SupabaseQuotesViewerCard · item 6 (Fatia 10) — comparação de stat
     expect(screen.queryByText("Aprovar orçamento")).not.toBeInTheDocument();
   });
 });
+
+describe("SupabaseQuotesViewerCard · G19 — data de validade lia campo inexistente (quote.validUntil, sempre undefined)", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.clearAllMocks();
+    vi.mocked(useCurrentWorkspace).mockReturnValue({
+      workspace: mockWorkspace, membership: null, loading: false, error: null,
+    });
+  });
+
+  it("mostra a data de validade calculada (createdAt + validityDays) quando o orçamento tem prazo", () => {
+    vi.mocked(useSupabaseQuotes).mockReturnValue({
+      quotes: [baseQuote({ createdAt: "2024-01-01T00:00:00Z", validityDays: 15 })],
+      loading: false, error: null, refresh: vi.fn(),
+    } as never);
+
+    render(<SupabaseQuotesViewerCard />);
+
+    expect(screen.getByText(/Validade:/)).toBeInTheDocument();
+  });
+
+  it("não mostra 'Validade' quando o orçamento não tem validityDays definido", () => {
+    vi.mocked(useSupabaseQuotes).mockReturnValue({
+      quotes: [baseQuote({ validityDays: 0 })],
+      loading: false, error: null, refresh: vi.fn(),
+    } as never);
+
+    render(<SupabaseQuotesViewerCard />);
+
+    expect(screen.queryByText(/Validade:/)).not.toBeInTheDocument();
+  });
+});

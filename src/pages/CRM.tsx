@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { useLeads, type Lead, type Priority, type StageKey, type LeadTemperature, getLeadTemperature } from "@/hooks/useLeads";
+import { useLeads, type Lead, type Priority, type StageKey, type LeadTemperature, type NewLeadInput, getLeadTemperature } from "@/hooks/useLeads";
 import { usePipelines, type Pipeline, type PipelineStage } from "@/hooks/usePipelines";
 import { usePipelineAutomations } from "@/hooks/usePipelineAutomations";
 import { getBooleanFlag, getCrmDataSource, setCrmDataSource } from "@/config/flags";
@@ -23,6 +23,7 @@ import {
   StickyNote, X as XIcon, ArrowRight, XCircle, GripVertical, Sparkles,
   Flame, LayoutGrid, List, Settings2, Zap, FileSpreadsheet, MessageCircle,
   Archive, Trash2, Tag as TagIcon, ChevronDown, FileText, Globe,
+  type LucideIcon,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
@@ -97,7 +98,7 @@ const origins = ["Indicação", "Instagram", "LinkedIn", "Site", "WhatsApp", "Ou
 
 const formatCurrency = (v: number) => intlCurrency(v, { minimumFractionDigits: 0 });
 
-const SummaryCard = ({ icon: Icon, label, value, sub, accent }: { icon: any; label: string; value: string; sub?: string; accent?: "primary" | "success" | "danger" | "muted" }) => {
+const SummaryCard = ({ icon: Icon, label, value, sub, accent }: { icon: LucideIcon; label: string; value: string; sub?: string; accent?: "primary" | "success" | "danger" | "muted" }) => {
   const tone =
     accent === "success" ? "text-emerald-400 bg-emerald-500/10"
     : accent === "danger" ? "text-destructive bg-destructive/10"
@@ -625,7 +626,7 @@ const CRM = () => {
   };
 
   // --- Pipeline editor handlers ---
-  const handleSavePipeline = (data: any) => {
+  const handleSavePipeline = (data: Omit<Pipeline, "id" | "createdAt" | "updatedAt" | "isDefault"> & { id?: string }) => {
     if (blockWriteAction()) return;
     if (data.id) {
       updatePipeline(data.id, { name: data.name, stages: data.stages });
@@ -894,7 +895,7 @@ const CRM = () => {
               <Archive className="h-3.5 w-3.5" />
               <span className="hidden md:inline">{showArchived ? "Ocultar arquivados" : "Arquivados"}</span>
             </Button>
-            <Tabs value={view} onValueChange={(v) => setView(v as any)}>
+            <Tabs value={view} onValueChange={(v) => setView(v as "kanban" | "list")}>
               <TabsList className="bg-muted/50 border border-border h-8 p-0.5">
                 <TabsTrigger value="kanban" className="gap-1.5 h-7 px-2.5 data-[state=active]:bg-card data-[state=active]:shadow-sm">
                   <LayoutGrid className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Kanban</span>
@@ -927,7 +928,7 @@ const CRM = () => {
               {stages.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Select value={filterTemperature} onValueChange={(v) => setFilterTemperature(v as any)}>
+          <Select value={filterTemperature} onValueChange={(v) => setFilterTemperature(v as "all" | LeadTemperature)}>
             <SelectTrigger className="w-[150px] h-8 bg-muted/40 border-border text-[13px]"><SelectValue placeholder="Temperatura" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Temperaturas</SelectItem>
@@ -1672,7 +1673,7 @@ const NewLeadDialog = ({
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  onSave: (data: any) => void;
+  onSave: (data: NewLeadInput) => void;
   stages: PipelineStage[];
   pipelineId: string;
   initial?: Partial<Lead> | null;
@@ -1687,7 +1688,7 @@ const NewLeadDialog = ({
   };
   const [form, setForm] = useState(emptyForm);
   const [typeDialogOpen, setTypeDialogOpen] = useState(false);
-  const set = <K extends keyof typeof emptyForm>(k: K, v: any) => setForm((p) => ({ ...p, [k]: v }));
+  const set = <K extends keyof typeof emptyForm>(k: K, v: typeof emptyForm[K]) => setForm((p) => ({ ...p, [k]: v }));
 
   useEffect(() => {
     if (!open) return;
@@ -2275,7 +2276,7 @@ const LeadDetailSheet = ({
   );
 };
 
-const Section = ({ title, icon: Icon, children }: { title: string; icon: any; children: React.ReactNode }) => (
+const Section = ({ title, icon: Icon, children }: { title: string; icon: LucideIcon; children: React.ReactNode }) => (
   <div className="space-y-3">
     <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
       <Icon className="h-4 w-4 text-primary" />

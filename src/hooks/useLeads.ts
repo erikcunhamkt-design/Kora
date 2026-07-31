@@ -50,6 +50,12 @@ export interface Lead {
   supabaseId?: string;
 }
 
+export type NewLeadInput = Omit<
+  Lead,
+  "id" | "history" | "lastInteraction" | "notes" | "description" | "isDemo"
+> &
+  Partial<Pick<Lead, "notes" | "description" | "lastInteraction">>;
+
 /** Mapeia priority legado → temperatura. */
 export const priorityToTemperature = (p?: Priority): LeadTemperature => {
   if (p === "alta") return "quente";
@@ -224,13 +230,7 @@ export function useLeads() {
   }, [leads]);
 
   const addLead = useCallback(
-    (
-      data: Omit<
-        Lead,
-        "id" | "history" | "lastInteraction" | "notes" | "description" | "isDemo"
-      > &
-        Partial<Pick<Lead, "notes" | "description" | "lastInteraction">>
-    ) => {
+    (data: NewLeadInput) => {
       setLeads((prev) => [
         {
           id: Date.now(),
