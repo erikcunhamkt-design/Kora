@@ -80,7 +80,7 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
       properties: {
         instruction: "Você é o atendente virtual do KORA Hub. Seja prestativo, educado e conciso.",
         model: "gemini-2.5-flash",
-        provider: "lovable",
+        provider: "gemini_api_key",
         geminiApiKey: "",
         gcpProjectId: "",
         gcpRegion: "us-central1",
@@ -300,6 +300,7 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
       const { data, error } = await supabase.functions.invoke("whatsapp-bot-reply", {
         body: {
           isTest: true,
+          workspaceId,
           systemInstruction: aiNode.properties.instruction,
           provider: aiNode.properties.provider,
           modelName: activeModelName,

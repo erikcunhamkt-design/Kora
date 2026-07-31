@@ -229,7 +229,10 @@ Deno.serve(async (req) => {
     conversationId = body.conversationId;
     workspaceId = body.workspaceId;
 
-    if (!isTest && (!conversationId || !workspaceId)) {
+    // workspaceId is required in both modes (G5: isTest with no attribution at all was
+    // callable with just the public anon key, an unlimited free AI proxy on Kora's own
+    // credentials — see docs/qa/etapa-6-g5-rate-limit.md §4.1).
+    if (!workspaceId || (!isTest && !conversationId)) {
       return json({ error: "missing params" }, 400);
     }
 
@@ -238,7 +241,7 @@ Deno.serve(async (req) => {
     // Bot settings & details
     let bot: BotSettingsRow | null = null;
     let systemInstruction = "Você é um atendente cordial e prestativo. Responda de forma clara, breve e em português.";
-    let provider = "lovable";
+    let provider = "gemini_api_key";
     let modelName = DEFAULT_MODEL;
     let geminiApiKey: string | null = null;
     let gcpProjectId: string | null = null;
@@ -252,7 +255,7 @@ Deno.serve(async (req) => {
     if (isTest) {
       // Direct testing mode from UI playground
       systemInstruction = body.systemInstruction || systemInstruction;
-      provider = body.provider || "lovable";
+      provider = body.provider || "gemini_api_key";
       modelName = body.modelName || DEFAULT_MODEL;
       geminiApiKey = body.geminiApiKey || null;
       gcpProjectId = body.gcpProjectId || null;
@@ -423,7 +426,7 @@ Deno.serve(async (req) => {
 
       if (aiNode) {
         systemInstruction = aiNode.properties?.instruction || systemInstruction;
-        provider = aiNode.properties?.provider || "lovable";
+        provider = aiNode.properties?.provider || "gemini_api_key";
         modelName = aiNode.properties?.model || DEFAULT_MODEL;
         geminiApiKey = aiNode.properties?.geminiApiKey || null;
         gcpProjectId = aiNode.properties?.gcpProjectId || null;
@@ -432,7 +435,7 @@ Deno.serve(async (req) => {
       } else {
         // Fallback to table root columns
         systemInstruction = bot.system_instruction || systemInstruction;
-        provider = bot.provider || "lovable";
+        provider = bot.provider || "gemini_api_key";
         modelName = bot.model_name || DEFAULT_MODEL;
         geminiApiKey = bot.gemini_api_key || null;
         gcpProjectId = bot.gcp_project_id || null;
