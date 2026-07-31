@@ -327,3 +327,49 @@ este pacote.
 
 **PARADO aqui.** Runbook escrito, ambiente confirmado (`http://localhost:8095`,
 `[Kora] BUILD 7adefad`). Execução conduzida pelo revisor com o operador só com novo "vai".
+
+---
+
+## 6. Fase D — Resultado (6/6) e fechamento pré-sign-off
+
+**Placar: 6/6**, executado ao vivo pelo revisor/operador contra `BUILD 7adefad`, provado por hash.
+
+| Caso | Resultado |
+|---|---|
+| 1 Usuário novo | ✅ default Supabase + "Modo operacional", criação sem setar flag nenhuma (prints) |
+| 2 Override negativo | ✅ modo leitura + bloqueio — **ressalva registrada abaixo** (banner printado nesta sessão; o toast de bloqueio em si já está coberto por teste automatizado + pela homologação/smoke da Fatia 10 — não reaberto aqui) |
+| 3 Override dataSource local | ✅ dados locais intactos (print) |
+| 4 **A foto do 5b** | ✅ **QUITADA** — quote `enviado` com Aprovar/Rejeitar visíveis nas 2 telas (2 prints). Aprovação executada de fato **pela `LinkedQuotesSection` pela primeira vez** (nunca tinha sido exercida ao vivo antes), com propagação confirmada no viewer das Configs (`"Aprovado em" + data timestamp`) — não só um clique isolado, o dado realmente circulou entre as 2 telas. |
+| 5 Configs pós-retirada | ✅ cards retirados ausentes, `CreateProject`/`CreateReceivable` presentes e funcionais, viewer montado incondicionalmente |
+| 6 Limpeza | ✅ sintéticas excluídas — **achado registrado abaixo** |
+
+### Achado (a) — chave legada órfã no localStorage (registrado, não é bug)
+
+O residue-check do caso 6 encontrou `kora.quotes.supabaseApproval.enabled` ainda presente no
+localStorage de quem a setou antes da retirada (§2.2, Fase C). **Decisão: documentar como
+resíduo aceitável, não implementar limpeza one-shot no boot.** Motivo: zero consumidores reais
+(confirmado por grep — só a constante em `BOOLEAN_FLAG_KEYS` e comentários explicativos
+permanecem, nenhuma leitura de comportamento) e é **exatamente o mesmo tratamento já dado** às
+flags mortas do CRM na Fatia 8 ("as chaves antigas ficam órfãs no localStorage de quem já as
+tocou, sem migração de dado necessária") — manter consistência com o precedente já estabelecido
+é preferível a introduzir um mecanismo de limpeza novo (código extra, superfície de teste extra)
+pra resolver algo sem nenhum impacto funcional. Mesmo raciocínio se aplica à
+`kora.quotes.supabaseExperimental.enabled`, retirada junto.
+
+### Achados fora de escopo (`quotes`), catalogados em `main`
+
+- **O8** (`kora-hub-auditoria-e-plano.md`, commit `d174047`): CRM — botão "Mover para etapa" do
+  menu do lead não produz efeito. Causa provável identificada por leitura de código
+  (`handleMoveToStage`, `CRM.tsx:566` — retorno silencioso quando `lead.supabaseId` está
+  ausente, sem toast/feedback nenhum) — não confirmada ao vivo (sem acesso autenticado nesta
+  sessão). Registrado pra sessão dedicada ao CRM.
+- **UX1** (novo doc `kora-ux-produto.md`, mesmo commit): contraste de UX entre
+  `CreateCrmSupabaseQuoteDialog.tsx` (pré-preenche por contexto, nunca produziu erro de campo
+  trocado em nenhuma homologação) e o `NewQuoteWizard` (2 campos de texto livre adjacentes,
+  título/cliente invertidos repetidamente ao longo desta cadeia de fatias) — o padrão bom já
+  existe no app, registrado pra uma rodada de UX/Produto decidir se vale espalhar.
+
+---
+
+**PARADO aqui.** Fase D encerrada, 6/6. Achados registrados. Sign-off e merge a seguir, nesta
+mesma janela ("vai" já concedido para ambos).
