@@ -158,30 +158,32 @@ describe("flags · seletor de fonte do CRM (string plana, default supabase)", ()
   });
 });
 
-// Etapa 5 · Fatia 9 — INVERSO do CRM de propósito: default "local", só
-// "supabase" explícito seleciona nuvem. Lição da Fatia 8 (O2/O3/O4):
-// valor explícito já persistido pelo usuário nunca deve ser pisado por um
-// flip de default de código — os 2 últimos testes provam isso nos dois
-// sentidos (quem já tinha "local" OU "supabase" gravado continua exatamente
-// onde estava, mesmo que o código mude o que "ausente" significa amanhã).
-describe("flags · seletor de fonte de quotes (string plana, default LOCAL — Fatia 9)", () => {
-  it("default é \"local\" quando ausente (inverso do CRM/ficha técnica)", () => {
+// Etapa 5 · Pacote do Flip (Fase C) — default flipado de "local" pra
+// "supabase" (mesmo formato do CRM: só "local" explícito escolhe local).
+// Nasceu INVERSO na Fatia 9 (§8.3), sem histórico de homologação de escrita
+// ainda — este pacote resolve isso. Lição da Fatia 8 (O2/O3/O4): valor
+// explícito já persistido pelo usuário nunca deve ser pisado por um flip de
+// default de código — os 2 últimos testes provam isso nos dois sentidos
+// (quem já tinha "local" OU "supabase" gravado continua exatamente onde
+// estava, mesmo com o novo default).
+describe("flags · seletor de fonte de quotes (string plana, default SUPABASE desde o Pacote do Flip)", () => {
+  it("default é \"supabase\" quando ausente (mesmo formato do CRM/ficha técnica desde o flip)", () => {
     expect(localStorage.getItem(QUOTES_DATA_SOURCE_KEY)).toBeNull();
-    expect(getQuotesDataSource()).toBe("local");
-  });
-
-  it("só o literal \"supabase\" seleciona nuvem", () => {
-    localStorage.setItem(QUOTES_DATA_SOURCE_KEY, "supabase");
     expect(getQuotesDataSource()).toBe("supabase");
   });
 
-  it("\"local\" e qualquer lixo resolvem para \"local\"", () => {
+  it("só o literal \"local\" seleciona local", () => {
     localStorage.setItem(QUOTES_DATA_SOURCE_KEY, "local");
     expect(getQuotesDataSource()).toBe("local");
+  });
+
+  it("\"supabase\" e qualquer lixo resolvem para \"supabase\"", () => {
+    localStorage.setItem(QUOTES_DATA_SOURCE_KEY, "supabase");
+    expect(getQuotesDataSource()).toBe("supabase");
     localStorage.setItem(QUOTES_DATA_SOURCE_KEY, "xpto");
-    expect(getQuotesDataSource()).toBe("local");
+    expect(getQuotesDataSource()).toBe("supabase");
     localStorage.setItem(QUOTES_DATA_SOURCE_KEY, "");
-    expect(getQuotesDataSource()).toBe("local");
+    expect(getQuotesDataSource()).toBe("supabase");
   });
 
   it("grava a string plana crua na chave certa", () => {

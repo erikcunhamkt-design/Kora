@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useState } from "react";
-import { getBooleanFlag } from "@/config/flags";
 
 /**
  * Etapa 5 · Fatia 10 — flag mestre de escrita de `quotes` na nuvem.
  *
- * Default: OFF (opt-in — só o literal "true" liga). Diferente do CRM
- * (`kora.crm.supabaseWrite.enabled`, opt-out, default ON desde a Fatia 8) —
- * lá o default virou ON só DEPOIS de uma homologação completa (11/11 casos
- * verdes). Esta é a primeira rodada de escrita do domínio `quotes`, sem
- * histórico de homologação ainda — mesmo raciocínio que já levou o seletor
- * de leitura (`kora.quotes.dataSource.v1`) a nascer com default LOCAL na
- * Fatia 9. Ver docs/qa/etapa-5-fatia-10-quotes-write.md §5.
+ * Nasceu opt-in (default OFF, Fatia 10) — primeira rodada de escrita do
+ * domínio, sem histórico de homologação ainda.
+ *
+ * Pacote do Flip (Fase C) — default flipado pra opt-out (ausência ou
+ * qualquer valor ≠ "false" ⇒ true), mesmo padrão de
+ * `kora.crm.supabaseWrite.enabled` desde a Fatia 8. Sessões que já têm o
+ * valor gravado explicitamente ("true" ou "false") não são afetadas — só
+ * quem nunca tocou na flag herda o novo default. Ver
+ * docs/qa/etapa-5-flip-quotes.md §2.1.
  *
  * Stored in localStorage under `kora.quotes.supabaseWrite.enabled`.
  * Synced across tabs via `storage`, e dentro da mesma aba via um evento
@@ -23,10 +24,10 @@ const FLAG_EVENT = "kora:quotes-supabase-write-flag";
 
 function readFlag(): boolean {
   try {
-    // Opt-in: ausência ou qualquer valor ≠ "true" ⇒ false.
-    return localStorage.getItem(QUOTES_SUPABASE_WRITE_FLAG_KEY) === "true";
+    // Opt-out desde o Pacote do Flip: só o literal "false" desliga.
+    return localStorage.getItem(QUOTES_SUPABASE_WRITE_FLAG_KEY) !== "false";
   } catch {
-    return false;
+    return true;
   }
 }
 
@@ -53,7 +54,7 @@ export function useSupabaseQuotesWriteFlag(): {
   useEffect(() => {
     const onStorage = (event: StorageEvent) => {
       if (event.key === QUOTES_SUPABASE_WRITE_FLAG_KEY) {
-        setEnabledState(event.newValue === "true");
+        setEnabledState(event.newValue !== "false");
       }
     };
     const onCustom = (event: Event) => {
@@ -86,15 +87,22 @@ export function isSupabaseQuotesWriteEnabled(): boolean {
 }
 
 /**
- * Etapa 5 · Fatia 10 (§8.1 do doc da fatia) — coexistência temporária com a
- * flag legada `quotesSupabaseApproval` (a única das 4 flags booleanas antigas
- * com escrita real na nuvem hoje). Usar SÓ no ponto de decisão de
- * aprovar/rejeitar dos 2 consumidores legados (`SupabaseQuotesViewerCard.tsx`,
- * `LinkedQuotesSection.tsx`) — quem já tinha `quotesSupabaseApproval` ligada
- * não perde a capacidade de aprovar/rejeitar só porque o master flag novo
- * nasceu OFF. As duas flags saem juntas só no pacote do flip, nunca uma
- * antes da outra.
+ * Etapa 5 · Fatia 10 (§8.1) — nasceu como coexistência temporária com a flag
+ * legada `quotesSupabaseApproval` (`masterFlag || legacyFlag`), pra quem já
+ * tinha a legada ligada não perder a capacidade de aprovar/rejeitar antes do
+ * master flag existir.
+ *
+ * Pacote do Flip (Fase C) — `quotesSupabaseApproval` retirada (redundante:
+ * o master flag, agora default ON, já alcança sozinho quem antes só
+ * alcançava via a legada — sem regressão, ver docs/qa/etapa-5-flip-
+ * quotes.md §2.2). Função MANTIDA (não inlinada nos 2 call sites) de
+ * propósito: o nome já documenta a pergunta de negócio ("aprovação é
+ * alcançável?"), e ela deve voltar a ter um segundo termo quando o
+ * cutover de escrita de `finance`/`projects` chegar — aprovação de quotes
+ * pode um dia depender também de flags desses domínios (ex.: gerar
+ * recebível/projeto a partir de uma quote aprovada). Não é apenas um
+ * alias do master flag por acidente de implementação.
  */
 export function isQuotesApprovalReachable(): boolean {
-  return readFlag() || getBooleanFlag("quotesSupabaseApproval");
+  return isSupabaseQuotesWriteEnabled();
 }

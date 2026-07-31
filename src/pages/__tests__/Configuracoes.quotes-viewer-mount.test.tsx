@@ -4,8 +4,13 @@
 // reorganizada — o import ficou órfão, sem lint que pegasse `no-unused-vars`
 // desligado). Nenhuma combinação de flags resolvia isso, porque o problema
 // não era de flag — era de árvore de componentes. Este teste trava o
-// contrato: a aba "Dados" precisa montar o card (ele mesmo decide se
-// desenha conteúdo, via sua própria flag `quotesSupabaseExperimental`).
+// contrato: a aba "Dados" precisa montar o card.
+//
+// Pacote do Flip (Fase C) — `quotesSupabaseExperimental` foi retirada (o
+// card renderiza incondicionalmente com workspace, ver
+// docs/qa/etapa-5-flip-quotes.md §2.2); os testes abaixo não setam mais
+// essa flag (era um no-op desde a retirada, deixado de propósito fora
+// pra não sugerir que ainda importa).
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { vi, describe, it, expect, beforeEach } from "vitest";
@@ -39,7 +44,6 @@ vi.mock("@/components/settings/LocalProjectsImportCard", () => ({ LocalProjectsI
 vi.mock("@/components/settings/LocalTasksImportCard", () => ({ LocalTasksImportCard: () => null }));
 vi.mock("@/components/settings/CrmSupabaseOperationalToggleCard", () => ({ CrmSupabaseOperationalToggleCard: () => null }));
 vi.mock("@/components/settings/CrmSupabaseCreateQuoteToggleCard", () => ({ CrmSupabaseCreateQuoteToggleCard: () => null }));
-vi.mock("@/components/settings/QuotesSupabaseApprovalToggleCard", () => ({ QuotesSupabaseApprovalToggleCard: () => null }));
 vi.mock("@/components/settings/QuotesSupabaseReceivableToggleCard", () => ({ QuotesSupabaseReceivableToggleCard: () => null }));
 vi.mock("@/components/settings/QuotesSupabaseProjectToggleCard", () => ({ QuotesSupabaseProjectToggleCard: () => null }));
 vi.mock("@/components/settings/QuotesSupabaseBaseTasksToggleCard", () => ({ QuotesSupabaseBaseTasksToggleCard: () => null }));
@@ -103,16 +107,13 @@ describe("Configuracoes · incidente #4 (Fatia 10) — SupabaseQuotesViewerCard 
     } as never);
   });
 
-  it("aba Dados renderiza o card do viewer (título real), não só o toggle da flag", async () => {
-    localStorage.setItem("kora.quotes.supabaseExperimental.enabled", "true");
-
+  it("aba Dados renderiza o card do viewer (título real), incondicionalmente com workspace", async () => {
     renderConfiguracoesOnDataTab();
 
     expect(await screen.findByText("Orçamentos no Supabase (Experimental)")).toBeInTheDocument();
   });
 
-  it("regressão: sem esta correção o card nunca aparecia mesmo com a flag ligada — aqui aparece", async () => {
-    localStorage.setItem("kora.quotes.supabaseExperimental.enabled", "true");
+  it("regressão: sem a correção do incidente #4 o card nunca aparecia — aqui aparece, sem depender de nenhuma flag", async () => {
     vi.mocked(useSupabaseQuotes).mockReturnValue({
       quotes: [], loading: false, error: null, refresh: vi.fn(),
       createQuoteWithItems: vi.fn(), updateQuote: vi.fn(), archiveQuote: vi.fn(),

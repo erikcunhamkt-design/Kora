@@ -75,24 +75,6 @@ export function SupabaseQuotesViewerCard() {
     return (quotes || []).slice(0, 10);
   }, [quotes]);
 
-  // Fatia 10 · Fase D (incidente #2, achado 5a) — `getBooleanFlag` já não
-  // lança (safeGet engole erros de localStorage), então o try/catch era só
-  // decoração; o problema real era o `useMemo(..., [])`: lia a flag UMA VEZ
-  // no mount e nunca mais. `QuotesSupabaseExperimentalToggleCard.tsx` liga a
-  // flag pela UI (sem F5) e dispara manualmente `new Event("storage")` pra
-  // avisar quem estiver ouvindo — mas nada aqui escutava. Resultado: ligar o
-  // toggle em Configurações nunca fazia este card aparecer sem recarregar a
-  // página (`return null`, nenhuma lista, nenhum ponto da tela). Agora ouve
-  // o mesmo evento que o toggle já disparava.
-  const [experimentalEnabled, setExperimentalEnabled] = useState(() =>
-    getBooleanFlag("quotesSupabaseExperimental"),
-  );
-  useEffect(() => {
-    const onStorage = () => setExperimentalEnabled(getBooleanFlag("quotesSupabaseExperimental"));
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, []);
-
   const handleActionClick = (quoteId: string, title: string, type: "approve" | "reject") => {
     // Etapa 5 · Fatia 10 (item 6, §8.1) — coexistência temporária: aprovar/
     // rejeitar continua alcançável tanto pelo master flag novo quanto pela
@@ -163,7 +145,7 @@ export function SupabaseQuotesViewerCard() {
     }
   };
 
-  if (!workspace || !experimentalEnabled) return null;
+  if (!workspace) return null;
 
   return (
     <SettingsCard 

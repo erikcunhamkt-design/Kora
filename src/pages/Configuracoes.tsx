@@ -76,10 +76,8 @@ import { LocalQuotesImportCard } from "@/components/settings/LocalQuotesImportCa
 import { LocalFinanceImportCard } from "@/components/settings/LocalFinanceImportCard";
 import { LocalProjectsImportCard } from "@/components/settings/LocalProjectsImportCard";
 import { LocalTasksImportCard } from "@/components/settings/LocalTasksImportCard";
-import { QuotesSupabaseExperimentalToggleCard } from "@/components/settings/QuotesSupabaseExperimentalToggleCard";
 import { SupabaseQuotesViewerCard } from "@/components/settings/SupabaseQuotesViewerCard";
 import { CrmSupabaseCreateQuoteToggleCard } from "@/components/settings/CrmSupabaseCreateQuoteToggleCard";
-import { QuotesSupabaseApprovalToggleCard } from "@/components/settings/QuotesSupabaseApprovalToggleCard";
 import { QuotesSupabaseReceivableToggleCard } from "@/components/settings/QuotesSupabaseReceivableToggleCard";
 import { QuotesSupabaseProjectToggleCard } from "@/components/settings/QuotesSupabaseProjectToggleCard";
 import { SupabaseOperationalDashboardToggleCard } from "@/components/settings/SupabaseOperationalDashboardToggleCard";
@@ -862,8 +860,6 @@ const Configuracoes = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <CrmSupabaseOperationalToggleCard />
                   <CrmSupabaseCreateQuoteToggleCard />
-                  <QuotesSupabaseExperimentalToggleCard />
-                  <QuotesSupabaseApprovalToggleCard />
                   <QuotesSupabaseReceivableToggleCard />
                   <QuotesSupabaseProjectToggleCard />
                   <QuotesSupabaseBaseTasksToggleCard />
@@ -874,12 +870,13 @@ const Configuracoes = () => {
                 </div>
               </div>
 
-              {/* Etapa 5 · Fatia 10 · Fase D (incidente #4) — o card acima
-                  (QuotesSupabaseExperimentalToggleCard) só liga a flag; o
-                  card com a LISTA de verdade nunca tinha sido montado nesta
-                  seção (existia só antes de 79bb252, quando a página inteira
-                  foi reorganizada). Full-width, fora do grid de toggles —
-                  mostra uma lista, não um switch compacto. */}
+              {/* Pacote do Flip (Fase C) — quotes tem escrita+leitura ligadas
+                  por padrão desde este pacote; `QuotesSupabaseExperimentalToggleCard`
+                  e `QuotesSupabaseApprovalToggleCard` foram retiradas (flags
+                  legadas redundantes, ver docs/qa/etapa-5-flip-quotes.md §2.2) —
+                  este card passou a renderizar incondicionalmente (com
+                  workspace), full-width, fora do grid de toggles (mostra uma
+                  lista, não um switch compacto). */}
               <div className="mt-6">
                 <SupabaseQuotesViewerCard />
               </div>

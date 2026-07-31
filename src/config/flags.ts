@@ -78,15 +78,16 @@ export const CRM_DATA_SOURCE_KEY = "kora.crm.dataSource.v1";
 export const TECHNICAL_SHEETS_DATA_SOURCE_KEY = "kora.technicalSheets.dataSource.v1";
 
 /**
- * Etapa 5 · Fatia 9 — seletor de fonte de dados de `quotes`. INVERSO dos dois
- * acima de propósito: default é "local", não "supabase" — só o valor literal
- * "supabase" seleciona nuvem; qualquer outro valor (ausente, "local",
- * malformado) resolve para "local". Justificativa (docs/qa/etapa-5-fatia-9-
- * quotes-cutover.md §8.3): quotes está começando do zero (sem seletor
- * nenhum antes desta fatia) — o default de CRM/ficha técnica já vinha de
- * decisões de rodadas anteriores a esta cadeia de fatias, não é algo a
- * herdar às cegas. O flip do default pra "supabase" fica pra decisão
- * pós-homologação, com "vai" próprio.
+ * Etapa 5 · Fatia 9 — seletor de fonte de dados de `quotes`. Nasceu INVERSO
+ * do CRM/ficha técnica (default "local", só "supabase" explícito selecionava
+ * nuvem) — decisão deliberada da Fatia 9 (§8.3) de não herdar o default às
+ * cegas antes de qualquer homologação de escrita existir.
+ *
+ * Pacote do Flip (Fase C) — default flipado pra "supabase", mesmo formato
+ * de `getCrmDataSource()` (só "local" explícito escolhe local). Sessões que
+ * já têm o valor gravado (qualquer um dos dois) não são afetadas — só quem
+ * nunca tocou no seletor herda o novo default. Ver
+ * docs/qa/etapa-5-flip-quotes.md §2.1.
  */
 export const QUOTES_DATA_SOURCE_KEY = "kora.quotes.dataSource.v1";
 
@@ -155,11 +156,11 @@ export function setCrmDataSource(source: DataSource): void {
   safeSet(CRM_DATA_SOURCE_KEY, source);
 }
 
-// ── seletor de fonte de quotes (string plana; default "local", inverso do CRM) ──
+// ── seletor de fonte de quotes (string plana; default "supabase" desde o flip) ──
 
-/** Só "supabase" seleciona nuvem; qualquer outro valor ⇒ "local". */
+/** Só "local" explícito seleciona local; qualquer outro valor ⇒ "supabase". */
 export function getQuotesDataSource(): DataSource {
-  return safeGet(QUOTES_DATA_SOURCE_KEY) === "supabase" ? "supabase" : "local";
+  return safeGet(QUOTES_DATA_SOURCE_KEY) === "local" ? "local" : "supabase";
 }
 
 export function setQuotesDataSource(source: DataSource): void {

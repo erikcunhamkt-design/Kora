@@ -53,7 +53,7 @@ describe("SupabaseQuotesViewerCard - QA Scenarios", () => {
     vi.clearAllMocks();
   });
 
-  it("does not render if workspace is missing or experimental flag is false", () => {
+  it("does not render if workspace is missing", () => {
     vi.mocked(useCurrentWorkspace).mockReturnValue({ workspace: null, membership: null, loading: false, error: null });
     vi.mocked(useSupabaseQuotes).mockReturnValue({
       quotes: [],
@@ -72,10 +72,7 @@ describe("SupabaseQuotesViewerCard - QA Scenarios", () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it("renders quote details and badge when flag is true", async () => {
-    // Enable flag
-    localStorage.setItem("kora.quotes.supabaseExperimental.enabled", "true");
-    
+  it("renders quote details and badge", async () => {
     // Set metadata for 'Importado do local' check
     const mockMeta = {
       importedMap: {
@@ -149,7 +146,6 @@ describe("SupabaseQuotesViewerCard · item 6 (Fatia 10) — comparação de stat
   beforeEach(() => {
     localStorage.clear();
     vi.clearAllMocks();
-    localStorage.setItem("kora.quotes.supabaseExperimental.enabled", "true");
     vi.mocked(useCurrentWorkspace).mockReturnValue({
       workspace: mockWorkspace, membership: null, loading: false, error: null,
     });
@@ -193,8 +189,7 @@ describe("SupabaseQuotesViewerCard · item 6 (Fatia 10) — comparação de stat
     expect(screen.getByText("Gerar projeto")).toBeInTheDocument();
   });
 
-  it("clicar Aprovar (flag reachable) chama quotesRepository.updateStatus('aprovado'), nunca approveQuote", async () => {
-    localStorage.setItem("kora.quotes.supabaseApproval.enabled", "true");
+  it("clicar Aprovar (master flag ON por padrão) chama quotesRepository.updateStatus('aprovado'), nunca approveQuote", async () => {
     const refresh = vi.fn();
     vi.mocked(useSupabaseQuotes).mockReturnValue({
       quotes: [baseQuote({ status: "rascunho" })],
@@ -212,7 +207,24 @@ describe("SupabaseQuotesViewerCard · item 6 (Fatia 10) — comparação de stat
     expect(refresh).toHaveBeenCalled();
   });
 
-  it("sem nenhuma das duas flags: clicar Aprovar não abre o diálogo de confirmação (toast informativo)", () => {
+  // Pacote do Flip (Fase C) — master flag virou opt-out (default ON). Os 2
+  // testes abaixo substituem o da Fatia 10 (que assumia default OFF sem
+  // nenhuma flag setada). Nenhum teste do estado antigo sobrevive passando
+  // por acidente (precisão 1 do revisor).
+  it("sem nenhuma flag setada (default pós-flip): Aprovar já abre o diálogo de confirmação", async () => {
+    vi.mocked(useSupabaseQuotes).mockReturnValue({
+      quotes: [baseQuote({ status: "rascunho" })],
+      loading: false, error: null, refresh: vi.fn(),
+    } as never);
+
+    render(<SupabaseQuotesViewerCard />);
+    fireEvent.click(screen.getByText("Aprovar"));
+
+    expect(await screen.findByText("Aprovar orçamento")).toBeInTheDocument();
+  });
+
+  it("master flag explicitamente OFF: clicar Aprovar não abre o diálogo de confirmação", () => {
+    localStorage.setItem("kora.quotes.supabaseWrite.enabled", "false");
     vi.mocked(useSupabaseQuotes).mockReturnValue({
       quotes: [baseQuote({ status: "rascunho" })],
       loading: false, error: null, refresh: vi.fn(),
@@ -224,33 +236,18 @@ describe("SupabaseQuotesViewerCard · item 6 (Fatia 10) — comparação de stat
     expect(screen.queryByText("Aprovar orçamento")).not.toBeInTheDocument();
     expect(quotesRepository.updateStatus).not.toHaveBeenCalled();
   });
-});
 
-describe("SupabaseQuotesViewerCard · incidente #2 (Fatia 10, Fase D, achado 5a) — flag reage sem F5", () => {
-  beforeEach(() => {
-    localStorage.clear();
-    vi.clearAllMocks();
-    vi.mocked(useCurrentWorkspace).mockReturnValue({
-      workspace: mockWorkspace, membership: null, loading: false, error: null,
-    } as never);
+  it("flag legada quotesSupabaseApproval não tem mais efeito — master flag OFF continua bloqueando mesmo com ela ligada", () => {
+    localStorage.setItem("kora.quotes.supabaseWrite.enabled", "false");
+    localStorage.setItem("kora.quotes.supabaseApproval.enabled", "true");
     vi.mocked(useSupabaseQuotes).mockReturnValue({
-      quotes: [], loading: false, error: null, refresh: vi.fn(),
-      createQuoteWithItems: vi.fn(), updateQuote: vi.fn(), archiveQuote: vi.fn(),
-      softDeleteQuote: vi.fn(), replaceQuoteItems: vi.fn(), updateStatus: vi.fn(),
+      quotes: [baseQuote({ status: "rascunho" })],
+      loading: false, error: null, refresh: vi.fn(),
     } as never);
-  });
 
-  it("liga a flag depois do mount (mesmo evento 'storage' que o toggle card já dispara) e o card passa a renderizar, sem precisar de F5", async () => {
-    // Flag desligada no mount — card não aparece (mesmo comportamento de antes).
     render(<SupabaseQuotesViewerCard />);
-    expect(screen.queryByText("Orçamentos no Supabase (Experimental)")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText("Aprovar"));
 
-    // QuotesSupabaseExperimentalToggleCard.tsx liga a flag e dispara exatamente
-    // este evento (window.dispatchEvent(new Event("storage"))) — sem F5. Antes
-    // da correção, ninguém escutava e o card nunca aparecia (achado 5a).
-    localStorage.setItem("kora.quotes.supabaseExperimental.enabled", "true");
-    fireEvent(window, new Event("storage"));
-
-    expect(await screen.findByText("Orçamentos no Supabase (Experimental)")).toBeInTheDocument();
+    expect(screen.queryByText("Aprovar orçamento")).not.toBeInTheDocument();
   });
 });

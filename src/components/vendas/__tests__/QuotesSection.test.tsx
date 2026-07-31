@@ -122,9 +122,16 @@ async function openQuoteMenu(title: string) {
   return screen.findByText("Excluir");
 }
 
-describe("QuotesSection · modo local (default)", () => {
-  it("mostra os dados locais quando o seletor nunca foi tocado", async () => {
+// Pacote do Flip (Fase C) — `getQuotesDataSource()` default virou "supabase"
+// (só "local" explícito escolhe local, mesmo formato do CRM). Este describe
+// passou de "default" pra "explícito": os 2 testes agora gravam "local" no
+// seletor antes de renderizar, provando que a escolha explícita continua
+// funcionando (o "Espelho Reversível" preservado) — não mais o cenário de
+// "seletor nunca tocado", que agora mostra nuvem (novo describe abaixo).
+describe("QuotesSection · modo local (explícito)", () => {
+  it("mostra os dados locais quando o seletor está explicitamente em \"local\"", async () => {
     const localUpdateStatus = vi.fn();
+    localStorage.setItem(QUOTES_DATA_SOURCE_KEY, "local");
     vi.mocked(useQuotes).mockReturnValue({
       quotes: [makeLocalQuote()],
       addQuote: vi.fn(),
@@ -136,7 +143,6 @@ describe("QuotesSection · modo local (default)", () => {
     vi.mocked(useSupabaseQuotes).mockReturnValue({
       quotes: [], loading: false, error: null,
     } as never);
-    expect(localStorage.getItem(QUOTES_DATA_SOURCE_KEY)).toBeNull();
 
     renderSection();
 
@@ -146,6 +152,7 @@ describe("QuotesSection · modo local (default)", () => {
 
   it("aprovar em modo local chama updateStatus normalmente (comportamento preservado)", async () => {
     const localUpdateStatus = vi.fn();
+    localStorage.setItem(QUOTES_DATA_SOURCE_KEY, "local");
     vi.mocked(useQuotes).mockReturnValue({
       quotes: [makeLocalQuote()],
       addQuote: vi.fn(),
@@ -162,6 +169,25 @@ describe("QuotesSection · modo local (default)", () => {
 
     expect(localUpdateStatus).toHaveBeenCalledWith("q-local-1", "aprovado");
     expect(toast.success).toHaveBeenCalledWith("Orçamento aprovado");
+  });
+});
+
+describe("QuotesSection · pós Pacote do Flip — nuvem é o default", () => {
+  it("mostra os dados da nuvem quando o seletor nunca foi tocado (default flipado)", async () => {
+    vi.mocked(useQuotes).mockReturnValue({
+      quotes: [makeLocalQuote()],
+      addQuote: vi.fn(), updateStatus: vi.fn(), updateQuote: vi.fn(),
+      duplicateQuote: vi.fn(), deleteQuote: vi.fn(),
+    } as never);
+    vi.mocked(useSupabaseQuotes).mockReturnValue({
+      quotes: [makeSupabaseMappedQuote()], loading: false, error: null,
+    } as never);
+    expect(localStorage.getItem(QUOTES_DATA_SOURCE_KEY)).toBeNull();
+
+    renderSection();
+
+    expect(await screen.findByText("Orçamento Nuvem")).toBeInTheDocument();
+    expect(screen.queryByText("Orçamento Local")).not.toBeInTheDocument();
   });
 });
 
@@ -191,6 +217,9 @@ describe("QuotesSection · modo Supabase (leitura)", () => {
   });
 
   it("persiste o seletor no localStorage e mostra o banner de modo leitura", async () => {
+    // Pacote do Flip — master flag virou opt-out (default ON); pra provar o
+    // banner de "modo leitura" precisa desligar explicitamente agora.
+    localStorage.setItem(QUOTES_SUPABASE_WRITE_FLAG_KEY, "false");
     vi.mocked(useQuotes).mockReturnValue({
       quotes: [], addQuote: vi.fn(), updateStatus: vi.fn(), updateQuote: vi.fn(),
       duplicateQuote: vi.fn(), deleteQuote: vi.fn(),
@@ -285,6 +314,10 @@ describe("QuotesSection · escrita bloqueada em modo Supabase (lição O2/O3/O4)
     duplicateQuote?: ReturnType<typeof vi.fn>;
     deleteQuote?: ReturnType<typeof vi.fn>;
   } = {}) {
+    // Pacote do Flip — master flag virou opt-out (default ON); este describe
+    // testa especificamente o estado BLOQUEADO, que agora exige desligar
+    // explicitamente (antes bastava não tocar na flag).
+    localStorage.setItem(QUOTES_SUPABASE_WRITE_FLAG_KEY, "false");
     vi.mocked(useQuotes).mockReturnValue({
       quotes: [],
       addQuote: vi.fn(),
@@ -539,7 +572,10 @@ describe("QuotesSection · item 8 (Fatia 10) — status/criação sob o master f
     expect(toast.success).not.toHaveBeenCalled();
   });
 
-  it("sem o master flag: aprovar continua bloqueado (nunca chama updateStatus real)", async () => {
+  it("com o master flag explicitamente OFF: aprovar continua bloqueado (nunca chama updateStatus real)", async () => {
+    // Pacote do Flip — master flag virou opt-out (default ON); precisa
+    // desligar explicitamente pra testar o estado bloqueado.
+    localStorage.setItem(QUOTES_SUPABASE_WRITE_FLAG_KEY, "false");
     const updateSupabaseQuoteStatus = vi.fn();
     vi.mocked(useQuotes).mockReturnValue({
       quotes: [], addQuote: vi.fn(), updateStatus: vi.fn(), updateQuote: vi.fn(),

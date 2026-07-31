@@ -237,3 +237,45 @@ justamente a lacuna deixada pela Fatia 10.
 
 **PARADO aqui.** Levantamento + design entregues (Fase A+B). Nenhum código alterado, nenhuma
 migration escrita — confirmado (§0). Fase C só com novo "vai" do revisor.
+
+---
+
+## 4. Fase C — implementada ("vai" do revisor)
+
+Plano de 7 itens (§2.6) implementado por completo, com as 4 precisões do revisor:
+
+1. **Flip dos defaults** — `getQuotesDataSource()` (`config/flags.ts`) e `readFlag()`
+   (`useSupabaseQuotesWriteFlag.ts`) invertidos exatamente como desenhado em §2.1 — override
+   explícito preservado nos dois. Teste dedicado cobre os 3 estados por flag (ausente/novo
+   default, `"true"` explícito, `"false"` explícito) para ambos.
+2. **Retirada de `Experimental`/`Approval`** — `SupabaseQuotesViewerCard.tsx` perdeu o gate
+   `experimentalEnabled` (state + listener de `storage` inteiros, G15 da Fatia 10, saíram
+   junto); `isQuotesApprovalReachable()` simplificado pra delegar só ao master flag, **mantido
+   como função nomeada** (não inlinada) — comentário registra que ela volta a ganhar um segundo
+   termo quando `finance`/`projects` chegarem. Os 2 componentes de toggle
+   (`QuotesSupabaseExperimentalToggleCard.tsx`, `QuotesSupabaseApprovalToggleCard.tsx`) foram
+   removidos de `Configuracoes.tsx` e deletados do repositório.
+3. **`CreateProject`/`CreateReceivable`** — mantidas intactas, conforme §2.2 (fora de escopo,
+   domínio ainda não cortado).
+4. **Testes limpos, não só código** (precisão 1 do revisor) — todo teste que dependia do
+   default antigo (OFF/local) ou da coexistência com a flag legada foi identificado por grep
+   exaustivo e reescrito, nunca deixado passando por acidente: `flags.test.ts` (default do
+   seletor), `useSupabaseQuotesWriteFlag.test.ts` (reescrito por completo — default, override,
+   `isQuotesApprovalReachable` pós-retirada), `QuotesSection.test.tsx` (3 describes afetados:
+   "modo local" virou explícito + novo describe do default-nuvem + os testes de "escrita
+   bloqueada" e "sem o master flag" passaram a desligar a flag explicitamente),
+   `LinkedQuotesSection.test.tsx` e `SupabaseQuotesViewerCard.test.tsx` (mesma correção, mais a
+   remoção do describe inteiro que testava a reatividade da flag retirada, e um teste novo
+   confirmando que a flag legada não tem mais nenhum efeito).
+5. **Viewer confirmado montado** (precisão 4) — `Configuracoes.quotes-viewer-mount.test.tsx`
+   (Fatia 10) continua verde, sem mais depender de nenhuma flag: o card renderiza
+   incondicionalmente com `workspace`, e o teste de regressão foi atualizado pra provar
+   exatamente isso (não seta mais a flag retirada).
+
+**Gates:** tsc 0 · vitest 316/316 (313 + 3 líquidos: alguns testes obsoletos removidos,
+outros novos adicionados) · lint-gate 33/33.
+
+---
+
+**PARADO aqui.** Fase C implementada e testada. Fase D (runbook, com a foto pendente do 5b —
+§3, caso 4) só com novo "vai" do revisor.

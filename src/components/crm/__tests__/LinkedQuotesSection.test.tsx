@@ -147,7 +147,24 @@ describe("LinkedQuotesSection · item 7 (Fatia 10) — comparação de status co
     expect(refresh).toHaveBeenCalled();
   });
 
-  it("sem nenhuma das duas flags: clicar Aprovar não abre o diálogo de confirmação", () => {
+  // Pacote do Flip (Fase C) — master flag virou opt-out (default ON). Os 2
+  // testes abaixo substituem os da Fatia 10 (que assumiam default OFF e
+  // testavam a coexistência com a flag legada quotesSupabaseApproval,
+  // retirada neste pacote — ver docs/qa/etapa-5-flip-quotes.md §2.2). Nenhum
+  // teste do estado antigo sobrevive passando por acidente.
+  it("sem nenhuma flag setada (default pós-flip): Aprovar já abre o diálogo de confirmação", async () => {
+    vi.mocked(useSupabaseOpportunityQuotes).mockReturnValue({
+      quotes: [baseQuote({ status: "rascunho" })], loading: false, error: null, refresh: vi.fn(),
+    });
+
+    render(<LinkedQuotesSection opportunityId="opp-uuid-123" />);
+    fireEvent.click(screen.getByText("Aprovar"));
+
+    expect(await screen.findByText("Aprovar orçamento")).toBeInTheDocument();
+  });
+
+  it("master flag explicitamente OFF: clicar Aprovar não abre o diálogo de confirmação", () => {
+    localStorage.setItem(QUOTES_SUPABASE_WRITE_FLAG_KEY, "false");
     vi.mocked(useSupabaseOpportunityQuotes).mockReturnValue({
       quotes: [baseQuote({ status: "rascunho" })], loading: false, error: null, refresh: vi.fn(),
     });
@@ -159,17 +176,17 @@ describe("LinkedQuotesSection · item 7 (Fatia 10) — comparação de status co
     expect(quotesRepository.updateStatus).not.toHaveBeenCalled();
   });
 
-  it("flag legada quotesSupabaseApproval sozinha (coexistência §8.1) ainda alcança aprovar/rejeitar", async () => {
+  it("flag legada quotesSupabaseApproval não tem mais efeito — master flag OFF continua bloqueando mesmo com ela ligada", () => {
+    localStorage.setItem(QUOTES_SUPABASE_WRITE_FLAG_KEY, "false");
     localStorage.setItem(BOOLEAN_FLAG_KEYS.quotesSupabaseApproval, "true");
     vi.mocked(useSupabaseOpportunityQuotes).mockReturnValue({
       quotes: [baseQuote({ status: "rascunho" })], loading: false, error: null, refresh: vi.fn(),
     });
-    vi.mocked(quotesRepository.updateStatus).mockResolvedValue({} as never);
 
     render(<LinkedQuotesSection opportunityId="opp-uuid-123" />);
     fireEvent.click(screen.getByText("Aprovar"));
 
-    expect(await screen.findByText("Aprovar orçamento")).toBeInTheDocument();
+    expect(screen.queryByText("Aprovar orçamento")).not.toBeInTheDocument();
   });
 });
 
