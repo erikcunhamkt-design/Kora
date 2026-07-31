@@ -343,6 +343,21 @@ este pacote.
 | 5 Configs pós-retirada | ✅ cards retirados ausentes, `CreateProject`/`CreateReceivable` presentes e funcionais, viewer montado incondicionalmente |
 | 6 Limpeza | ✅ sintéticas excluídas — **achado registrado abaixo** |
 
+### Ressalva do caso 2 — toast de bloqueio não re-evidenciado ao vivo nesta rodada
+
+O placar acima referenciava esta seção como "registrada abaixo" — texto que ficou pendente até
+esta correção (achado do revisor, pós-merge). Registrando agora: no caso 2 desta rodada, o
+**banner** ("modo leitura") foi de fato reobservado e printado ao vivo contra `BUILD 7adefad`.
+O **toast de erro** em si (texto exato "Escrita de orçamentos no Supabase ainda está desligada
+nesta sessão (flag mestre) — volte para Local para editar.") **não foi recapturado com um print
+novo** nesta execução específica — não porque o comportamento fosse duvidoso, mas porque já está
+coberto em 2 lugares independentes: (1) teste automatizado dedicado
+(`QuotesSection.test.tsx`, describe "escrita bloqueada em modo Supabase") que verifica
+literalmente essa string; (2) a mesma mensagem/mecanismo já foi homologada ao vivo na Fatia 10
+(Fase D, caso 6, e na sua revalidação pós-incidente #1). **Decisão: não reabrir/reexecutar esse
+sub-passo agora** — a combinação teste+homologação anterior é considerada prova suficiente;
+registrado explicitamente pra não ficar implícito.
+
 ### Achado (a) — chave legada órfã no localStorage (registrado, não é bug)
 
 O residue-check do caso 6 encontrou `kora.quotes.supabaseApproval.enabled` ainda presente no
