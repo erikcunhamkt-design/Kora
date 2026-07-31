@@ -343,6 +343,21 @@ este pacote.
 | 5 Configs pós-retirada | ✅ cards retirados ausentes, `CreateProject`/`CreateReceivable` presentes e funcionais, viewer montado incondicionalmente |
 | 6 Limpeza | ✅ sintéticas excluídas — **achado registrado abaixo** |
 
+### Ressalva do caso 2 — toast de bloqueio não re-evidenciado ao vivo nesta rodada
+
+O placar acima referenciava esta seção como "registrada abaixo" — texto que ficou pendente até
+esta correção (achado do revisor, pós-merge). Registrando agora: no caso 2 desta rodada, o
+**banner** ("modo leitura") foi de fato reobservado e printado ao vivo contra `BUILD 7adefad`.
+O **toast de erro** em si (texto exato "Escrita de orçamentos no Supabase ainda está desligada
+nesta sessão (flag mestre) — volte para Local para editar.") **não foi recapturado com um print
+novo** nesta execução específica — não porque o comportamento fosse duvidoso, mas porque já está
+coberto em 2 lugares independentes: (1) teste automatizado dedicado
+(`QuotesSection.test.tsx`, describe "escrita bloqueada em modo Supabase") que verifica
+literalmente essa string; (2) a mesma mensagem/mecanismo já foi homologada ao vivo na Fatia 10
+(Fase D, caso 6, e na sua revalidação pós-incidente #1). **Decisão: não reabrir/reexecutar esse
+sub-passo agora** — a combinação teste+homologação anterior é considerada prova suficiente;
+registrado explicitamente pra não ficar implícito.
+
 ### Achado (a) — chave legada órfã no localStorage (registrado, não é bug)
 
 O residue-check do caso 6 encontrou `kora.quotes.supabaseApproval.enabled` ainda presente no
@@ -393,13 +408,28 @@ mesma janela ("vai" já concedido para ambos).
    vitest 321/321 · lint-gate 33/33.
 5. **Push:** `d174047..dae6de8` em `origin/main`, sem drift (confirmado imediatamente antes).
 
-**Hash final mesclado em `main`: `dae6de8`.**
+**Hash final mesclado em `main`: `dae6de8`** (commit do fast-forward que trouxe o CÓDIGO).
 
-Worktrees ao fechar: `Kora-laneA` (`etapa-5-flip-quotes`) e `orbit-designer-hub` (`main`) ambas
-em `dae6de8`, idênticas.
+Worktrees ao fechar deste passo: `Kora-laneA` (`etapa-5-flip-quotes`) e `orbit-designer-hub`
+(`main`) ambas em `dae6de8`, idênticas.
+
+**Nota de precisão (achado do revisor, pós-merge):** este documento continuou recebendo commits
+docs-only DEPOIS do fast-forward acima, cada um movendo o tip real de `origin/main` pra frente —
+`b63114b` (esta própria seção §7, na escrita original) e `ed9cee1` (a correção da ressalva do
+caso 2, §6). **O tip real de `origin/main` no fechamento deste pacote é o hash do commit que
+adicionar esta frase** — não `dae6de8` isoladamente. Isso é esperado (documentar o que aconteceu
+sempre produz um commit depois do que documenta), mas fica registrado explicitamente pra quem
+for re-sincronizar (LANE B) usar sempre `git log origin/main -1`, nunca um hash citado num doc
+como referência estática.
+
+### Marco
+
+**G1/`quotes` COMPLETO** — primeiro domínio do Kora Hub 100% Supabase por default, leitura E
+escrita juntas, com reversibilidade preservada via override explícito (nunca uma migração
+forçada, sempre uma escolha do usuário que se mantém).
 
 ---
 
-**PARADO aqui.** Pacote do Flip de `quotes` encerrado — merge em `main` @ `dae6de8`. Coordenação
-pós-merge (LANE B re-sync do teto de lint, depois LANE C janela de deploy do G18) conforme
-combinado. Nenhum próximo passo desta lane sem novo "vai".
+**PARADO aqui.** Pacote do Flip de `quotes` encerrado — merge em `main` @ `dae6de8` (código),
+doc fechado neste commit. Coordenação pós-merge (LANE B re-sync do teto de lint, depois LANE C
+janela de deploy do G18) conforme combinado. Nenhum próximo passo desta lane sem novo "vai".
