@@ -802,3 +802,64 @@ testada, mas a execução real fica pra homologação pós-DDL); e o comportamen
 real sob `503` de verdade (o teste mocka `fetch`). Mesma limitação já registrada em cada
 rodada anterior desta function — verificação empírica é sempre fase de homologação, com a
 function e a migration de verdade no ar.
+
+---
+
+## 12. Emenda pré-DDL (revisão em texto) — REVOKE explícito de `anon`/`authenticated`
+
+**Achado na revisão:** `REVOKE ALL ... FROM PUBLIC` sozinho não bastava. Funções novas no
+Postgres/Supabase recebem `EXECUTE` por *default privilege* pra `anon`/`authenticated` — é um
+grant direto a esses roles, não herdado de `PUBLIC`, então revogar só de `PUBLIC` deixava a
+RPC chamável via PostgREST por qualquer anônimo com a anon key. Impacto: incrementar/estourar
+contadores de workspace alheio à vontade — DoS dos contadores, mesma classe de risco que o G18
+já fechou pro `isTest` (não reabrir aqui por um detalhe de `GRANT`).
+
+**Fix:** `REVOKE ALL ON FUNCTION public.check_and_increment_ai_rate_limit(uuid, text, int, int)
+FROM PUBLIC, anon, authenticated;` — `GRANT ... TO service_role` mantido igual.
+
+**Kit de verificação pós-aplicação** (movido do relatório em chat pra cá, expectativa da query
+(d) já corrigida por esta emenda — copy-paste, valores preenchidos):
+
+```sql
+-- (a) Tabela existe com a estrutura certa
+SELECT column_name, data_type, is_nullable, column_default
+FROM information_schema.columns
+WHERE table_schema = 'public' AND table_name = 'ai_rate_limit_counters'
+ORDER BY ordinal_position;
+
+-- (b) RLS ligada
+SELECT relrowsecurity FROM pg_class WHERE oid = 'public.ai_rate_limit_counters'::regclass;
+-- esperado: t
+
+-- (c) Function existe, SECURITY DEFINER
+SELECT p.proname, p.prosecdef AS security_definer, pg_get_function_identity_arguments(p.oid) AS args
+FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+WHERE n.nspname = 'public' AND p.proname = 'check_and_increment_ai_rate_limit';
+-- esperado: 1 linha, security_definer = true
+
+-- (d) Grant SÓ pra service_role — nenhuma linha de anon/authenticated/PUBLIC
+--     (expectativa corrigida por esta emenda; antes da emenda isso teria vazado
+--     anon/authenticated por default privilege, é exatamente o que essa query
+--     detecta)
+SELECT grantee, privilege_type
+FROM information_schema.routine_privileges
+WHERE routine_schema = 'public' AND routine_name = 'check_and_increment_ai_rate_limit';
+-- esperado: só service_role / EXECUTE — se aparecer anon/authenticated/PUBLIC, PARAR
+
+-- (e) DEFAULT da coluna provider mudou
+SELECT column_default FROM information_schema.columns
+WHERE table_schema = 'public' AND table_name = 'whatsapp_bot_settings' AND column_name = 'provider';
+-- esperado: 'gemini_api_key'::text
+
+-- (f) Smoke funcional da RPC, bucket descartável pra não sujar contadores reais
+SELECT public.check_and_increment_ai_rate_limit(
+  '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9'::uuid, 'smoke_test', 5, 60
+);
+-- esperado: true (1a chamada, count=1 <= 5)
+
+SELECT * FROM public.ai_rate_limit_counters WHERE bucket = 'smoke_test';
+-- esperado: 1 linha, count=1
+
+-- limpeza do smoke test (não deixar dado de teste na tabela real)
+DELETE FROM public.ai_rate_limit_counters WHERE bucket = 'smoke_test';
+```

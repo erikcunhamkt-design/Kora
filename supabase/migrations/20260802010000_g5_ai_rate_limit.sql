@@ -72,5 +72,13 @@ COMMENT ON FUNCTION public.check_and_increment_ai_rate_limit IS
 
 -- Só a Edge Function (via service_role) chama isto — mesmo padrão de
 -- claim_campaign_messages/reap_stuck_campaign_messages (G4).
-REVOKE ALL ON FUNCTION public.check_and_increment_ai_rate_limit(uuid, text, int, int) FROM PUBLIC;
+--
+-- REVOKE explícito de anon/authenticated (emenda, revisão pré-DDL): funções novas
+-- no Postgres/Supabase recebem EXECUTE por default privilege pra esses dois roles
+-- (grant direto, não herdado de PUBLIC) — "REVOKE ... FROM PUBLIC" sozinho não
+-- remove isso. Sem esta linha, a RPC ficaria chamável via PostgREST por qualquer
+-- anônimo com a anon key, permitindo incrementar/estourar contadores de workspace
+-- alheio à vontade (DoS dos contadores, mesma classe de risco que o G18 já fechou
+-- pro isTest — não reabrir aqui por um detalhe de GRANT).
+REVOKE ALL ON FUNCTION public.check_and_increment_ai_rate_limit(uuid, text, int, int) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.check_and_increment_ai_rate_limit(uuid, text, int, int) TO service_role;
