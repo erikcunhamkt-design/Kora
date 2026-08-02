@@ -881,6 +881,17 @@ const Configuracoes = () => {
                 <SupabaseQuotesViewerCard />
               </div>
 
+              {/* Resgate do dashboard órfão (irmão do G16, docs/architecture/
+                  kora-hub-auditoria-e-plano.md) — reconectado após revalidação de
+                  schema (G20). Full-width como o card de quotes acima: mostra um
+                  painel, não um switch compacto. Gate próprio (flag
+                  supabaseOperationalDashboard) já é interno ao componente —
+                  controlado por SupabaseOperationalDashboardToggleCard no grid
+                  acima. */}
+              <div className="mt-6">
+                <SupabaseOperationalDashboardCard />
+              </div>
+
               <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-300/90 flex items-start gap-2 mt-6">
                 <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
                 Alguns dados ainda estão em modo local/protótipo e serão migrados para Supabase antes da produção.
