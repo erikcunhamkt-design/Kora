@@ -374,8 +374,17 @@ git checkout main -- supabase/functions/whatsapp-bot-reply supabase/functions/_s
 ### 8.d Pós-validação (só se todos os passos de 8.b passarem)
 
 1. Marcar `LOVABLE_API_KEY` para remoção do painel (Supabase → Edge Functions → Secrets) —
-   remoção em si é ação do operador, fora desta janela se quiser dar um intervalo de
-   observação antes.
+   remoção em si é ação do operador (mesmo padrão §8-b), fora desta janela se quiser dar um
+   intervalo de observação antes. Comando exato (verificado via `supabase secrets unset
+   --help` nesta rodada, não citado de memória):
+   ```bash
+   npx supabase secrets unset LOVABLE_API_KEY --project-ref ewamvzncsloagtcvkbxv
+   ```
+   **Verificação pós-remoção, nesta ordem:**
+   1. `npx supabase secrets list --project-ref ewamvzncsloagtcvkbxv` — confirmar que
+      `LOVABLE_API_KEY` não aparece mais na lista.
+   2. Smoke test: repetir o snippet de console do item 2 do 8.b (ou 8.f) — **esperado `200`**
+      de novo, provando que nenhum caminho ativo dependia da key que acabou de sair.
 2. **No mesmo commit** em que `LOVABLE_API_KEY` for de fato removida: corrigir
    `docs/integrations/SUPABASE-WHATSAPP-INBOX-V1.md:91` (§7 item 2) — não antes, decisão já
    registrada pra doc e código nunca ficarem dessincronizados de novo.
@@ -437,6 +446,48 @@ ter sido exposta, nem com o secret desatualizado depois da key antiga ser apagad
   **Lição de processo:** toda lane que termina uma sessão devolve a worktree principal pra
   `main` antes de encerrar, pra próxima sessão (sua ou de outra lane) não herdar uma branch de
   trabalho como se fosse o estado neutro.
+
+---
+
+### 8.f Placar final — mini-janela de revalidação (ENCERRADA)
+
+Mini-janela aberta pra fechar os dois pendentes do 8.b (item 2 vermelho, item 3 adiado) depois
+do fix do model ID (§9) e da rotação da key exposta (Incidente #2, §8.e).
+
+**Item 2 — VERDE.** `200` + resposta real de IA via `gemini-3.6-flash`, key do Gemini já
+rotacionada antes deste teste (Incidente #2 fechado primeiro, como planejado — nunca testar
+com a key que já se sabe exposta). **Achado operacional registrado:** ao montar o snippet de
+console pra pegar a sessão, usar a **chave literal do projeto**
+(`sb-ewamvzncsloagtcvkbxv-auth-token`) — nunca um `find()` genérico varrendo `localStorage` por
+prefixo `sb-`. Num navegador com sessão de mais de um projeto Supabase (comum numa máquina de
+desenvolvimento com vários projetos), um `find()` genérico pode pegar o token do projeto
+errado silenciosamente, sem erro nenhum — o request sai autenticado, só que pra identidade
+errada. Vale como prática permanente pra qualquer snippet de console futuro neste repo, não só
+pra este teste.
+
+**Item 3 — fechado por prova estrutural + testes, não por teste ao vivo.** Validação empírica
+do caminho do webhook (mensagem real chegando num WhatsApp conectado) segue **condicionada** a
+existir uma instância conectada neste ambiente — que não existe (mesmo bloqueio de sempre, já
+registrado desde o G8). Isso **não é uma pendência em aberto**: a garantia "por construção"
+(§5.1-b, bloco de auth inteiro dentro de `if (isTest)`, `index.ts:248-273`, o webhook nunca
+passa `isTest` no payload) já é uma prova de código, não uma suposição — reforçada pelos testes
+determinísticos de `_shared/__tests__/isTestAuth.test.ts`. Item considerado fechado; validação
+ao vivo fica disponível pra quando/se uma instância real existir neste ambiente, sem bloquear o
+encerramento da fatia até lá.
+
+**Incidente #2 — rotação executada.** Key antiga do Gemini apagada no Google AI Studio, secret
+`GEMINI_API_KEY` atualizado com a key nova, teste (item 2 acima) confirmou funcionamento — os
+três passos como um movimento só, na ordem planejada. **Prova registrada por dígest, nunca por
+valor:** a prática correta aqui (e pra qualquer rotação futura de credencial neste repo) é o
+operador confirmar a troca via um hash/fingerprint da key antiga vs. nova (ex.: `sha256sum` do
+valor, comparando só os dígests) — nunca colar a key em si em nenhum doc, commit, ou chat,
+mesmo já revogada. Este documento não registra dígest nenhum porque a rotação em si aconteceu
+fora desta sessão (o operador com o revisor) — fica documentado o **método** como padrão pra
+próximas rotações, não o dado desta rotação específica.
+
+**G18 — RESOLVIDO E VALIDADO** de ponta a ponta: auth real (§5.1-b) + provider migrado e
+funcionando em produção (item 2 acima) + model ID configurável (§9) + webhook sem regressão
+(item 3 acima). Ver também a entrada G18 atualizada no catálogo mestre.
 
 ---
 

@@ -88,7 +88,17 @@ Na presente etapa, garantimos o suporte nativo e tratamento seguro das mensagens
 
 ## 7. Robô de Atendimento com IA (Vertex AI / Gemini)
 
-A Edge Function `whatsapp-bot-reply` foi atualizada para dar suporte nativo às APIs de Inteligência Artificial do Google (Gemini) sem intermediários, desativando completamente o gateway da Lovable.
+A Edge Function `whatsapp-bot-reply` usa nativamente as APIs de Inteligência Artificial do
+Google (Vertex AI / Gemini Developer API) — o provider **default** é `gemini_api_key` (Gemini
+direto), validado em produção (Etapa 6 · G18/G5, `docs/qa/etapa-6-g5-rate-limit.md`).
+
+**Histórico:** até a migração do G18, o default era o gateway da Lovable (resíduo do
+scaffolding inicial do projeto, nunca uma decisão de stack) — esta seção já afirmava
+"desativando completamente o gateway da Lovable" desde antes disso ser verdade de fato; a
+migração de provider (troca do default) e a remoção do secret `LOVABLE_API_KEY` do painel são
+o que torna essa frase correta agora. O caminho de código do provider `lovable` continua no
+arquivo (compatibilidade com qualquer configuração já salva explicitamente nele), mas fica
+inoperante sem o secret — não é mais alcançável por nenhum bot novo ou por fallback.
 
 ### Modos de Operação Suportados
 

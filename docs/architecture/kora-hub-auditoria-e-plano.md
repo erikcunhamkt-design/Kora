@@ -260,7 +260,7 @@ Network). Detalhamento completo em
 
 ---
 
-**G18 — `whatsapp-bot-reply` roda IA via Lovable AI Gateway por padrão (herança do scaffolding Lovable, não do stack oficial). [ALTO — em migração]**
+**G18 — `whatsapp-bot-reply` roda IA via Lovable AI Gateway por padrão (herança do scaffolding Lovable, não do stack oficial). [RESOLVIDO E VALIDADO]**
 Achado durante o levantamento do G5 (Etapa 6, rate limit), confirmado pelo operador: o projeto nasceu no Lovable e a `LOVABLE_API_KEY`/gateway (`https://ai.gateway.lovable.dev`) são resíduo do scaffolding — nunca foram uma decisão de stack. Detalhamento completo em [`etapa-6-g5-rate-limit.md`](../qa/etapa-6-g5-rate-limit.md).
 
 - **Risco 1 — custo via intermediário:** toda chamada no provedor `lovable` passa (e é cobrada) pelo gateway da Lovable, não direto na Google — camada extra de custo/latência sem motivo, herdada, não escolhida.
@@ -269,6 +269,11 @@ Achado durante o levantamento do G5 (Etapa 6, rate limit), confirmado pelo opera
 - **Não migrado nesta rodada:** bots que já têm `provider: "lovable"` **salvo explicitamente** em `flow_data`/`bot.provider` (não é fallback, é valor persistido) continuam usando Lovable até serem reconfigurados manualmente ou até uma migração de dado futura — mudar só o default do código não afeta configuração já gravada. O branch de código do provedor `lovable` (chamada ao gateway) **não foi removido**, só deixou de ser o default — continua funcional pra quem já está configurado nele.
 - **Plano:** remover a `LOVABLE_API_KEY` do painel **somente após** a migração validada (homologação pós-deploy confirmando resposta vinda do Gemini direto) — ver §8 do doc do G5 pra sequência.
 - **Mini-auditoria de resíduos Lovable** (grep repo inteiro por "lovable", case-insensitive, só listagem, não corrigida nesta fatia) registrada em [`etapa-6-g5-rate-limit.md`](../qa/etapa-6-g5-rate-limit.md) §6.
+- **Fechamento (mini-janela de revalidação):** provider Gemini direto confirmado funcionando em
+  produção (`200` real, `gemini-3.6-flash`), `LOVABLE_API_KEY` removida do painel, doc
+  `SUPABASE-WHATSAPP-INBOX-V1.md` corrigido no mesmo commit em que isso se tornou verdade de
+  fato. Detalhamento completo do placar final em
+  [`etapa-6-g5-rate-limit.md` §8.f](../qa/etapa-6-g5-rate-limit.md).
 
 ---
 
