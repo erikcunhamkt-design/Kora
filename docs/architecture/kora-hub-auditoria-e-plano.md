@@ -299,6 +299,16 @@ Achado durante a Fase C do resgate do dashboard órfão (irmão do G16), no pass
 
 ---
 
+**G21 — `BotRulesPanel.tsx` é um componente inteiro, nunca importado nem montado em lugar nenhum do app. [BAIXO — catalogado, NÃO corrigido nesta rodada]**
+Achado durante a reconciliação de UX2 ([`kora-ux-produto.md`](kora-ux-produto.md)), ao investigar a premissa de que o simulador do bot não teria porta de entrada — a busca pelo componente certo levou a este, um achado diferente e não relacionado ao `isTest` de `WhatsAppBotConfig.tsx`.
+
+- **A causa:** `src/components/whatsapp/bot/BotRulesPanel.tsx` exporta `function BotRulesPanel()` — uma tela inteira alternativa de "Robô IA de Atendimento" (modos de atendimento, guardrails, accordion de regras avançadas, preview de inbox, botão "Testar robô"). Nenhum arquivo em `src/` importa `BotRulesPanel` (grep sem nenhum resultado além da própria definição) — mesma classe de achado do G16 (componente nunca montado na árvore real, sem lint que pegue porque `no-unused-vars` está desligado no projeto).
+- **Diferença do G16:** ali era um *import* órfão (linha de import sobrando após remoção da JSX que o usava). Aqui não há sequer um import em nenhum lugar — o componente parece ter sido escrito e nunca conectado à navegação em momento algum, provavelmente uma versão anterior/alternativa da tela de configuração do robô, superada por `WhatsAppBotConfig.tsx` (a que está de fato montada hoje na aba "Robô IA" de `WhatsApp.tsx`).
+- **Simulador interno é mockado:** `runSimulator()` (linha 201) devolve uma resposta fixa hardcoded (`setSimResult({ reply: "Olá! Sim, atendemos restaurantes...", ... })`) — não chama nenhuma edge function real, diferente do simulador de `WhatsAppBotConfig.tsx` (que chama `whatsapp-bot-reply` com `isTest: true`, ver UX2). Mesmo remontado como está hoje, o "teste" que ele oferece não reflete o comportamento real da IA configurada.
+- **Não corrigido nesta rodada** — só catalogado. Decisão de remontar/absorver/aposentar fica para uma rodada dedicada (mesmo tipo de decisão a/b/c do dashboard órfão, G16/G20).
+
+---
+
 **O5 — cards de import locais divergiam em padrão de abertura do diálogo. [BAIXO — RESOLVIDO na rodada `qualidade-lint`]**
 Achado durante a homologação (Fase D) da Etapa 5 · Fatia 8 (cutover de escrita de `opportunities`) — não corrigido nela por ser um achado de consistência entre cards, pré-existente da Fatia 2, não uma regressão da fatia que o encontrou. Detalhamento completo em
 [`etapa-5-fatia-8-crm-cutover.md` §8](../qa/etapa-5-fatia-8-crm-cutover.md#8-fase-d--resultado-da-rodada-executada-vai-do-revisor) (observação registrada do caso (j) do runbook).

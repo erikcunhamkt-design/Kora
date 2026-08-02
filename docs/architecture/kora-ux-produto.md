@@ -35,3 +35,35 @@ incidente #2).
   partir de uma oportunidade/cliente já selecionado em outra tela), ou reorganizar os 2 campos
   pra reduzir a confusão (rótulos mais destacados, ordem que seguir a leitura natural, etc.)?
   Registrado pra decisão de produto, não uma pendência técnica.
+
+---
+
+**UX2 — Simulador de fluxo do bot (`WhatsAppBotConfig`) só é alcançável com uma instância WhatsApp já conectada — inacessível justamente no cenário onde seria mais útil: testar/ajustar o robô ANTES de ligar de vez. [Achado de produto — sem correção nesta rodada]**
+Achado durante a reconciliação da Fase C do resgate do dashboard órfão (irmão do
+[G16/G20](kora-hub-auditoria-e-plano.md)) — o operador relatou ter visto apenas o empty state
+"WhatsApp não conectado" em `/whatsapp`, contradizendo a análise estática inicial (que leu só o
+bloco `<Tabs>` da página, sem checar se havia um early-return acima dele no mesmo componente).
+Confirmado: o operador estava certo.
+
+- **A causa:** `src/pages/WhatsApp.tsx:485-503` —
+  `if (!instance || status !== "connected") { return <WhatsAppEmptyState title="WhatsApp não conectado" .../> }`,
+  ANTES do bloco que renderiza `<Tabs>` (linha 508 em diante, mesmo componente). Esse
+  early-return substitui a página inteira — inclusive a aba "Robô IA" (`TabsTrigger value="bot"`,
+  linha 526, sem nenhum gate próprio) e o simulador de fluxo dentro de `WhatsAppBotConfig.tsx`
+  (que chama a edge function `whatsapp-bot-reply` com `isTest: true`) — sempre que o workspace
+  não tem uma instância WhatsApp com `status === "connected"`.
+- **Por que importa:** o cenário mais natural para usar um simulador de teste é justamente ANTES
+  de conectar uma linha real — configurar o fluxo, testar respostas da IA, ajustar prompts, sem
+  nenhum risco de responder um cliente de verdade. É exatamente esse cenário que a tela bloqueia:
+  sem conexão ativa, a única coisa que aparece é o empty state "Conecte sua conta do WhatsApp",
+  com um botão pra `/automacoes?tab=integracoes` — nenhum caminho pra ver ou testar o fluxo do
+  bot antes de se comprometer com uma conexão real.
+- **Não é bug de código** — o gate existe de propósito (as outras abas, Inbox/Audiências/
+  Campanhas/Modelos, também só fazem sentido com uma instância conectada). É uma pergunta de
+  produto: caberia deixar só a aba "Robô IA" (configuração + simulador) acessível mesmo sem
+  conexão, já que `isTest: true` nunca toca em um número de WhatsApp de verdade?
+- **Achado irmão, de classe técnica e não de produto:** ver [G21](kora-hub-auditoria-e-plano.md)
+  — `BotRulesPanel.tsx`, uma segunda tela de configuração de robô com simulador próprio (esse
+  100% mockado), nunca chegou a ser conectada em lugar nenhum da navegação — pra ela o gate de
+  conexão acima nem chega a ser o problema, porque ela nunca renderiza de jeito nenhum.
+- **Não é uma correção nesta rodada** — registrado pra decisão de produto numa sessão dedicada.
