@@ -437,3 +437,76 @@ ter sido exposta, nem com o secret desatualizado depois da key antiga ser apagad
   **Lição de processo:** toda lane que termina uma sessão devolve a worktree principal pra
   `main` antes de encerrar, pra próxima sessão (sua ou de outra lane) não herdar uma branch de
   trabalho como se fosse o estado neutro.
+
+---
+
+## 9. Incidente descoberto na janela de deploy — "model ID é configuração, não código"
+
+**Achado ao vivo, durante a homologação pós-deploy (item 2 do runbook):** com o gate de
+autenticação (G5/G18) já validado — JWT + membership passando, chegando até a chamada de
+IA — a chamada real ao Gemini retornou **404**: `models/gemini-2.5-flash is no longer
+available to new users`. `gemini-2.5-flash` era o `DEFAULT_MODEL` hardcoded desde sempre
+(`index.ts`), e é exatamente o modelo que `normalizeGoogleModel` já usava como alvo de
+remapeamento de **três** gerações anteriores (`gemini-1.5-flash`, `gemini-1.5-flash-00x`,
+`gemini-2.0-flash` → todos mapeados pra `DEFAULT_MODEL`) — o padrão já tinha se repetido
+antes desta rodada, só nunca tinha sido tratado como o que é: uma dívida estrutural.
+
+**Verificação independente (não confiei no diagnóstico recebido — fui checar):**
+
+- [Models | Gemini API | Google AI for Developers](https://ai.google.dev/gemini-api/docs/models)
+  confirma `gemini-2.5-flash` ainda listado "Stable", shutdown oficial documentado só em
+  out/2026 — a rejeição hoje é **antecipada em relação à própria doc oficial**, um
+  comportamento já reportado por outros desenvolvedores: [Gemini 2.5 Flash deprecated without
+  warning earlier than shutdown date](https://discuss.ai.google.dev/t/gemini-2-5-flash-deprecated-without-warning-earlier-than-shutdown-date/174217)
+  e [Gemini-2.5-pro returns "no longer available to new users" — contradicts official
+  deprecation date](https://discuss.ai.google.dev/t/gemini-2-5-pro-returns-no-longer-available-to-new-users-contradicts-official-deprecation-date-oct-16-2026/176380).
+  Achado à parte: `gemini-2.5-pro` (usado quando o operador escolhe "Avançado" no dropdown)
+  tem o mesmo relato de rejeição antecipada — não é só o flash. Fica registrado, não corrigido
+  nesta rodada (não é o que quebrou aqui).
+- **O sucessor não é `gemini-3.5-flash`** (o que veio no diagnóstico recebido) — é
+  **`gemini-3.6-flash`**, lançado 21/jul/2026, confirmado em duas fontes independentes: a
+  própria doc de modelos do Gemini API
+  ([`ai.google.dev/.../models/gemini-3.6-flash`](https://ai.google.dev/gemini-api/docs/models/gemini-3.6-flash))
+  e o model card do Google DeepMind
+  ([`deepmind.google/models/model-cards/gemini-3-6-flash`](https://deepmind.google/models/model-cards/gemini-3-6-flash/)).
+  `gemini-3.5-flash` existe e é estável, mas já é uma geração anterior ao que a própria Google
+  recomenda agora — usar 3.6 evita resolver o incidente já nascendo um passo atrás.
+
+**Fix aplicado:**
+
+1. `DEFAULT_MODEL` (`index.ts`) deixa de ser um literal hardcoded — agora
+   `Deno.env.get("GEMINI_MODEL") || "gemini-3.6-flash"`. Secret `GEMINI_MODEL` é **opcional**
+   (não precisa existir pra função funcionar, só existe pra sobrescrever o default sem
+   deploy). Isso é o item **obrigatório** do pedido original: Google já provou 2 cutovers em
+   ~5 meses (1.5/2.0 → 2.5 → 3.6) — hardcode de model ID é incidente recorrente, não pontual.
+2. `normalizeGoogleModel`: adicionado `"gemini-2.5-flash": DEFAULT_MODEL` na tabela de alias
+   — sem isso, qualquer bot com `model_name` já salvo como `"gemini-2.5-flash"` (o default até
+   agora, quase todo bot existente) continuaria batendo no 404 mesmo com o `DEFAULT_MODEL`
+   novo, porque um valor explícito salvo não cai no fallback. Mesmo padrão já usado nas 3
+   remoções anteriores da tabela.
+3. Frontend (`WhatsAppBotConfig.tsx`): default do nó AI novo trocado pra `gemini-3.6-flash`;
+   dropdown do provedor `gemini_api_key`/padrão — `gemini-3.6-flash` vira "(Recomendado)",
+   `gemini-2.5-flash` vira "(legado)" sem o rótulo enganoso, e `gemini-2.0-flash` **removido**
+   da lista (já está `Shut down`, não só "vai desligar" — mantê-lo como opção seria oferecer
+   algo que já não funciona).
+4. **Não migrado:** bots com `model_name` já salvo explicitamente continuam lendo esse valor
+   — o alias do item 2 cobre especificamente `"gemini-2.5-flash"` (o caso real desta
+   incidente), mas não é uma correção retroativa geral. Mesma lógica de "default novo não
+   retroage sobre config já salva" já registrada pro G18 (§5.4).
+
+**Lição registrada — candidata a padrão pra qualquer provider futuro:** "model ID é
+configuração, não código". Toda vez que um ID de modelo de IA de terceiro (Gemini, Vertex, ou
+qualquer futuro provider) é hardcoded como *default* — não como opção explícita escolhida pelo
+operador — ele deveria nascer já lendo de uma env var/secret opcional com fallback, não como
+literal puro. O histórico deste arquivo mesmo prova o padrão: 3 gerações de modelo
+substituídas via tabela de alias antes desta rodada, sempre reativamente, sempre depois de um
+incidente em produção. A tabela de alias continua útil como rede de segurança pra valores já
+salvos, mas não deveria ser a **única** linha de defesa pro valor *default* — esse é o papel do
+`GEMINI_MODEL`/equivalente daqui pra frente.
+
+Sources:
+- [Models | Gemini API | Google AI for Developers](https://ai.google.dev/gemini-api/docs/models)
+- [Gemini 3.6 Flash | Gemini API | Google AI for Developers](https://ai.google.dev/gemini-api/docs/models/gemini-3.6-flash)
+- [Gemini 3.6 Flash - Model Card — Google DeepMind](https://deepmind.google/models/model-cards/gemini-3-6-flash/)
+- [Gemini 2.5 Flash deprecated without warning earlier than shutdown date](https://discuss.ai.google.dev/t/gemini-2-5-flash-deprecated-without-warning-earlier-than-shutdown-date/174217)
+- [Gemini-2.5-pro returns "no longer available to new users" — contradicts official deprecation date](https://discuss.ai.google.dev/t/gemini-2-5-pro-returns-no-longer-available-to-new-users-contradicts-official-deprecation-date-oct-16-2026/176380)

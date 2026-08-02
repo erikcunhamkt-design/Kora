@@ -79,7 +79,7 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
       enabled: true,
       properties: {
         instruction: "Você é o atendente virtual do KORA Hub. Seja prestativo, educado e conciso.",
-        model: "gemini-2.5-flash",
+        model: "gemini-3.6-flash",
         provider: "gemini_api_key",
         geminiApiKey: "",
         gcpProjectId: "",
@@ -593,9 +593,9 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
                             </>
                           ) : (
                             <>
-                              <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash (Recomendado)</SelectItem>
+                              <SelectItem value="gemini-3.6-flash">Gemini 3.6 Flash (Recomendado)</SelectItem>
                               <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro (Avançado)</SelectItem>
-                              <SelectItem value="gemini-2.0-flash">Gemini 2.0 Flash (Mais rápido)</SelectItem>
+                              <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash (legado)</SelectItem>
                             </>
                           )}
                           <SelectItem value="custom">Outro Modelo (Digitar ID)</SelectItem>
