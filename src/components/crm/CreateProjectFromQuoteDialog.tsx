@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { useProjects } from "@/hooks/useProjects";
+import { projectsRepository } from "@/repositories/projectsRepository";
 
 interface CreateProjectFromQuoteDialogProps {
   open: boolean;
@@ -28,19 +29,21 @@ interface CreateProjectFromQuoteDialogProps {
 }
 
 export function CreateProjectFromQuoteDialog({
-  // Etapa 5 · Fatia 7 (F5-equivalente, padrão F5-b da Fatia 6): workspaceId/quoteId/
-  // clientId/opportunityId seguem no contrato de props (o chamador,
-  // LinkedQuotesSection.tsx, não precisa mudar), mas não são desestruturados aqui:
-  // são UUIDs de NUVEM (este diálogo só existe para orçamentos já migrados), sem
-  // equivalente de id LOCAL, então não entram no projeto local abaixo. O caminho
-  // nuvem (projectsRepository.createProjectFromQuote/findProjectByQuote) fica
-  // DESATIVADO ATÉ O CUTOVER de leitura de projects, não abandonado — permanece
-  // vivo como o contrato de negócio que o import geral (§7.2) reusa.
+  // G22 (Fase B, dashboard-g22-fix): dual-write — o projeto local continua sendo a
+  // fonte que a tela Projetos lê (invariante "local nunca refém da nuvem"), mas
+  // workspaceId/quoteId/clientId/opportunityId agora alimentam também um espelho em
+  // projectsRepository.createProjectFromQuote (nuvem), pra fechar o gap que deixava
+  // a reconciliação do dashboard Supabase sempre vendo 0 projetos pra orçamentos
+  // aprovados por aqui.
   open,
   onOpenChange,
   quoteTitle,
   quoteTotal,
   clientName,
+  workspaceId,
+  quoteId,
+  clientId,
+  opportunityId,
   onSuccess,
 }: CreateProjectFromQuoteDialogProps) {
   const { addProject } = useProjects();
@@ -107,6 +110,30 @@ export function CreateProjectFromQuoteDialog({
         source: "orçamento",
         tags: [],
       });
+
+      // G22 (Fase B) — espelho nuvem, best-effort: reusa createProjectFromQuote, já
+      // idempotente contra o UNIQUE PARCIAL ux_projects_from_quote via
+      // catch(23505)+re-consulta (precedente P8b, docs/architecture/espelho-reversivel.md
+      // §5) — nunca upsert direto contra um índice parcial. Falha aqui NUNCA desfaz
+      // nem bloqueia o projeto local acima (espelho nunca é refém, nem o local é
+      // refém dele).
+      try {
+        await projectsRepository.createProjectFromQuote(workspaceId, {
+          quote_id: quoteId,
+          client_id: clientId ?? null,
+          opportunity_id: opportunityId ?? null,
+          title,
+          description: description || undefined,
+          budget,
+          start_date: startDate,
+          due_date: dueDate,
+        });
+      } catch (mirrorErr) {
+        console.error("Espelho nuvem do projeto falhou (local já gravado):", mirrorErr);
+        toast.warning("Projeto salvo localmente, mas o espelho no Supabase falhou.", {
+          description: "Rode a importação manual em Configurações → Dados quando possível.",
+        });
+      }
 
       // Log local de sucesso — sem quoteId de nuvem aqui de propósito (ver comentário
       // acima do destructuring): a proveniência fica registrada pelo quoteTitle.

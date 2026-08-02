@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { useFinance } from "@/hooks/useFinance";
+import { financeRepository } from "@/repositories/financeRepository";
 
 interface CreateReceivableDialogProps {
   open: boolean;
@@ -27,18 +28,20 @@ interface CreateReceivableDialogProps {
 }
 
 export function CreateReceivableDialog({
-  // Etapa 5 · Fatia 6 (F5-b, adendo 39851d7): workspaceId/quoteId/clientId/opportunityId
-  // seguem no contrato de props (os 2 chamadores — LinkedQuotesSection.tsx e
-  // SupabaseQuotesViewerCard.tsx — não precisam mudar), mas não são desestruturados
-  // aqui: são UUIDs de NUVEM (este diálogo só existe para orçamentos já migrados),
-  // sem equivalente de id LOCAL, então não entram no lançamento local abaixo. O
-  // caminho nuvem (financeRepository.createReceivableFromQuote) fica DESATIVADO ATÉ
-  // O CUTOVER de leitura de finance, não abandonado — reaparece aqui quando esse
-  // cutover acontecer.
+  // G22 (Fase B, dashboard-g22-fix): dual-write — o lançamento local continua sendo
+  // a fonte que a tela Financeiro lê (invariante "local nunca refém da nuvem"), mas
+  // workspaceId/quoteId/clientId/opportunityId agora alimentam também um espelho em
+  // financeRepository.createReceivableFromQuote (nuvem), pra fechar o gap que deixava
+  // a reconciliação do dashboard Supabase sempre vendo 0 recebíveis pra orçamentos
+  // aprovados por aqui.
   open,
   onOpenChange,
   quoteTitle,
   quoteTotal,
+  workspaceId,
+  quoteId,
+  clientId,
+  opportunityId,
   onSuccess,
 }: CreateReceivableDialogProps) {
   const fin = useFinance();
@@ -97,6 +100,29 @@ export function CreateReceivableDialog({
         recurrence: "none",
         source: "quote",
       });
+
+      // G22 (Fase B) — espelho nuvem, best-effort: reusa createReceivableFromQuote,
+      // já idempotente contra o UNIQUE PARCIAL ux_ft_receivable_from_quote via
+      // catch(23505)+re-consulta (precedente P8b, docs/architecture/espelho-reversivel.md
+      // §5) — nunca upsert direto contra um índice parcial. Falha aqui NUNCA desfaz
+      // nem bloqueia o lançamento local acima (espelho nunca é refém, nem o local é
+      // refém dele).
+      try {
+        await financeRepository.createReceivableFromQuote(workspaceId, {
+          quote_id: quoteId,
+          client_id: clientId ?? null,
+          opportunity_id: opportunityId ?? null,
+          title,
+          description: description || `Gerado a partir do orçamento "${quoteTitle}".`,
+          amount,
+          due_date: dueDate,
+        });
+      } catch (mirrorErr) {
+        console.error("Espelho nuvem do recebível falhou (local já gravado):", mirrorErr);
+        toast.warning("Recebível salvo localmente, mas o espelho no Supabase falhou.", {
+          description: "Rode a importação manual em Configurações → Dados quando possível.",
+        });
+      }
 
       // Log local de sucesso — sem quoteId de nuvem aqui de propósito (ver comentário
       // acima do destructuring): a proveniência fica registrada pelo quoteTitle.
