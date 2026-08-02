@@ -707,3 +707,98 @@ Implementar: migration com os itens 1-3 (±4) do §10.5; RPC chamada no `index.t
 unitários pra qualquer lógica pura extraída (mesmo padrão G8/G5 Parte 1 — `_shared/` +
 Vitest); homologação seguindo o mesmo formato de curl/simulador já validado nas rodadas
 anteriores.
+
+---
+
+## 11. Fase B (implementada) — esclarecimentos pedidos + decisões
+
+**Migration:** `supabase/migrations/20260802010000_g5_ai_rate_limit.sql` — escrita, **não
+aplicada**. Contém os 3 itens do §10.5 (tabela, RPC, fix do `DEFAULT`); o job `pg_cron` de
+limpeza ficou de fora (recomendado, não bloqueante, como já registrado — pode entrar numa
+DDL futura sem dependência com este pacote).
+
+### 11.1 (a) Chave do contador: `(workspace_id, bucket)` — explicitado e justificado
+
+**Por que `workspace_id`, não `conversation_id`/`user_id`/instância:** é a unidade real de
+custo/credencial. `gemini_api_key`/`gcp_service_account` são configurados por workspace
+(`whatsapp_bot_settings`), e quando caem no fallback da plataforma (`GEMINI_API_KEY` do
+secret), quem "paga" ainda é uma decisão no nível do workspace, não da conversa. Limitar por
+conversa permitiria que um workspace com muitas conversas moderadas somasse um custo agregado
+sem nenhuma delas individualmente "parecer" abusiva — o risco de custo se acumula no
+workspace inteiro, é aí que o teto precisa estar.
+
+**Por que `bucket` (não um contador único):** `webhook` (tráfego real, disparado por mensagem
+inbound de verdade) e `isTest` (simulador, chamado pelo operador testando o construtor de
+fluxo) têm padrões de uso legítimo muito diferentes — um operador testando o bot intensamente
+no construtor não deveria conseguir esgotar o teto que protege as respostas reais aos
+clientes, e vice-versa. Buckets separados isolam os dois; um contador único misturaria as
+duas atividades.
+
+**Por que não por usuário individual dentro do `isTest`:** desde o fix de autenticação real
+(G5 Parte 1), o `isTest` já sabe quem é o usuário (JWT validado) — daria pra também chavear
+por `user_id`. Não fiz isso porque o risco de custo continua sendo por-workspace (a credencial
+é do workspace, não do usuário), e adicionar uma dimensão a mais (usuário) sem mudar o que
+realmente se protege (o teto de gasto do workspace) seria complexidade sem benefício
+correspondente — dois membros testando ao mesmo tempo dividem o mesmo teto de 10/min, o que é
+uma limitação aceitável (testar o bot não deveria precisar de volume alto de qualquer forma).
+
+### 11.2 Fail-open no erro da própria RPC (decisão adicional, não pedida explicitamente mas necessária)
+
+Achado ao desenhar a integração: o código pode ser deployado **antes** da migration ser
+aplicada (são passos separados por design, §10.5/item 2 desta rodada) — se isso acontecer, a
+chamada `adminClient.rpc("check_and_increment_ai_rate_limit", ...)` falha porque a função não
+existe ainda. Decisão: **fail-open** — se a própria checagem de rate limit falhar por qualquer
+motivo (função ausente, erro transitório de banco), a chamada de IA **prossegue normalmente**,
+só loga o erro. Justificativa: rate limit aqui é rede de segurança de custo, não fronteira de
+segurança — uma indisponibilidade total do bot por causa de um bug/hiccup no *rate limiter*
+seria pior do que deixar de aplicar o teto por um instante. Contraste deliberado com
+`isTestAuth.ts` (G5 Parte 1), que falha **fechado** — lá a falha aberta significaria voltar ao
+buraco do G18 (proxy de IA anônimo e ilimitado), um risco muito pior que "o teto não aplicou
+por um momento". Implementado em `_shared/rateLimit.ts` (`decideRateLimitOutcome`), testado
+explicitamente (`rpcError=true` → sempre permite, matriz completa em
+`_shared/__tests__/rateLimit.test.ts`).
+
+### 11.3 (b) Contrato de estouro por chamador — revisão do `webhook`
+
+**Reexaminei a justificativa original do §4.4/§10.3** ("nunca 4xx/5xx pro webhook — evita
+retry storm do lado de quem chama") e ela **não se sustenta**: confirmei lendo
+`whatsapp-webhook/index.ts:631` que a resposta que esse arquivo devolve pro Meta/uazapi é um
+`{ ok: true }` **incondicional**, hardcoded, que não depende em nada do status que
+`whatsapp-bot-reply` devolve — o disparo do bot (linhas 605-629) é fire-and-forget de verdade,
+só logado (`console.log(...response.status...)`). Não existe risco de retry storm porque
+ninguém upstream do `whatsapp-webhook` nunca vê o status de `bot-reply`. Registro isso
+explicitamente porque a justificativa original estava errada, não só incompleta.
+
+**Duas opções reais, com a justificativa correta:**
+
+| Opção | Prós | Contras |
+| :-- | :-- | :-- |
+| **(A) `200 { ok: true, skipped: "rate_limited" }`** (mantida) | Consistente com os outros 4 `skipped` já existentes no arquivo (`no bot settings`, `bot inactive`, `AI node disabled`, `instance not connected`) — do ponto de vista do fluxo do webhook, "rate limitado" é a mesma categoria de coisa: uma decisão de política que resulta em não responder, não uma falha de sistema. Introduzir um status diferente só pra este skip seria uma exceção sem motivo funcional hoje. | Nada consome o status de forma diferenciada hoje — a visibilidade de "isso foi rate-limited" só existe no log da Edge Function de qualquer forma, com ou sem `429`. |
+| **(B) `429`, igual ao `isTest`** | Contrato único, mesmo significado HTTP nos dois caminhos. Deixa a porta aberta pra `whatsapp-webhook` reagir a isso especificamente no futuro (log distinto, eventualmente algum tipo de repique) sem precisar mudar o formato de novo. | Exigiria também tocar `whatsapp-webhook/index.ts` pra fazer algo útil com a distinção — fora do escopo autorizado desta rodada (o "vai" cobriu `whatsapp-bot-reply`, não o webhook). Sem essa mudança complementar, a opção B não entrega nenhum benefício prático a mais que a A hoje. |
+
+**Recomendação: mantive (A)**, mas pela razão certa (consistência de padrão dentro do mesmo
+arquivo), não pela razão errada que eu tinha registrado antes (retry storm, que não existe).
+Se no futuro `whatsapp-webhook` ganhar alguma reação específica a rate limit (alerta,
+repique), a opção B volta a fazer sentido — registrado aqui como gatilho pra reabrir essa
+decisão, não decidido preventivamente agora.
+
+### 11.4 Testes (`_shared/__tests__/`)
+
+- `rateLimit.test.ts` (9 casos): `isWithinLimit` — matriz sob/no/sobre o limite (fronteira
+  inclusiva, mesma regra do RPC `v_count <= p_max`), buckets separados (mesma contagem,
+  resultado diferente conforme o teto do bucket); `decideRateLimitOutcome` — fail-open no
+  erro da RPC, permitido dentro do limite, `429` pro `isTest` estourado, `200+skipped` pro
+  `webhook` estourado.
+- `retry.test.ts` (10 casos): `shouldRetry` — retry em `503`/`429`, para depois de esgotar,
+  nunca retry em erro não-transitório (`400`/`401`/`403`); `backoffDelayMs` — crescimento
+  exponencial determinístico via `rng` injetado; `fetchWithRetry` — **503 → sucesso** (tenta
+  de novo até um `200`, reporta quantas tentativas precisou), **503 → esgotado** (devolve a
+  última resposta com falha após o máximo, não trava nem engole), sucesso de primeira (não
+  tenta de novo), erro não-transitório (não tenta de novo).
+
+**O que os testes não cobrem (não tem como, é I/O real):** a RPC em si rodando contra Postgres
+de verdade (as regras de fronteira estão espelhadas em `isWithinLimit` como especificação
+testada, mas a execução real fica pra homologação pós-DDL); e o comportamento do Gemini/Vertex
+real sob `503` de verdade (o teste mocka `fetch`). Mesma limitação já registrada em cada
+rodada anterior desta function — verificação empírica é sempre fase de homologação, com a
+function e a migration de verdade no ar.
