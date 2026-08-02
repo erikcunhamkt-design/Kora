@@ -16,10 +16,18 @@ const mocks = vi.hoisted(() => {
   const updateEqId = vi.fn(() => ({ eq: updateEqWorkspace }));
   const update = vi.fn(() => ({ eq: updateEqId }));
 
-  const from = vi.fn(() => ({ upsert, update }));
+  // Chain for listReceivables: select("*").eq(workspace).eq(type).is(deleted_at).order(...)
+  const listOrder = vi.fn();
+  const listIs = vi.fn(() => ({ order: listOrder }));
+  const listEqType = vi.fn(() => ({ is: listIs }));
+  const listEqWorkspace = vi.fn(() => ({ eq: listEqType }));
+  const select = vi.fn(() => ({ eq: listEqWorkspace }));
+
+  const from = vi.fn(() => ({ upsert, update, select }));
   return {
     upsertSingle, upsert, upsertSelect,
     updateSingle, update, updateSelect, updateEqId, updateEqWorkspace,
+    select, listEqWorkspace, listEqType, listIs, listOrder,
     from,
   };
 });
@@ -159,5 +167,26 @@ describe("financeRepository.importTransaction — árvore de decisão: caminho Q
     expect(result).toEqual({ id: "ft-existente", quote_id: "quote-uuid-1", source_local_id: "install-x:outro-local-id" });
 
     findSpy.mockRestore();
+  });
+});
+
+// G20 — listReceivables devolvia recebíveis E pagáveis misturados (nenhum filtro de
+// `type`); SupabaseOperationalDashboardCard somava os dois como "Recebíveis". Ver
+// docs/architecture/kora-hub-auditoria-e-plano.md.
+describe("financeRepository.listReceivables — filtra por type (G20)", () => {
+  it("consulta financial_transactions com type=receivable, nunca devolvendo pagáveis junto", async () => {
+    mocks.listOrder.mockResolvedValue({
+      data: [{ id: "ft-1", type: "receivable", status: "pending", amount: 100 }],
+      error: null,
+    });
+
+    const result = await financeRepository.listReceivables("ws1");
+
+    expect(mocks.from).toHaveBeenCalledWith("financial_transactions");
+    expect(mocks.select).toHaveBeenCalledWith("*");
+    expect(mocks.listEqWorkspace).toHaveBeenCalledWith("workspace_id", "ws1");
+    expect(mocks.listEqType).toHaveBeenCalledWith("type", "receivable");
+    expect(mocks.listIs).toHaveBeenCalledWith("deleted_at", null);
+    expect(result).toEqual([{ id: "ft-1", type: "receivable", status: "pending", amount: 100 }]);
   });
 });

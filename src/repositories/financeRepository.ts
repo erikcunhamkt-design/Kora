@@ -91,6 +91,7 @@ export const financeRepository = {
       .from("financial_transactions")
       .select("*")
       .eq("workspace_id", workspaceId)
+      .eq("type", "receivable")
       .is("deleted_at", null)
       .order("created_at", { ascending: false });
 
