@@ -435,3 +435,33 @@ Regra dura, sem exceção — vale inclusive para QA:
    um bug, é esperado; re-seed completo (flags + dados locais) faz parte da retomada, e deve ser
    antecipado no runbook quando uma troca de servidor for necessária no meio da rodada.
 5. **Demais gates permanentes (seções 0–16) inalterados.**
+
+---
+
+## 18. Emenda 2026-08-02 — Merge para `main` condicionado a revisão
+
+> **Motivada por:** duas ocorrências de merge em `main` **antes** da revisão do revisor,
+> ambas na LANE C durante a rodada do G5 Parte 1 (registradas na revisão de 30-31/jul/2026).
+> Em nenhuma das duas houve dado perdido ou incidente de produção — o próprio conteúdo
+> mergeado era correto — mas o merge aconteceu antes de qualquer revisão externa ter a chance
+> de pegar um problema, tornando a revisão pós-merge sempre reativa (reverter em `main`, não
+> simplesmente não mergear). A partir da segunda ocorrência, a sessão já passou a operar sob
+> "branch pushada + relatório + revisão + 'vai' antes de qualquer merge" — esta emenda só
+> formaliza uma prática que, nesse ponto, já estava sendo seguida de fato pelas 3 lanes, não
+> introduz um processo novo.
+
+1. **Nenhuma lane mergeia uma branch em `main` sem completar, nesta ordem:** (1) branch
+   pushada pra `origin`; (2) relatório entregue ao revisor (o que mudou, gates, hash da
+   branch); (3) revisão concluída; (4) "vai" **literal e específico para o merge** (não um
+   "vai" genérico de uma etapa anterior — autorizar a Fase B de uma tarefa não autoriza,
+   por si, o merge do resultado dela). Mesmo padrão de literalidade já em vigor pra
+   homologação (§9) e pra DDL (§8-b), estendido explicitamente a **merge**.
+2. **Vale pra todo tipo de mudança, inclusive doc-only.** Não existe exceção "é só
+   documentação, não precisa esperar" — as duas ocorrências que motivaram esta emenda eram,
+   em parte, mudanças de baixo risco também; o ponto não é o risco do conteúdo, é a revisão
+   ter a chance de acontecer **antes** do merge, sempre.
+3. **O sync de `origin/main` PARA DENTRO da branch de trabalho segue livre**, sem precisar de
+   "vai" — `git fetch` + `git merge origin/main` (ou `git pull`) dentro da própria branch de
+   feature, pra resolver drift antes de gates/push, **não é** um merge em `main` e não está
+   sujeito a este gate. O gate é especificamente sobre o sentido branch → `main`.
+4. **Demais gates permanentes (seções 0–17) inalterados.**
