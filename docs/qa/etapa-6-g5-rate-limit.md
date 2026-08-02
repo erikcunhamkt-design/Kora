@@ -379,3 +379,61 @@ git checkout main -- supabase/functions/whatsapp-bot-reply supabase/functions/_s
 2. **No mesmo commit** em que `LOVABLE_API_KEY` for de fato removida: corrigir
    `docs/integrations/SUPABASE-WHATSAPP-INBOX-V1.md:91` (§7 item 2) — não antes, decisão já
    registrada pra doc e código nunca ficarem dessincronizados de novo.
+
+---
+
+### 8.e Resultado real da janela executada (janela ENCERRADA)
+
+**8.a — dois deploys, não um.** O 1º deploy subiu `ede580c` — não o hash certo da janela — por
+um incidente de colagem: o comando de **rollback** (§8.c) foi executado no lugar do comando de
+deploy do passo 4. `ede580c` é o código **anterior ao G5/G18** (sem o fix de auth do `isTest`,
+sem a migração de provedor) — na prática, **o G18 voltou a ficar exposto em produção por
+alguns segundos**, até o erro ser percebido e o deploy correto (com `_shared/isTestAuth.ts` no
+bundle) rodar em seguida. Registrado como **Incidente #1 da janela**: comando de rollback e
+comando de deploy ficarem um do lado do outro no runbook (§8.a passo 4 e §8.c) é um risco de
+colagem — candidato a lição de formatação de runbook (separar visualmente/mais distante os
+dois, ou exigir confirmação explícita de qual dos dois está sendo colado antes de rodar).
+
+**8.b item 1 — G18 VALIDADO EM PRODUÇÃO.** Três variações do `curl` anônimo do G8, todas
+`401`: anon key legada → `unauthorized`; publishable key → `unauthorized`; sem credencial
+nenhuma → `missing_auth`. Nenhuma delas retornou resposta de IA — o buraco original do G18
+(anon key pública + `isTest` sem atribuição = proxy de IA grátis) está fechado de verdade no
+ambiente real, não só em teste unitário.
+
+**8.b item 2 — VERMELHO.** Membro autenticado atravessa o gate normalmente (JWT + membership
+OK — provado pelo próprio `500` pós-gate, que só é alcançável depois da autorização passar),
+mas a chamada ao Gemini retornou `404` (`models/gemini-2.5-flash is no longer available to new
+users`). **Achado durante o diagnóstico:** o secret `GEMINI_API_KEY` **não existia** no painel
+até este ponto da janela — ou seja, a migração de provedor do G18 (`lovable` →
+`gemini_api_key`) estava **inoperante em produção** desde que foi deployada, mascarada porque
+nunca tinha sido de fato invocada com um usuário autenticado real até agora (o `curl` anônimo
+do G8/item 1 nunca chega tão longe no código — para antes, no gate de auth). Secret criado
+durante a janela. Fix de fundo (model ID hardcoded quebrando) tratado em branch própria
+(`etapa-6-g5-gemini-model-config`, `GEMINI_MODEL` configurável + `gemini-3.6-flash` como novo
+default, verificado contra a doc oficial) — pendente de merge e de uma mini-janela de
+revalidação.
+
+**8.b item 3 (webhook) — ADIADO.** Depende do provedor estar respondendo (item 2 antes precisa
+fechar) — roda na mini-janela de revalidação pós-fix do model ID, junto com o reteste do
+item 2.
+
+**8.d — NÃO executado.** `LOVABLE_API_KEY` permanece no painel — decisão explícita: só remove
+(e só corrige o doc `INBOX-V1`) depois que os itens 2 e 3 do 8.b fecharem verdes na
+revalidação, não antes.
+
+**Incidente #2 da janela — key do Gemini exposta em chat do revisor** (fora desta sessão/lane).
+Tratamento: rotação agendada pra mesma mini-janela de revalidação — gerar key nova, `supabase
+secrets set GEMINI_API_KEY=<nova>`, apagar a key antiga no Google AI Studio, testar, **como um
+movimento só** (não deixar uma janela intermediária com a key antiga ainda válida depois de já
+ter sido exposta, nem com o secret desatualizado depois da key antiga ser apagada).
+
+**Notas de ambiente (registro, sem ação executada nesta rodada — commit é doc-only):**
+- Cópia scratch do repo encontrada em `.gemini\antigravity` — candidata a remoção numa limpeza
+  futura, não removida agora.
+- Processo "fantasma" ocupando a porta 8080 (relacionado ao mesmo achado que motivou o fix de
+  `vite.config.ts`/`autoPort` no G8) — candidato a encerrar, não encerrado nesta rodada.
+- A worktree principal (`orbit-designer-hub`) começou a janela com `etapa-6-g5-runbook-deploy`
+  checked out em vez de `main` — resolvido com `git checkout main` antes de abrir a janela.
+  **Lição de processo:** toda lane que termina uma sessão devolve a worktree principal pra
+  `main` antes de encerrar, pra próxima sessão (sua ou de outra lane) não herdar uma branch de
+  trabalho como se fosse o estado neutro.
