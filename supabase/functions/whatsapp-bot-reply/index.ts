@@ -110,7 +110,12 @@ function baseForStoredSubdomain(input: string | null | undefined): string {
   return `https://${host}.uazapi.com`;
 }
 
-const DEFAULT_MODEL = "gemini-2.5-flash";
+// Model ID is configuration, not code: Google has retired the default flash model
+// twice in ~5 months (1.5-flash -> 2.0-flash -> 2.5-flash, and now 2.5-flash itself
+// returns "no longer available to new users" ahead of its own documented Oct/2026
+// shutdown). GEMINI_MODEL lets the operator fix this from Supabase secrets, no code
+// deploy needed — see docs/qa/etapa-6-g5-rate-limit.md ("model ID é configuração").
+const DEFAULT_MODEL = Deno.env.get("GEMINI_MODEL") || "gemini-3.6-flash";
 const LOVABLE_DEFAULT_MODEL = "google/gemini-2.5-flash";
 const MAX_HISTORY = 12;
 
@@ -126,6 +131,7 @@ function normalizeGoogleModel(modelName: string, provider: string): string {
     "gemini-1.5-pro-002": "gemini-2.5-pro",
     "gemini-2.0-flash": DEFAULT_MODEL,
     "gemini-2.0-flash-001": DEFAULT_MODEL,
+    "gemini-2.5-flash": DEFAULT_MODEL,
     "gemini-2.5-flash-001": DEFAULT_MODEL,
     "gemini-2.5-pro-001": "gemini-2.5-pro",
   };
