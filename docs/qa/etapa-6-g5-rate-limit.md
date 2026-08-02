@@ -844,7 +844,11 @@ WHERE n.nspname = 'public' AND p.proname = 'check_and_increment_ai_rate_limit';
 SELECT grantee, privilege_type
 FROM information_schema.routine_privileges
 WHERE routine_schema = 'public' AND routine_name = 'check_and_increment_ai_rate_limit';
--- esperado: só service_role / EXECUTE — se aparecer anon/authenticated/PUBLIC, PARAR
+-- esperado: service_role/EXECUTE + postgres/EXECUTE (owner da função — mantém EXECUTE
+-- por ser dono, é role administrativo do projeto, nunca exposto via PostgREST/anon
+-- key; benigno, não é a mesma classe de vazamento que anon/authenticated seriam).
+-- Se aparecer anon/authenticated/PUBLIC, PARAR — confirmado ao vivo na sessão §8-b
+-- (2026-08-02): só service_role + postgres apareceram, nenhum vazamento.
 
 -- (e) DEFAULT da coluna provider mudou
 SELECT column_default FROM information_schema.columns
@@ -863,3 +867,10 @@ SELECT * FROM public.ai_rate_limit_counters WHERE bucket = 'smoke_test';
 -- limpeza do smoke test (não deixar dado de teste na tabela real)
 DELETE FROM public.ai_rate_limit_counters WHERE bucket = 'smoke_test';
 ```
+
+**Resultado da sessão §8-b (2026-08-02): DDL aplicada 6/6, sem incidentes.** Todas as
+verificações (a-f) bateram com o esperado, com uma nota benigna na (d) já incorporada acima
+(role `postgres`, dono da função, também retém `EXECUTE` — administrativo, nunca exposto via
+PostgREST/anon key, não é a mesma classe de vazamento que `anon`/`authenticated` seriam).
+Tabela, RPC e `DEFAULT` da coluna confirmados no lugar. Deploy da function fica pra sessão
+separada, com o operador, guiada pelo revisor.
