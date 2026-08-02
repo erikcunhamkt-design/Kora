@@ -561,3 +561,149 @@ Sources:
 - [Gemini 3.6 Flash - Model Card — Google DeepMind](https://deepmind.google/models/model-cards/gemini-3-6-flash/)
 - [Gemini 2.5 Flash deprecated without warning earlier than shutdown date](https://discuss.ai.google.dev/t/gemini-2-5-flash-deprecated-without-warning-earlier-than-shutdown-date/174217)
 - [Gemini-2.5-pro returns "no longer available to new users" — contradicts official deprecation date](https://discuss.ai.google.dev/t/gemini-2-5-pro-returns-no-longer-available-to-new-users-contradicts-official-deprecation-date-oct-16-2026/176380)
+
+---
+
+## 10. G5 Parte 2 — Fase A: desenho (diagnóstico + design, zero código)
+
+> Escopo desta rodada: só desenho, reportado antes de codar (§18). Nada implementado.
+
+### 10.1 Escopo confirmado
+
+G18 fechado muda um pressuposto do desenho original (§4.1): a atribuição do `isTest` **não é
+mais fraca** — desde o fix de autenticação real (JWT + membership, `index.ts:254-279`), o
+`workspaceId` usado pra rate limit **é** a identidade verificada do chamador, não mais um
+valor de input forjável. O contador por-workspace agora é uma garantia de verdade nos dois
+buckets (`webhook` e `isTest`), não só "melhor que nada" como o desenho original registrava.
+
+Achado novo do smoke de hoje, adicionado ao escopo: Gemini respondeu `503 UNAVAILABLE`
+transitório em pico de carga — nada a ver com o fix do G18/model ID (esse já está confirmado
+funcionando), é o tipo de instabilidade transitória normal de qualquer API de terceiro sob
+carga. Hoje o código não distingue "erro transitório, tentar de novo" de "erro permanente,
+desistir" — qualquer `!aiRes.ok` vira `throw` direto (`index.ts:594-598` no caminho
+`gemini_api_key`, `547-566` no `vertex_ai`, `631-637` no `lovable`).
+
+### 10.2 Tabela + RPC (refinado de §3/§4.2)
+
+**Tabela**, janela fixa (não sliding window — simplicidade suficiente pra prevenção de abuso,
+não é billing de precisão):
+
+```sql
+CREATE TABLE public.ai_rate_limit_counters (
+  workspace_id uuid NOT NULL REFERENCES public.workspaces(id) ON DELETE CASCADE,
+  bucket text NOT NULL,            -- 'webhook' | 'isTest'
+  window_start timestamptz NOT NULL,
+  count int NOT NULL DEFAULT 0,
+  PRIMARY KEY (workspace_id, bucket, window_start)
+);
+```
+
+**RPC**, upsert atômico (`INSERT ... ON CONFLICT ... DO UPDATE ... RETURNING` é uma operação
+atômica única no Postgres — mesma garantia de ausência de race condition do padrão
+`claim_campaign_messages` do G4, só que via upsert em vez de claim-de-linha, porque aqui o que
+importa é *contar*, não *reivindicar*):
+
+```sql
+CREATE OR REPLACE FUNCTION public.check_and_increment_ai_rate_limit(
+  p_workspace_id uuid,
+  p_bucket text,
+  p_max int,
+  p_window_s int DEFAULT 60
+) RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_window_start timestamptz := to_timestamp(floor(extract(epoch from now()) / p_window_s) * p_window_s);
+  v_count int;
+BEGIN
+  INSERT INTO public.ai_rate_limit_counters (workspace_id, bucket, window_start, count)
+  VALUES (p_workspace_id, p_bucket, v_window_start, 1)
+  ON CONFLICT (workspace_id, bucket, window_start)
+  DO UPDATE SET count = ai_rate_limit_counters.count + 1
+  RETURNING count INTO v_count;
+
+  RETURN v_count <= p_max;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.check_and_increment_ai_rate_limit(uuid, text, int, int) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.check_and_increment_ai_rate_limit(uuid, text, int, int) TO service_role;
+```
+
+**Limpeza (recomendada, não bloqueante):** sem limpeza, a tabela cresce indefinidamente (uma
+linha por workspace/bucket/janela). `pg_cron` já confirmado ativo (Etapa 6 §6 do levantamento
+original) — um job diário `DELETE FROM ai_rate_limit_counters WHERE window_start < now() -
+interval '1 day'` é trivial de acrescentar, mesma categoria do que já existe pro
+`whatsapp-campaign-processor`. Pode entrar na mesma janela de DDL ou ficar pra depois — não
+bloqueia o mínimo viável.
+
+**Onde chamar:** uma vez, logo após `adminClient = createClient(...)` (`index.ts:281` hoje —
+precisa do client `service_role` porque a RPC só tem grant pra ele), com `bucket = isTest ?
+"isTest" : "webhook"`. Cedo o bastante pra economizar todo o trabalho pesado por-caminho
+(busca de `bot_settings`, conversa, histórico) numa request que vai ser barrada mesmo.
+
+### 10.3 Política de limite (números iniciais, ajustáveis com o operador)
+
+| Bucket | Limite | Janela | Por quê |
+| :-- | :-- | :-- | :-- |
+| `webhook` | 20 | 1 min | Mesmo número do desenho original (§4.3) — generoso pra uso humano real, baixo o bastante pra capar spam de mensagens |
+| `isTest` | 10 | 1 min | Simulador é só preview — nenhum uso legítimo precisa de volume alto |
+
+**Removido do desenho original:** o teto diário extra específico pro provedor `lovable`
+(§4.3 antiga) não se aplica mais — G18 aposentou esse provider como default; o provedor ativo
+hoje (`gemini_api_key`) já usa credencial própria do workspace na maioria dos casos, e quando
+cai no fallback da plataforma (`GEMINI_API_KEY` do secret), os buckets acima já cobrem.
+
+**Comportamento ao estourar** (sem mudança do desenho original, §4.4): `webhook` → `200 { ok:
+true, skipped: "rate_limited" }` (mesmo padrão dos outros `skipped` do arquivo); `isTest` →
+`429` explícito, pro simulador mostrar o erro de verdade.
+
+### 10.4 Retry/backoff pra erro transitório do provider (novo, do smoke de hoje)
+
+**Escopo do retry:** só `503` e `429` — os dois sinais padrão de "tenta de novo depois" de
+qualquer API HTTP. Nunca retry em `4xx` que não seja `429` (erro de configuração/autenticação
+— vai falhar igual na próxima tentativa, só atrasa o erro real chegando pro usuário).
+
+**Orçamento:** 2 retries (3 tentativas no total), backoff exponencial com jitter (~300ms,
+~600ms + até 100ms aleatório) — latência adicional máxima de ~1-2s no pior caso. Deliberadamente
+pequeno: Edge Functions têm limite de wall-clock, e tanto o `isTest` (chamador espera na hora,
+no simulador) quanto o `webhook` (chamador é `whatsapp-webhook`, que faz `await fetch(...)`
+síncrono esperando a resposta, `index.ts:615` daquele arquivo) têm expectativa de resposta
+rápida — nada de retry longo/tipo circuit-breaker aqui, seria sobre-engenharia pro problema
+real (blip transitório, não instabilidade sustentada).
+
+**Onde aplicar:** um helper `fetchWithRetry` envolvendo as 4 chamadas de provider que já
+existem (`vertex_ai` primário `index.ts:538`, fallback `553`, `gemini_api_key` `586`, `lovable`
+`619`) — reduz duplicação em vez de reimplementar retry em cada uma.
+
+**Nunca engolir silenciosamente:** esgotadas as tentativas, o comportamento already existente
+(`throw new Error(...)` → cai no `catch` de fora → `500` com `{error: message}`, e no caminho
+não-`isTest` grava uma mensagem de erro visível em `whatsapp_messages`, `index.ts:696-723`) já
+cobre "não esconder o erro" — só preciso deixar a mensagem final citar que as tentativas se
+esgotaram (ex.: `"Gemini Developer API falhou após 3 tentativas (503): ..."`), não estava no
+requisito original mas é o tipo de detalhe que ajuda a distinguir "esgotou retry" de "erro na
+primeira tentativa" no log/na mensagem de erro pro operador.
+
+### 10.5 Pacote de DDL (janela §8-b única, junto com o fix do DEFAULT)
+
+1. `CREATE TABLE ai_rate_limit_counters` (§10.2)
+2. `CREATE FUNCTION check_and_increment_ai_rate_limit` (§10.2)
+3. `ALTER TABLE public.whatsapp_bot_settings ALTER COLUMN provider SET DEFAULT
+   'gemini_api_key';` — já registrado como backlog (§7 item 1), reforçado: o default do schema
+   hoje aponta pra um provider morto (sem secret desde a remoção do `LOVABLE_API_KEY`), não só
+   "não-recomendado" como antes do encerramento do G18.
+4. *(Recomendado, pode ficar pra depois sem bloquear)* job `pg_cron` de limpeza (§10.2).
+
+**Fora do pacote de DDL:** retry/backoff (§10.4) é código puro, zero migration — pode ir na
+mesma rodada de implementação ou até deployar antes/depois do DDL, sem dependência entre os
+dois.
+
+### 10.6 Fase B (próxima, só com novo "vai")
+
+Implementar: migration com os itens 1-3 (±4) do §10.5; RPC chamada no `index.ts` logo após
+`adminClient` (§10.2); `fetchWithRetry` envolvendo as 4 chamadas de provider (§10.4); testes
+unitários pra qualquer lógica pura extraída (mesmo padrão G8/G5 Parte 1 — `_shared/` +
+Vitest); homologação seguindo o mesmo formato de curl/simulador já validado nas rodadas
+anteriores.
