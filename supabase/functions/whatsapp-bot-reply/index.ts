@@ -4,6 +4,8 @@ import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { applySendTemplate } from "../_shared/botFlowTemplate.ts";
 import { authorizeIsTestCaller } from "../_shared/isTestAuth.ts";
+import { decideRateLimitOutcome } from "../_shared/rateLimit.ts";
+import { fetchWithRetry } from "../_shared/retry.ts";
 
 interface BotFlowNodeProperties {
   respondAll?: boolean;
@@ -280,6 +282,25 @@ Deno.serve(async (req) => {
 
     adminClient = createClient(SUPABASE_URL, SERVICE_ROLE);
 
+    // G5 Parte 2: per-workspace rate limit before any per-request work (bot settings,
+    // conversation, history — all skipped if blocked). Key is (workspace_id, bucket) —
+    // workspace is the actual cost/credential unit, and separating "webhook" (real
+    // traffic) from "isTest" (simulator) keeps a testing spree from ever throttling
+    // real customer replies. See docs/qa/etapa-6-g5-rate-limit.md §10/§11.
+    const rateLimitBucket = isTest ? "isTest" : "webhook";
+    const rateLimitMax = isTest ? 10 : 20;
+    const { data: withinLimitRaw, error: rateLimitErr } = await adminClient.rpc(
+      "check_and_increment_ai_rate_limit",
+      { p_workspace_id: workspaceId, p_bucket: rateLimitBucket, p_max: rateLimitMax, p_window_s: 60 },
+    );
+    if (rateLimitErr) {
+      console.error("[bot-reply] rate limit check failed, failing open:", rateLimitErr.message);
+    }
+    const rateLimitOutcome = decideRateLimitOutcome(Boolean(rateLimitErr), withinLimitRaw === true, isTest);
+    if (!rateLimitOutcome.allowed) {
+      return json(rateLimitOutcome.body, rateLimitOutcome.status);
+    }
+
     // Bot settings & details
     let bot: BotSettingsRow | null = null;
     let systemInstruction = "Você é um atendente cordial e prestativo. Responda de forma clara, breve e em português.";
@@ -535,7 +556,7 @@ Deno.serve(async (req) => {
         };
       }
 
-      const aiRes = await fetch(vertexUrl, {
+      const { res: aiRes, attempts } = await fetchWithRetry(vertexUrl, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`,
@@ -546,11 +567,11 @@ Deno.serve(async (req) => {
 
       if (!aiRes.ok) {
         const detail = await aiRes.text();
-        console.warn("[bot-reply] Vertex AI API failed, attempting fallback to Generative Language API...", aiRes.status, detail);
-        
+        console.warn(`[bot-reply] Vertex AI API failed after ${attempts} attempt(s), attempting fallback to Generative Language API...`, aiRes.status, detail);
+
         const fallbackToken = await getGCPToken(GCP_SERVICE_ACCOUNT, "https://www.googleapis.com/auth/generative-language");
         const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/${rawModel}:generateContent`;
-        const fallbackRes = await fetch(fallbackUrl, {
+        const { res: fallbackRes, attempts: fallbackAttempts } = await fetchWithRetry(fallbackUrl, {
           method: "POST",
           headers: {
             "Authorization": `Bearer ${fallbackToken}`,
@@ -561,8 +582,8 @@ Deno.serve(async (req) => {
 
         if (!fallbackRes.ok) {
           const fallbackDetail = await fallbackRes.text();
-          console.error("[bot-reply] Fallback Generative Language API failed as well:", fallbackRes.status, fallbackDetail);
-          throw new Error(`Vertex AI falhou (${aiRes.status}: ${detail}) e Generative Language API falhou (${fallbackRes.status}: ${fallbackDetail})`);
+          console.error(`[bot-reply] Fallback Generative Language API failed as well after ${fallbackAttempts} attempt(s):`, fallbackRes.status, fallbackDetail);
+          throw new Error(`Vertex AI falhou após ${attempts} tentativa(s) (${aiRes.status}: ${detail}) e Generative Language API falhou após ${fallbackAttempts} tentativa(s) (${fallbackRes.status}: ${fallbackDetail})`);
         }
 
         const aiData = await fallbackRes.json();
@@ -583,7 +604,7 @@ Deno.serve(async (req) => {
         };
       }
 
-      const aiRes = await fetch(geminiUrl, {
+      const { res: aiRes, attempts } = await fetchWithRetry(geminiUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -593,8 +614,8 @@ Deno.serve(async (req) => {
 
       if (!aiRes.ok) {
         const detail = await aiRes.text();
-        console.error("[bot-reply] Gemini Developer API error", aiRes.status, detail);
-        throw new Error(`Gemini Developer API retornou status ${aiRes.status}: ${detail}`);
+        console.error(`[bot-reply] Gemini Developer API error after ${attempts} attempt(s)`, aiRes.status, detail);
+        throw new Error(`Gemini Developer API retornou status ${aiRes.status} após ${attempts} tentativa(s): ${detail}`);
       }
 
       const aiData = await aiRes.json();
@@ -616,7 +637,7 @@ Deno.serve(async (req) => {
         })),
       ];
 
-      const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      const { res: aiRes, attempts } = await fetchWithRetry("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${LOVABLE_API_KEY}`,
@@ -630,10 +651,10 @@ Deno.serve(async (req) => {
 
       if (!aiRes.ok) {
         const detail = await aiRes.text();
-        console.error("[bot-reply] Lovable AI Gateway error", aiRes.status, detail);
-        if (aiRes.status === 429) throw new Error("Limite de requisições excedido no Lovable AI Gateway (429).");
+        console.error(`[bot-reply] Lovable AI Gateway error after ${attempts} attempt(s)`, aiRes.status, detail);
+        if (aiRes.status === 429) throw new Error(`Limite de requisições excedido no Lovable AI Gateway (429) após ${attempts} tentativa(s).`);
         if (aiRes.status === 402) throw new Error("Créditos esgotados no Lovable AI Gateway (402).");
-        throw new Error(`Lovable AI Gateway retornou status ${aiRes.status}: ${detail}`);
+        throw new Error(`Lovable AI Gateway retornou status ${aiRes.status} após ${attempts} tentativa(s): ${detail}`);
       }
 
       const aiData = await aiRes.json() as { choices?: Array<{ message?: { content?: string } }> };
