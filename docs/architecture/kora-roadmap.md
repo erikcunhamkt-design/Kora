@@ -34,7 +34,7 @@
 | G1 · financeiro | 🟡 dual-write parcial, leitura local por padrão | Ver §3.4 — critério de pronto detalhado | Fila |
 | G1 · projetos | 🟡 dual-write parcial, leitura local por padrão | Ver §3.5 | Fila |
 | G1 · tarefas | 🔴 não migrado na prática | Ver §3.6 | Backlog |
-| Etapa 6 — Fila, rate limit e worker | 🟡 parcial | Ver §4 — 4 sub-itens, 1 com deploy pendente | Ver §4 |
+| Etapa 6 — Fila, rate limit e worker | 🟡 parcial | Ver §4 — rate limit já em produção (02/ago); resta só o job de limpeza (não bloqueante) | Ver §4 |
 | Etapa 7 — Qualidade contínua | 🟡 em curso | Teto de lint menor; cobertura dos fluxos críticos; alertas ativos | Teto de lint 0/0 alcançado; cobertura/alertas não confirmados 100% |
 | Etapa 8 — WhatsApp Oficial (Tech Provider) | ⬜ backlog | PLANEJADA, não iniciada — depende de G1 avançar | — |
 | Transversal — UX/Produto | 🟡 catalogado, sem prazo | Ver §6.1 | `kora-ux-produto.md` |
@@ -52,9 +52,9 @@
 
 **Etapa 5 — G1/quotes completo, ponta a ponta:** das 10 fatias/marcos (1, 2, 3, 4, 6, 7, 8, 9, 10 + Pacote do Flip — não existe "Fatia 5", confirmado por grep), quotes chegou a **100% Supabase por default** (`dae6de8`) — primeiro domínio do Kora Hub a completar o ciclo inteiro. Achados ao longo do caminho: Q8/Q9/Q10 (quotes), 5 incidentes de homologação da Fatia 10 (worktree errada, loop de refetch — G14, symlink quebrado — motivou §17, import órfão — G16, gate de status), G11 (RPC overload), G12/G13 (lições de tradução/import-map).
 
-**Etapa 6 (parcial) — ver §4 para detalhe:** `pg_cron`/`pg_net` confirmados ativos e em uso real (`whatsapp-campaign-processor`, legado, a cada minuto); G8 (template do Send Node) resolvido e deployado; G18 (dependência Lovable) resolvido e validado em produção (Gemini direto); G5 Parte 1 (auth real do `isTest` + migração de provider) e Parte 2 (rate limit + retry/backoff) com código e DDL prontos — **deploy da function ainda pendente**, ver §4.
+**Etapa 6 (parcial) — ver §4 para detalhe:** `pg_cron`/`pg_net` confirmados ativos e em uso real (`whatsapp-campaign-processor`, legado, a cada minuto); G8 (template do Send Node) resolvido e deployado; G18 (dependência Lovable) resolvido e validado em produção (Gemini direto); G5 Parte 1 (auth real do `isTest` + migração de provider) e Parte 2 (rate limit + retry/backoff) com código, DDL **e deploy da function** todos confirmados em produção (02/ago/2026). Resta só o job de limpeza da tabela de contadores (não bloqueante), ver §4.
 
-**Resgates de UI/dados órfãos (fora da sequência linear de fatias):** G16 (card Supabase de quotes nunca renderizado — corrigido), G20 (filtro de tipo faltando no dashboard operacional — corrigido), G22 (dual-write de "Gerar recebível"/"Gerar projeto" — corrigido). G21 (`BotRulesPanel.tsx` órfão) catalogado, não corrigido — ver §3.6/§6.1.
+**Resgates de UI/dados órfãos (fora da sequência linear de fatias):** G16 (card Supabase de quotes nunca renderizado — corrigido), G20 (filtro de tipo faltando no dashboard operacional — corrigido), G22 (dual-write de "Gerar recebível"/"Gerar projeto" — corrigido). G21 (`BotRulesPanel.tsx` órfão) e G23 (avisos "híbrido" desatualizados na aba Dados — ver §3) catalogados, não corrigidos.
 
 **Qualidade:** teto de lint chegou a **0 erros / 0 `any`** (histórico: ~89 → 68 → 49 → 34 → 33 → 2 → 0, ao longo de várias rodadas `qualidade-lint-*`).
 
@@ -71,6 +71,22 @@
 > quotes** — leitura e escrita default Supabase, com flip reversível (exceto clients, cujo
 > "flip" é automático via presença de workspace, não um toggle de usuário). Isso muda o que
 > de fato falta pro G1 fechar: só 3 domínios, não 6.
+
+> **Reconciliação (2ª rodada, mesmo dia):** o operador reportou prints de hoje da aba Dados
+> (Configurações) com avisos afirmando "a tela Clientes/CRM/Ficha Técnica ainda usa dados
+> locais" — contradizendo a classificação acima. Verificado a fundo antes de aceitar qualquer
+> um dos dois lados: **os avisos são texto morto**, confirmado por `git blame`, não por
+> suposição. Os 4 blocos de aviso (`Configuracoes.tsx:1271,1441,1586,1835/1975`) vêm todos do
+> mesmo commit `4b1a8f20` (2026-06-01). A lógica real de default das 3 telas foi escrita
+> **depois** — `useClientsDataSource.ts:47` no commit `7ab23675` (2026-06-15);
+> `getCrmDataSource()`/`getTechnicalSheetDataSource()` em `flags.ts` no commit `49ec0bf6`
+> (2026-07-04), com comentário explícito no próprio código confirmando o default "supabase".
+> O aviso de Clientes ainda cita "ative a fonte Supabase experimental" — mecanismo que **não
+> existe mais** no código atual, prova adicional de que o texto descreve uma versão anterior
+> do mecanismo, não o comportamento de hoje. **Classificação dos 3 domínios como "completo"
+> mantida** — os avisos desatualizados foram catalogados como achado próprio,
+> [`G23`](kora-hub-auditoria-e-plano.md), não corrigidos nesta rodada (fora de escopo:
+> reconciliação de roadmap, não correção de UI).
 
 ### 3.1 Clients — ✅ completo
 `useClientsDataSource.ts:47` decide a fonte automaticamente pela presença de `workspace`
@@ -139,15 +155,18 @@ partir de oportunidade) é opt-in à parte, não afeta o CRUD principal.
 1. **Job `pg_cron` de limpeza de `ai_rate_limit_counters`** — recomendado desde o desenho do
    G5 Parte 2 (`etapa-6-g5-rate-limit.md` §10.2), **não bloqueante**, ainda não criado. Sem
    limpeza, a tabela cresce indefinidamente (uma linha por workspace/bucket/janela de 1 min).
-2. **Deploy da function `whatsapp-bot-reply` com o código do G5 Parte 2 — PENDENTE.** A DDL
-   (tabela + RPC + fix do `DEFAULT`) já foi aplicada em produção (6/6, sem incidentes,
-   2026-08-02), e o código (rate limit + retry/backoff) já está mergeado em `main` — mas a
-   **function ao vivo ainda não foi redeployada** com esse código. Ou seja: hoje, em
-   produção, a RPC de rate limit existe no banco mas **não está sendo chamada** (a function
-   deployada é a versão anterior, só com o fix de auth/provider do G5 Parte 1 + o fix do
-   modelo Gemini) — zero rate limit e zero retry/backoff ativos até esse deploy acontecer.
-   Fica pra sessão separada com o operador, guiada pelo revisor (mesmo padrão §8-b/§17 já
-   usado nos deploys anteriores desta function).
+2. **Deploy da function `whatsapp-bot-reply` com o código do G5 Parte 2 — ✅ FEITO.**
+   **Correção a esta linha:** a versão anterior deste doc registrou isto como "pendente
+   crítico" — errado. O deploy aconteceu em 02/ago/2026, pelo operador, com o bundle
+   confirmado no output do CLI (`rateLimit.ts`/`retry.ts` presentes) e smoke `200`
+   pós-deploy. RPC de rate limit e retry/backoff estão ativos em produção.
+   **Lição registrada:** estado de deploy de Edge Function **não é inferível do repo** — não
+   existe tag, arquivo ou commit que prove "isto está no ar"; é registro **operacional**, que
+   só existe no relatório da sessão de deploy (ou na memória de quem rodou). Este doc errou
+   exatamente por inferir "não fica claro no histórico do repo que isso foi deployado" como
+   se fosse equivalente a "não foi deployado". Regra daqui pra frente: **na dúvida sobre
+   estado de deploy, o doc registra "a confirmar com o operador"**, nunca afirma pendente ou
+   feito por inferência do que está (ou não está) versionado.
 3. **Rate limit e retry só cobrem `whatsapp-bot-reply`** (a única function que chama IA paga
    hoje — confirmado por grep no G5 Fase A). "e-mail" citado no G5/Etapa 6 originais é
    aspiracional, não existe integração nenhuma no repo.

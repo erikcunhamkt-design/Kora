@@ -324,6 +324,18 @@ Achado durante a homologação ao vivo da Fase C do resgate do dashboard órfão
 
 ---
 
+**G23 — Avisos "Aviso Híbrido"/"Aviso de Backup Híbrido" na aba Dados afirmam que Clientes/CRM/Ficha Técnica "ainda usam dados locais", mas o default de leitura das 3 telas é Supabase desde jul/2026. [MÉDIO — confirmado, catalogado nesta rodada]**
+Achado durante a reconciliação de `docs/architecture/kora-roadmap.md`, a partir de um relato do operador com prints da aba Dados (Configurações) datados de hoje, contradizendo a classificação "completo" que o roadmap tinha acabado de dar a esses 3 domínios.
+
+- **Localização dos avisos** (`src/pages/Configuracoes.tsx`): linha 1271 (Clientes — "a tela Clientes ainda usa dados locais até a próxima etapa... ative a fonte Supabase experimental"), linha 1441 ("A tela principal de Clientes ainda usa localStorage nesta fase"), linha 1586 (Ficha Técnica — "A página Ficha Técnica principal continua usando localStorage nesta fase"), linhas 1835/1975 (CRM — "a tela principal de CRM ainda usa dados locais").
+- **Prova de obsolescência — `git blame`, não suposição:** os 4 blocos de aviso vêm todos do mesmo commit `4b1a8f20` (2026-06-01). A lógica real que define o default de leitura das 3 telas foi escrita **depois**, em commits separados: `useClientsDataSource.ts:47` (`workspaceLoading || workspace ? "supabase" : "local"`) no commit `7ab23675` (2026-06-15); `getCrmDataSource()`/`getTechnicalSheetDataSource()` em `src/config/flags.ts` (commit `49ec0bf6`, 2026-07-04), com comentário explícito no próprio código confirmando "só 'local' explícito seleciona local" / "default 'supabase'". Nenhum desses defaults foi revertido depois — confirmado como estado atual de `main` no momento deste achado.
+- **Detalhe que confirma a defasagem:** o aviso de Clientes cita "ative a fonte Supabase experimental" — um mecanismo de flag manual que **não existe mais** no código atual; a lógica de hoje não depende de nenhuma flag desse tipo, é automática pela presença de workspace.
+- **Efeito:** quem lê a aba Dados hoje recebe uma informação que deixou de ser verdade há quase um mês (CRM/fichas) a quase dois meses (clients) — risco de decisão errada (ex.: achar que uma tela ainda depende de import manual quando já lê Supabase por padrão).
+- **Não corrigido nesta rodada** — só catalogado. Correção é trivial (atualizar/remover os 4 blocos), mas fora do escopo da tarefa que encontrou isso (reconciliação de roadmap, não correção de UI).
+- **Lição:** texto de aviso hardcoded em tela de configurações tem o mesmo risco de obsolescência que import órfão (G16) ou dashboard nunca lido (G20/G22) — não existe teste que falhe quando o comportamento real diverge do texto, porque texto estático nunca "quebra" sozinho. Candidato a padrão: todo aviso que descreve o estado de uma flag/default deveria derivar do valor real da flag em vez de ser uma string fixa — ou, no mínimo, ter um teste que compare o texto contra o default real da flag.
+
+---
+
 **O5 — cards de import locais divergiam em padrão de abertura do diálogo. [BAIXO — RESOLVIDO na rodada `qualidade-lint`]**
 Achado durante a homologação (Fase D) da Etapa 5 · Fatia 8 (cutover de escrita de `opportunities`) — não corrigido nela por ser um achado de consistência entre cards, pré-existente da Fatia 2, não uma regressão da fatia que o encontrou. Detalhamento completo em
 [`etapa-5-fatia-8-crm-cutover.md` §8](../qa/etapa-5-fatia-8-crm-cutover.md#8-fase-d--resultado-da-rodada-executada-vai-do-revisor) (observação registrada do caso (j) do runbook).
