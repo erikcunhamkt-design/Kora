@@ -984,3 +984,13 @@ DDL e aplicação: sessão §8-b com o operador, guiada pelo revisor — não ex
 rodada. Item (c) do kit é de acompanhamento pós-DDL (depende do relógio), não bloqueia o
 fechamento da sessão de aplicação; (a) e (b) são suficientes pra confirmar que o job está
 correto e funcional no momento da DDL.
+
+### 13.6 Resultado da sessão §8-b (2026-08-03): DDL aplicada 2/2, sem incidentes
+
+Job agendado com sucesso — `jobid 2`, `schedule = '0 * * * *'`, `active = t`. Kit (a) e (b)
+verdes: linha sintética de 25h inserida e varrida pelo `DELETE` do job rodado manualmente,
+contadores reais/recentes intactos (não tocados pela limpeza). Item (c) do kit
+(`cron.job_run_details`, prova de execução automática real) **fica como acompanhamento
+posterior** — depende de pelo menos 1 execução automática já ter acontecido (job agendado
+pra rodar no minuto 0 de cada hora); não bloqueou o fechamento desta sessão de DDL, que
+cobriu (a) e (b).
