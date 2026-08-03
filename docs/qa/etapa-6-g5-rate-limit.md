@@ -874,3 +874,113 @@ verificações (a-f) bateram com o esperado, com uma nota benigna na (d) já inc
 PostgREST/anon key, não é a mesma classe de vazamento que `anon`/`authenticated` seriam).
 Tabela, RPC e `DEFAULT` da coluna confirmados no lugar. Deploy da function fica pra sessão
 separada, com o operador, guiada pelo revisor.
+
+---
+
+## 13. G5 Parte 2 — job `pg_cron` de limpeza (desenho + migration, não aplicada)
+
+Recomendação não-bloqueante registrada em §10.2 desde a Fase A original, retomada agora:
+sem limpeza, `ai_rate_limit_counters` cresce 1 linha por workspace/bucket/janela de 1 min,
+pra sempre.
+
+### 13.1 Precedente seguido
+
+Único job `pg_cron` ativo hoje no projeto: `whatsapp-campaign-processor`
+(`20260602161206_abe508c3-758d-49be-a9a8-d1e136a29c87.sql`), padrão:
+
+- Nome kebab-case, descritivo do papel (`whatsapp-campaign-processor`).
+- Re-agendamento idempotente: `DO $$ BEGIN PERFORM cron.unschedule('<nome>'); EXCEPTION WHEN
+  OTHERS THEN NULL; END $$;` seguido de `SELECT cron.schedule('<nome>', '<schedule>', $$
+  <comando> $$);` — a migration pode ser reaplicada (reset local, replay) sem duplicar job.
+- Comando embutido inline no corpo do `cron.schedule`, não uma function `SECURITY DEFINER`
+  chamada por ele (esse job em particular chama `net.http_post`, mas o formato — SQL inline,
+  sem wrapper — é o que importa aqui de precedente).
+
+Segui esse padrão à risca — nome novo, mesma estrutura de idempotência, mesmo estilo de
+comando inline.
+
+### 13.2 Retenção, frequência, nome
+
+| Parâmetro | Valor | Justificativa |
+| :-- | :-- | :-- |
+| Retenção | `window_start < now() - interval '24 hours'` | Mesmo valor já proposto em §10.2 (`interval '1 day'`) — reafirmado, não mudou. 24h é folga ampla pra qualquer diagnóstico/suporte que note algo "hoje" e precise olhar contadores de ontem, sem acumular históricos que ninguém consulta. |
+| Frequência | `0 * * * *` (a cada hora, no minuto 0) | **Refinamento sobre o §10.2 original** (que sugeria diário). Com limpeza diária + retenção de 24h, a tabela podia carregar até ~48h de dados momentos antes de cada rodada do job (pior caso: uma linha escrita logo após uma limpeza só é removida quase 2 janelas de retenção depois). Rodando de hora em hora, o pior caso cai pra ~25h — sem custo adicional relevante (a query é um `DELETE` sobre uma tabela que essa própria cadência mantém pequena; rodar 24x mais vezes não é caro quando cada rodada tem menos linhas pra examinar, não mais). |
+| Nome do job | `ai-rate-limit-cleanup` | Kebab-case, papel explícito no nome, sem colidir com `whatsapp-campaign-processor`. |
+
+### 13.3 Function dedicada vs. `DELETE` inline — decisão
+
+**Optei por `DELETE` inline no `cron.schedule`, não uma function dedicada.** Diferença
+relevante em relação à RPC `check_and_increment_ai_rate_limit` (§10.2/§12): aquela função
+precisa ser `SECURITY DEFINER` + `REVOKE`/`GRANT` cuidadoso porque é **chamada via PostgREST**
+pela Edge Function com a `anon`/`service_role` key — está exposta a uma superfície de rede.
+Um comando dentro de `cron.schedule` não tem essa exposição: só é executado pelo próprio
+`pg_cron`, sob a identidade de quem agendou o job (role administrativo do projeto), nunca
+alcançável via API REST/anon key. Não há GRANT a fechar porque não há um objeto chamável a
+proteger — uma function aqui seria uma camada de indireção sem função de segurança,
+contrariando o precedente do próprio job existente no projeto (que também é inline).
+
+Idempotência do `cron.schedule` em si: seguida do mesmo jeito que o precedente resolve —
+`unschedule` (tolerante a "não existe" via `EXCEPTION WHEN OTHERS THEN NULL`) antes de
+`schedule`, então reaplicar a migration não duplica nem falha.
+
+### 13.4 Migration (escrita, não aplicada)
+
+Arquivo: `supabase/migrations/20260803010000_g5_ai_rate_limit_cleanup_cron.sql`
+
+```sql
+DO $$
+BEGIN
+  PERFORM cron.unschedule('ai-rate-limit-cleanup');
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+SELECT cron.schedule(
+  'ai-rate-limit-cleanup',
+  '0 * * * *',
+  $$
+  DELETE FROM public.ai_rate_limit_counters WHERE window_start < now() - interval '24 hours';
+  $$
+);
+```
+
+Sem `CREATE EXTENSION` — `pg_cron`/`pg_net` já habilitados pela migration de
+2026-06-02 (`20260602161206_...`), que roda antes desta na ordem de timestamp; repetir aqui
+seria redundante, não incorreto, mas sem necessidade.
+
+### 13.5 Kit de verificação pós-aplicação
+
+```sql
+-- (a) Job listado, schedule e comando corretos
+SELECT jobid, jobname, schedule, command, active
+FROM cron.job
+WHERE jobname = 'ai-rate-limit-cleanup';
+-- esperado: 1 linha, schedule = '0 * * * *', active = t, command contém o DELETE acima
+
+-- (b) Prova funcional — linha sintética velha, roda o comando do job manualmente, some
+INSERT INTO public.ai_rate_limit_counters (workspace_id, bucket, window_start, count)
+VALUES ('2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9'::uuid, 'cron_smoke_test', now() - interval '25 hours', 1);
+
+SELECT count(*) FROM public.ai_rate_limit_counters WHERE bucket = 'cron_smoke_test';
+-- esperado: 1
+
+DELETE FROM public.ai_rate_limit_counters WHERE window_start < now() - interval '24 hours';
+-- comando idêntico ao do job — roda manualmente pra não esperar a próxima hora cheia
+
+SELECT count(*) FROM public.ai_rate_limit_counters WHERE bucket = 'cron_smoke_test';
+-- esperado: 0 (linha sintética removida)
+
+-- (c) Prova de execução automática real — só depois de pelo menos 1 hora cheia
+-- transcorrida com o job ativo (não faz parte da sessão de DDL, é acompanhamento
+-- posterior; pode ficar pra fora do runbook imediato)
+SELECT jobid, runid, status, start_time, end_time, return_message
+FROM cron.job_run_details
+WHERE jobid = (SELECT jobid FROM cron.job WHERE jobname = 'ai-rate-limit-cleanup')
+ORDER BY start_time DESC
+LIMIT 5;
+-- esperado, quando houver ao menos 1 execução: status = 'succeeded'
+```
+
+DDL e aplicação: sessão §8-b com o operador, guiada pelo revisor — não executada nesta
+rodada. Item (c) do kit é de acompanhamento pós-DDL (depende do relógio), não bloqueia o
+fechamento da sessão de aplicação; (a) e (b) são suficientes pra confirmar que o job está
+correto e funcional no momento da DDL.
