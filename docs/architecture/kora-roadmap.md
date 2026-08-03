@@ -34,7 +34,7 @@
 | G1 · financeiro | 🟡 dual-write parcial, leitura local por padrão | Ver §3.4 — critério de pronto detalhado | Fila |
 | G1 · projetos | 🟡 dual-write parcial, leitura local por padrão | Ver §3.5 | Fila |
 | G1 · tarefas | 🔴 não migrado na prática | Ver §3.6 | Backlog |
-| Etapa 6 — Fila, rate limit e worker | 🟡 parcial | Ver §4 — rate limit já em produção (02/ago); resta só o job de limpeza (não bloqueante) | Ver §4 |
+| Etapa 6 — Fila, rate limit e worker | 🟡 parcial (G5/rate limit ✅ 100% fechado) | Ver §4 — resta só o item 4 (fila v2 de campanhas sem cron próprio, não investigado, escopo distinto do G5) | Ver §4 |
 | Etapa 7 — Qualidade contínua | 🟡 em curso | Teto de lint menor; cobertura dos fluxos críticos; alertas ativos | Teto de lint 0/0 alcançado; cobertura/alertas não confirmados 100% |
 | Etapa 8 — WhatsApp Oficial (Tech Provider) | ⬜ backlog | PLANEJADA, não iniciada — depende de G1 avançar | — |
 | Transversal — UX/Produto | 🟡 catalogado, sem prazo | Ver §6.1 | `kora-ux-produto.md` |
@@ -52,7 +52,7 @@
 
 **Etapa 5 — G1/quotes completo, ponta a ponta:** das 10 fatias/marcos (1, 2, 3, 4, 6, 7, 8, 9, 10 + Pacote do Flip — não existe "Fatia 5", confirmado por grep), quotes chegou a **100% Supabase por default** (`dae6de8`) — primeiro domínio do Kora Hub a completar o ciclo inteiro. Achados ao longo do caminho: Q8/Q9/Q10 (quotes), 5 incidentes de homologação da Fatia 10 (worktree errada, loop de refetch — G14, symlink quebrado — motivou §17, import órfão — G16, gate de status), G11 (RPC overload), G12/G13 (lições de tradução/import-map).
 
-**Etapa 6 (parcial) — ver §4 para detalhe:** `pg_cron`/`pg_net` confirmados ativos e em uso real (`whatsapp-campaign-processor`, legado, a cada minuto); G8 (template do Send Node) resolvido e deployado; G18 (dependência Lovable) resolvido e validado em produção (Gemini direto); G5 Parte 1 (auth real do `isTest` + migração de provider) e Parte 2 (rate limit + retry/backoff) com código, DDL **e deploy da function** todos confirmados em produção (02/ago/2026). Resta só o job de limpeza da tabela de contadores (não bloqueante), ver §4.
+**Etapa 6 (parcial) — ver §4 para detalhe:** `pg_cron`/`pg_net` confirmados ativos e em uso real (`whatsapp-campaign-processor`, legado, a cada minuto); G8 (template do Send Node) resolvido e deployado; G18 (dependência Lovable) resolvido e validado em produção (Gemini direto); G5 Parte 1 (auth real do `isTest` + migração de provider) e Parte 2 (rate limit + retry/backoff) com código, DDL, deploy da function **e job de limpeza da tabela de contadores** todos confirmados em produção (02–03/ago/2026) — **G5 100% fechado**. Resta só o item 4 do §4: `whatsapp-campaign-v2-sender` sem cron próprio, escopo distinto do G5 (fila de campanhas, não chamadas de IA), não investigado nesta rodada.
 
 **Resgates de UI/dados órfãos (fora da sequência linear de fatias):** G16 (card Supabase de quotes nunca renderizado — corrigido), G20 (filtro de tipo faltando no dashboard operacional — corrigido), G22 (dual-write de "Gerar recebível"/"Gerar projeto" — corrigido). G21 (`BotRulesPanel.tsx` órfão) e G23 (avisos "híbrido" desatualizados na aba Dados — ver §3) catalogados, não corrigidos.
 
@@ -152,9 +152,14 @@ partir de oportunidade) é opt-in à parte, não afeta o CRUD principal.
 
 ## 4. Etapa 6 — restante
 
-1. **Job `pg_cron` de limpeza de `ai_rate_limit_counters`** — recomendado desde o desenho do
-   G5 Parte 2 (`etapa-6-g5-rate-limit.md` §10.2), **não bloqueante**, ainda não criado. Sem
-   limpeza, a tabela cresce indefinidamente (uma linha por workspace/bucket/janela de 1 min).
+1. **Job `pg_cron` de limpeza de `ai_rate_limit_counters` — ✅ FEITO.** Aplicado na sessão
+   §8-b de 2026-08-03: job `ai-rate-limit-cleanup` (`jobid 2`), `0 * * * *` (hora em hora),
+   retenção de 24h, `DELETE` inline no `cron.schedule` (mesmo padrão do
+   `whatsapp-campaign-processor` já existente) — sem incidentes, kit (a)/(b) verdes (linha
+   sintética de 25h varrida pelo comando do job, contadores recentes intactos). Kit (c)
+   (prova de execução automática real) fica como acompanhamento pós-1ª execução, não
+   bloqueante. Desenho completo + migration em `etapa-6-g5-rate-limit.md` §13. Hash:
+   `8e7c2f1` (commit desta janela de merge que registra o resultado da sessão §8-b).
 2. **Deploy da function `whatsapp-bot-reply` com o código do G5 Parte 2 — ✅ FEITO.**
    **Correção a esta linha:** a versão anterior deste doc registrou isto como "pendente
    crítico" — errado. O deploy aconteceu em 02/ago/2026, pelo operador, com o bundle
@@ -175,6 +180,15 @@ partir de oportunidade) é opt-in à parte, não afeta o CRUD principal.
    funcional e em produção. `whatsapp-campaign-v2-sender` (sistema mais novo) segue
    manual-only, sem cron — se a v2 for o caminho definitivo, ainda falta esse cron; não
    investigado nesta rodada se há decisão de aposentar o legado ou manter os dois.
+
+**"Etapa 6 restante" não está zerada — resta o item 4.** O escopo do G5 (rate limit/retry
+para chamadas de IA, itens 1-3) está agora **100% fechado**: código, DDL, deploy da function
+e job de limpeza, todos confirmados em produção. O item 4 é uma questão diferente, de escopo
+mais amplo que o G5 (título da etapa é "Fila, **rate limit** e **worker**" — worker/fila
+cobre também o envio de campanhas, não só as chamadas de IA), e continua **não investigada**:
+não há decisão registrada sobre aposentar o sistema legado de campanhas em favor do v2, nem
+sobre se o v2 precisa do próprio cron. Não é um bloqueio conhecido, é uma lacuna de
+investigação — permanece em aberto até alguém (operador ou revisor) decidir o rumo.
 
 ---
 
