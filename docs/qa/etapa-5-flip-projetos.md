@@ -346,6 +346,24 @@ Migration **escrita, NÃO APLICADA**:
 Aplicação é sessão §8-b dedicada com o operador, ANTES da fatia N+1 — não
 desta rodada.
 
+> **Runbook da sessão §8-b — pré-check é passo 0 OBRIGATÓRIO, antes de
+> aplicar o arquivo inteiro:**
+> ```sql
+> SELECT status, count(*) FROM public.projects
+> WHERE status NOT IN ('planning','in_progress','review','delivered','paused','cancelled','archived','active')
+> GROUP BY status;
+> -- esperado: 0 linhas.
+> ```
+> Motivo: o statement 3 (`ADD CONSTRAINT projects_status_known_chk`) falha
+> de verdade — não silenciosamente — se alguma linha existente tiver um
+> `status` fora dos 8 valores. Se as migrations do Supabase rodam o arquivo
+> numa transação única, essa falha reverte também o statement 1 (a coluna
+> `deliverables` seria adicionada e desfeita junto). Rodar o pré-check
+> **antes** de aplicar o arquivo — não como etapa opcional, como o passo 0
+> que decide se o arquivo pode ser aplicado como está ou precisa de ajuste
+> primeiro. Kit completo (pré-check + output esperado + 3 pós-checks) no
+> relatório da rodada de merge (chat, 2026-08-11).
+
 - **(a) `deliverables`:** Opção A — coluna `jsonb DEFAULT '[]'`, mesmo molde
   da Fatia 8/O1 (`crm_opportunities.tags/history`). Selado pelo achado de que
   `progress` é calculado a partir de `deliverables` (`ProjectDetailDrawer.tsx:97-99`)

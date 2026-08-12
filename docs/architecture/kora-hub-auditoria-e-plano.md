@@ -404,6 +404,16 @@ Achado na reabertura pós-formatação da máquina (item 0.5, retomada da Fase B
 
 ---
 
+**O12 — `mapLocalProjectToSupabase` nunca traduz `status === "archived"` pro boolean `archived` da nuvem. [BAIXO — dívida assumida, anda junto com O10]**
+Achado durante o desenho do CHECK de `status` (Etapa 5, flip de `projects`, item 3-a/migration `20260811000100`). `mapLocalProjectToSupabase` (`projectsMapper.ts:99`) grava `archived: false` **hardcoded**, sempre — nunca verifica `project.status === "archived"` pra setar `true`. Consequência prática: um projeto local arquivado, ao passar pelo import geral (`useLocalProjectsImport.ts`, já em `main` desde a Fatia 7), produz uma linha na nuvem com `status: "archived"` (texto) + `archived: false` (boolean) — os dois sinais divergem na mesma linha. É por isso que o CHECK constraint da migration `20260811000100` precisa admitir `'archived'` como valor de texto além do boolean (ver [`etapa-5-flip-projetos.md`](../qa/etapa-5-flip-projetos.md) item 3, justificativa do 8º valor).
+
+- **Não é um bug isolado** — é a mesma classe de dívida do O10 (alias legado `'active'`): os dois nascem do mesmo desenho provisório de `mapLocalProjectToSupabase`, escrito na Fatia 7 antes de existir qualquer normalização de vocabulário de `status`.
+- **Correção correta, se um dia for feita:** `mapLocalProjectToSupabase` passa a gravar `archived: project.status === "archived"` e, nesse caso, `status` sai como um valor neutro (mesmo padrão que `quoteMapper.ts` já usa pra `quotes`: `status === "arquivado"` → `{ status: "draft", archived: true }`) — aí sim o texto `'archived'` deixaria de ser necessário no CHECK, e o vocabulário de `status` ficaria mais enxuto.
+- **Resolver junto com O10, na mesma fatia futura** — não faz sentido eliminar só o alias `'active'` sem também consertar a tradução de `archived`, já que as duas mudanças tocam a mesma função e o mesmo CHECK.
+- Nenhuma ação nesta rodada além do registro — a migration `20260811000100` (escrita, não aplicada) já admite `'archived'` como texto, refletindo o comportamento atual, não o corrigido.
+
+---
+
 ## 3. Segurança / vulnerabilidades (verificar e endurecer)
 
 > Vários itens abaixo são **"confirmar no código"** — a arquitetura está certa, mas a implementação precisa ser auditada arquivo a arquivo pelo Code.
