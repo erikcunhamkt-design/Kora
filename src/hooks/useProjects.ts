@@ -46,6 +46,12 @@ export interface Project {
   notes?: string;
   updatedAt?: string;
   completedAt?: string;
+
+  // Etapa 5 · Flip Projetos — presente só em projetos lidos da nuvem com
+  // `status` bruto não reconhecido (mesmo padrão de Quote.cloudStatusRaw,
+  // quoteMapper.ts). UI nunca mascara: mostra o status de fallback + este
+  // valor bruto lado a lado.
+  cloudStatusRaw?: string;
 }
 
 const STORAGE_KEY = "orbyt.projects.v1";

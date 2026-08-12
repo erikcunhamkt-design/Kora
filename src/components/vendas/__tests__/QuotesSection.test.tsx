@@ -48,6 +48,16 @@ beforeEach(() => {
   Element.prototype.scrollIntoView = Element.prototype.scrollIntoView || (() => {});
 });
 
+// Achado (retomada pós-formatação, item 0.5): fixture de data absoluta é uma
+// bomba-relógio — `isQuoteExpired` (useQuotes.ts) compara `createdAt +
+// validityDays` contra `new Date()` real. Datas fixas no passado do "hoje" da
+// execução viram "vencido" e mascaram o status que o teste quer exercitar
+// (ex.: "rascunho"). `todayIso()` mantém o fixture sempre válido, qualquer
+// que seja o dia em que a suíte rodar.
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 function makeLocalQuote(overrides: Partial<Quote> = {}): Quote {
   return {
     id: "q-local-1",
@@ -64,7 +74,7 @@ function makeLocalQuote(overrides: Partial<Quote> = {}): Quote {
     deliveryDeadline: "",
     validityDays: 15,
     status: "rascunho",
-    createdAt: "2026-07-01",
+    createdAt: todayIso(),
     ...overrides,
   };
 }
@@ -88,7 +98,7 @@ function makeSupabaseMappedQuote(overrides: Partial<Quote> = {}): Quote {
     validityDays: 20,
     status: "aprovado", // já traduzido (Q9) — veio de "approved" na nuvem
     company: "Empresa Nuvem Ltda",
-    createdAt: "2026-07-20",
+    createdAt: todayIso(),
     ...overrides,
   };
 }

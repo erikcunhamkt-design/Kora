@@ -23,12 +23,20 @@ import {
 } from "@/hooks/useProjects";
 import { useTasks, formatPtBr, type Task, type TaskPriority } from "@/hooks/useTasks";
 import { useClients } from "@/hooks/useClients";
+import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { ClientTechnicalSheetSnapshot } from "@/components/clients/ClientTechnicalSheetSnapshot";
+import type { DataSource } from "@/config/flags";
+import { mirrorProjectToSupabase } from "@/services/projects/projectsCloudMirror";
+import { isSupabaseProjectsWriteEnabled } from "@/hooks/useSupabaseProjectsWriteFlag";
 
 interface ProjectDetailDrawerProps {
   project: Project | null;
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  /** Etapa 5 · Flip Projetos (item 2) — fonte da tela principal (ProjectsSection.tsx).
+   * Ausente = "local" (chamadores que ainda não passam a prop, ex. testes existentes,
+   * preservam o comportamento de sempre — sempre grava). */
+  dataSource?: DataSource;
 }
 
 const fmtBRL = (v?: number) => intlCurrency(v ?? 0, { minimumFractionDigits: 0 });
@@ -70,11 +78,12 @@ const PRIORITY_STYLE: Record<TaskPriority, string> = {
   baixa: "border-emerald-500/30 text-emerald-400 bg-emerald-500/10",
 };
 
-export function ProjectDetailDrawer({ project, open, onOpenChange }: ProjectDetailDrawerProps) {
+export function ProjectDetailDrawer({ project, open, onOpenChange, dataSource = "local" }: ProjectDetailDrawerProps) {
   const navigate = useNavigate();
   const { updateProject } = useProjects();
   const { tasks, addTask, moveTask } = useTasks();
   const { clients } = useClients();
+  const { workspace } = useCurrentWorkspace();
   const linkedClient = useMemo(
     () => (project?.clientId ? clients.find((c) => c.id === project.clientId) ?? null : null),
     [clients, project],
@@ -100,18 +109,48 @@ export function ProjectDetailDrawer({ project, open, onOpenChange }: ProjectDeta
 
   if (!project) return null;
 
+  // Etapa 5 · Flip Projetos (item 2) — leitura bifurcada, escrita ainda não
+  // (item 4). Sem esta guarda, editar um projeto vindo da nuvem chamaria
+  // updateProject (sempre local) com o uuid do projeto — não encontraria
+  // nada pra atualizar e falharia em silêncio, sem toast nenhum (nem de
+  // sucesso nem de erro). Mensagem explícita em vez disso (lição O2/O3/O4).
+  const blockWrite = (): boolean => {
+    if (dataSource !== "supabase") return false;
+    toast.error("Escrita de projetos no modo Supabase chega numa próxima fatia — volte para Local para editar.");
+    return true;
+  };
+
+  // Etapa 5 · Flip Projetos (item 4) — espelho best-effort, padrão G22: local
+  // já gravado ANTES desta chamada (updateProject, autoritativo); isto só
+  // tenta espelhar na nuvem quando o flag mestre está ON. Falha aqui NUNCA
+  // desfaz nem bloqueia o local — só avisa. `blockWrite()` já garante que só
+  // chegamos aqui com `project` local (dataSource !== "supabase").
+  const mirrorUpdateToSupabase = (patched: Project) => {
+    if (!isSupabaseProjectsWriteEnabled() || !workspace) return;
+    mirrorProjectToSupabase(workspace.id, patched).catch((mirrorErr) => {
+      console.error("Espelho nuvem do projeto falhou (local já gravado):", mirrorErr);
+      toast.warning("Alteração salva localmente, mas o espelho no Supabase falhou.", {
+        description: "Rode a importação manual em Configurações → Dados quando possível.",
+      });
+    });
+  };
+
   const setDeliverableStatus = (id: string, status: ProjectDeliverable["status"]) => {
+    if (blockWrite()) return;
     const next = deliverables.map((d) => (d.id === id ? { ...d, status } : d));
     const done = next.filter((d) => d.status === "concluido").length;
     const progress = next.length ? Math.round((done / next.length) * 100) : project.progress;
     updateProject(project.id, { deliverables: next, progress });
+    mirrorUpdateToSupabase({ ...project, deliverables: next, progress });
   };
 
   const handleStatus = (status: ProjectStatus) => {
+    if (blockWrite()) return;
     const patch: Partial<Project> = { status };
     if (status === "delivered") patch.progress = 100;
     updateProject(project.id, patch);
     toast.success(`Projeto atualizado: ${PROJECT_STATUS_LABEL[status]}`);
+    mirrorUpdateToSupabase({ ...project, ...patch });
   };
 
   const handleCreateTask = () => {

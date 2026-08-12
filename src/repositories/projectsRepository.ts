@@ -2,6 +2,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { normalizeSupabaseError } from "@/lib/supabase/errors";
+import type { ProjectDeliverable } from "@/hooks/useProjects";
 
 type ProjectUpsert = Database["public"]["Tables"]["projects"]["Insert"];
 
@@ -27,6 +28,11 @@ export interface SupabaseProject {
    * legadas ou criadas nativamente na nuvem (ex.: via CreateProjectFromQuoteDialog
    * antes de F1, ou por outro fluxo que não passe pelo import). */
   source_local_id?: string | null;
+  /** Etapa 5 · Flip Projetos (item 3-b): coluna pendente da migration
+   * 20260811000100 (ESCRITA, AINDA NÃO APLICADA). Até a aplicação, o
+   * PostgREST simplesmente não devolve este campo (`undefined`) — o mapper
+   * (projectsMapper.ts) trata isso com o mesmo fallback de `?? []`. */
+  deliverables?: ProjectDeliverable[] | null;
 }
 
 export const projectsRepository = {

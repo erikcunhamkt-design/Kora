@@ -91,6 +91,15 @@ export const TECHNICAL_SHEETS_DATA_SOURCE_KEY = "kora.technicalSheets.dataSource
  */
 export const QUOTES_DATA_SOURCE_KEY = "kora.quotes.dataSource.v1";
 
+/**
+ * Etapa 5 · Fatia N (`projects`) — seletor de fonte de dados de `projects`.
+ * Mesmo padrão de NASCIMENTO de `quotes` (Fatia 9, antes do Pacote do Flip):
+ * INVERSO do CRM/ficha técnica — default "local", só "supabase" explícito
+ * seleciona nuvem. Decisão deliberada: nenhuma homologação de escrita existe
+ * ainda para `projects`, então não herda o default "supabase" às cegas.
+ */
+export const PROJECTS_DATA_SOURCE_KEY = "kora.projects.dataSource.v1";
+
 // ── acesso seguro a localStorage (SSR-safe / storage desabilitado) ──────────
 
 function safeGet(key: string): string | null {
@@ -165,6 +174,17 @@ export function getQuotesDataSource(): DataSource {
 
 export function setQuotesDataSource(source: DataSource): void {
   safeSet(QUOTES_DATA_SOURCE_KEY, source);
+}
+
+// ── seletor de fonte de projects (string plana; default "local" nesta fatia) ──
+
+/** Só "supabase" explícito seleciona nuvem; qualquer outro valor ⇒ "local". */
+export function getProjectsDataSource(): DataSource {
+  return safeGet(PROJECTS_DATA_SOURCE_KEY) === "supabase" ? "supabase" : "local";
+}
+
+export function setProjectsDataSource(source: DataSource): void {
+  safeSet(PROJECTS_DATA_SOURCE_KEY, source);
 }
 
 // ── seletor de fonte da ficha técnica (mapa JSON por cliente; default "supabase") ──

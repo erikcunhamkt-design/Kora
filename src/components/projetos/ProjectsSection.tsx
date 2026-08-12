@@ -9,8 +9,15 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
-import { Plus, Search, FolderOpen, Loader2, Eye, CheckCircle2, DollarSign, AlertTriangle, Calendar, User, Link2, FileText } from "lucide-react";
-import { useProjects, PROJECT_STATUS_LABEL, PROJECT_PRIORITY_LABEL, type ProjectStatus, type ProjectPriority } from "@/hooks/useProjects";
+import { Plus, Search, FolderOpen, Loader2, Eye, CheckCircle2, DollarSign, AlertTriangle, Calendar, User, Link2, FileText, Database, Cloud } from "lucide-react";
+import { useProjects, PROJECT_STATUS_LABEL, PROJECT_PRIORITY_LABEL, type ProjectStatus, type ProjectPriority, type Project } from "@/hooks/useProjects";
+import { useSupabaseProjectsSummary } from "@/hooks/useSupabaseProjectsSummary";
+import { useClientsDataSource } from "@/hooks/useClientsDataSource";
+import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
+import { getProjectsDataSource, setProjectsDataSource, type DataSource } from "@/config/flags";
+import { mapSupabaseProjectToLocal } from "@/services/projects/projectsMapper";
+import { mirrorProjectToSupabase } from "@/services/projects/projectsCloudMirror";
+import { isSupabaseProjectsWriteEnabled } from "@/hooks/useSupabaseProjectsWriteFlag";
 import { ProjectDetailDrawer } from "@/components/projects/ProjectDetailDrawer";
 import { toast } from "@/hooks/use-toast";
 
@@ -36,7 +43,45 @@ const fmtBRL = (v?: number) => intlCurrency(v ?? 0, { minimumFractionDigits: 0 }
 const fmtDate = (iso?: string) => (iso ? intlDate(iso) : "—");
 
 export function ProjectsSection() {
-  const { projects, addProject } = useProjects();
+  const { projects: localProjects, addProject } = useProjects();
+
+  // Etapa 5 · Flip Projetos (item 2) — seletor de dataSource, default LOCAL
+  // (kora.projects.dataSource.v1, config/flags.ts). Os dois hooks abaixo
+  // rodam sempre; só um alimenta a tela por vez — mesmo padrão já usado em
+  // CRM.tsx/QuotesSection.tsx.
+  const {
+    projects: supabaseProjectsRaw, loading: supabaseLoading, error: supabaseError,
+  } = useSupabaseProjectsSummary();
+  const { clients: dsClients } = useClientsDataSource();
+  const { workspace } = useCurrentWorkspace();
+  const clientNameById = useMemo(() => {
+    const map: Record<string, string> = {};
+    dsClients.forEach((c) => { map[String(c.id)] = c.name; });
+    return map;
+  }, [dsClients]);
+  const supabaseProjects: Project[] = useMemo(
+    () => supabaseProjectsRaw.map((sp) => mapSupabaseProjectToLocal(sp, clientNameById)),
+    [supabaseProjectsRaw, clientNameById],
+  );
+
+  const [dataSource, setDataSourceState] = useState<DataSource>(() => getProjectsDataSource());
+  const projects = dataSource === "supabase" ? supabaseProjects : localProjects;
+
+  const handleSourceChange = (next: DataSource) => {
+    setProjectsDataSource(next);
+    setDataSourceState(next);
+    toast({ title: `Fonte dos projetos alterada para ${next === "supabase" ? "Supabase (leitura)" : "Local"}.` });
+  };
+
+  // Etapa 5 · Flip Projetos (item 2) — leitura bifurcada, escrita ainda não
+  // (item 4). Bloqueia ações de escrita em modo Supabase com mensagem
+  // explícita, em vez de gravar local e a UI não refletir (lição O2/O3/O4).
+  const blockWrite = (): boolean => {
+    if (dataSource !== "supabase") return false;
+    toast({ title: "Escrita de projetos no modo Supabase chega numa próxima fatia — volte para Local para editar.", variant: "destructive" });
+    return true;
+  };
+
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState("");
@@ -96,12 +141,13 @@ export function ProjectsSection() {
 
   const handleCreate = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (blockWrite()) return;
     const fd = new FormData(e.currentTarget);
     const name = (fd.get("name") as string).trim();
     const clientName = (fd.get("clientName") as string).trim();
     if (!name) { toast({ title: "Informe o nome do projeto", variant: "destructive" }); return; }
     if (!clientName) { toast({ title: "Informe o cliente", variant: "destructive" }); return; }
-    addProject({
+    const project = addProject({
       name,
       clientName,
       description: (fd.get("description") as string) || "",
@@ -115,6 +161,24 @@ export function ProjectsSection() {
     });
     setOpen(false);
     toast({ title: "Projeto criado" });
+    mirrorCreateToSupabase(project);
+  };
+
+  // Etapa 5 · Flip Projetos (item 4) — espelho best-effort, padrão G22:
+  // local já gravado ACIMA (addProject, autoritativo); isto só tenta
+  // espelhar na nuvem quando o flag mestre está ON. Falha aqui NUNCA desfaz
+  // nem bloqueia o local — só avisa (mesmo contrato de
+  // CreateProjectFromQuoteDialog.tsx).
+  const mirrorCreateToSupabase = (project: Project) => {
+    if (!isSupabaseProjectsWriteEnabled() || !workspace) return;
+    mirrorProjectToSupabase(workspace.id, project).catch((mirrorErr) => {
+      console.error("Espelho nuvem do projeto falhou (local já gravado):", mirrorErr);
+      toast({
+        title: "Projeto salvo localmente, mas o espelho no Supabase falhou.",
+        description: "Rode a importação manual em Configurações → Dados quando possível.",
+        variant: "destructive",
+      });
+    });
   };
 
   const cards = [
@@ -175,6 +239,63 @@ export function ProjectsSection() {
           </DialogContent>
         </Dialog>
       </div>
+
+      {/* Etapa 5 · Flip Projetos (item 2) — seletor de fonte, mesmo padrão de
+          "Fonte dos orçamentos" (QuotesSection.tsx)/"Fonte do CRM" (CRM.tsx). */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-border bg-card/30">
+        <div className="flex items-center gap-2">
+          <Database className="h-4 w-4 text-primary" />
+          <span className="text-xs font-semibold text-foreground">Fonte dos projetos:</span>
+          {dataSource === "supabase" && (
+            <Badge variant="outline" className="text-[10px] uppercase font-mono py-0 text-primary border-primary/30 bg-primary/5">
+              Modo leitura
+            </Badge>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => handleSourceChange("local")}
+            className={`text-xs px-3 h-8 rounded-md border transition ${
+              dataSource === "local"
+                ? "bg-primary text-primary-foreground border-primary"
+                : "border-border text-foreground hover:bg-muted/40"
+            }`}
+          >
+            Local
+          </button>
+          <button
+            type="button"
+            onClick={() => handleSourceChange("supabase")}
+            className={`text-xs px-3 h-8 rounded-md border transition ${
+              dataSource === "supabase"
+                ? "bg-primary text-primary-foreground border-primary"
+                : "border-border text-foreground hover:bg-muted/40"
+            }`}
+          >
+            Supabase experimental
+          </button>
+        </div>
+      </div>
+
+      {dataSource === "supabase" && (
+        <div className="flex items-start gap-2.5 p-3 rounded-lg border border-primary/20 bg-primary/5 text-xs text-foreground">
+          <Cloud className="h-4 w-4 shrink-0 mt-0.5 text-primary" />
+          <div className="flex-1">
+            <span className="font-semibold block">Projetos em modo leitura (Supabase)</span>
+            <span className="text-muted-foreground">
+              Escrita ainda chega numa próxima fatia — volte para "Local" para editar.
+            </span>
+          </div>
+        </div>
+      )}
+
+      {dataSource === "supabase" && supabaseLoading && (
+        <p className="text-xs text-muted-foreground">Carregando projetos do Supabase...</p>
+      )}
+      {dataSource === "supabase" && supabaseError && (
+        <p className="text-xs text-destructive">Erro ao carregar projetos do Supabase: {supabaseError}</p>
+      )}
 
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
         {cards.map((c) => {
@@ -294,6 +415,7 @@ export function ProjectsSection() {
         project={detailProject}
         open={!!detailProject}
         onOpenChange={(v) => { if (!v) setDetailId(null); }}
+        dataSource={dataSource}
       />
     </div>
   );

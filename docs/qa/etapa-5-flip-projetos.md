@@ -282,3 +282,153 @@ Estimativa: **2 fatias**, mesma cadência das anteriores.
   `CreateProjectFromQuoteDialog`).
 
 **PARADO aqui — Fase B (design de código) só com novo "vai" do revisor.**
+
+---
+
+## Fase B.1 — código (retomada pós-formatação, 2026-08-11)
+
+> "vai" literal do revisor, colado no chat pelo operador (§9): Fase B.1
+> autorizada. Worktree `Kora-laneA`, branch `etapa-5-flip-projetos`.
+
+### §0 — RE-ABERTURA (§16/§17)
+
+`git worktree list` confirma isolamento: `main` só checked-out em
+`orbit-designer-hub` (`71c4a75`); `Kora-laneA` sozinha em
+`etapa-5-flip-projetos`. `origin/main` seguia em `71c4a75` — sem drift,
+não precisou sincronizar. `npm install` ok. Gates iniciais: `tsc` 0 ·
+lint 0 erros/29 warnings · **vitest 353/354** (1 falha).
+
+### Item 0.5 — diagnóstico do teste vermelho (achado O11)
+
+Falha em `QuotesSection.test.tsx` (domínio `quotes`, não `projects`) — fixture
+de data absoluta (`createdAt: "2026-07-20"` + `validityDays: 20`) tinha
+vencido entre a Fase A e a retomada (hoje é 2026-08-11). **Não é regressão
+de `main` nem de ambiente** — confirmado por `git merge-base --is-ancestor`
+que o commit que tocou o teste já está em `origin/main`, e o registro do
+revisor confirma que `main` já rodou 354/354 em rodadas anteriores.
+Corrigido trocando `createdAt` fixo por `todayIso()` nos 2 fixtures afetados
+— suíte voltou a **354/354**. Detalhe completo e classe do achado:
+[`kora-hub-auditoria-e-plano.md` O11](../architecture/kora-hub-auditoria-e-plano.md).
+
+### Item 1 — `PROJECTS_DATA_SOURCE_KEY` (`src/config/flags.ts`)
+
+Nasce no mesmo formato de **nascimento** de `quotes` (Fatia 9, antes do
+Pacote do Flip) — INVERSO do CRM: default `"local"`, só `"supabase"`
+explícito seleciona nuvem. `getProjectsDataSource()`/`setProjectsDataSource()`.
+5 testes novos em `flags.test.ts`.
+
+### Item 2 — bifurcação de leitura
+
+- `projectsMapper.ts` ganhou a direção nuvem→local: `CLOUD_TO_LOCAL_PROJECT_STATUS`,
+  `translateCloudProjectStatusToLocal`, `resolveLocalProjectSource`,
+  `mapSupabaseProjectToLocal` (clientName resolvido via `useClientsDataSource()`,
+  progress SEMPRE derivado de `deliverables` — não existe coluna `progress`
+  na nuvem).
+- `ProjectsSection.tsx` (tela principal): roda `useProjects()` (local) +
+  `useSupabaseProjectsSummary()` (nuvem) sempre; só um alimenta a tela,
+  gated por `dataSource` — mesmo padrão de `QuotesSection.tsx`. Toggle
+  visual "Local"/"Supabase experimental" idêntico.
+- `ProjectDetailDrawer.tsx` ganhou prop `dataSource` (default `"local"`,
+  chamadores que não passam a prop preservam o comportamento de sempre) +
+  `blockWrite()`: editar um projeto vindo da nuvem mostra toast explícito
+  em vez de `updateProject` falhar em silêncio (lição O2/O3/O4) — sem esta
+  guarda, o hook local não encontraria o uuid da nuvem pra atualizar.
+- **Consumidores fora da tela principal (9 arquivos) ficam local-only nesta
+  fatia**, inventariados no relatório do item 2 do chat: `useLocalProjectsImport.ts`,
+  `useDayCenterData.ts` (Central do Dia), `QuoteToProjectDialog.tsx` (Vendas),
+  `KoraOnboarding.tsx`, `CreateProjectFromQuoteDialog.tsx` (CRM/G22),
+  `ClientProfileDrawer.tsx`, `ClientActivitiesTab.tsx`, `ClientActivityLogDialog.tsx`.
+
+### Item 3 — desenho dos 2 gaps de schema (decisão do revisor)
+
+Migration **escrita, NÃO APLICADA**:
+[`supabase/migrations/20260811000100_etapa5_flip_projetos_deliverables_status_check.sql`](../../supabase/migrations/20260811000100_etapa5_flip_projetos_deliverables_status_check.sql).
+Aplicação é sessão §8-b dedicada com o operador, ANTES da fatia N+1 — não
+desta rodada.
+
+- **(a) `deliverables`:** Opção A — coluna `jsonb DEFAULT '[]'`, mesmo molde
+  da Fatia 8/O1 (`crm_opportunities.tags/history`). Selado pelo achado de que
+  `progress` é calculado a partir de `deliverables` (`ProjectDetailDrawer.tsx:97-99`)
+  — Opção B (não exibir) seria regressão de UX real.
+- **(b) `status`:** Opção A — CHECK admite os 7 valores locais + alias
+  legado `'active'` (DEFAULT da coluna + `createProjectFromQuote`).
+  **Refinamento descoberto durante a escrita da migration:** o CHECK também
+  precisa admitir `'archived'` como texto — o mapper de escrita
+  (`mapLocalProjectToSupabase`) nunca seta o boolean `archived` (sempre
+  `false`), então hoje "arquivado" só chega na nuvem como string. Vocabulário
+  final: **8 valores** (7 locais + `active`), não 7+1. Opção B (eliminar
+  `'active'` na origem) registrada como dívida — [O10](../architecture/kora-hub-auditoria-e-plano.md).
+
+### Item 4 — escrita dual-mode (padrão G22)
+
+Novo flag mestre `kora.projects.supabaseWrite.enabled`
+(`useSupabaseProjectsWriteFlag.ts`) — nasce **opt-in, default OFF**, mesmo
+nascimento de `useSupabaseCrmWriteFlag`/`useSupabaseQuotesWriteFlag` antes
+dos respectivos flips.
+
+Novo módulo `projectsCloudMirror.ts` (`mirrorProjectToSupabase`) — espelho
+best-effort: local grava PRIMEIRO (sempre autoritativo), depois tenta
+espelhar; falha nunca desfaz nem bloqueia o local. Diferente do G22
+original (`CreateProjectFromQuoteDialog.tsx`, que usa só
+`createProjectFromQuote`, sem `source_local_id`), este módulo reusa o
+arbiter de `useLocalProjectsImport.ts`
+(`buildSourceLocalId(installId, localId)` +
+`projectsRepository.importProject`, upsert em `(workspace_id,
+source_local_id)`) — a MESMA chamada serve de CREATE e UPDATE do espelho
+(idempotente), e mantém o import-map (`kora.projects.supabaseImport.v1`)
+consistente com a ferramenta de import assistido. Fiado em
+`ProjectsSection.tsx` (create) e `ProjectDetailDrawer.tsx`
+(`setDeliverableStatus`/`handleStatus`).
+
+**Hierarquia final de flags de `projects`:**
+
+| Flag | Papel | Default |
+|---|---|---|
+| `kora.projects.dataSource.v1` | qual fonte a TELA LÊ (local/supabase) | `local` |
+| `kora.projects.supabaseWrite.enabled` | SE a escrita local também espelha na nuvem (best-effort) | OFF |
+| `kora.projects.supabaseCreateBaseTasks.enabled` | flag pré-existente, não tocada — gate do painel órfão "Gerar tarefas base" | OFF |
+
+**Não unificado com o G22 original:** `CreateProjectFromQuoteDialog.tsx`
+(CRM) mantém seu próprio espelho, sempre ativo quando a flag
+`quotesSupabaseCreateProject` libera o botão — **não checa**
+`kora.projects.supabaseWrite.enabled`. Dois caminhos de mirror independentes,
+gates diferentes, deliberadamente não convergidos nesta rodada (fora do
+escopo "tela principal" desta fatia). `QuoteToProjectDialog.tsx` (Vendas)
+permanece 100% local, sem espelho nenhum — risco #4 da Fase A, não resolvido.
+
+### Item 5 — testes
+
+4 arquivos novos, 51 testes novos: `flags.test.ts` (+5), `projectsMapper.test.ts`
+(32 — tradução de status nos dois sentidos incluindo alias `active` e fallback
+`cloudStatusRaw`, source, `mapLocalProjectToSupabase`/`mapSupabaseProjectToLocal`
+completos), `useSupabaseProjectsWriteFlag.test.ts` (7), `projectsCloudMirror.test.ts`
+(7 — idempotência do `source_local_id`, import-map só após sucesso, falha
+propagada nunca engolida), `ProjectsSection.test.tsx` (7 — matriz dual-mode:
+local/supabase, bloqueio de escrita em modo Supabase, espelho ON/OFF, falha
+do espelho não desfaz o local).
+
+### Gates finais
+
+`tsc --noEmit` **0 erros** · `npm run lint` **0 erros / 29 warnings**
+(mesmo baseline de antes, nenhum novo) · `npm run test` **392/392** verde.
+
+### Pendências catalogadas (não bloqueiam esta fatia)
+
+- [O9](../architecture/kora-hub-auditoria-e-plano.md) — `projectsRepository.softDeleteProject`
+  é código morto (zero caller), catalogado sem remover.
+- [O10](../architecture/kora-hub-auditoria-e-plano.md) — alias legado `'active'`
+  em `status`, dívida assumida (Opção A sobre Opção B).
+- [O11](../architecture/kora-hub-auditoria-e-plano.md) — classe de bug
+  "fixture de teste com data absoluta" — 1 instância corrigida, auditoria
+  preventiva noutros domínios fica pendente.
+- `ProjectDetailDrawer.tsx`: `linkedClient` (ficha técnica do cliente no
+  drawer) usa `useClients()` local — para projeto lido da nuvem,
+  `clientId` é a uuid smuggled (mesmo precedente de `useClientsDataSource.ts`),
+  não bate com os ids numéricos locais. Cai no fallback já existente
+  ("Cliente vinculado não foi encontrado nos registros locais") — sem
+  crash, mas sem o snapshot da ficha técnica para projetos de nuvem nesta
+  fatia.
+
+**§18: PARADO aqui — nenhum merge para `main` sem branch pushada (ação do
+operador, P6) + relatório + revisão + "vai" literal e específico para o
+merge.**

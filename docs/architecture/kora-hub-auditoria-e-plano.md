@@ -378,6 +378,32 @@ Achado durante o smoke pós-merge do Pacote do Flip de `quotes` (Etapa 5) — fo
 
 ---
 
+**O9 — `projectsRepository.softDeleteProject` é código morto (zero caller). [BAIXO — catalogado, não removido]**
+Achado durante a Fase A do flip de `projects` (Etapa 5). Grep repo-wide confirma zero chamadas a `projectsRepository.softDeleteProject` fora do próprio arquivo (`src/repositories/projectsRepository.ts:71-84`) — nenhuma UI aciona soft-delete de projeto na nuvem hoje. Detalhamento: [`etapa-5-flip-projetos.md`](../qa/etapa-5-flip-projetos.md) §1 (item 8 do inventário de escrita).
+
+- **Catalogado, não removido** — por decisão explícita do revisor (retomada da Fase B.1, 2026-08-11): a função pode ser útil quando uma futura fatia adicionar exclusão de projeto pela tela principal; remover agora e reescrever depois é retrabalho sem ganho.
+- Nenhuma ação nesta rodada além do registro.
+
+---
+
+**O10 — `projects.status` tem um alias legado permanente ('active'), em vez de vocabulário único. [BAIXO — dívida assumida, Opção A escolhida sobre Opção B]**
+Achado durante o desenho do CHECK constraint de `projects.status` (Etapa 5, flip de `projects`, item 3-a). `'active'` é o `DEFAULT` da própria coluna (`20260601030000_create_projects_schema.sql:12`) e o valor gravado por `projectsRepository.createProjectFromQuote` (`:51`) — nenhum dos dois é um valor do vocabulário local (`ProjectStatus`, 7 valores). Detalhamento completo, com as duas opções e prós/contras: [`etapa-5-flip-projetos.md`](../qa/etapa-5-flip-projetos.md) item 3.
+
+- **Decisão do revisor (retomada da Fase B.1, 2026-08-11):** Opção A — manter `'active'` como alias legado permanente no CHECK e no mapper (`CLOUD_TO_LOCAL_PROJECT_STATUS`, `projectsMapper.ts`), em vez da Opção B (eliminar na origem: trocar o `DEFAULT` da coluna + o write de `createProjectFromQuote` + o OR defensivo de `SupabaseOperationalDashboardCard.tsx:315-316` por um vocabulário único). Motivo: Opção A é aditiva, zero risco a código já em produção (G22); Opção B tocaria um caminho de escrita já funcionando por um ganho só estético.
+- **Pacote futuro, se algum dia for feito:** trocar o `DEFAULT` da coluna `projects.status` de `'active'` para um valor do vocabulário local (ex. `'planning'`), trocar `createProjectFromQuote` para gravar `'in_progress'` em vez de `'active'`, remover `'active'` do CHECK e do mapper, e remover o OR defensivo do dashboard.
+- Nenhuma ação nesta rodada além do registro — o CHECK constraint (migration `20260811000100`, escrita e não aplicada) já admite `'active'` deliberadamente.
+
+---
+
+**O11 — Fixture de teste com data absoluta é bomba-relógio quando a lógica testada calcula prazo contra `new Date()` real. [BAIXO — 1 instância corrigida, classe catalogada]**
+Achado na reabertura pós-formatação da máquina (item 0.5, retomada da Fase B.1 do flip de `projects`, 2026-08-11). `QuotesSection.test.tsx` tinha `createdAt: "2026-07-20"` + `validityDays: 20` num fixture de status `"rascunho"` — a data de validade computada (`isQuoteExpired`, `useQuotes.ts:163-166`, compara contra `new Date()` real, não congelada em teste) tinha vencido dias antes desta sessão, fazendo o teste falhar por "Vencido" aparecer em vez de "Rascunho". **Não era regressão de ambiente nem de `main`** — `main` rodava 354/354 nas rodadas documentadas antes da formatação; o vermelho apareceu só porque o calendário avançou.
+
+- **Corrigido nesta rodada:** os 2 fixtures afetados (`makeLocalQuote`, `makeSupabaseMappedQuote`) trocaram `createdAt` fixo por `todayIso()` (helper local ao arquivo de teste) — sempre válido, não importa que dia a suíte rode. Suíte voltou a 354/354 antes de qualquer trabalho em `projects`.
+- **Classe do achado, não só a instância:** qualquer fixture de teste com data absoluta próxima da validade, testado contra lógica que usa `new Date()` real (prazo, expiração, vencimento), é uma bomba-relógio — funciona hoje, quebra sozinho quando o calendário passar da data. Vale auditoria preventiva noutros domínios com `validityDays`/prazo (`finance`, outras entidades com data de vencimento) — fora de escopo desta rodada, só sinalizando.
+- Nenhuma outra instância encontrada/corrigida nesta rodada — busca foi limitada ao arquivo que falhou (`QuotesSection.test.tsx`).
+
+---
+
 ## 3. Segurança / vulnerabilidades (verificar e endurecer)
 
 > Vários itens abaixo são **"confirmar no código"** — a arquitetura está certa, mas a implementação precisa ser auditada arquivo a arquivo pelo Code.

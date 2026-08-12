@@ -22,6 +22,9 @@ import {
   QUOTES_DATA_SOURCE_KEY,
   getQuotesDataSource,
   setQuotesDataSource,
+  PROJECTS_DATA_SOURCE_KEY,
+  getProjectsDataSource,
+  setProjectsDataSource,
 } from "@/config/flags";
 
 beforeEach(() => {
@@ -206,6 +209,47 @@ describe("flags · seletor de fonte de quotes (string plana, default SUPABASE de
     getQuotesDataSource();
     expect(localStorage.getItem(QUOTES_DATA_SOURCE_KEY)).toBe("supabase");
     expect(getQuotesDataSource()).toBe("supabase");
+  });
+});
+
+// Etapa 5 · Fatia N (`projects`) — nasce INVERSO do CRM/ficha técnica, mesmo
+// formato de NASCIMENTO de `quotes` na Fatia 9 (antes do Pacote do Flip):
+// default "local", só "supabase" explícito escolhe nuvem. Nenhuma
+// homologação de escrita existe ainda para `projects` — não herda o default
+// "supabase" às cegas.
+describe("flags · seletor de fonte de projects (string plana, default LOCAL nesta fatia)", () => {
+  it("default é \"local\" quando ausente", () => {
+    expect(localStorage.getItem(PROJECTS_DATA_SOURCE_KEY)).toBeNull();
+    expect(getProjectsDataSource()).toBe("local");
+  });
+
+  it("só o literal \"supabase\" seleciona nuvem", () => {
+    localStorage.setItem(PROJECTS_DATA_SOURCE_KEY, "supabase");
+    expect(getProjectsDataSource()).toBe("supabase");
+  });
+
+  it("\"local\" e qualquer lixo resolvem para \"local\"", () => {
+    localStorage.setItem(PROJECTS_DATA_SOURCE_KEY, "local");
+    expect(getProjectsDataSource()).toBe("local");
+    localStorage.setItem(PROJECTS_DATA_SOURCE_KEY, "xpto");
+    expect(getProjectsDataSource()).toBe("local");
+    localStorage.setItem(PROJECTS_DATA_SOURCE_KEY, "");
+    expect(getProjectsDataSource()).toBe("local");
+  });
+
+  it("grava a string plana crua na chave certa", () => {
+    setProjectsDataSource("supabase");
+    expect(localStorage.getItem(PROJECTS_DATA_SOURCE_KEY)).toBe("supabase");
+    setProjectsDataSource("local");
+    expect(localStorage.getItem(PROJECTS_DATA_SOURCE_KEY)).toBe("local");
+  });
+
+  it("valor explícito \"supabase\" já persistido nunca é sobrescrito por uma leitura", () => {
+    setProjectsDataSource("supabase");
+    getProjectsDataSource();
+    getProjectsDataSource();
+    expect(localStorage.getItem(PROJECTS_DATA_SOURCE_KEY)).toBe("supabase");
+    expect(getProjectsDataSource()).toBe("supabase");
   });
 });
 
