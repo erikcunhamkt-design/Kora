@@ -418,6 +418,24 @@ Achado durante o desenho do CHECK de `status` (Etapa 5, flip de `projects`, item
 
 ---
 
+**G24 — `whatsapp-campaign-v2-sender`: recipients presos em `status='sending'` sem reaper (classe P4 do Batch 3, reintroduzida no v2). [ALTO — confirmado]**
+Achado durante a investigação da Etapa 6, item 4 (fila de campanhas v2), Fase A (LANE C, ref. `71c4a75`) e re-verificado contra o tip real (`208ff9c`) na Fase B. O lock de idempotência do sender v2 (`whatsapp-campaign-v2-sender/index.ts:197-205`) é um `UPDATE ... WHERE status='queued'` por linha, sem contrapartida de liberação: se a invocação morre no meio do lote (timeout da edge function, queda de rede), os recipients já travados em `sending` nunca voltam pra `queued` — a próxima chamada de `send_batch` só seleciona `status='queued'` (`:180-187`), então ficam presos pra sempre, sem nenhum mecanismo de self-heal.
+
+- **Mesma classe de bug já resolvida uma vez, no legado:** `20260701220000_batch3_campaign_robustness.sql` (comentário P4, linhas 3-8) documenta ter corrigido exatamente isto no sistema legado ("ran up to ~6min per invocation and blew the wall-clock limit, stranding rows in status='sending' forever"). O v2 nasceu com o desenho pré-fix (sleep in-process, sem gate no banco, sem reaper) e nunca recebeu o mesmo tratamento.
+- **Janela de exposição calculada, não estimada:** `MAX_BATCH_SIZE=10` + delay `30-90s` entre envios (`index.ts:23-26`, aplicado entre cada um dos 9 gaps de um lote cheio, `:286-289`) soma até **~13,5 min de wall-clock por invocação**, fora rede/typing/DB — bem acima do timeout típico de Edge Function, tornando o timeout um risco real de uso normal, não só de falha de rede.
+- **Fix:** RPC dedicada `reap_stuck_campaign_v2_recipients` + cron a cada 15 min, migration `20260811000200_etapa6_campaign_v2_reaper.sql` (escrita, não aplicada — sessão §8-b). Decisão registrada (opção (c) + reaper, não (a) automação completa): ver `kora-roadmap.md` §4, item 4.
+- **Limitação conhecida do fix:** o reaper re-enfileira o recipient sem saber se o envio já tinha ocorrido antes do crash de status — semântica *at-least-once*, reenvio duplicado possível e aceito nesta rodada; resolução definitiva (idempotência forte por `provider_message_id` antes de reaptar) fica pra fatia futura de unificação/opção (b).
+
+---
+
+**G25 — `WhatsAppCampaigns.tsx` (UI do sistema legado de campanhas) é código órfão — zero importadores. [MÉDIO — confirmado]**
+Achado na mesma investigação. `git grep` (`71c4a75` e re-confirmado em `208ff9c`) só encontra `WhatsAppCampaigns.tsx:16` (a própria definição do componente) — nenhuma página/rota importa. `WhatsApp.tsx:986` monta `CampaignsBackendPage` (v2), não este componente. Como é o único ponto de escrita em `whatsapp_queue`/`whatsapp_campaigns` do app hoje (nenhum outro caller de `.from("whatsapp_queue").insert(...)` existe em `src/`), o worker legado (`whatsapp-campaign-processor`, cron a cada minuto, claim/reap atômico — G4 original) está ativo e bem construído, mas sem nenhum caminho de produção pra alimentar a fila com campanhas novas.
+
+- **Cuidado ao decidir remover:** o cron do processor legado é hoje o heartbeat que mitiga a pausa por inatividade do projeto Supabase Free (`kora-roadmap.md` §6.3) — desagendá-lo por causa da UI órfã, sem decidir separadamente sobre esse heartbeat, reintroduz esse risco.
+- **Sem correção nesta rodada** — catalogado; decisão de remontar/remover/convergir fica pra fatia futura (opção (b), unificação v1→v2, registrada como fatia futura em `kora-roadmap.md` §4).
+
+---
+
 ## 3. Segurança / vulnerabilidades (verificar e endurecer)
 
 > Vários itens abaixo são **"confirmar no código"** — a arquitetura está certa, mas a implementação precisa ser auditada arquivo a arquivo pelo Code.

@@ -28,13 +28,14 @@
 | Etapa 5 · Fatia 9 — quotes (fundação + cutover de leitura) | ✅ feito | 8/8 provas | Precursor do Pacote do Flip |
 | Etapa 5 · Fatia 10 — quotes (infra de cutover de escrita) | ✅ feito | 9/9, 5 incidentes de homologação corrigidos ao longo | `ac367ad` |
 | Etapa 5 · **Pacote do Flip** — quotes (defaults flipados) | ✅ feito — **marco: G1/quotes 100% completo** | 6/6; leitura E escrita default Supabase | `dae6de8` |
+| Etapa 5 · Fatia N — projetos (escrita real: flags, leitura bifurcada, dual-write) | ✅ feito — **fundação, não o flip** (defaults continuam local/OFF) | `tsc` 0 · lint 0 erros/29 warnings · vitest 392/392; migration do CHECK/`deliverables` escrita, não aplicada | `208ff9c` |
 | G1 · clients | ✅ completo (confirmado no código) | Leitura+escrita default Supabase, reversível | Ver §3.1 |
 | G1 · fichas técnicas | ✅ completo (confirmado no código) | Leitura+escrita default Supabase, flip por cliente | Ver §3.2 |
 | G1 · CRM/oportunidades | ✅ completo (confirmado no código) | Leitura+escrita default Supabase, flip reversível | Ver §3.3 |
 | G1 · financeiro | 🟡 dual-write parcial, leitura local por padrão | Ver §3.4 — critério de pronto detalhado | Fila |
-| G1 · projetos | 🟡 dual-write parcial, leitura local por padrão | Ver §3.5 | Fila |
+| G1 · projetos | 🟡 fundação pronta (Fatia N), dual-write parcial, leitura local por padrão | Ver §3.5 — falta a Fatia N+1 (Pacote do Flip) pra virar ✅ | `208ff9c` (fundação); flip fica em fila |
 | G1 · tarefas | 🔴 não migrado na prática | Ver §3.6 | Backlog |
-| Etapa 6 — Fila, rate limit e worker | 🟡 parcial (G5/rate limit ✅ 100% fechado) | Ver §4 — resta só o item 4 (fila v2 de campanhas sem cron próprio, não investigado, escopo distinto do G5) | Ver §4 |
+| Etapa 6 — Fila, rate limit e worker | 🟡 parcial (G5/rate limit ✅ 100% fechado; item 4 investigado e decidido) | Ver §4 — item 4 resolvido como (c)+reaper (G24); unificação v1→v2 (opção b) registrada como fatia futura | Ver §4 |
 | Etapa 7 — Qualidade contínua | 🟡 em curso | Teto de lint menor; cobertura dos fluxos críticos; alertas ativos | Teto de lint 0/0 alcançado; cobertura/alertas não confirmados 100% |
 | Etapa 8 — WhatsApp Oficial (Tech Provider) | ⬜ backlog | PLANEJADA, não iniciada — depende de G1 avançar | — |
 | Transversal — UX/Produto | 🟡 catalogado, sem prazo | Ver §6.1 | `kora-ux-produto.md` |
@@ -52,9 +53,9 @@
 
 **Etapa 5 — G1/quotes completo, ponta a ponta:** das 10 fatias/marcos (1, 2, 3, 4, 6, 7, 8, 9, 10 + Pacote do Flip — não existe "Fatia 5", confirmado por grep), quotes chegou a **100% Supabase por default** (`dae6de8`) — primeiro domínio do Kora Hub a completar o ciclo inteiro. Achados ao longo do caminho: Q8/Q9/Q10 (quotes), 5 incidentes de homologação da Fatia 10 (worktree errada, loop de refetch — G14, symlink quebrado — motivou §17, import órfão — G16, gate de status), G11 (RPC overload), G12/G13 (lições de tradução/import-map).
 
-**Etapa 6 (parcial) — ver §4 para detalhe:** `pg_cron`/`pg_net` confirmados ativos e em uso real (`whatsapp-campaign-processor`, legado, a cada minuto); G8 (template do Send Node) resolvido e deployado; G18 (dependência Lovable) resolvido e validado em produção (Gemini direto); G5 Parte 1 (auth real do `isTest` + migração de provider) e Parte 2 (rate limit + retry/backoff) com código, DDL, deploy da function **e job de limpeza da tabela de contadores** todos confirmados em produção (02–03/ago/2026) — **G5 100% fechado**. Resta só o item 4 do §4: `whatsapp-campaign-v2-sender` sem cron próprio, escopo distinto do G5 (fila de campanhas, não chamadas de IA), não investigado nesta rodada.
+**Etapa 6 (quase completa) — ver §4 para detalhe:** `pg_cron`/`pg_net` confirmados ativos e em uso real (`whatsapp-campaign-processor`, legado, a cada minuto); G8 (template do Send Node) resolvido e deployado; G18 (dependência Lovable) resolvido e validado em produção (Gemini direto); G5 Parte 1 (auth real do `isTest` + migração de provider) e Parte 2 (rate limit + retry/backoff) com código, DDL, deploy da function **e job de limpeza da tabela de contadores** todos confirmados em produção (02–03/ago/2026) — **G5 100% fechado**. Item 4 (fila v2 de campanhas) **investigado e decidido nesta rodada** (LANE C, Fase A `71c4a75` + Fase B `208ff9c`): decisão (c) — v2 continua manual-only, sem cron novo — **+ reaper** (G24, migration `20260811000200`, escrita/não aplicada) pro bug de recipients presos em `sending`. Unificação v1→v2 (opção b) registrada como fatia futura, não como bloqueio.
 
-**Resgates de UI/dados órfãos (fora da sequência linear de fatias):** G16 (card Supabase de quotes nunca renderizado — corrigido), G20 (filtro de tipo faltando no dashboard operacional — corrigido), G22 (dual-write de "Gerar recebível"/"Gerar projeto" — corrigido). G21 (`BotRulesPanel.tsx` órfão) e G23 (avisos "híbrido" desatualizados na aba Dados — ver §3) catalogados, não corrigidos.
+**Resgates de UI/dados órfãos (fora da sequência linear de fatias):** G16 (card Supabase de quotes nunca renderizado — corrigido), G20 (filtro de tipo faltando no dashboard operacional — corrigido), G22 (dual-write de "Gerar recebível"/"Gerar projeto" — corrigido). G21 (`BotRulesPanel.tsx` órfão), G23 (avisos "híbrido" desatualizados na aba Dados — ver §3) e G25 (`WhatsAppCampaigns.tsx` órfão, único escritor da fila legada — worker vivo, fila morta) catalogados, não corrigidos.
 
 **Qualidade:** teto de lint chegou a **0 erros / 0 `any`** (histórico: ~89 → 68 → 49 → 34 → 33 → 2 → 0, ao longo de várias rodadas `qualidade-lint-*`).
 
@@ -121,16 +122,32 @@ partir de oportunidade) é opt-in à parte, não afeta o CRUD principal.
   4. Decisão sobre o dual-write existente: pós-flip, o caminho local vira o espelho (ou é
      aposentado) — mesma decisão que CRM/clients já tomaram.
 
-### 3.5 Projetos — 🟡 dual-write parcial, leitura local por padrão
+### 3.5 Projetos — 🟡 fundação pronta (Fatia N, `208ff9c`), flip ainda pendente (Fatia N+1)
 
-- **Hoje:** `ProjectsSection.tsx` (dentro de `Portfolio.tsx` — não existe `Projetos.tsx`) usa
-  só `useProjects()`. Mesma forma do financeiro: escrita Supabase isolada em
-  `CreateProjectFromQuoteDialog.tsx` (do CRM), flag `quotesSupabaseCreateProject` (**default
-  OFF**), dual-write best-effort (fix do G22). Painel interno de QA
-  (`SupabaseOperationalDashboardCard`) tem CRUD Supabase-nativo próprio, desconectado da tela
-  real.
-- **Critério de pronto:** mesmos 4 passos do financeiro, adaptados — flag/auto-detecção,
-  CRUD real wireado em `ProjectsSection.tsx`, flip do default, decisão sobre o dual-write.
+- **Antes desta fatia:** `ProjectsSection.tsx`/`ProjectDetailDrawer.tsx` liam só `useProjects()`
+  (100% localStorage, sem seletor de fonte nenhum — diferente de CRM/quotes, aqui o hook nunca
+  tinha sido bifurcado). Escrita Supabase isolada em `CreateProjectFromQuoteDialog.tsx` (do CRM),
+  flag `quotesSupabaseCreateProject` (default OFF), dual-write best-effort (fix do G22).
+- **Fatia N — "Projetos — escrita real" (`208ff9c`, equivalente à Fatia 10 de quotes):**
+  `kora.projects.dataSource.v1` (novo, default **local** — nascimento igual ao de quotes na
+  Fatia 9) + leitura bifurcada em `ProjectsSection.tsx`/`ProjectDetailDrawer.tsx` (9 outros
+  consumidores — Central do Dia, `QuoteToProjectDialog`, ficha do cliente etc. — ficam
+  local-only nesta fatia, catalogado, não bloqueante) + `kora.projects.supabaseWrite.enabled`
+  (novo flag mestre, default OFF) + módulo `projectsCloudMirror.ts` (espelho best-effort,
+  padrão G22, idempotente via `source_local_id`). Migration do CHECK de `status` (8 valores,
+  alias legado `active` — O10) + coluna `deliverables` **escrita, não aplicada**
+  (`20260811000100_etapa5_flip_projetos_deliverables_status_check.sql`, sessão §8-b).
+  Achados catalogados: O9 (código morto), O10/O12 (dívida de vocabulário `status`/`archived`,
+  resolver juntos numa fatia futura), O11 (classe de bug — fixture de teste com data absoluta).
+  Gates: `tsc` 0 · lint 0/29 (baseline) · vitest 392/392. Detalhe completo:
+  [`etapa-5-flip-projetos.md`](../qa/etapa-5-flip-projetos.md).
+- **Ainda não é "pronto" pelo critério do §7, regra 4** — os dois defaults (`dataSource`,
+  `supabaseWrite`) continuam local/OFF; isso é fundação (mesmo estágio que quotes tinha
+  pós-Fatia-10, pré-Pacote-do-Flip), não o flip em si.
+- **Critério de pronto (Fatia N+1 — "Pacote do Flip — projetos", fila):** flipar os 2 defaults
+  pra supabase/ON, decidir o destino das flags experimentais que ficarem redundantes
+  (`projectsSupabaseCreateBaseTasks` provavelmente sobrevive — gate um domínio adjacente,
+  tasks, ainda não migrado).
 
 ### 3.6 Tarefas — 🔴 não migrado na prática
 
@@ -175,20 +192,35 @@ partir de oportunidade) é opt-in à parte, não afeta o CRUD principal.
 3. **Rate limit e retry só cobrem `whatsapp-bot-reply`** (a única function que chama IA paga
    hoje — confirmado por grep no G5 Fase A). "e-mail" citado no G5/Etapa 6 originais é
    aspiracional, não existe integração nenhuma no repo.
-4. **G4 (fila de campanhas) já resolvido pelo legado**, não pela v2: `pg_cron` aciona
-   `whatsapp-campaign-processor` (sistema legado) a cada minuto, com claim atômico e reaper —
-   funcional e em produção. `whatsapp-campaign-v2-sender` (sistema mais novo) segue
-   manual-only, sem cron — se a v2 for o caminho definitivo, ainda falta esse cron; não
-   investigado nesta rodada se há decisão de aposentar o legado ou manter os dois.
+4. **G4 (fila de campanhas): investigado e decidido (LANE C, Fase A `71c4a75` + Fase B
+   `208ff9c`).** `pg_cron` aciona `whatsapp-campaign-processor` (sistema legado) a cada
+   minuto, com claim atômico (`claim_campaign_messages`) e reaper (`reap_stuck_campaign_messages`)
+   — funcional e bem construído, **mas sem caminho de produção que o alimente**: o único
+   ponto de escrita em `whatsapp_queue`/`whatsapp_campaigns` é `WhatsAppCampaigns.tsx`, que é
+   código órfão (zero importadores — **G25**). `whatsapp-campaign-v2-sender` (sistema atual,
+   `CampaignsBackendPage`) segue manual-only, sem cron, e tem um bug próprio: recipients
+   presos em `sending` sem self-heal se a invocação estourar o tempo (lote cheio chega a
+   ~13,5min) ou cair no meio — mesma classe que o legado já teve e corrigiu (**G24**).
+   - **Decisão registrada (opção c + reaper, não a):** v2 continua manual-only — automatizar
+     agora (cron pra v2) industrializaria o bug G24 em vez de corrigi-lo primeiro. Fix
+     aplicado ao bug isoladamente: RPC `reap_stuck_campaign_v2_recipients` (threshold 1200s,
+     calculado pra não reaptar lotes legítimos em andamento) + `cron.schedule` a cada 15min,
+     migration `20260811000200_etapa6_campaign_v2_reaper.sql` **escrita, não aplicada**
+     (sessão §8-b, junto com a migration de Projetos).
+   - **Unificação v1→v2 (opção b) — registrada como fatia futura, não decidida agora:** mover
+     o worker robusto (claim/reap) do legado pra operar sobre o schema v2, aposentando as
+     tabelas legadas depois — já era o "próximo passo" documentado em
+     `SUPABASE-WHATSAPP-CAMPAIGNS-V1.md`. Não escopada nesta rodada.
+   - **Atenção antes de mexer no cron do legado:** ele é hoje o heartbeat que mitiga a pausa
+     por inatividade do projeto Supabase Free (§6.3) — desagendar por causa da UI órfã (G25)
+     sem decidir esse heartbeat à parte reintroduz o risco de pausa.
 
-**"Etapa 6 restante" não está zerada — resta o item 4.** O escopo do G5 (rate limit/retry
-para chamadas de IA, itens 1-3) está agora **100% fechado**: código, DDL, deploy da function
-e job de limpeza, todos confirmados em produção. O item 4 é uma questão diferente, de escopo
-mais amplo que o G5 (título da etapa é "Fila, **rate limit** e **worker**" — worker/fila
-cobre também o envio de campanhas, não só as chamadas de IA), e continua **não investigada**:
-não há decisão registrada sobre aposentar o sistema legado de campanhas em favor do v2, nem
-sobre se o v2 precisa do próprio cron. Não é um bloqueio conhecido, é uma lacuna de
-investigação — permanece em aberto até alguém (operador ou revisor) decidir o rumo.
+**"Etapa 6 restante" praticamente zerada.** O escopo do G5 (rate limit/retry para chamadas de
+IA, itens 1-3) está **100% fechado**: código, DDL, deploy da function e job de limpeza, todos
+confirmados em produção. O item 4 (worker/fila de campanhas — escopo mais amplo que o G5,
+cobre envio, não só chamadas de IA) está **investigado e decidido**: v2 fica manual-only +
+reaper (fix escrito, não aplicado); unificação v1→v2 é fatia futura, não bloqueio. Etapa 6
+só falta a aplicação da migration do reaper (sessão §8-b) pra fechar de fato.
 
 ---
 
