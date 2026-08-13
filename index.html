@@ -9,6 +9,17 @@
     
     <link rel="icon" type="image/png" href="/favicon.png" />
 
+    <!-- Google Fonts via <link> no <head>, não @import em CSS (docs.google.com/fonts
+         recomenda isso — @import é render-blocking e serializa fetch do CSS antes de
+         sequer descobrir a URL da fonte; preconnect paraleliza DNS/TLS com o resto
+         da página). Ver achado registrado no catálogo mestre. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Andika:wght@400;700&family=Comic+Neue:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+
     <meta property="og:title" content="Kora Hub — Gestão Inteligente" />
     <meta property="og:description" content="Gestão e produtividade completa para agências, estúdios e empresas." />
     <meta property="og:type" content="website" />
