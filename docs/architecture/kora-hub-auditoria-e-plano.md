@@ -418,7 +418,8 @@ Achado durante o desenho do CHECK de `status` (Etapa 5, flip de `projects`, item
 
 ---
 
-**O13 — `CRM.test.tsx` (caso `describe("CRM · O2 (excluir)...")`) falhou numa rodada da suíte completa e passou sozinho e na rodada seguinte. [OBSERVAÇÃO — não é bug confirmado; hipótese contenção de 3 worktrees simultâneas]** Sem ação — vira investigação só se reincidir.
+**O13 — `CRM.test.tsx` (`describe("CRM · O2 (excluir)...")`) flaky na suíte completa. [REINCIDENTE — vira investigação, ainda não é bug confirmado no código]**
+Observado 3 vezes agora (Pacote do Flip de Projetos, gates de push da branch e gates pós-merge em `main`, 2026-08-11/12): falha 1/2 casos numa rodada da suíte completa (`npm run test`, 47 arquivos), conjunto de casos que falha muda a cada rodada (não é sempre o mesmo teste). **Isolado (`npx vitest run src/pages/__tests__/CRM.test.tsx`), passa 9/9 sempre, sem exceção, nas 3 checagens feitas.** Hipótese de contenção de recursos (múltiplos processos vitest/worktrees do repo rodando na mesma máquina) segue de pé — falha não-determinística e ausente em isolamento aponta pra ambiente/paralelismo, não pra lógica quebrada. **Nenhum arquivo tocado pelas fatias que observaram o flake tem relação com CRM/`opportunities`** (domínio `projects`, fatias distintas). Reincidência ativa o gatilho já registrado — recomendado abrir investigação dedicada (rodar a suíte completa isoladamente, sem outro processo pesado concorrente, pra confirmar se o flake desaparece; se persistir mesmo sem contenção, aí sim é um problema real de isolamento entre testes em `CRM.test.tsx`). Não bloqueou nenhum merge até agora — o código da fatia que triggou cada observação sempre saiu 100% verde.
 
 ---
 
