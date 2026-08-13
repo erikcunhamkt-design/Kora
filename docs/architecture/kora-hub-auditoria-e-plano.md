@@ -447,6 +447,17 @@ Achado na mesma investigação. `git grep` (`71c4a75` e re-confirmado em `208ff9
 
 ---
 
+**G26 — Teste de interação que só confere o texto resultante pode passar sem a ação real ter ocorrido — mesma classe de risco do §17 (prova por hash de commit, não por comportamento observado), agora em nível de asserção de teste. [BAIXO — achado de metodologia, corrigido no teste que o descobriu]**
+Achado durante os testes de mount do UX2 (`ux2-g21-g23-g25-fase-a`, `WhatsApp.tab-gate.test.tsx`). Uma primeira versão do teste clicava numa aba com `fireEvent.click(trigger)` e verificava só se o texto esperado ("WhatsApp não conectado") aparecia na tela — passava, mas por motivo errado.
+
+- **A causa:** o `TabsTrigger` do Radix (`@radix-ui/react-tabs`, versão instalada neste projeto) só ativa com a sequência completa de eventos de ponteiro — `pointerdown`/`mousedown`/`pointerup`/`mouseup`/`click` — um `fireEvent.click` isolado não muda o `value` do `Tabs`. Como a aba default ("chat") já mostra o mesmo empty state que as outras 4 abas gateadas (todas usam o mesmo `WhatsAppEmptyState`), um clique que **não fazia nada** ainda deixava a tela exatamente igual ao resultado esperado — o teste não conseguia distinguir "a ação aconteceu e produziu o resultado certo" de "a ação não aconteceu e o resultado já era esse por padrão".
+- **Como foi pego:** não pela leitura do teste (ele parecia correto) — só ao depurar por que os testes com **conteúdo distinto por aba** (`STUB: WhatsAppBotConfig montado`, `STUB: CampaignsBackendPage montado`) falhavam mesmo com a asserção "parecida" nos testes de empty state passando. A investigação (via `screen.getAllByRole("tab").map(t => t.getAttribute("data-state"))`, antes/depois do clique) mostrou que a aba ativa nunca mudava, mesmo o clique "passando" silenciosamente nos outros casos.
+- **Fix aplicado no teste (não em código de produção):** helper `clickTab()` centraliza a sequência completa de eventos **e** confere explicitamente `expect(trigger).toHaveAttribute("aria-selected", "true")` logo após o clique — o teste agora prova que a ação ocorreu, antes de conferir o efeito dela. Todos os 10 casos de `WhatsApp.tab-gate.test.tsx` usam o helper.
+- **Classe do achado, não só a instância:** qualquer teste de interação (clique, submit, drag) numa UI onde dois estados diferentes podem produzir o mesmo texto/resultado visível corre esse risco — a asserção "o texto certo apareceu" não é suficiente sozinha quando um "nada aconteceu" também produziria esse texto. Padrão a adotar: quando a ação testada tem um sinal de estado próprio e barato de conferir (um atributo ARIA, uma classe `data-state`, uma chamada de mock), confirmar esse sinal **além** do efeito observável — mesmo espírito do §17 (`docs/qa/protocolo-homologacao.md`): não inferir que a ação certa aconteceu só pelo comportamento que ela deveria produzir, quando esse comportamento pode coincidir por motivo errado.
+- **Não é um bug de produção** — nenhum código de `src/` fora de testes foi alterado por este achado; é uma lição de como escrever o teste, registrada para não se repetir noutras suítes de interação.
+
+---
+
 ## 3. Segurança / vulnerabilidades (verificar e endurecer)
 
 > Vários itens abaixo são **"confirmar no código"** — a arquitetura está certa, mas a implementação precisa ser auditada arquivo a arquivo pelo Code.
