@@ -408,13 +408,17 @@ Achado na reabertura pós-formatação da máquina (item 0.5, retomada da Fase B
 
 ---
 
-**O12 — `mapLocalProjectToSupabase` nunca traduz `status === "archived"` pro boolean `archived` da nuvem. [BAIXO — dívida assumida, anda junto com O10]**
+**O12 — `mapLocalProjectToSupabase` nunca traduz `status === "archived"` pro boolean `archived` da nuvem. [RESOLVIDO — Pacote do Flip, Fase B, 2026-08-11]**
 Achado durante o desenho do CHECK de `status` (Etapa 5, flip de `projects`, item 3-a/migration `20260811000100`). `mapLocalProjectToSupabase` (`projectsMapper.ts:99`) grava `archived: false` **hardcoded**, sempre — nunca verifica `project.status === "archived"` pra setar `true`. Consequência prática: um projeto local arquivado, ao passar pelo import geral (`useLocalProjectsImport.ts`, já em `main` desde a Fatia 7), produz uma linha na nuvem com `status: "archived"` (texto) + `archived: false` (boolean) — os dois sinais divergem na mesma linha. É por isso que o CHECK constraint da migration `20260811000100` precisa admitir `'archived'` como valor de texto além do boolean (ver [`etapa-5-flip-projetos.md`](../qa/etapa-5-flip-projetos.md) item 3, justificativa do 8º valor).
 
 - **Não é um bug isolado** — é a mesma classe de dívida do O10 (alias legado `'active'`): os dois nascem do mesmo desenho provisório de `mapLocalProjectToSupabase`, escrito na Fatia 7 antes de existir qualquer normalização de vocabulário de `status`.
 - **Correção correta, se um dia for feita:** `mapLocalProjectToSupabase` passa a gravar `archived: project.status === "archived"` e, nesse caso, `status` sai como um valor neutro (mesmo padrão que `quoteMapper.ts` já usa pra `quotes`: `status === "arquivado"` → `{ status: "draft", archived: true }`) — aí sim o texto `'archived'` deixaria de ser necessário no CHECK, e o vocabulário de `status` ficaria mais enxuto.
-- **Resolver junto com O10, na mesma fatia futura** — não faz sentido eliminar só o alias `'active'` sem também consertar a tradução de `archived`, já que as duas mudanças tocam a mesma função e o mesmo CHECK.
-- Nenhuma ação nesta rodada além do registro — a migration `20260811000100` (escrita, não aplicada) já admite `'archived'` como texto, refletindo o comportamento atual, não o corrigido.
+- **Resolvido no Pacote do Flip (Fase B):** `translateLocalProjectStatusToCloud` (novo, `projectsMapper.ts`) — exatamente o mecanismo descrito acima. `mapLocalProjectToSupabase` agora usa essa tradução; escrita nova nunca mais grava `status='archived'` (texto) com `archived=false`. Dado legado (já gravado pelo comportamento antigo) continua lido certo, sem regressão — `translateCloudProjectStatusToLocal` já cobria os dois formatos desde a fatia N. Detalhamento: [`etapa-5-flip-projetos-pacote.md`](../qa/etapa-5-flip-projetos-pacote.md) §6.1.
+- **O10 permanece separado, não resolvido** — decisão explícita do revisor foi resolver só O12 nesta fatia; o alias `'active'` continua admitido (Opção A).
+
+---
+
+**O13 — `CRM.test.tsx` (caso `describe("CRM · O2 (excluir)...")`) falhou numa rodada da suíte completa e passou sozinho e na rodada seguinte. [OBSERVAÇÃO — não é bug confirmado; hipótese contenção de 3 worktrees simultâneas]** Sem ação — vira investigação só se reincidir.
 
 ---
 
