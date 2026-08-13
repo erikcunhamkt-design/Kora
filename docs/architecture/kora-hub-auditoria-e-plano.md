@@ -299,13 +299,13 @@ Achado durante a Fase C do resgate do dashboard órfão (irmão do G16), no pass
 
 ---
 
-**G21 — `BotRulesPanel.tsx` é um componente inteiro, nunca importado nem montado em lugar nenhum do app. [BAIXO — catalogado, NÃO corrigido nesta rodada]**
+**G21 — `BotRulesPanel.tsx` é um componente inteiro, nunca importado nem montado em lugar nenhum do app. [BAIXO — RESOLVIDO na rodada `ux2-g21-g23-g25-fase-a` (opção a)]**
 Achado durante a reconciliação de UX2 ([`kora-ux-produto.md`](kora-ux-produto.md)), ao investigar a premissa de que o simulador do bot não teria porta de entrada — a busca pelo componente certo levou a este, um achado diferente e não relacionado ao `isTest` de `WhatsAppBotConfig.tsx`.
 
 - **A causa:** `src/components/whatsapp/bot/BotRulesPanel.tsx` exporta `function BotRulesPanel()` — uma tela inteira alternativa de "Robô IA de Atendimento" (modos de atendimento, guardrails, accordion de regras avançadas, preview de inbox, botão "Testar robô"). Nenhum arquivo em `src/` importa `BotRulesPanel` (grep sem nenhum resultado além da própria definição) — mesma classe de achado do G16 (componente nunca montado na árvore real, sem lint que pegue porque `no-unused-vars` está desligado no projeto).
 - **Diferença do G16:** ali era um *import* órfão (linha de import sobrando após remoção da JSX que o usava). Aqui não há sequer um import em nenhum lugar — o componente parece ter sido escrito e nunca conectado à navegação em momento algum, provavelmente uma versão anterior/alternativa da tela de configuração do robô, superada por `WhatsAppBotConfig.tsx` (a que está de fato montada hoje na aba "Robô IA" de `WhatsApp.tsx`).
 - **Simulador interno é mockado:** `runSimulator()` (linha 201) devolve uma resposta fixa hardcoded (`setSimResult({ reply: "Olá! Sim, atendemos restaurantes...", ... })`) — não chama nenhuma edge function real, diferente do simulador de `WhatsAppBotConfig.tsx` (que chama `whatsapp-bot-reply` com `isTest: true`, ver UX2). Mesmo remontado como está hoje, o "teste" que ele oferece não reflete o comportamento real da IA configurada.
-- **Não corrigido nesta rodada** — só catalogado. Decisão de remontar/absorver/aposentar fica para uma rodada dedicada (mesmo tipo de decisão a/b/c do dashboard órfão, G16/G20).
+- **Resolvido (opção a — aposentar):** arquivo deletado (`src/components/whatsapp/bot/BotRulesPanel.tsx`, 644 linhas). Zero importadores confirmado antes da remoção; suíte de testes verde depois (nada dependia dele). O conceito de "modos de atendimento" foi registrado como ideia de produto antes da remoção — ver [UX3](kora-ux-produto.md).
 
 ---
 

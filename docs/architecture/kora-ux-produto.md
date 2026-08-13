@@ -67,3 +67,8 @@ Confirmado: o operador estava certo.
   100% mockado), nunca chegou a ser conectada em lugar nenhum da navegação — pra ela o gate de
   conexão acima nem chega a ser o problema, porque ela nunca renderiza de jeito nenhum.
 - **Não é uma correção nesta rodada** — registrado pra decisão de produto numa sessão dedicada.
+
+---
+
+**UX3 — `BotRulesPanel.tsx` (removido no resgate G21) propunha um modelo de configuração do robô por "modos de atendimento" (desligado/sugestão/assistente/fora do horário/por tag) + guardrails visíveis + regras de elegibilidade/transferência em accordion — um paradigma diferente do construtor de fluxo visual que está em produção hoje (`WhatsAppBotConfig.tsx`). [Ideia de produto — sem protótipo funcional, registrada antes da remoção do código morto]**
+O componente nunca foi conectado à navegação (ver [G21](kora-hub-auditoria-e-plano.md)) e todo o seu comportamento era mockado (persistência só em `localStorage`, simulador com resposta fixa hardcoded, cards de "Conhecimento do Robô" sem backend, botões de "Preview da Inbox" desabilitados) — não é um MVP pronto pra reaproveitar, é uma ideia de UX registrada pra não se perder com a remoção do arquivo: um modelo de "modos" pré-definidos (com badges "Seguro"/"Recomendado" orientando a escolha) pode ser mais fácil de entender pra quem está configurando o robô do que o construtor de fluxo livre atual, especialmente pra quem só quer algo básico funcionando rápido, sem desenhar um fluxo do zero. Vale considerar como inspiração de UX numa futura revisão do `WhatsAppBotConfig.tsx` — não como código a restaurar (o prefixo de storage `orbyt.*`, de um nome anterior do produto, confirma que a versão daquele arquivo já estava desatualizada mesmo antes de virar órfã).
