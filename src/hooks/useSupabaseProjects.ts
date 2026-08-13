@@ -71,10 +71,22 @@ export function useSupabaseProjects() {
     onSuccess: invalidate,
   });
 
+  // G30 (Fase D, Caso 2) — grava a linha devolvida pelo próprio UPDATE
+  // direto no cache, em vez de só invalidar e esperar um refetch. O UPDATE já
+  // veio confirmado do banco (`.select().single()`, projectsRepository.ts);
+  // um refetch subsequente pode enxergar a escrita com lag (réplica, cache do
+  // PostgREST) e reverter a UI pro valor antigo até o próximo refetch —
+  // sintoma observado no drawer aberto (badge preso em "Planejado" com o
+  // banco já em in_progress, só corrigia fechando/reabrindo).
   const updateMutation = useMutation({
     mutationFn: ({ projectId, patch }: { projectId: string; patch: Partial<SupabaseProject> }) =>
       projectsRepository.updateProject(workspaceId, projectId, patch),
-    onSuccess: invalidate,
+    onSuccess: (updated) => {
+      queryClient.setQueryData<SupabaseProject[]>(
+        queryKey,
+        (prev) => (prev ?? []).map((p) => (p.id === updated.id ? updated : p)),
+      );
+    },
   });
 
   const refetchRef = useRef(query.refetch);
