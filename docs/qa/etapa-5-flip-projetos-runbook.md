@@ -13,6 +13,16 @@
 > `[completar pós-B]` desta rodada foram resolvidos contra o código real,
 > não mais contra o desenho da Fase A. Nenhum caso mudou de forma, só os
 > detalhes antes marcados como pendentes.
+>
+> **Atualização (Fase D, Caso 1 → vermelho corrigido, G29):** a Fase C
+> mesclou (`b90f86a`) e a Fase D começou a execução real — Caso 1 revelou
+> um vermelho (badge/banner de "modo leitura" sobrevivendo intactos da
+> Fatia N com a escrita já operacional) e a expectativa original do
+> **Caso 2** (§3.2) — "override `false` bloqueia escrita" — se provou
+> desatualizada contra o código real. **G29**
+> (`kora-hub-auditoria-e-plano.md`) corrigiu o achado: a write flag nunca
+> gateou o CRUD em modo Supabase (só o espelho em modo local, G22). Caso 2
+> e §2.3 emendados nesta rodada pra refletir a semântica real.
 
 ## Abertura (§16/§17)
 
@@ -202,12 +212,19 @@ seguido de F5.
 - Voltando pra "Local": `orbyt.projects.v1` nunca foi tocado enquanto o
   workspace estava em modo Supabase (hooks correm em paralelo, só um é
   lido) — 100% intacto.
-- Dado criado/editado em Supabase durante a janela com escrita ligada: não
-  é apagado no revert — só para de aparecer na tela se o usuário também
-  trocar pra "Local"; continua em `public.projects`, reaparece assim que o
-  seletor volta pra "supabase".
+- Dado criado/editado em Supabase: não é apagado no revert — só para de
+  aparecer na tela se o usuário também trocar pra "Local"; continua em
+  `public.projects`, reaparece assim que o seletor volta pra "supabase".
 - **Nenhuma direção do rollback nível 1 perde dado** — pior caso é perda
   de visibilidade temporária, sempre reversível.
+
+**Nota (G29):** `kora.projects.supabaseWrite.enabled=false`, **sozinha**,
+NÃO bloqueia escrita em modo Supabase — é o `dataSource=local` desta
+combinação que faz a tela parar de escrever na nuvem (o CRUD em modo
+Supabase simplesmente não roda quando a fonte é local). A flag por si só
+só desliga o espelho local→nuvem (padrão G22) — nunca prometer, em
+nenhum texto operacional, que "flag false" isoladamente bloqueia escrita
+na nuvem (ver Caso 2, §3.2, emendado).
 
 ### 2.4 Rollback nível 2 — revert de código
 
@@ -286,13 +303,25 @@ pré-clique obrigatório (protocolo §2) em todo passo que grava na nuvem.
 
 ---
 
-**Caso 2 — Override negativo sobrevive**
+**Caso 2 — Prova da semântica real da flag (emendado pelo G29)**
+
+> **Nota de correção:** a expectativa original deste caso ("override
+> `false` → escrita bloqueada com toast") vinha do desenho da Fase A,
+> antes do CRUD real em modo Supabase existir. **G29**
+> (`kora-hub-auditoria-e-plano.md`) confirmou contra o código real
+> (`useSupabaseProjects.ts` — `createProject`/`updateProject`) que
+> `kora.projects.supabaseWrite.enabled` **nunca gateou o CRUD direto em
+> modo Supabase**, nos dois sentidos — só `!workspace` bloqueia. A flag é,
+> por desenho documentado no próprio hook, o gate do **ESPELHO** em modo
+> **local** (padrão G22) — não um interruptor de escrita em modo nuvem.
+> Este caso agora prova a semântica real, não a antiga.
 
 | Passo | Ação | Esperado | Prova |
 |---|---|---|---|
-| 2.1 | Console: `localStorage.setItem("kora.projects.supabaseWrite.enabled", "false");` → F5 (dataSource continua supabase) | Tela ainda lê da nuvem (leitura não depende dessa flag) | Visual |
-| 2.2 | Tentar editar `HOMOLOG-FLIP-projeto-A` (mudar status ou marcar entregável) | Bloqueia com toast explícito (mesmo padrão de `blockWrite()` — mensagem deve indicar que a escrita está desligada, não falhar em silêncio) | Visual — texto do toast |
-| 2.3 | — | Nada mudou no banco | `SELECT status, updated_at FROM public.projects WHERE title = 'HOMOLOG-FLIP-projeto-A';` → valores idênticos ao caso 1 |
+| 2.1 | Console: `localStorage.setItem("kora.projects.supabaseWrite.enabled", "false");` → F5 (dataSource continua supabase) | Tela ainda lê da nuvem (leitura não depende dessa flag); badge/banner mostram "Modo operacional"/"Projetos operacionais (Supabase)" — nunca "modo leitura" (prova visual do fix do G29) | Visual — badge/banner |
+| 2.2 | Editar `HOMOLOG-FLIP-projeto-A` (mudar status ou marcar entregável) | **Edição FUNCIONA** — não bloqueia, nenhum toast de erro/bloqueio | Visual — mudança reflete na tela |
+| 2.3 | — | Update foi gravado no banco de verdade, apesar da flag `false` | `SELECT status, updated_at FROM public.projects WHERE title = 'HOMOLOG-FLIP-projeto-A';` → valores **diferentes** do caso 1 (mudaram), confirmando que a flag não bloqueou nada |
+| 2.4 | Console: `localStorage.removeItem("kora.projects.supabaseWrite.enabled");` → F5 | Limpeza — volta ao estado de usuário novo pra esta chave | Visual |
 
 ---
 
