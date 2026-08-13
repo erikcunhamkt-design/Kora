@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { getTechnicalSheetExperimentalEnabled, setTechnicalSheetExperimentalEnabled } from "@/config/flags";
+import { getTechnicalSheetExperimentalEnabled, setTechnicalSheetExperimentalEnabled, getCrmDataSource } from "@/config/flags";
 import { formatDateTime as intlDateTime } from "@/lib/format";
 import {
   User,
@@ -1268,7 +1268,9 @@ export function LocalClientsImportCard() {
 
         <div className="rounded-lg border border-primary/20 bg-primary/[0.02] p-3 text-xs text-muted-foreground/90">
           <p className="font-semibold text-foreground mb-1">Aviso Híbrido:</p>
-          Os clientes importados serão enviados para o Supabase, mas a tela Clientes ainda usa dados locais até a próxima etapa. Nenhum dado local será excluído. Para testar a leitura Supabase na tela Clientes, ative a fonte Supabase experimental.
+          {workspace
+            ? "Os clientes importados serão enviados para o Supabase. A tela Clientes já lê do Supabase por padrão neste workspace — os dados importados aparecerão automaticamente lá. Nenhum dado local será excluído."
+            : "Os clientes importados serão enviados para o Supabase, mas sem workspace ativo a tela Clientes usa dados locais. Nenhum dado local será excluído."}
         </div>
 
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -1438,7 +1440,7 @@ function SupabaseClientsViewerCard() {
         </p>
 
         <div className="rounded-lg border border-primary/20 bg-primary/[0.02] p-3 text-xs text-muted-foreground/90">
-          Esta visualização confirma os dados já importados para o Supabase. A tela principal de Clientes ainda usa localStorage nesta fase.
+          Esta visualização confirma os dados já importados para o Supabase. A tela principal de Clientes já lê do Supabase por padrão neste workspace — são os mesmos dados.
         </div>
 
         {loading ? (
@@ -1583,7 +1585,7 @@ export function LocalTechnicalSheetsImportCard() {
 
         <div className="rounded-lg border border-primary/20 bg-primary/[0.02] p-3 text-xs text-muted-foreground/90">
           <p className="font-semibold text-foreground mb-1">Aviso de Backup Híbrido:</p>
-          A página Ficha Técnica principal continua usando localStorage nesta fase. O backup no Supabase servirá para transição futura. Arquivos binários locais não são migrados.
+          A página Ficha Técnica já lê do Supabase por padrão para cada cliente (a menos que você tenha escolhido "local" explicitamente para aquele cliente). Arquivos binários locais não são migrados por esta importação.
         </div>
 
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -1832,7 +1834,9 @@ export function LocalOpportunitiesImportCard() {
 
         <div className="rounded-lg border border-primary/20 bg-primary/[0.02] p-3 text-xs text-muted-foreground/90">
           <p className="font-semibold text-foreground mb-1">Aviso Híbrido:</p>
-          As oportunidades importadas serão enviadas para o Supabase, mas a tela principal de CRM ainda usa dados locais nesta fase até a homologação completa.
+          {getCrmDataSource() === "local"
+            ? "As oportunidades importadas serão enviadas para o Supabase, mas a tela principal de CRM está configurada para usar dados locais neste workspace."
+            : "As oportunidades importadas serão enviadas para o Supabase. A tela principal de CRM já lê do Supabase por padrão neste workspace — os dados importados aparecerão automaticamente lá."}
         </div>
 
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -1972,7 +1976,9 @@ function SupabaseCrmViewerCard() {
           </Badge>
         </div>
         <p className="text-xs text-muted-foreground leading-normal">
-          A persistência de oportunidades no Supabase foi preparada. A tela CRM principal ainda usa dados locais até a etapa de importação e validação.
+          {getCrmDataSource() === "local"
+            ? "A persistência de oportunidades no Supabase foi preparada, mas a tela CRM principal está configurada para usar dados locais neste workspace."
+            : "A persistência de oportunidades no Supabase está ativa. A tela CRM principal já lê do Supabase por padrão neste workspace."}
         </p>
       </div>
     </SettingsCard>

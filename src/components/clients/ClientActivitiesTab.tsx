@@ -164,7 +164,10 @@ function buildInferredEvents(args: {
   leads: ReturnType<typeof useLeads>["leads"];
   quotes: ReturnType<typeof useQuotes>["quotes"];
   transactions: ReturnType<typeof useFinance>["transactions"];
-  projects: ReturnType<typeof useProjects>["projects"];
+  // useBifurcatedProjects() retorna Project[] direto (não {projects: Project[]}
+  // como o useProjects() antigo) — sem indexação ["projects"], shape diferente
+  // do padrão dos outros campos acima. Ver G26 (kora-hub-auditoria-e-plano.md).
+  projects: ReturnType<typeof useBifurcatedProjects>;
   tasks: ReturnType<typeof useTasks>["tasks"];
 }): InferredEvent[] {
   const { client, leads, quotes, transactions, projects, tasks } = args;

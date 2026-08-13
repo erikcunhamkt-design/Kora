@@ -38,7 +38,7 @@ incidente #2).
 
 ---
 
-**UX2 — Simulador de fluxo do bot (`WhatsAppBotConfig`) só é alcançável com uma instância WhatsApp já conectada — inacessível justamente no cenário onde seria mais útil: testar/ajustar o robô ANTES de ligar de vez. [Achado de produto — sem correção nesta rodada]**
+**UX2 — Simulador de fluxo do bot (`WhatsAppBotConfig`) só é alcançável com uma instância WhatsApp já conectada — inacessível justamente no cenário onde seria mais útil: testar/ajustar o robô ANTES de ligar de vez. [RESOLVIDO na rodada `ux2-g21-g23-g25-fase-a`, opção (a) do achado de produto]**
 Achado durante a reconciliação da Fase C do resgate do dashboard órfão (irmão do
 [G16/G20](kora-hub-auditoria-e-plano.md)) — o operador relatou ter visto apenas o empty state
 "WhatsApp não conectado" em `/whatsapp`, contradizendo a análise estática inicial (que leu só o
@@ -66,4 +66,26 @@ Confirmado: o operador estava certo.
   — `BotRulesPanel.tsx`, uma segunda tela de configuração de robô com simulador próprio (esse
   100% mockado), nunca chegou a ser conectada em lugar nenhum da navegação — pra ela o gate de
   conexão acima nem chega a ser o problema, porque ela nunca renderiza de jeito nenhum.
-- **Não é uma correção nesta rodada** — registrado pra decisão de produto numa sessão dedicada.
+- **Resolvido (opção a — early-return não engole mais a página inteira):** `WhatsApp.tsx` trocou o
+  early-return de página inteira por um gate por aba. `isConnected = !!instance && status === "connected"`
+  computado uma vez; as 4 abas que dependem de conexão (Inbox/Audiências/Campanhas/Modelos) agora
+  mostram o mesmo empty state individualmente (`activeMainTab === "X" && (isConnected ? <conteúdo> :
+  notConnectedState)`) — a aba "Robô IA" ficou de fora do ternário, sem gate algum, exatamente como o
+  achado pedia. `WhatsAppBotConfig` não foi tocado (não precisava — nunca dependeu de `instance`).
+- **Prova por montagem real, não só leitura de código:** `WhatsApp.tab-gate.test.tsx` (10 casos) —
+  sem instância conectada, as 4 abas gateadas mostram o empty state e a aba Robô IA mostra o
+  simulador normalmente; com instância conectada, as 4 abas mostram conteúdo real e Robô IA
+  continua acessível. Achado de depuração registrado no teste: o `TabsTrigger` do Radix só ativa
+  com a sequência completa `pointerdown/mousedown/pointerup/mouseup/click` — um `fireEvent.click`
+  isolado não muda a aba nesta versão do Radix, o que teria produzido falso-positivo silencioso
+  numa primeira versão do teste (o empty state da aba default "chat" mascarava o clique que não
+  fazia nada).
+- **Prova de correspondência código↔servidor (§17):** dev server subido na worktree correta
+  (`orbit-designer-hub-qualidade-lint`, não a pasta de backup) — console confirmou
+  `[Kora] BUILD 8d13b4d (ux2-g21-g23-g25-fase-a)` batendo com o commit desta rodada antes de
+  qualquer tentativa de verificação visual.
+
+---
+
+**UX3 — `BotRulesPanel.tsx` (removido no resgate G21) propunha um modelo de configuração do robô por "modos de atendimento" (desligado/sugestão/assistente/fora do horário/por tag) + guardrails visíveis + regras de elegibilidade/transferência em accordion — um paradigma diferente do construtor de fluxo visual que está em produção hoje (`WhatsAppBotConfig.tsx`). [Ideia de produto — sem protótipo funcional, registrada antes da remoção do código morto]**
+O componente nunca foi conectado à navegação (ver [G21](kora-hub-auditoria-e-plano.md)) e todo o seu comportamento era mockado (persistência só em `localStorage`, simulador com resposta fixa hardcoded, cards de "Conhecimento do Robô" sem backend, botões de "Preview da Inbox" desabilitados) — não é um MVP pronto pra reaproveitar, é uma ideia de UX registrada pra não se perder com a remoção do arquivo: um modelo de "modos" pré-definidos (com badges "Seguro"/"Recomendado" orientando a escolha) pode ser mais fácil de entender pra quem está configurando o robô do que o construtor de fluxo livre atual, especialmente pra quem só quer algo básico funcionando rápido, sem desenhar um fluxo do zero. Vale considerar como inspiração de UX numa futura revisão do `WhatsAppBotConfig.tsx` — não como código a restaurar (o prefixo de storage `orbyt.*`, de um nome anterior do produto, confirma que a versão daquele arquivo já estava desatualizada mesmo antes de virar órfã).
