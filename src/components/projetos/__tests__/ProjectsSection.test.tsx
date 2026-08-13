@@ -109,8 +109,15 @@ function fillCreateForm(name: string, clientName: string) {
   fireEvent.change(clientInput, { target: { value: clientName } });
 }
 
-describe("ProjectsSection · modo local (default)", () => {
-  it("mostra os dados locais quando o seletor nunca foi tocado", async () => {
+// Etapa 5 · Pacote do Flip (Fase C) — getProjectsDataSource() default virou
+// "supabase" (só "local" explícito escolhe local, mesmo formato do CRM/
+// quotes). Este describe passou de "default" pra "explícito": o teste
+// agora grava "local" no seletor antes de renderizar, provando que a
+// escolha explícita continua funcionando — não mais o cenário de "seletor
+// nunca tocado", que agora mostra nuvem (novo describe abaixo).
+describe("ProjectsSection · modo local (explícito)", () => {
+  it("mostra os dados locais quando o seletor está explicitamente em \"local\"", async () => {
+    localStorage.setItem(PROJECTS_DATA_SOURCE_KEY, "local");
     vi.mocked(useProjects).mockReturnValue({
       projects: [makeLocalProject()], addProject: vi.fn(),
     } as never);
@@ -122,7 +129,16 @@ describe("ProjectsSection · modo local (default)", () => {
   });
 });
 
-describe("ProjectsSection · modo Supabase (leitura)", () => {
+describe("ProjectsSection · modo Supabase (leitura, novo default)", () => {
+  it("mostra os dados da nuvem quando o seletor nunca foi tocado (novo default, Pacote do Flip)", async () => {
+    vi.mocked(useProjects).mockReturnValue({ projects: [], addProject: vi.fn() } as never);
+    mockSupabaseProjects({ projects: [makeSupabaseProjectRaw()] });
+
+    renderSection();
+
+    expect(await screen.findByText("Projeto Nuvem")).toBeInTheDocument();
+  });
+
   it("mostra os dados da nuvem MAPEADOS — status 'active' traduzido, clientName resolvido", async () => {
     vi.mocked(useProjects).mockReturnValue({
       projects: [makeLocalProject()], addProject: vi.fn(),
@@ -193,8 +209,16 @@ describe("ProjectsSection · CRUD real em modo Supabase (Pacote do Flip, Fase B)
   });
 });
 
+// Etapa 5 · Pacote do Flip (Fase C) — dataSource default virou "supabase";
+// todo teste deste describe grava "local" explicitamente pra exercitar o
+// caminho de escrita local + espelho (padrão G22 da fatia N, inalterado
+// pela Fase C). supabaseWrite também virou opt-out (default ON) — os 2
+// primeiros testes agora provam isso: "OFF" precisa de override explícito,
+// e um novo teste prova o ON sem setar nada (novo default).
 describe("ProjectsSection · espelho best-effort no create em modo local (fatia N, padrão G22)", () => {
-  it("flag mestre OFF (default) — cria local, NUNCA chama o espelho", async () => {
+  it("flag mestre OFF (override explícito) — cria local, NUNCA chama o espelho", async () => {
+    localStorage.setItem(PROJECTS_DATA_SOURCE_KEY, "local");
+    localStorage.setItem(PROJECTS_SUPABASE_WRITE_FLAG_KEY, "false");
     const addProject = vi.fn().mockReturnValue(makeLocalProject({ id: "pj-new" }));
     vi.mocked(useProjects).mockReturnValue({ projects: [], addProject } as never);
 
@@ -207,7 +231,23 @@ describe("ProjectsSection · espelho best-effort no create em modo local (fatia 
     expect(mirrorProjectToSupabase).not.toHaveBeenCalled();
   });
 
-  it("flag mestre ON — cria local E tenta o espelho best-effort", async () => {
+  it("flag mestre ON (novo default, sem setar nada manualmente) — cria local E tenta o espelho", async () => {
+    localStorage.setItem(PROJECTS_DATA_SOURCE_KEY, "local");
+    const created = makeLocalProject({ id: "pj-new" });
+    const addProject = vi.fn().mockReturnValue(created);
+    vi.mocked(useProjects).mockReturnValue({ projects: [], addProject } as never);
+    vi.mocked(mirrorProjectToSupabase).mockResolvedValue({ id: "cloud-uuid" } as never);
+
+    renderSection();
+    fireEvent.click(screen.getByText("Novo projeto"));
+    fillCreateForm("Novo", "Cliente");
+    fireEvent.click(screen.getByText("Criar projeto"));
+
+    await waitFor(() => expect(mirrorProjectToSupabase).toHaveBeenCalledWith("ws1", created));
+  });
+
+  it("flag mestre ON (explícito) — cria local E tenta o espelho best-effort", async () => {
+    localStorage.setItem(PROJECTS_DATA_SOURCE_KEY, "local");
     localStorage.setItem(PROJECTS_SUPABASE_WRITE_FLAG_KEY, "true");
     const created = makeLocalProject({ id: "pj-new" });
     const addProject = vi.fn().mockReturnValue(created);
@@ -223,6 +263,7 @@ describe("ProjectsSection · espelho best-effort no create em modo local (fatia 
   });
 
   it("falha do espelho NUNCA desfaz o local — projeto já foi criado antes do espelho rodar", async () => {
+    localStorage.setItem(PROJECTS_DATA_SOURCE_KEY, "local");
     localStorage.setItem(PROJECTS_SUPABASE_WRITE_FLAG_KEY, "true");
     const created = makeLocalProject({ id: "pj-new" });
     const addProject = vi.fn().mockReturnValue(created);

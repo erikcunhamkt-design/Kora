@@ -109,7 +109,8 @@ describe("ProjectDetailDrawer · modo local (padrão G22, inalterado)", () => {
     ));
   });
 
-  it("flag mestre OFF (default) — grava local, NUNCA chama o espelho", async () => {
+  it("flag mestre OFF (override explícito, Pacote do Flip virou opt-out) — grava local, NUNCA chama o espelho", async () => {
+    localStorage.setItem(PROJECTS_SUPABASE_WRITE_FLAG_KEY, "false");
     const updateLocalProject = vi.fn();
     vi.mocked(useProjects).mockReturnValue({ updateProject: updateLocalProject } as never);
     vi.mocked(useSupabaseProjects).mockReturnValue({ updateProject: vi.fn() } as never);

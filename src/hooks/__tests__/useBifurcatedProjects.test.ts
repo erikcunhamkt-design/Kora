@@ -44,8 +44,15 @@ beforeEach(() => {
   } as never);
 });
 
-describe("useBifurcatedProjects — modo local (default)", () => {
-  it("devolve os projetos locais quando o seletor nunca foi tocado", () => {
+// Etapa 5 · Pacote do Flip (Fase C) — getProjectsDataSource() default virou
+// "supabase" (só "local" explícito escolhe local, mesmo formato do CRM/
+// quotes). Este describe passou de "default" pra "explícito": o teste
+// agora grava "local" no seletor antes de renderizar, provando que a
+// escolha explícita continua funcionando — não mais o cenário de "seletor
+// nunca tocado", que agora mostra nuvem (primeiro teste do describe abaixo).
+describe("useBifurcatedProjects — modo local (explícito)", () => {
+  it("devolve os projetos locais quando o seletor está explicitamente em 'local'", () => {
+    localStorage.setItem(PROJECTS_DATA_SOURCE_KEY, "local");
     vi.mocked(useProjects).mockReturnValue({ projects: [makeLocalProject()] } as never);
     vi.mocked(useSupabaseProjectsSummary).mockReturnValue({ projects: [] } as never);
 
@@ -57,7 +64,19 @@ describe("useBifurcatedProjects — modo local (default)", () => {
 });
 
 describe("useBifurcatedProjects — modo Supabase", () => {
-  it("devolve os projetos da nuvem MAPEADOS quando o seletor está em 'supabase'", () => {
+  it("devolve os projetos da nuvem quando o seletor nunca foi tocado (novo default, Pacote do Flip)", () => {
+    vi.mocked(useProjects).mockReturnValue({ projects: [] } as never);
+    vi.mocked(useSupabaseProjectsSummary).mockReturnValue({
+      projects: [makeSupabaseProjectRaw()],
+    } as never);
+
+    const { result } = renderHook(() => useBifurcatedProjects());
+
+    expect(result.current).toHaveLength(1);
+    expect(result.current[0].name).toBe("Projeto Nuvem");
+  });
+
+  it("devolve os projetos da nuvem MAPEADOS quando o seletor está em 'supabase' (explícito)", () => {
     localStorage.setItem(PROJECTS_DATA_SOURCE_KEY, "supabase");
     vi.mocked(useProjects).mockReturnValue({ projects: [makeLocalProject()] } as never);
     vi.mocked(useSupabaseProjectsSummary).mockReturnValue({

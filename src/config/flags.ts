@@ -93,10 +93,15 @@ export const QUOTES_DATA_SOURCE_KEY = "kora.quotes.dataSource.v1";
 
 /**
  * Etapa 5 · Fatia N (`projects`) — seletor de fonte de dados de `projects`.
- * Mesmo padrão de NASCIMENTO de `quotes` (Fatia 9, antes do Pacote do Flip):
- * INVERSO do CRM/ficha técnica — default "local", só "supabase" explícito
- * seleciona nuvem. Decisão deliberada: nenhuma homologação de escrita existe
- * ainda para `projects`, então não herda o default "supabase" às cegas.
+ * Nasceu INVERSO do CRM/ficha técnica (default "local", só "supabase"
+ * explícito selecionava nuvem) — mesmo padrão de NASCIMENTO de `quotes`
+ * (Fatia 9, antes do Pacote do Flip).
+ *
+ * Pacote do Flip (Fase C) — default flipado pra "supabase", mesmo formato
+ * de `getCrmDataSource()`/`getQuotesDataSource()` pós-flip (só "local"
+ * explícito escolhe local). Sessões que já têm o valor gravado (qualquer
+ * um dos dois) não são afetadas — só quem nunca tocou no seletor herda o
+ * novo default. Ver docs/qa/etapa-5-flip-projetos-runbook.md §2.2.
  */
 export const PROJECTS_DATA_SOURCE_KEY = "kora.projects.dataSource.v1";
 
@@ -176,11 +181,11 @@ export function setQuotesDataSource(source: DataSource): void {
   safeSet(QUOTES_DATA_SOURCE_KEY, source);
 }
 
-// ── seletor de fonte de projects (string plana; default "local" nesta fatia) ──
+// ── seletor de fonte de projects (string plana; default "supabase" desde o Pacote do Flip) ──
 
-/** Só "supabase" explícito seleciona nuvem; qualquer outro valor ⇒ "local". */
+/** Só "local" explícito seleciona local; qualquer outro valor ⇒ "supabase". */
 export function getProjectsDataSource(): DataSource {
-  return safeGet(PROJECTS_DATA_SOURCE_KEY) === "supabase" ? "supabase" : "local";
+  return safeGet(PROJECTS_DATA_SOURCE_KEY) === "local" ? "local" : "supabase";
 }
 
 export function setProjectsDataSource(source: DataSource): void {

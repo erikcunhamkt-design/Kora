@@ -217,24 +217,31 @@ describe("flags · seletor de fonte de quotes (string plana, default SUPABASE de
 // default "local", só "supabase" explícito escolhe nuvem. Nenhuma
 // homologação de escrita existe ainda para `projects` — não herda o default
 // "supabase" às cegas.
-describe("flags · seletor de fonte de projects (string plana, default LOCAL nesta fatia)", () => {
-  it("default é \"local\" quando ausente", () => {
+// Etapa 5 · Pacote do Flip (Fase C) — default flipado de "local" pra
+// "supabase" (mesmo formato do CRM/quotes: só "local" explícito escolhe
+// local). Nasceu INVERSO na fatia N, sem histórico de homologação de
+// escrita ainda — este pacote resolve isso. Lição da Fatia 8 (O2/O3/O4):
+// valor explícito já persistido pelo usuário nunca deve ser pisado por um
+// flip de default de código — os 2 últimos testes provam isso nos dois
+// sentidos.
+describe("flags · seletor de fonte de projects (string plana, default SUPABASE desde o Pacote do Flip)", () => {
+  it("default é \"supabase\" quando ausente (mesmo formato do CRM/quotes desde o flip)", () => {
     expect(localStorage.getItem(PROJECTS_DATA_SOURCE_KEY)).toBeNull();
-    expect(getProjectsDataSource()).toBe("local");
-  });
-
-  it("só o literal \"supabase\" seleciona nuvem", () => {
-    localStorage.setItem(PROJECTS_DATA_SOURCE_KEY, "supabase");
     expect(getProjectsDataSource()).toBe("supabase");
   });
 
-  it("\"local\" e qualquer lixo resolvem para \"local\"", () => {
+  it("só o literal \"local\" seleciona local", () => {
     localStorage.setItem(PROJECTS_DATA_SOURCE_KEY, "local");
     expect(getProjectsDataSource()).toBe("local");
+  });
+
+  it("\"supabase\" e qualquer lixo resolvem para \"supabase\"", () => {
+    localStorage.setItem(PROJECTS_DATA_SOURCE_KEY, "supabase");
+    expect(getProjectsDataSource()).toBe("supabase");
     localStorage.setItem(PROJECTS_DATA_SOURCE_KEY, "xpto");
-    expect(getProjectsDataSource()).toBe("local");
+    expect(getProjectsDataSource()).toBe("supabase");
     localStorage.setItem(PROJECTS_DATA_SOURCE_KEY, "");
-    expect(getProjectsDataSource()).toBe("local");
+    expect(getProjectsDataSource()).toBe("supabase");
   });
 
   it("grava a string plana crua na chave certa", () => {
@@ -242,6 +249,11 @@ describe("flags · seletor de fonte de projects (string plana, default LOCAL nes
     expect(localStorage.getItem(PROJECTS_DATA_SOURCE_KEY)).toBe("supabase");
     setProjectsDataSource("local");
     expect(localStorage.getItem(PROJECTS_DATA_SOURCE_KEY)).toBe("local");
+  });
+
+  it("valor explícito \"local\" já persistido sobrevive (não é o caso ambíguo, mas confirma round-trip)", () => {
+    setProjectsDataSource("local");
+    expect(getProjectsDataSource()).toBe("local");
   });
 
   it("valor explícito \"supabase\" já persistido nunca é sobrescrito por uma leitura", () => {

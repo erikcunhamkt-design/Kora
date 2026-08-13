@@ -4,12 +4,16 @@ import { useCallback, useEffect, useState } from "react";
  * Etapa 5 · Flip Projetos (item 4) — flag mestre de escrita de `projects` na
  * nuvem.
  *
- * Nasce opt-in (default OFF) — primeira rodada de escrita do domínio, sem
- * histórico de homologação ainda. Mesmo nascimento de
- * `kora.crm.supabaseWrite.enabled` (Fatia 8, antes do cutover) e
- * `kora.quotes.supabaseWrite.enabled` (Fatia 10, antes do Pacote do Flip) —
- * só um "vai" de homologação futura flipa o default pra opt-out, não esta
- * rodada.
+ * Nasceu opt-in (default OFF, Fatia N/item 4) — primeira rodada de escrita
+ * do domínio, sem histórico de homologação ainda.
+ *
+ * Pacote do Flip (Fase C) — default flipado pra opt-out (ausência ou
+ * qualquer valor ≠ "false" ⇒ true), mesmo padrão de
+ * `kora.crm.supabaseWrite.enabled` (Fatia 8) e
+ * `kora.quotes.supabaseWrite.enabled` (Pacote do Flip de quotes). Sessões
+ * que já têm o valor gravado explicitamente ("true" ou "false") não são
+ * afetadas — só quem nunca tocou na flag herda o novo default. Ver
+ * docs/qa/etapa-5-flip-projetos-runbook.md §2.2.
  *
  * Gate do ESPELHO (padrão G22), não do dataSource de leitura — os dois eixos
  * são independentes: `getProjectsDataSource()` (config/flags.ts) decide QUAL
@@ -28,10 +32,10 @@ const FLAG_EVENT = "kora:projects-supabase-write-flag";
 
 function readFlag(): boolean {
   try {
-    // Opt-in (nasce OFF): só o literal "true" liga.
-    return localStorage.getItem(PROJECTS_SUPABASE_WRITE_FLAG_KEY) === "true";
+    // Opt-out desde o Pacote do Flip: só o literal "false" desliga.
+    return localStorage.getItem(PROJECTS_SUPABASE_WRITE_FLAG_KEY) !== "false";
   } catch {
-    return false;
+    return true;
   }
 }
 
@@ -58,7 +62,7 @@ export function useSupabaseProjectsWriteFlag(): {
   useEffect(() => {
     const onStorage = (event: StorageEvent) => {
       if (event.key === PROJECTS_SUPABASE_WRITE_FLAG_KEY) {
-        setEnabledState(event.newValue === "true");
+        setEnabledState(event.newValue !== "false");
       }
     };
     const onCustom = (event: Event) => {
