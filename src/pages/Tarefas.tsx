@@ -2,7 +2,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { formatDateTime as intlDateTime } from "@/lib/format";
 import { useSearchParams } from "react-router-dom";
-import { usePlan } from "@/contexts/PlanContext";
+import { usePlan } from "@/contexts/plan-context-value";
 import { UsageBadge } from "@/components/plan/UsageBadge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

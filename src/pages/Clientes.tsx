@@ -1,6 +1,6 @@
 import { PageHeader } from "@/components/layout/PageHeader";
 import { useState, useEffect, useMemo } from "react";
-import { usePlan } from "@/contexts/PlanContext";
+import { usePlan } from "@/contexts/plan-context-value";
 import { UsageBadge } from "@/components/plan/UsageBadge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,7 +25,7 @@ import {
 } from "@/hooks/useClients";
 import { useClientsDataSource } from "@/hooks/useClientsDataSource";
 import type { SupabaseClientInput } from "@/repositories/clientsRepository";
-import { useTranslation } from "@/contexts/LanguageContext";
+import { useTranslation } from "@/contexts/language-context-value";
 import {
   Users, UserCheck, UserPlus, Search, SlidersHorizontal,
   Plus, ArrowUpDown, LayoutGrid, LayoutList, Phone, Mail, Globe,

@@ -7,12 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import {
-  OnboardingData,
-  OnboardingService,
-  onboardingDefaults,
-  useOnboarding,
-} from "@/contexts/OnboardingContext";
+import { OnboardingData, OnboardingService } from "@/contexts/OnboardingContext";
+import { onboardingDefaults, useOnboarding } from "@/contexts/onboarding-context-value";
 
 const areas = [
   "Designer / Diretor de Arte",

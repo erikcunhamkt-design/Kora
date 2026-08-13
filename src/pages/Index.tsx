@@ -9,7 +9,7 @@ import { ComingSoon } from "@/components/dashboard/ComingSoon";
 import { GreetingHero } from "@/components/dashboard/GreetingHero";
 import { DayCenterSummary } from "@/components/dashboard/DayCenterSummary";
 import { PlanBanner } from "@/components/plan/PlanBanner";
-import { usePlan } from "@/contexts/PlanContext";
+import { usePlan } from "@/contexts/plan-context-value";
 import { Crown, AlertTriangle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 

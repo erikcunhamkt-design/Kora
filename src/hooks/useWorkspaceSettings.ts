@@ -11,7 +11,8 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
-import { useTranslation, type Language } from "@/contexts/LanguageContext";
+import { type Language } from "@/contexts/LanguageContext";
+import { useTranslation } from "@/contexts/language-context-value";
 import { normalizeSupabaseError } from "@/lib/supabase/errors";
 
 const SUPPORTED_LANGS: Language[] = ["pt-BR", "pt-PT", "en", "es"];

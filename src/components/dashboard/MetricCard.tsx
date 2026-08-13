@@ -1,6 +1,6 @@
 import { LucideIcon, TrendingUp, TrendingDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useAccessibility } from "@/contexts/AccessibilityContext";
+import { useAccessibility } from "@/contexts/accessibility-context-value";
 import { AdaptiveNumber } from "@/components/accessibility/AdaptiveNumber";
 
 interface MetricCardProps {

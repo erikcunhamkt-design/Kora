@@ -8,8 +8,8 @@ import { WhatsAppStickerPicker } from "./WhatsAppStickerPicker";
 import {
   QuickRepliesInlinePopover,
   QuickRepliesManagerButton,
-  renderQuickReply,
 } from "./WhatsAppQuickReplies";
+import { renderQuickReply } from "./quick-replies-helpers";
 import { toast } from "sonner";
 
 

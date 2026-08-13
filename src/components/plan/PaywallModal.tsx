@@ -1,6 +1,6 @@
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { usePlan, PLAN_PRICE } from "@/contexts/PlanContext";
+import { usePlan, PLAN_PRICE } from "@/contexts/plan-context-value";
 import { Check, Crown, Zap, Rocket } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 

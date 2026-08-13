@@ -3,7 +3,7 @@
 // value re-renders when the user switches market. Use this inside components;
 // outside React, import the bare functions from "@/lib/format" instead.
 import { useMemo } from "react";
-import { useTranslation } from "@/contexts/LanguageContext";
+import { useTranslation } from "@/contexts/language-context-value";
 import {
   formatCurrency,
   formatNumber,

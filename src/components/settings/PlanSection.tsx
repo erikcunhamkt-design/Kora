@@ -32,7 +32,7 @@ import {
 import { SettingsSection } from "./SettingsSection";
 import { SettingsCard } from "./SettingsCard";
 import { PlanAdvisor } from "./PlanAdvisor";
-import { usePlan } from "@/contexts/PlanContext";
+import { usePlan } from "@/contexts/plan-context-value";
 
 type Billing = "monthly" | "yearly";
 type Profile = "individual" | "team";

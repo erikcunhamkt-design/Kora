@@ -1,5 +1,5 @@
 import React from "react";
-import { useAccessibility } from "@/contexts/AccessibilityContext";
+import { useAccessibility } from "@/contexts/accessibility-context-value";
 
 interface AdaptiveTextProps extends React.HTMLAttributes<HTMLSpanElement> {
   expressive: string;

@@ -396,7 +396,7 @@ function manualToEvent(m: ClientManualActivity): ManualEvent {
   };
 }
 
-export function mergeManualAndInferredActivities(
+function mergeManualAndInferredActivities(
   inferred: InferredEvent[],
   manual: ClientManualActivity[],
 ): ClientActivityEvent[] {

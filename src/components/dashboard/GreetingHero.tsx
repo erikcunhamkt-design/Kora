@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ArrowRight, CalendarCheck, CheckCircle2, Flame, Sparkles } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/auth-context-value";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -31,7 +31,7 @@ function openDayCenter() {
   window.dispatchEvent(new Event("kora:open-day"));
 }
 
-import { useAccessibility } from "@/contexts/AccessibilityContext";
+import { useAccessibility } from "@/contexts/accessibility-context-value";
 
 export function GreetingHero() {
   const { profile } = useAuth();

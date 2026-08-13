@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useTranslation } from "@/contexts/LanguageContext";
+import { useTranslation } from "@/contexts/language-context-value";
 import { useWorkspaceSettings } from "@/hooks/useWorkspaceSettings";
 import { formatCurrency, formatDate } from "@/lib/format";
 

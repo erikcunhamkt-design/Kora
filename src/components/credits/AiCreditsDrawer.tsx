@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sparkles, ShoppingBag, TrendingUp, Clock, Activity, ShieldCheck, Coins, ArrowUpRight, ArrowDownRight, Gift, Wrench } from "lucide-react";
 import { useAiCredits, type CreditTxType, type CreditTransaction } from "@/hooks/useAiCredits";
-import { usePlan } from "@/contexts/PlanContext";
+import { usePlan } from "@/contexts/plan-context-value";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { formatDateTime as intlDateTime, formatNumber as intlNumber } from "@/lib/format";

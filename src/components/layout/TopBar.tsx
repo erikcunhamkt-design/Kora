@@ -4,9 +4,9 @@ import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { useAuth } from "@/contexts/AuthContext";
-import { usePlan } from "@/contexts/PlanContext";
-import { useAccessibility } from "@/contexts/AccessibilityContext";
+import { useAuth } from "@/contexts/auth-context-value";
+import { usePlan } from "@/contexts/plan-context-value";
+import { useAccessibility } from "@/contexts/accessibility-context-value";
 import { CommandCenter } from "@/components/command/CommandCenter";
 import { SupportDrawer } from "@/components/support/SupportDrawer";
 import { useSupportTickets } from "@/hooks/useSupportTickets";
@@ -15,7 +15,7 @@ import { useNotificationsCenter } from "@/hooks/useNotificationsCenter";
 import { AiCreditsDrawer } from "@/components/credits/AiCreditsDrawer";
 import { useAiCredits } from "@/hooks/useAiCredits";
 import { cn } from "@/lib/utils";
-import { useTranslation } from "@/contexts/LanguageContext";
+import { useTranslation } from "@/contexts/language-context-value";
 
 import {
   DropdownMenu,
@@ -54,7 +54,7 @@ export function TopBar() {
       window.removeEventListener("kora:open-day", onDay);
       window.removeEventListener("kora:open-support", onSupport);
     };
-  }, []);
+  }, [navigate]);
 
 
 

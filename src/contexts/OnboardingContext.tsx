@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { useEffect, useState, ReactNode } from "react";
+import { OnboardingContext } from "@/contexts/onboarding-context-value";
 
 export interface OnboardingService {
   name: string;
@@ -18,30 +19,8 @@ export interface OnboardingData {
   goals: string[];
 }
 
-interface OnboardingContextValue {
-  completed: boolean;
-  data: OnboardingData | null;
-  saveOnboarding: (data: OnboardingData) => void;
-  resetOnboarding: () => void;
-}
-
 const STORAGE_KEY = "orbyt.onboarding.v1";
 const COMPLETED_KEY = "orbyt.onboarding.completed.v1";
-
-const defaultData: OnboardingData = {
-  ownerName: "",
-  studioName: "",
-  phone: "",
-  website: "",
-  area: "",
-  services: [],
-  country: "Brasil",
-  currency: "BRL",
-  cityState: "",
-  goals: [],
-};
-
-const OnboardingContext = createContext<OnboardingContextValue | null>(null);
 
 export function OnboardingProvider({ children }: { children: ReactNode }) {
   const [completed, setCompleted] = useState<boolean>(() => {
@@ -84,11 +63,3 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     </OnboardingContext.Provider>
   );
 }
-
-export function useOnboarding() {
-  const ctx = useContext(OnboardingContext);
-  if (!ctx) throw new Error("useOnboarding must be used inside OnboardingProvider");
-  return ctx;
-}
-
-export const onboardingDefaults = defaultData;

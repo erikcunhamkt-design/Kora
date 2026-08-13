@@ -12,10 +12,11 @@ import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
-  SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar, SidebarFooter,
+  SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarFooter,
 } from "@/components/ui/sidebar";
-import { usePlan } from "@/contexts/PlanContext";
-import { useTranslation } from "@/contexts/LanguageContext";
+import { useSidebar } from "@/components/ui/sidebar-context";
+import { usePlan } from "@/contexts/plan-context-value";
+import { useTranslation } from "@/contexts/language-context-value";
 
 type Badge = "soon" | "beta" | "pro";
 

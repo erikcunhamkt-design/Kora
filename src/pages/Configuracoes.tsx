@@ -54,7 +54,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { useAppSettings, type NotificationSettings } from "@/hooks/useAppSettings";
-import { useOnboarding } from "@/contexts/OnboardingContext";
+import { useOnboarding } from "@/contexts/onboarding-context-value";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { SupportDrawer } from "@/components/support/SupportDrawer";
 import { ClientPortalSection } from "@/components/settings/ClientPortalSection";
@@ -87,8 +87,8 @@ import { QuotesSupabaseBaseTasksToggleCard } from "@/components/settings/QuotesS
 import { QuotesSupabaseStatusTransitionToggleCard } from "@/components/settings/QuotesSupabaseStatusTransitionToggleCard";
 import { QuotesSupabaseTechnicalSheetsAutoSaveToggleCard } from "@/components/settings/QuotesSupabaseTechnicalSheetsAutoSaveToggleCard";
 import { useSupabaseClients } from "@/hooks/useSupabaseClients";
-import { useAccessibility } from "@/contexts/AccessibilityContext";
-import { useTranslation } from "@/contexts/LanguageContext";
+import { useAccessibility } from "@/contexts/accessibility-context-value";
+import { useTranslation } from "@/contexts/language-context-value";
 import { SoundPreferencesSection } from "@/components/settings/SoundPreferencesSection";
 
 

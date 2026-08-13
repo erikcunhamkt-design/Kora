@@ -1,6 +1,6 @@
 import { PageHeader } from "@/components/layout/PageHeader";
 import { useEffect, useMemo, useState } from "react";
-import { usePlan } from "@/contexts/PlanContext";
+import { usePlan } from "@/contexts/plan-context-value";
 import { UsageBadge } from "@/components/plan/UsageBadge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -129,7 +129,7 @@ import { useSupabaseCrmWriteFlag } from "@/hooks/useSupabaseCrmWriteFlag";
 import { supabaseCrmAuditLog } from "@/services/crm/supabaseCrmAuditLog";
 import { CreateCrmSupabaseQuoteDialog } from "@/components/crm/CreateCrmSupabaseQuoteDialog";
 import { LinkedQuotesSection } from "@/components/crm/LinkedQuotesSection";
-import { useTranslation } from "@/contexts/LanguageContext";
+import { useTranslation } from "@/contexts/language-context-value";
 
 
 

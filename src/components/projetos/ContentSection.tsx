@@ -73,7 +73,7 @@ export function ContentSection() {
     return Array.from(map.values())
       .filter(c => !search || c.name.toLowerCase().includes(search.toLowerCase()))
       .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
-  }, [realClients, contentClients, items, search]);
+  }, [realClients, contentClients, search]);
 
   const noClientCount = items.filter(i => !i.clientName).length;
 
@@ -403,10 +403,6 @@ const ClientWorkspace = ({
       <TutorialDialog open={tutorialOpen} onOpenChange={setTutorialOpen} />
     </div>
   );
-
-  /* eslint-disable-next-line @typescript-eslint/no-unused-vars */
-  function _h() {} // placeholder
-
 };
 
 

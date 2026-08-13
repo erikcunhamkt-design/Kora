@@ -1,8 +1,8 @@
 import { useEffect } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
-import { useOnboarding } from "@/contexts/OnboardingContext";
+import { useAuth } from "@/contexts/auth-context-value";
+import { useOnboarding } from "@/contexts/onboarding-context-value";
 
 export default function AuthCallback() {
   const { user, loading } = useAuth();

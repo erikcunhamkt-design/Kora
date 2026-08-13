@@ -60,9 +60,10 @@ import {
 import {
   OverviewGrid, BrandingSection, PersonaSection, EditorialSection,
   TypographySection, SocialSection, AccessesSection, CompetitorsSection,
-  BriefingSection, AssetsSection, SECTIONS, statusOf, statusStyles, statusLabel,
+  BriefingSection, AssetsSection,
   type SectionId,
 } from "@/components/clients/ClientTechnicalSheetDialog";
+import { SECTIONS, statusOf, statusStyles, statusLabel } from "@/components/clients/client-technical-sheet-helpers";
 
 type ViewId = "overview" | Exclude<SectionId, "overview">;
 

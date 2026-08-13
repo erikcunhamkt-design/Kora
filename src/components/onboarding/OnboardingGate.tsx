@@ -1,5 +1,5 @@
 import { Navigate, useLocation } from "react-router-dom";
-import { useOnboarding } from "@/contexts/OnboardingContext";
+import { useOnboarding } from "@/contexts/onboarding-context-value";
 
 export function OnboardingGate({ children }: { children: React.ReactNode }) {
   const { completed } = useOnboarding();

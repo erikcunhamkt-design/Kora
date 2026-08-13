@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Check, Crown, Sparkles, ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { usePlan, PLAN_PRICE } from "@/contexts/PlanContext";
+import { usePlan, PLAN_PRICE } from "@/contexts/plan-context-value";
 import { useToast } from "@/hooks/use-toast";
 
 const features = [

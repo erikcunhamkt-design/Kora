@@ -3,7 +3,7 @@ import { formatDate as intlDate } from "@/lib/format";
 import { useSearchParams } from "react-router-dom";
 import { PageHeader } from "@/components/layout/PageHeader";
 
-import { usePlan } from "@/contexts/PlanContext";
+import { usePlan } from "@/contexts/plan-context-value";
 import { UsageBadge } from "@/components/plan/UsageBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { useAccessibility, type AccessibilitySettings } from "@/contexts/AccessibilityContext";
+import { type AccessibilitySettings } from "@/contexts/AccessibilityContext";
+import { useAccessibility } from "@/contexts/accessibility-context-value";
 import {
   Dialog,
   DialogContent,

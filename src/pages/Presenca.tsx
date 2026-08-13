@@ -13,7 +13,7 @@ import { usePublicProfile } from "@/hooks/usePublicProfile";
 import { useBioLinks } from "@/hooks/useBioLinks";
 import { useLeadForms } from "@/hooks/useLeadForms";
 import { useScheduling } from "@/hooks/useScheduling";
-import { usePlan, PLAN_PRICE } from "@/contexts/PlanContext";
+import { usePlan, PLAN_PRICE } from "@/contexts/plan-context-value";
 import { toast } from "sonner";
 import { Copy, ExternalLink, Trash2, Plus, Crown, Check, Globe, Link as LinkIcon, FileText, Calendar } from "lucide-react";
 

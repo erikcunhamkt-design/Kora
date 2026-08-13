@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
+import { AccessibilityContext } from "@/contexts/accessibility-context-value";
 
 export interface AccessibilitySettings {
   lowVision: boolean;
@@ -35,18 +36,6 @@ const DEFAULT_SETTINGS: AccessibilitySettings = {
   focusSpotlightActive: false,
   bipolarEnergyLevel: "high",
 };
-
-interface AccessibilityContextType {
-  settings: AccessibilitySettings;
-  updateSetting: <K extends keyof AccessibilitySettings>(key: K, value: AccessibilitySettings[K]) => void;
-  resetSettings: () => void;
-  hasCompletedOnboarding: boolean;
-  completeOnboarding: () => void;
-  isDialogOpen: boolean;
-  setDialogOpen: (open: boolean) => void;
-}
-
-const AccessibilityContext = createContext<AccessibilityContextType | undefined>(undefined);
 
 export const AccessibilityProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [settings, setSettings] = useState<AccessibilitySettings>(() => {
@@ -176,10 +165,3 @@ export const AccessibilityProvider: React.FC<{ children: React.ReactNode }> = ({
   );
 };
 
-export const useAccessibility = () => {
-  const context = useContext(AccessibilityContext);
-  if (!context) {
-    throw new Error("useAccessibility must be used within an AccessibilityProvider");
-  }
-  return context;
-};

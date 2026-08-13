@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from "react";
-import { useAccessibility } from "@/contexts/AccessibilityContext";
+import { useAccessibility } from "@/contexts/accessibility-context-value";
 
 const FocusSpotlightContext = createContext<(() => void) | undefined>(undefined);
 

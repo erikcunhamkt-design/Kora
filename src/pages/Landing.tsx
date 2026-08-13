@@ -5,7 +5,7 @@ import {
   ChevronRight, Sparkles, Crown, Layout, Quote, X, AlertTriangle, Layers
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { PLAN_PRICE } from "@/contexts/PlanContext";
+import { PLAN_PRICE } from "@/contexts/plan-context-value";
 import orbitLogo from "@/assets/kora-logo.png";
 import { useEffect, useRef } from "react";
 

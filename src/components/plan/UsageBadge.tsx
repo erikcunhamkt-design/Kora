@@ -1,4 +1,4 @@
-import { usePlan } from "@/contexts/PlanContext";
+import { usePlan } from "@/contexts/plan-context-value";
 import { AlertTriangle, Crown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
