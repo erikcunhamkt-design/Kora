@@ -428,11 +428,11 @@ Achado durante a investigação da Etapa 6, item 4 (fila de campanhas v2), Fase 
 
 ---
 
-**G25 — `WhatsAppCampaigns.tsx` (UI do sistema legado de campanhas) é código órfão — zero importadores. [MÉDIO — confirmado]**
+**G25 — `WhatsAppCampaigns.tsx` (UI do sistema legado de campanhas) é código órfão — zero importadores. [MÉDIO — RESOLVIDO na rodada `ux2-g21-g23-g25-fase-a` (opção a, só o componente)]**
 Achado na mesma investigação. `git grep` (`71c4a75` e re-confirmado em `208ff9c`) só encontra `WhatsAppCampaigns.tsx:16` (a própria definição do componente) — nenhuma página/rota importa. `WhatsApp.tsx:986` monta `CampaignsBackendPage` (v2), não este componente. Como é o único ponto de escrita em `whatsapp_queue`/`whatsapp_campaigns` do app hoje (nenhum outro caller de `.from("whatsapp_queue").insert(...)` existe em `src/`), o worker legado (`whatsapp-campaign-processor`, cron a cada minuto, claim/reap atômico — G4 original) está ativo e bem construído, mas sem nenhum caminho de produção pra alimentar a fila com campanhas novas.
 
 - **Cuidado ao decidir remover:** o cron do processor legado é hoje o heartbeat que mitiga a pausa por inatividade do projeto Supabase Free (`kora-roadmap.md` §6.3) — desagendá-lo por causa da UI órfã, sem decidir separadamente sobre esse heartbeat, reintroduz esse risco.
-- **Sem correção nesta rodada** — catalogado; decisão de remontar/remover/convergir fica pra fatia futura (opção (b), unificação v1→v2, registrada como fatia futura em `kora-roadmap.md` §4).
+- **Resolvido (opção a — só o componente):** `src/components/whatsapp/WhatsAppCampaigns.tsx` deletado (345 linhas). **Nada além do arquivo foi tocado** — `whatsapp-campaign-processor` (worker legado, cron a cada minuto) e o cron em si seguem exatamente como estavam, intactos, preservando o heartbeat que mitiga a pausa do Supabase Free. O componente já era o único caminho de produção capaz de alimentar `whatsapp_queue`/`whatsapp_campaigns`, e nenhuma rota o importava — removê-lo não muda o comportamento observável do app (a fila legada já não recebia campanhas novas por essa via antes da remoção). Decisão de unificação v1→v2 (ou o que fazer do worker/heartbeat) continua em aberto, fora do escopo desta fatia (fatia futura, `kora-roadmap.md` §4).
 
 ---
 
