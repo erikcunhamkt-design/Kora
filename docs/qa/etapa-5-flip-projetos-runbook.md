@@ -34,6 +34,19 @@
 > desta fatia. **G32** (`kora-hub-auditoria-e-plano.md`) registra o achado;
 > nenhum código mudou. Caso 3 (§3.2) emendado pra refletir o critério real:
 > leitura pode ocorrer, escrita não pode, exibição tem que ser 100% local.
+>
+> **Atualização (Fase D, Caso 5.2 → vermelho corrigido, G33):** homologação
+> (BUILD `4c6bf7d`) — "Gerar projeto" (Vendas, orçamento aprovado) caía no
+> toast de bloqueio de `blockWrite()` mesmo com `QuoteToProjectDialog.tsx`
+> já resolvendo R5 (Pacote do Flip de `projects`, Fase B: grava local +
+> espelho best-effort, independente do dataSource de `quotes`). Gate fóssil
+> — apontava pra um cutover de `projects` que já tinha acontecido, só nunca
+> foi revisitado em `QuotesSection.tsx`. **G33**
+> (`kora-hub-auditoria-e-plano.md`) documenta o achado e o fix
+> (`openProjectDialog` não chama mais `blockWrite()`; `openReceivableDialog`
+> inalterado — `finance` ainda não migrou). Nenhum texto deste runbook
+> precisou mudar — a expectativa do Caso 5.2 já estava certa, era o código
+> que estava desatualizado.
 
 ## Abertura (§16/§17)
 

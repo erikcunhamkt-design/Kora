@@ -113,12 +113,19 @@ export function QuotesSection() {
 
   // Etapa 5 · Fatia 10 (item 8) — o ciclo de vida da PRÓPRIA quote (criar,
   // status, duplicar, excluir) já tem caminho real no modo Supabase (guardas
-  // dedicadas abaixo/nos itens 1-4). `blockWrite()` continua existindo só
-  // para "Gerar conta a receber"/"Gerar projeto" — as 2 famílias cruzadas
-  // ficam fora de escopo desta fatia por decisão (Fase A §4), não por
-  // limitação técnica. Guarda sempre ANTES de qualquer toast/lógica de
-  // sucesso (lição O2/O3/O4) — vale pra `blockWrite()` e pra toda guarda
-  // dedicada desta tela.
+  // dedicadas abaixo/nos itens 1-4). `blockWrite()` cobre as 2 famílias
+  // cruzadas ("Gerar conta a receber"/"Gerar projeto") cujo destino de
+  // escrita é OUTRO domínio (`finance`/`projects`) — decisão original (Fase
+  // A §4 da Fatia 10, `etapa-5-flip-quotes.md`): cada uma só sai da guarda
+  // quando a fatia de cutover do domínio correspondente religar o diálogo ao
+  // caminho nuvem. `finance` ainda não migrou (`QuoteToReceivableDialog.tsx`
+  // só grava local, `fin.addTransaction`) — continua bloqueado. `projects`
+  // JÁ migrou (Pacote do Flip de projects, Fase B, resolveu R5):
+  // `QuoteToProjectDialog.tsx` grava local + espelho best-effort G22,
+  // independente do dataSource de QUOTES — ver G33
+  // (`kora-hub-auditoria-e-plano.md`). Guarda sempre ANTES de qualquer
+  // toast/lógica de sucesso (lição O2/O3/O4) — vale pra `blockWrite()` e
+  // pra toda guarda dedicada desta tela.
   const blockWrite = (): boolean => {
     if (dataSource !== "supabase") return false;
     toast.error("Edição de orçamentos no modo Supabase chega numa próxima fatia — volte para Local para editar.");
@@ -130,8 +137,11 @@ export function QuotesSection() {
     setReceivableQuote(q);
   };
 
+  // G33 — sem blockWrite(): QuoteToProjectDialog.tsx já resolve R5 (grava
+  // local sempre + espelho best-effort pra Supabase, G22), então bloquear a
+  // ABERTURA do diálogo aqui pelo dataSource de quotes não protegia nada —
+  // só impedia um fluxo que já funciona corretamente nos dois modos.
   const openProjectDialog = (q: Quote) => {
-    if (blockWrite()) return;
     setProjectQuote(q);
   };
 
@@ -399,8 +409,9 @@ export function QuotesSection() {
               <>
                 <span className="font-semibold block">Orçamentos operacionais (Supabase)</span>
                 <span className="text-muted-foreground">
-                  Criar, mudar status, duplicar e excluir já gravam na nuvem. Gerar recebível/
-                  projeto a partir de um orçamento aprovado ainda chega numa próxima fatia.
+                  Criar, mudar status, duplicar e excluir já gravam na nuvem. Gerar projeto a
+                  partir de um orçamento aprovado também já funciona (G33). Gerar recebível
+                  ainda chega numa próxima fatia (cutover de Financeiro).
                 </span>
               </>
             ) : (
