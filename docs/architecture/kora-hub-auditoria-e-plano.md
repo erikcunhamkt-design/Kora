@@ -422,13 +422,14 @@ Achado durante o desenho do CHECK de `status` (Etapa 5, flip de `projects`, item
 
 ---
 
-**G24 — `whatsapp-campaign-v2-sender`: recipients presos em `status='sending'` sem reaper (classe P4 do Batch 3, reintroduzida no v2). [ALTO — confirmado]**
+**G24 — `whatsapp-campaign-v2-sender`: recipients presos em `status='sending'` sem reaper (classe P4 do Batch 3, reintroduzida no v2). [ALTO — FECHADO, reaper em produção]**
 Achado durante a investigação da Etapa 6, item 4 (fila de campanhas v2), Fase A (LANE C, ref. `71c4a75`) e re-verificado contra o tip real (`208ff9c`) na Fase B. O lock de idempotência do sender v2 (`whatsapp-campaign-v2-sender/index.ts:197-205`) é um `UPDATE ... WHERE status='queued'` por linha, sem contrapartida de liberação: se a invocação morre no meio do lote (timeout da edge function, queda de rede), os recipients já travados em `sending` nunca voltam pra `queued` — a próxima chamada de `send_batch` só seleciona `status='queued'` (`:180-187`), então ficam presos pra sempre, sem nenhum mecanismo de self-heal.
 
 - **Mesma classe de bug já resolvida uma vez, no legado:** `20260701220000_batch3_campaign_robustness.sql` (comentário P4, linhas 3-8) documenta ter corrigido exatamente isto no sistema legado ("ran up to ~6min per invocation and blew the wall-clock limit, stranding rows in status='sending' forever"). O v2 nasceu com o desenho pré-fix (sleep in-process, sem gate no banco, sem reaper) e nunca recebeu o mesmo tratamento.
 - **Janela de exposição calculada, não estimada:** `MAX_BATCH_SIZE=10` + delay `30-90s` entre envios (`index.ts:23-26`, aplicado entre cada um dos 9 gaps de um lote cheio, `:286-289`) soma até **~13,5 min de wall-clock por invocação**, fora rede/typing/DB — bem acima do timeout típico de Edge Function, tornando o timeout um risco real de uso normal, não só de falha de rede.
 - **Fix:** RPC dedicada `reap_stuck_campaign_v2_recipients` + cron a cada 15 min, migration `20260811000200_etapa6_campaign_v2_reaper.sql` (escrita, não aplicada — sessão §8-b). Decisão registrada (opção (c) + reaper, não (a) automação completa): ver `kora-roadmap.md` §4, item 4.
 - **Limitação conhecida do fix:** o reaper re-enfileira o recipient sem saber se o envio já tinha ocorrido antes do crash de status — semântica *at-least-once*, reenvio duplicado possível e aceito nesta rodada; resolução definitiva (idempotência forte por `provider_message_id` antes de reaptar) fica pra fatia futura de unificação/opção (b).
+- **Sessão §8-b APLICADA — 12/ago/2026.** Pacote 2 de 2 desta janela (o outro é a migration de Projetos, ver `etapa-5-flip-projetos.md`). `cron.job` confirma job **`jobid 3`**, schedule `*/15 * * * *`, ativo. Grants confirmados só `service_role` + dono da function (nenhum `anon`/`authenticated`/`PUBLIC`). Teste funcional manual (`SELECT reap_stuck_campaign_v2_recipients()`) retornou **0** (nenhum recipient preso no momento da aplicação — esperado, sem incidente em curso). **Zero incidentes.** Acompanhamento pendente, **não bloqueante** (mesmo espírito do kit (c) do `ai-rate-limit-cleanup`): confirmar em `cron.job_run_details` (jobid 3) que a 1ª execução automática rodou sozinha.
 
 ---
 
