@@ -62,7 +62,8 @@ function renderDialog(quote: Quote) {
 }
 
 describe("QuoteToProjectDialog · espelho best-effort (padrão G22, resolve R5)", () => {
-  it("flag mestre OFF (default) — cria local, NUNCA chama o espelho", async () => {
+  it("flag mestre OFF (override explícito, Pacote do Flip virou opt-out) — cria local, NUNCA chama o espelho", async () => {
+    localStorage.setItem(PROJECTS_SUPABASE_WRITE_FLAG_KEY, "false");
     const addProject = vi.fn().mockReturnValue(makeCreatedProject());
     vi.mocked(useProjects).mockReturnValue({ addProject } as never);
 
