@@ -465,3 +465,39 @@ Regra dura, sem exceção — vale inclusive para QA:
    feature, pra resolver drift antes de gates/push, **não é** um merge em `main` e não está
    sujeito a este gate. O gate é especificamente sobre o sentido branch → `main`.
 4. **Demais gates permanentes (seções 0–17) inalterados.**
+
+---
+
+## 19. Emenda 2026-08-13 — Gate de `tsc` padronizado: `npm run gates`, saída literal no relatório
+
+> **Motivada por:** merge do UX2/G21/G23/G25 (`e86d7a6`, LANE B) reportado com "tsc=0", mas o
+> tip continha 4 erros reais de TypeScript (catalogado como
+> [G27](../architecture/kora-hub-auditoria-e-plano.md) — resíduo de tipo em
+> `ClientActivitiesTab.tsx` após a Fase B do flip de Projetos remover o import de `useProjects`).
+> `vitest` e `lint` bateram certo; só o `tsc` divergiu. Causa raiz confirmada por reprodução: o
+> comando usado no merge (`npx tsc --noEmit`, sem `-p`) resolve pro `tsconfig.json` da raiz, que
+> tem `"files": []` e só `references` pros dois sub-projetos (`tsconfig.app.json`/
+> `tsconfig.node.json`) — sem a flag `--build`/`-b`, o `tsc` não segue `references`
+> automaticamente. Resultado: **o comando checava 0 arquivos** (confirmado com
+> `--listFiles`, 0 linhas de saída) — não é que passou por engano com cobertura parcial, é que
+> não checou nada, sempre saindo `0` (verde) independente do estado real do código. O comando
+> correto, `tsc -p tsconfig.app.json --noEmit`, cobre 1112 arquivos e apontou os 4 erros reais no
+> mesmo commit. Este já era o gate vazio original do achado G9 (kora-hub-auditoria-e-plano.md) —
+> a causa raiz não é nova, mas nenhuma emenda até agora tinha fixado o comando **literal**
+> exigido, então cada lane corria o risco de reintroduzir o mesmo comando vazio de memória.
+
+1. **Gate de `tsc` em qualquer merge/homologação usa `tsc -p tsconfig.app.json --noEmit`, nunca
+   `tsc --noEmit` puro** (este último resolve pro `tsconfig.json` raiz — `"files": []`, checa
+   zero arquivos, sempre verde). Script `"gates"` adicionado ao `package.json` —
+   `npm run gates` roda `tsc -p tsconfig.app.json --noEmit && npm run lint && vitest run` nesta
+   ordem fixa, pra nenhuma lane depender de lembrar o comando certo de memória.
+2. **Todo relatório de merge cola a saída literal do `tsc`** (mesmo quando vazia — "saída vazia,
+   0 erros" é diferente de "não rodei o tsc"), não só um resumo tipo "tsc=0". Mesmo padrão de
+   transparência já em vigor pra prints de terminal (§15) e pra prova de build por hash (§17) —
+   afirmar um resultado sem colar a evidência bruta é o mesmo tipo de risco que essas seções já
+   cobrem para outros gates.
+3. **`npm run gates` é o comando de referência daqui pra frente** — outros comandos equivalentes
+   (`npm run lint && npm run test`, chamadas separadas de `tsc`/`vitest`) continuam válidos
+   funcionalmente, mas `npm run gates` existe justamente pra remover a chance de escolher o
+   comando de `tsc` errado por engano.
+4. **Demais gates permanentes (seções 0–18) inalterados.**
