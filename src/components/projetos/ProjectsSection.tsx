@@ -261,7 +261,7 @@ export function ProjectsSection() {
           <span className="text-xs font-semibold text-foreground">Fonte dos projetos:</span>
           {dataSource === "supabase" && (
             <Badge variant="outline" className="text-[10px] uppercase font-mono py-0 text-primary border-primary/30 bg-primary/5">
-              Modo leitura
+              Modo operacional
             </Badge>
           )}
         </div>
@@ -295,9 +295,9 @@ export function ProjectsSection() {
         <div className="flex items-start gap-2.5 p-3 rounded-lg border border-primary/20 bg-primary/5 text-xs text-foreground">
           <Cloud className="h-4 w-4 shrink-0 mt-0.5 text-primary" />
           <div className="flex-1">
-            <span className="font-semibold block">Projetos em modo leitura (Supabase)</span>
+            <span className="font-semibold block">Projetos operacionais (Supabase)</span>
             <span className="text-muted-foreground">
-              Escrita ainda chega numa próxima fatia — volte para "Local" para editar.
+              Criar, mudar status e marcar entregáveis já gravam direto na nuvem.
             </span>
           </div>
         </div>
