@@ -12,6 +12,7 @@ import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { useLocalClientsImport } from "@/hooks/useLocalClientsImport";
 import { useLocalOpportunitiesImport } from "@/hooks/useLocalOpportunitiesImport";
 import { useLocalTechnicalSheetsImport } from "@/hooks/useLocalTechnicalSheetsImport";
+import { setCrmDataSource, CRM_DATA_SOURCE_KEY } from "@/config/flags";
 
 vi.mock("@/hooks/useCurrentWorkspace");
 vi.mock("@/hooks/useLocalClientsImport");
@@ -145,5 +146,79 @@ describe("Configuracoes import cards — O6 (LocalTechnicalSheetsImportCard, sam
 
     expect(screen.getByText("Análise de Importação de Fichas Técnicas")).toBeInTheDocument();
     expect(screen.getByText("Já Importada")).toBeInTheDocument();
+  });
+});
+
+// G23 — os avisos híbridos eram string fixa (obsoleta desde jul/2026, sempre dizendo
+// "ainda usa dados locais" mesmo com o default já em Supabase). Onde a fonte é uma
+// flag simples (getCrmDataSource — CRM), o texto agora deriva do valor real, testado
+// nos 2 estados pra provar que acompanha a flag em vez de reapodrecer sozinho.
+describe("Configuracoes import cards — G23 (aviso híbrido deriva do estado real da flag)", () => {
+  const emptyOpportunitiesMock = {
+    candidates: [],
+    importing: false,
+    importSelected: vi.fn(),
+    importedIds: [],
+    metadata: null,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(useCurrentWorkspace).mockReturnValue(mockWorkspace);
+    localStorage.removeItem(CRM_DATA_SOURCE_KEY);
+  });
+
+  it("LocalOpportunitiesImportCard: default (sem flag salva) mostra o texto de Supabase", () => {
+    vi.mocked(useLocalOpportunitiesImport).mockReturnValue(emptyOpportunitiesMock as never);
+
+    render(<LocalOpportunitiesImportCard />);
+
+    expect(
+      screen.getByText(/tela principal de CRM já lê do Supabase por padrão/),
+    ).toBeInTheDocument();
+  });
+
+  it("LocalOpportunitiesImportCard: com getCrmDataSource() === 'local' mostra o texto de dados locais", () => {
+    vi.mocked(useLocalOpportunitiesImport).mockReturnValue(emptyOpportunitiesMock as never);
+    setCrmDataSource("local");
+
+    render(<LocalOpportunitiesImportCard />);
+
+    expect(
+      screen.getByText(/tela principal de CRM está configurada para usar dados locais/),
+    ).toBeInTheDocument();
+  });
+
+  it("LocalClientsImportCard: texto reflete que a tela Clientes já lê do Supabase por padrão", () => {
+    vi.mocked(useLocalClientsImport).mockReturnValue({
+      candidates: [],
+      importing: false,
+      importSelected: vi.fn(),
+      importedIds: [],
+      metadata: null,
+    } as never);
+
+    render(<LocalClientsImportCard />);
+
+    expect(
+      screen.getByText(/tela Clientes já lê do Supabase por padrão/),
+    ).toBeInTheDocument();
+  });
+
+  it("LocalTechnicalSheetsImportCard: texto não afirma mais que a página principal usa localStorage", () => {
+    vi.mocked(useLocalTechnicalSheetsImport).mockReturnValue({
+      candidates: [],
+      importing: false,
+      importSelected: vi.fn(),
+      metadata: null,
+      refresh: vi.fn(),
+      loading: false,
+    } as never);
+
+    render(<LocalTechnicalSheetsImportCard />);
+
+    expect(
+      screen.getByText(/página Ficha Técnica já lê do Supabase por padrão para cada cliente/),
+    ).toBeInTheDocument();
   });
 });
