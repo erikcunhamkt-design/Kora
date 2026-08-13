@@ -104,6 +104,13 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
     }
   ]);
 
+  // Latest ref (padrão useTaskReminders.ts:22-23) — loadSettings lê o valor
+  // atual de `nodes` no fallback legado sem precisar de `nodes` no dep array
+  // do useCallback (isso recriaria a função a cada edição do fluxo e
+  // re-disparia o useEffect de carga/fetch abaixo a cada edição).
+  const nodesRef = useRef(nodes);
+  useEffect(() => { nodesRef.current = nodes; }, [nodes]);
+
   // Selected node for the side inspector panel
   const [selectedNodeId, setSelectedNodeId] = useState<string>("node-trigger");
 
@@ -147,7 +154,7 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
           const legacySA = data.gcp_service_account || "";
           const legacyRespondAll = data.respond_all ?? true;
 
-          const updated = [...nodes];
+          const updated = [...nodesRef.current];
           // Update trigger
           const triggerNode = updated[0];
           if (triggerNode.type === "trigger") {
