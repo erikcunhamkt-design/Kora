@@ -518,6 +518,17 @@ Achado durante a investigação do incidente do merge do UX2/G21/G23/G25 (`e86d7
 
 ---
 
+**G29 — Banner/badge de "modo leitura" em `ProjectsSection.tsx` sobreviveram intactos da Fatia N até depois do flip dos defaults (Fase C), anunciando bloqueio de escrita que não existe. [MÉDIO — confirmado e FECHADO, classe "flip incompleto — texto de UI nunca atualizado, não divergência de flag"]**
+Achado na Fase D (homologação B.3), Caso 1, do Pacote do Flip de `projects` (Etapa 5). Com `dataSource=supabase` e nenhuma chave de flag setada (usuário novo, BUILD `b90f86a`), a tela de Projetos exibia badge **"Modo leitura"** + banner **"Projetos em modo leitura (Supabase) — Escrita ainda chega numa próxima fatia — volte para Local para editar"** — texto literal da Fatia N (leitura bifurcada, escrita ainda bloqueada por `blockWrite()`) — **enquanto a escrita real (Fase B/C) já funcionava** (SELECT confirmou `HOMOLOG-FLIP-projeto-A` criado em `public.projects`).
+
+- **Hipótese original (revisada e corrigida durante a investigação):** o operador suspeitou de divergência de semântica entre pontos de leitura da flag `kora.projects.supabaseWrite.enabled` (algum ponto ainda checando `=== "true"`, opt-in, enquanto o caminho de escrita usa o hook novo, opt-out). **Grep exaustivo não encontrou nenhum ponto com semântica antiga** — os 3 call sites reais de `isSupabaseProjectsWriteEnabled()` (`ProjectsSection.tsx:186`, `ProjectDetailDrawer.tsx:122`, `QuoteToProjectDialog.tsx:167`) já usavam o hook opt-out corretamente, todos no caminho do ESPELHO (padrão G22, modo local).
+- **Causa raiz real, mais simples que a hipótese:** o badge (`ProjectsSection.tsx:262-266`) e o banner (`:294-304`) eram gated **só** por `dataSource === "supabase"` — texto fixo, **nunca checavam a flag em lugar nenhum**. Não é "dois pontos de leitura discordando"; é um ponto de UI que nunca foi atualizado quando a Fase B trocou o CRUD de bloqueado pra real.
+- **Achado arquitetural importante que corrige a expectativa do runbook:** diferente de `quotes` (onde `isSupabaseQuotesWriteEnabled()` gateia se editar um registro lido da nuvem é permitido), em `projects` o CRUD em modo Supabase (`createSupabaseProject`/`updateSupabaseProject`, `useSupabaseProjects.ts`) **nunca checou a write flag, nos dois sentidos** — só `!workspace` bloqueia. A flag sempre foi, por desenho documentado no próprio hook (`useSupabaseProjectsWriteFlag.ts`), o gate do ESPELHO em modo local, não do CRUD direto em modo nuvem. Por isso o fix **não** introduziu uma checagem de flag nova no banner (isso teria sido uma mudança de comportamento não pedida, capaz de quebrar a escrita que o Caso 1 acabou de confirmar) — corrigiu o texto pra refletir a realidade: badge/banner mostram "Modo operacional"/"Projetos operacionais (Supabase)" sempre que `dataSource === "supabase"`, sem depender de nenhuma flag.
+- **Testes novos** (`ProjectsSection.test.tsx`, describe "G29"): usuário novo sem chaves → operacional, nunca "modo leitura"; e escrita real funciona mesmo com `kora.projects.supabaseWrite.enabled=false` explícito — prova de que a flag genuinamente não gateia esse caminho (não uma lacuna a fechar).
+- Detalhamento: [`etapa-5-flip-projetos-runbook.md`](../qa/etapa-5-flip-projetos-runbook.md) §3 (Caso 1).
+
+---
+
 ## 3. Segurança / vulnerabilidades (verificar e endurecer)
 
 > Vários itens abaixo são **"confirmar no código"** — a arquitetura está certa, mas a implementação precisa ser auditada arquivo a arquivo pelo Code.

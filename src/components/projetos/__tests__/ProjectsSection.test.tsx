@@ -168,6 +168,53 @@ describe("ProjectsSection · modo Supabase (leitura, novo default)", () => {
   });
 });
 
+// G29 (Fase D, Caso 1) — o banner/badge de "modo leitura" da era Fatia N
+// nunca foram atualizados na Fase B, quando o CRUD em modo Supabase virou
+// real e incondicional (createSupabaseProject/updateSupabaseProject não
+// checam nenhuma flag, só `!workspace`). Causa raiz NÃO é divergência de
+// semântica entre pontos de leitura de `kora.projects.supabaseWrite.enabled`
+// (hipótese original) — é ausência TOTAL de checagem: o banner era gated
+// só por `dataSource === "supabase"`, texto fixo, nunca olhava pra flag
+// nenhuma. A flag (`isSupabaseProjectsWriteEnabled`) só gateia o ESPELHO
+// em modo local (G22) — nunca gateou o CRUD direto em modo Supabase, nos
+// dois sentidos (não gateava antes deste fix, e não deveria passar a
+// gatear agora: seria uma mudança de comportamento não pedida, e teria
+// quebrado a escrita real que o Caso 1 da homologação acabou de confirmar
+// funcionando).
+describe("ProjectsSection · G29 — banner/badge refletem a escrita real em modo Supabase", () => {
+  it("usuário novo (sem nenhuma chave em localStorage) — badge/banner mostram OPERACIONAL, nunca 'modo leitura'", async () => {
+    vi.mocked(useProjects).mockReturnValue({ projects: [], addProject: vi.fn() } as never);
+    mockSupabaseProjects({ projects: [] });
+
+    renderSection();
+    fireEvent.click(screen.getByText("Supabase experimental"));
+
+    await screen.findByText("Modo operacional");
+    await screen.findByText("Projetos operacionais (Supabase)");
+    expect(screen.queryByText("Modo leitura")).not.toBeInTheDocument();
+    expect(screen.queryByText("Projetos em modo leitura (Supabase)")).not.toBeInTheDocument();
+  });
+
+  it("escrita real funciona mesmo com kora.projects.supabaseWrite.enabled=false — a flag NÃO gateia CRUD em modo Supabase", async () => {
+    localStorage.setItem(PROJECTS_SUPABASE_WRITE_FLAG_KEY, "false");
+    const createProject = vi.fn().mockResolvedValue({ id: "cloud-uuid-new" });
+    vi.mocked(useProjects).mockReturnValue({ projects: [], addProject: vi.fn() } as never);
+    mockSupabaseProjects({ createProject });
+
+    renderSection();
+    fireEvent.click(screen.getByText("Supabase experimental"));
+    await screen.findByText("Projetos operacionais (Supabase)");
+
+    fireEvent.click(screen.getByText("Novo projeto"));
+    fillCreateForm("X", "Y");
+    fireEvent.click(screen.getByText("Criar projeto"));
+
+    await waitFor(() => expect(createProject).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "X", clientName: "Y" }),
+    ));
+  });
+});
+
 describe("ProjectsSection · CRUD real em modo Supabase (Pacote do Flip, Fase B)", () => {
   it("criar projeto em modo Supabase chama createProject (nativo) — NUNCA addProject local", async () => {
     const addProject = vi.fn();
@@ -177,7 +224,7 @@ describe("ProjectsSection · CRUD real em modo Supabase (Pacote do Flip, Fase B)
 
     renderSection();
     fireEvent.click(screen.getByText("Supabase experimental"));
-    await screen.findByText("Projetos em modo leitura (Supabase)");
+    await screen.findByText("Projetos operacionais (Supabase)");
 
     fireEvent.click(screen.getByText("Novo projeto"));
     fillCreateForm("X", "Y");
@@ -196,7 +243,7 @@ describe("ProjectsSection · CRUD real em modo Supabase (Pacote do Flip, Fase B)
 
     renderSection();
     fireEvent.click(screen.getByText("Supabase experimental"));
-    await screen.findByText("Projetos em modo leitura (Supabase)");
+    await screen.findByText("Projetos operacionais (Supabase)");
 
     fireEvent.click(screen.getByText("Novo projeto"));
     fillCreateForm("X", "Y");
