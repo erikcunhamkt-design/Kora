@@ -551,6 +551,18 @@ Achado durante a rodada `qualidade-lint-warnings-zero` — G30 fica reservado à
 
 ---
 
+**G32 — Em modo `dataSource=local`, a tela de Projetos dispara uma request `GET` real pra `projects` na nuvem (PostgREST) — investigado e confirmado como design da casa, não vazamento. [BAIXO — confirmado, expectativa de runbook corrigida, nenhum código mudou]**
+Achado na Fase D (homologação), Caso 3.2, do Pacote do Flip de `projects` (Etapa 5), BUILD `4c6bf7d`. Com `kora.projects.dataSource.v1="local"`, o carregamento de Portfolio → Projetos disparava `projects?select=*&workspace_id=eq...&deleted_at=is.null` (rede real, confirmado no Network tab). A tela exibia corretamente só os dados locais/demo — o achado era exclusivamente sobre a chamada de rede em si, não sobre o que era mostrado.
+
+- **Investigação (protocolo — não corrigir antes de confirmar design vs. vazamento):**
+  1. `useSupabaseProjects.ts:42` e `useSupabaseProjectsSummary.ts:14` (este último por trás de `useBifurcatedProjects.ts`, usado nos 4 consumidores fora da tela principal) usam `enabled: !!workspaceId` — **nunca** `enabled: dataSource === "supabase"`. A query React Query roda incondicional sempre que há workspace; só o `dataSource` decide qual dos dois resultados (`localProjects` vs. `supabaseProjects`) é lido/exibido (`ProjectsSection.tsx:69`, `useBifurcatedProjects.ts:43`).
+  2. Precedente conferido nos dois domínios já flipados: `useSupabaseQuotes.ts:71` e `useSupabaseOpportunities.ts:34` usam exatamente o mesmo `enabled: !!workspaceId`. `QuotesSection.tsx:103` documenta isso em comentário — "os dois hooks acima rodam sempre; só um alimenta a tela por vez" — e `CRM.tsx:176` chama `useSupabaseOpportunities(...)` incondicionalmente, mesmo com `activeDataSource` podendo ser `"local"` (`CRM.tsx:168`).
+- **Veredito: (a) — design da casa, não vazamento.** Os 3 domínios (`projects`, `quotes`, `CRM`) rodam os dois hooks (local + Supabase) em paralelo sempre; o gate é só de **leitura/exibição**, nunca de **fetch**. O §2.3 do runbook já documentava essa garantia do lado dos dados ("hooks correm em paralelo, só um é lido") — só não deixava explícito que isso inclui uma request de leitura real, o que criou a expectativa errada no Caso 3.2 original ("zero chamada de rede").
+- **Nenhum código mudou.** O critério real em modo local nunca foi "nenhuma rede" — é **nenhuma escrita** (`INSERT`/`UPDATE`/`DELETE`) na nuvem e exibição 100% local. Caso 3 (§3.2) do runbook emendado pra refletir isso.
+- Detalhamento: [`etapa-5-flip-projetos-runbook.md`](../qa/etapa-5-flip-projetos-runbook.md) §3 (Caso 3).
+
+---
+
 ## 3. Segurança / vulnerabilidades (verificar e endurecer)
 
 > Vários itens abaixo são **"confirmar no código"** — a arquitetura está certa, mas a implementação precisa ser auditada arquivo a arquivo pelo Code.

@@ -23,6 +23,17 @@
 > (`kora-hub-auditoria-e-plano.md`) corrigiu o achado: a write flag nunca
 > gateou o CRUD em modo Supabase (só o espelho em modo local, G22). Caso 2
 > e §2.3 emendados nesta rodada pra refletir a semântica real.
+>
+> **Atualização (Fase D, Caso 3.2 → vermelho, veredito "design", G32):**
+> homologação (BUILD `4c6bf7d`) confirmou uma request `GET` real pra
+> `projects` mesmo com `dataSource=local`. Investigado antes de qualquer
+> fix (protocolo — não corrigir sem confirmar design vs. vazamento): os 3
+> domínios já flipados (`projects`, `quotes`, `CRM`) rodam os dois hooks
+> (local + Supabase) em paralelo sempre, `enabled: !!workspaceId`, nunca
+> `enabled: dataSource === "supabase"` — é design da casa, não uma lacuna
+> desta fatia. **G32** (`kora-hub-auditoria-e-plano.md`) registra o achado;
+> nenhum código mudou. Caso 3 (§3.2) emendado pra refletir o critério real:
+> leitura pode ocorrer, escrita não pode, exibição tem que ser 100% local.
 
 ## Abertura (§16/§17)
 
@@ -327,10 +338,26 @@ pré-clique obrigatório (protocolo §2) em todo passo que grava na nuvem.
 
 **Caso 3 — Override de dataSource**
 
+> **Nota de correção (G32):** a expectativa original do passo 3.2 ("zero
+> chamada de rede pra `projects`/`tasks` em modo local") não corresponde ao
+> design real, em nenhum dos 3 domínios já flipados. `useSupabaseProjects.ts`
+> e `useSupabaseProjectsSummary.ts` (via `useBifurcatedProjects.ts`) usam
+> `enabled: !!workspaceId` — **nunca** `enabled: dataSource === "supabase"`.
+> O mesmo vale pra `quotes` (`QuotesSection.tsx:103`, comentário "os dois
+> hooks acima rodam sempre; só um alimenta a tela por vez") e `CRM`
+> (`CRM.tsx:176`, `useSupabaseOpportunities` chamado incondicional). É
+> **design da casa**, não um vazamento desta fatia: os dois hooks (local e
+> nuvem) sempre buscam em paralelo, e só o seletor decide qual resultado é
+> **exibido** — §2.3 já documentava essa garantia do lado dos dados ("hooks
+> correm em paralelo, só um é lido") sem deixar explícito que isso inclui
+> uma request de leitura real. O critério de verdade em modo local nunca foi
+> "nenhuma rede" — é **nenhuma escrita** na nuvem e exibição 100% local
+> (já provado pelo 3.1). Passo 3.2 corrigido abaixo.
+
 | Passo | Ação | Esperado | Prova |
 |---|---|---|---|
 | 3.1 | Console: `localStorage.setItem("kora.projects.dataSource.v1", "local");` → F5 | Tela mostra projetos locais (provavelmente vazia/diferente da nuvem) | Visual |
-| 3.2 | — | Zero chamada de rede pra `projects`/`tasks` nesse carregamento | Network tab — nenhum request Supabase relacionado |
+| 3.2 | — (emendado, G32) | Uma request de **leitura** (`GET`/`select`) pra `projects` pode ocorrer — é o hook Supabase rodando em paralelo, por design (mesmo padrão de `quotes`/CRM); o que **não pode** ocorrer é qualquer `INSERT`/`UPDATE`/`DELETE` em `projects`/`tasks`, nem a tela exibir dado que não seja 100% local | Network tab — nenhum request de escrita (POST/PATCH/DELETE) Supabase relacionado; exibição confirmada local no 3.1 |
 | 3.3 | Console: reverter pra `"supabase"` → F5 | `HOMOLOG-FLIP-projeto-A` volta a aparecer, sem duplicar | Visual + `SELECT count(*) FROM public.projects WHERE title = 'HOMOLOG-FLIP-projeto-A';` → 1 |
 
 ---
