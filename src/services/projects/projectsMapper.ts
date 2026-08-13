@@ -78,25 +78,49 @@ export interface SupabaseProjectImportPayload extends Partial<SupabaseProject> {
   budget: number;
 }
 
+/**
+ * Etapa 5 · Pacote do Flip — Fase B, item 1 (resolve O12). Traduz o `status`
+ * local pro par (status, archived) da nuvem — mesmo mecanismo de
+ * `translateLocalStatusToCloud` (quoteMapper.ts, Q9). Antes desta função,
+ * `mapLocalProjectToSupabase` gravava `status` verbatim e `archived: false`
+ * hardcoded — um projeto local "archived" produzia `status: "archived"`
+ * (texto) + `archived: false` (boolean), os dois sinais divergindo na mesma
+ * linha (achado O12). Daqui pra frente, escrita NOVA sai correta dos dois
+ * lados; dado legado já gravado continua lido corretamente porque
+ * `translateCloudProjectStatusToLocal` (abaixo) já cobre os dois formatos.
+ *
+ * `"archived"` local não preserva o status anterior ao arquivamento — vira
+ * texto neutro (`"planning"`) + `archived: true`. Mesma perda de informação
+ * já aceita em `quotes` (`"arquivado"` → `{ status: "draft", archived: true }`),
+ * não é uma regressão nova.
+ */
+export function translateLocalProjectStatusToCloud(
+  status: ProjectStatus,
+): { status: string; archived: boolean } {
+  if (status === "archived") return { status: "planning", archived: true };
+  return { status, archived: false };
+}
+
 /** Converte um Project local no payload de import (FKs resolvidas, source traduzido, budget quantizado). */
 export function mapLocalProjectToSupabase(
   project: Project,
   maps: ProjectImportMaps = EMPTY_PROJECT_IMPORT_MAPS,
 ): SupabaseProjectImportPayload {
   const quote_id = resolveProjectFk(project.quoteId, maps.quotes);
+  const { status, archived } = translateLocalProjectStatusToCloud(project.status);
   return {
     client_id: resolveProjectFk(project.clientId, maps.clients),
     quote_id,
     opportunity_id: resolveProjectFk(project.opportunityId, maps.opportunities),
     title: project.name,
     description: project.description ?? null,
-    status: project.status,
+    status,
     start_date: project.startDate || null,
     due_date: project.dueDate || null,
     budget: roundMoney(project.budget ?? 0),
     source: resolveCloudProjectSource(project.source, quote_id),
     is_demo: false,
-    archived: false,
+    archived,
   };
 }
 

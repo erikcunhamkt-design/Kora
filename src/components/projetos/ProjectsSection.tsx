@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Progress } from "@/components/ui/progress";
 import { Plus, Search, FolderOpen, Loader2, Eye, CheckCircle2, DollarSign, AlertTriangle, Calendar, User, Link2, FileText, Database, Cloud } from "lucide-react";
 import { useProjects, PROJECT_STATUS_LABEL, PROJECT_PRIORITY_LABEL, type ProjectStatus, type ProjectPriority, type Project } from "@/hooks/useProjects";
-import { useSupabaseProjectsSummary } from "@/hooks/useSupabaseProjectsSummary";
+import { useSupabaseProjects } from "@/hooks/useSupabaseProjects";
 import { useClientsDataSource } from "@/hooks/useClientsDataSource";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { getProjectsDataSource, setProjectsDataSource, type DataSource } from "@/config/flags";
@@ -51,7 +51,8 @@ export function ProjectsSection() {
   // CRM.tsx/QuotesSection.tsx.
   const {
     projects: supabaseProjectsRaw, loading: supabaseLoading, error: supabaseError,
-  } = useSupabaseProjectsSummary();
+    createProject: createSupabaseProject,
+  } = useSupabaseProjects();
   const { clients: dsClients } = useClientsDataSource();
   const { workspace } = useCurrentWorkspace();
   const clientNameById = useMemo(() => {
@@ -71,15 +72,6 @@ export function ProjectsSection() {
     setProjectsDataSource(next);
     setDataSourceState(next);
     toast({ title: `Fonte dos projetos alterada para ${next === "supabase" ? "Supabase (leitura)" : "Local"}.` });
-  };
-
-  // Etapa 5 · Flip Projetos (item 2) — leitura bifurcada, escrita ainda não
-  // (item 4). Bloqueia ações de escrita em modo Supabase com mensagem
-  // explícita, em vez de gravar local e a UI não refletir (lição O2/O3/O4).
-  const blockWrite = (): boolean => {
-    if (dataSource !== "supabase") return false;
-    toast({ title: "Escrita de projetos no modo Supabase chega numa próxima fatia — volte para Local para editar.", variant: "destructive" });
-    return true;
   };
 
   const navigate = useNavigate();
@@ -139,15 +131,14 @@ export function ProjectsSection() {
     };
   }, [projects]);
 
-  const handleCreate = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (blockWrite()) return;
     const fd = new FormData(e.currentTarget);
     const name = (fd.get("name") as string).trim();
     const clientName = (fd.get("clientName") as string).trim();
     if (!name) { toast({ title: "Informe o nome do projeto", variant: "destructive" }); return; }
     if (!clientName) { toast({ title: "Informe o cliente", variant: "destructive" }); return; }
-    const project = addProject({
+    const projectData = {
       name,
       clientName,
       description: (fd.get("description") as string) || "",
@@ -158,7 +149,29 @@ export function ProjectsSection() {
       dueDate: (fd.get("dueDate") as string) || undefined,
       budget: Number(fd.get("budget")) || 0,
       tags: ((fd.get("tags") as string) || "").split(",").map((t) => t.trim()).filter(Boolean),
-    });
+    };
+
+    // Etapa 5 · Pacote do Flip (Fase B) — em modo Supabase, escrita vai
+    // DIRETO pra nuvem (createSupabaseProject, criação nativa); em modo
+    // local, continua gravando local + espelho best-effort (padrão G22,
+    // fatia N) — mesma bifurcação de QuotesSection.tsx.
+    if (dataSource === "supabase") {
+      if (!workspace) {
+        toast({ title: "Nenhum workspace ativo — não foi possível criar o projeto.", variant: "destructive" });
+        return;
+      }
+      try {
+        await createSupabaseProject(projectData);
+        setOpen(false);
+        toast({ title: "Projeto criado" });
+      } catch (err) {
+        console.error("Falha ao criar projeto no Supabase:", err);
+        toast({ title: "Falha ao criar projeto no Supabase", description: "Tente novamente ou volte para Local.", variant: "destructive" });
+      }
+      return;
+    }
+
+    const project = addProject(projectData);
     setOpen(false);
     toast({ title: "Projeto criado" });
     mirrorCreateToSupabase(project);

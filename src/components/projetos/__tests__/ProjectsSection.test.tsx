@@ -1,16 +1,17 @@
-// Etapa 5 · Flip Projetos (item 5) — matriz dual-mode da tela principal:
+// Etapa 5 · Pacote do Flip (projects) — matriz dual-mode da tela principal:
 // (1) modo local (default) mostra dados locais intocados; (2) modo Supabase
 // mostra os dados da nuvem, mapeados (status/cliente/source traduzidos);
-// (3) escrita em modo Supabase é BLOQUEADA com toast explícito, nunca
-// silenciosa (lição O2/O3/O4); (4) espelho best-effort no create — só
-// dispara com o flag mestre ON, falha do espelho nunca desfaz o local.
+// (3) CRUD real em modo Supabase (Fase B) — create vai direto pra nuvem,
+// falha vira toast explícito, nunca um sucesso falso; (4) espelho best-effort
+// no create em modo local (fatia N, padrão G22) — só dispara com o flag
+// mestre ON, falha do espelho nunca desfaz o local.
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
 import { ProjectsSection } from "@/components/projetos/ProjectsSection";
 import { useProjects, type Project } from "@/hooks/useProjects";
-import { useSupabaseProjectsSummary } from "@/hooks/useSupabaseProjectsSummary";
+import { useSupabaseProjects } from "@/hooks/useSupabaseProjects";
 import { useClientsDataSource } from "@/hooks/useClientsDataSource";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { useClients } from "@/hooks/useClients";
@@ -24,7 +25,7 @@ vi.mock("@/hooks/useProjects", async () => {
   const actual = await vi.importActual<typeof import("@/hooks/useProjects")>("@/hooks/useProjects");
   return { ...actual, useProjects: vi.fn() };
 });
-vi.mock("@/hooks/useSupabaseProjectsSummary", () => ({ useSupabaseProjectsSummary: vi.fn() }));
+vi.mock("@/hooks/useSupabaseProjects", () => ({ useSupabaseProjects: vi.fn() }));
 vi.mock("@/hooks/useClientsDataSource", () => ({ useClientsDataSource: vi.fn() }));
 vi.mock("@/hooks/useCurrentWorkspace", () => ({ useCurrentWorkspace: vi.fn() }));
 vi.mock("@/hooks/useClients", () => ({ useClients: vi.fn() }));
@@ -63,6 +64,16 @@ function makeSupabaseProjectRaw(overrides: Record<string, unknown> = {}) {
   };
 }
 
+/** Default: hook de nuvem sem projetos, create/update mockados sem-op. Cada
+ * teste sobrescreve o que precisar via vi.mocked(useSupabaseProjects).mockReturnValue. */
+function mockSupabaseProjects(overrides: Record<string, unknown> = {}) {
+  vi.mocked(useSupabaseProjects).mockReturnValue({
+    projects: [], loading: false, error: null,
+    createProject: vi.fn(), updateProject: vi.fn(), refresh: vi.fn(),
+    ...overrides,
+  } as never);
+}
+
 function setupCommonMocks() {
   vi.mocked(useClients).mockReturnValue({ clients: [] } as never);
   vi.mocked(useTasks).mockReturnValue({ tasks: [], addTask: vi.fn(), moveTask: vi.fn() } as never);
@@ -70,6 +81,7 @@ function setupCommonMocks() {
     clients: [{ id: "uuid-client-1", name: "Acme Corp" }],
   } as never);
   vi.mocked(useCurrentWorkspace).mockReturnValue({ workspace: { id: "ws1" } } as never);
+  mockSupabaseProjects();
 }
 
 beforeEach(() => {
@@ -102,9 +114,6 @@ describe("ProjectsSection · modo local (default)", () => {
     vi.mocked(useProjects).mockReturnValue({
       projects: [makeLocalProject()], addProject: vi.fn(),
     } as never);
-    vi.mocked(useSupabaseProjectsSummary).mockReturnValue({
-      projects: [], loading: false, error: null,
-    } as never);
 
     renderSection();
 
@@ -118,9 +127,7 @@ describe("ProjectsSection · modo Supabase (leitura)", () => {
     vi.mocked(useProjects).mockReturnValue({
       projects: [makeLocalProject()], addProject: vi.fn(),
     } as never);
-    vi.mocked(useSupabaseProjectsSummary).mockReturnValue({
-      projects: [makeSupabaseProjectRaw()], loading: false, error: null,
-    } as never);
+    mockSupabaseProjects({ projects: [makeSupabaseProjectRaw()] });
 
     renderSection();
     fireEvent.click(screen.getByText("Supabase experimental"));
@@ -137,9 +144,6 @@ describe("ProjectsSection · modo Supabase (leitura)", () => {
 
   it("grava o seletor no localStorage ao trocar de fonte", async () => {
     vi.mocked(useProjects).mockReturnValue({ projects: [], addProject: vi.fn() } as never);
-    vi.mocked(useSupabaseProjectsSummary).mockReturnValue({
-      projects: [], loading: false, error: null,
-    } as never);
 
     renderSection();
     fireEvent.click(screen.getByText("Supabase experimental"));
@@ -148,13 +152,12 @@ describe("ProjectsSection · modo Supabase (leitura)", () => {
   });
 });
 
-describe("ProjectsSection · escrita bloqueada em modo Supabase (O2/O3/O4)", () => {
-  it("criar projeto em modo Supabase NUNCA chama addProject — bloqueia com toast explícito", async () => {
+describe("ProjectsSection · CRUD real em modo Supabase (Pacote do Flip, Fase B)", () => {
+  it("criar projeto em modo Supabase chama createProject (nativo) — NUNCA addProject local", async () => {
     const addProject = vi.fn();
+    const createProject = vi.fn().mockResolvedValue({ id: "cloud-uuid-new" });
     vi.mocked(useProjects).mockReturnValue({ projects: [], addProject } as never);
-    vi.mocked(useSupabaseProjectsSummary).mockReturnValue({
-      projects: [], loading: false, error: null,
-    } as never);
+    mockSupabaseProjects({ createProject });
 
     renderSection();
     fireEvent.click(screen.getByText("Supabase experimental"));
@@ -164,20 +167,36 @@ describe("ProjectsSection · escrita bloqueada em modo Supabase (O2/O3/O4)", () 
     fillCreateForm("X", "Y");
     fireEvent.click(screen.getByText("Criar projeto"));
 
+    await waitFor(() => expect(createProject).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "X", clientName: "Y" }),
+    ));
     expect(addProject).not.toHaveBeenCalled();
-    expect(toast).toHaveBeenCalledWith(
-      expect.objectContaining({ variant: "destructive" }),
-    );
+  });
+
+  it("falha ao criar em modo Supabase vira toast de erro explícito — nunca sucesso falso", async () => {
+    const createProject = vi.fn().mockRejectedValue(new Error("network down"));
+    vi.mocked(useProjects).mockReturnValue({ projects: [], addProject: vi.fn() } as never);
+    mockSupabaseProjects({ createProject });
+
+    renderSection();
+    fireEvent.click(screen.getByText("Supabase experimental"));
+    await screen.findByText("Projetos em modo leitura (Supabase)");
+
+    fireEvent.click(screen.getByText("Novo projeto"));
+    fillCreateForm("X", "Y");
+    fireEvent.click(screen.getByText("Criar projeto"));
+
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(
+      expect.objectContaining({ title: expect.stringContaining("Falha ao criar projeto no Supabase"), variant: "destructive" }),
+    ));
+    expect(toast).not.toHaveBeenCalledWith(expect.objectContaining({ title: "Projeto criado" }));
   });
 });
 
-describe("ProjectsSection · espelho best-effort no create (item 4, padrão G22)", () => {
+describe("ProjectsSection · espelho best-effort no create em modo local (fatia N, padrão G22)", () => {
   it("flag mestre OFF (default) — cria local, NUNCA chama o espelho", async () => {
     const addProject = vi.fn().mockReturnValue(makeLocalProject({ id: "pj-new" }));
     vi.mocked(useProjects).mockReturnValue({ projects: [], addProject } as never);
-    vi.mocked(useSupabaseProjectsSummary).mockReturnValue({
-      projects: [], loading: false, error: null,
-    } as never);
 
     renderSection();
     fireEvent.click(screen.getByText("Novo projeto"));
@@ -193,9 +212,6 @@ describe("ProjectsSection · espelho best-effort no create (item 4, padrão G22)
     const created = makeLocalProject({ id: "pj-new" });
     const addProject = vi.fn().mockReturnValue(created);
     vi.mocked(useProjects).mockReturnValue({ projects: [], addProject } as never);
-    vi.mocked(useSupabaseProjectsSummary).mockReturnValue({
-      projects: [], loading: false, error: null,
-    } as never);
     vi.mocked(mirrorProjectToSupabase).mockResolvedValue({ id: "cloud-uuid" } as never);
 
     renderSection();
@@ -211,9 +227,6 @@ describe("ProjectsSection · espelho best-effort no create (item 4, padrão G22)
     const created = makeLocalProject({ id: "pj-new" });
     const addProject = vi.fn().mockReturnValue(created);
     vi.mocked(useProjects).mockReturnValue({ projects: [], addProject } as never);
-    vi.mocked(useSupabaseProjectsSummary).mockReturnValue({
-      projects: [], loading: false, error: null,
-    } as never);
     vi.mocked(mirrorProjectToSupabase).mockRejectedValue(new Error("network down"));
 
     renderSection();
