@@ -19,6 +19,9 @@ import {
 } from "@/hooks/useProjects";
 import { useTasks, formatPtBr } from "@/hooks/useTasks";
 import { formatCurrency as intlCurrency } from "@/lib/format";
+import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
+import { mirrorProjectToSupabase } from "@/services/projects/projectsCloudMirror";
+import { isSupabaseProjectsWriteEnabled } from "@/hooks/useSupabaseProjectsWriteFlag";
 
 const addDaysISO = (base: Date, days: number) => {
   const d = new Date(base);
@@ -55,6 +58,7 @@ export function QuoteToProjectDialog({
 }: QuoteToProjectDialogProps) {
   const { addProject } = useProjects();
   const { addTask } = useTasks();
+  const { workspace } = useCurrentWorkspace();
 
   const [name, setName] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -146,8 +150,27 @@ export function QuoteToProjectDialog({
     toast.success("Projeto criado", {
       description: `${project.name} — vinculado ao orçamento`,
     });
+    mirrorCreateToSupabase(project);
     onGenerated(project);
     onOpenChange(false);
+  };
+
+  // Etapa 5 · Pacote do Flip (projects) — Fase B, item 2 (achado (a),
+  // risco R5 da Fase A do flip): antes desta fatia, este era o ÚNICO
+  // caminho de "quote vira projeto" sem nenhum espelho — um projeto criado
+  // aqui ficava permanentemente invisível assim que a tela principal
+  // passasse a ler da nuvem por padrão. Mesmo padrão G22 já usado em
+  // ProjectsSection.tsx (fatia N): local sempre autoritativo e grava
+  // primeiro (acima); isto só tenta espelhar quando o flag mestre está ON.
+  // Falha aqui NUNCA desfaz nem bloqueia o local — só avisa.
+  const mirrorCreateToSupabase = (project: Project) => {
+    if (!isSupabaseProjectsWriteEnabled() || !workspace) return;
+    mirrorProjectToSupabase(workspace.id, project).catch((mirrorErr) => {
+      console.error("Espelho nuvem do projeto falhou (local já gravado):", mirrorErr);
+      toast.warning("Projeto salvo localmente, mas o espelho no Supabase falhou.", {
+        description: "Rode a importação manual em Configurações → Dados quando possível.",
+      });
+    });
   };
 
   return (

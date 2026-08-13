@@ -378,11 +378,11 @@ Achado durante o smoke pós-merge do Pacote do Flip de `quotes` (Etapa 5) — fo
 
 ---
 
-**O9 — `projectsRepository.softDeleteProject` é código morto (zero caller). [BAIXO — catalogado, não removido]**
-Achado durante a Fase A do flip de `projects` (Etapa 5). Grep repo-wide confirma zero chamadas a `projectsRepository.softDeleteProject` fora do próprio arquivo (`src/repositories/projectsRepository.ts:71-84`) — nenhuma UI aciona soft-delete de projeto na nuvem hoje. Detalhamento: [`etapa-5-flip-projetos.md`](../qa/etapa-5-flip-projetos.md) §1 (item 8 do inventário de escrita).
+**O9 — `projectsRepository.softDeleteProject` aguardando UI (repository pronto, sem caller de propósito). [BAIXO — exclusão fora do escopo do flip, decisão explícita]**
+Achado original durante a Fase A do flip de `projects` (Etapa 5). Grep repo-wide confirma zero chamadas a `projectsRepository.softDeleteProject` fora do próprio arquivo (`src/repositories/projectsRepository.ts`) — nenhuma UI aciona soft-delete de projeto na nuvem hoje. Detalhamento: [`etapa-5-flip-projetos.md`](../qa/etapa-5-flip-projetos.md) §1 (item 8 do inventário de escrita) e [`etapa-5-flip-projetos-pacote.md`](../qa/etapa-5-flip-projetos-pacote.md) §3.3.
 
-- **Catalogado, não removido** — por decisão explícita do revisor (retomada da Fase B.1, 2026-08-11): a função pode ser útil quando uma futura fatia adicionar exclusão de projeto pela tela principal; remover agora e reescrever depois é retrabalho sem ganho.
-- Nenhuma ação nesta rodada além do registro.
+- **Reclassificado (Pacote do Flip, Fase B, 2026-08-11):** decisão explícita do revisor — exclusão fica **fora do escopo** do flip. `deleteProject` (hook local) também não tem nenhum caller na UI hoje — nem local tem botão "excluir projeto" — então adicionar exclusão agora seria feature nova, não paridade. `softDeleteProject` (nuvem) fica pronta e esperando; UI de exclusão (local + nuvem juntos) é decisão de backlog de produto, não deste flip.
+- Nenhuma ação de código nesta rodada além do registro/reclassificação.
 
 ---
 

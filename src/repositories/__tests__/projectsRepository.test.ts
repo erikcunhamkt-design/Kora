@@ -48,6 +48,28 @@ describe("projectsRepository.importProject — guarda de source_local_id (códig
   });
 });
 
+describe("projectsRepository.updateProject — edição direta por id (Pacote do Flip, Fase B)", () => {
+  it("chama update().eq(id).eq(workspace_id).select().single() com o patch dado", async () => {
+    mocks.updateSingle.mockResolvedValue({ data: { id: "pj-1", status: "planning", archived: true }, error: null });
+
+    const result = await projectsRepository.updateProject("ws1", "pj-1", { status: "planning", archived: true });
+
+    expect(mocks.from).toHaveBeenCalledWith("projects");
+    expect(mocks.update).toHaveBeenCalledWith({ status: "planning", archived: true });
+    expect(mocks.updateEqId).toHaveBeenCalledWith("id", "pj-1");
+    expect(mocks.updateEqWorkspace).toHaveBeenCalledWith("workspace_id", "ws1");
+    expect(result).toEqual({ id: "pj-1", status: "planning", archived: true });
+  });
+
+  it("propaga erro do Supabase (nunca engole em silêncio)", async () => {
+    mocks.updateSingle.mockResolvedValue({ data: null, error: { message: "boom", code: "500" } });
+
+    await expect(
+      projectsRepository.updateProject("ws1", "pj-1", { status: "planning" }),
+    ).rejects.toThrow();
+  });
+});
+
 describe("projectsRepository.importProject — árvore de decisão: caminho GERAL", () => {
   it('projeto source="manual" usa upsert(onConflict: workspace_id,source_local_id)', async () => {
     mocks.upsertSingle.mockResolvedValue({ data: { id: "pj-1" }, error: null });

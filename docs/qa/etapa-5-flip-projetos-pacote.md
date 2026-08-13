@@ -204,21 +204,22 @@ override manual. Mesmo tratamento proposto aqui: `kora.projects.supabaseWrite.en
 sobrevive ao flip, só troca o default. É o mecanismo de rollback mais
 rápido (ver §4.4).
 
-### 4.3 Plano de homologação B.3 (esqueleto — detalhamento fica pra Fase C)
+### 4.3 Plano de homologação B.3 — esboço atualizado pós-Fase B
 
 Mesmo molde do runbook de `quotes` (§5.2 daquele doc) — cenário sintético
 (`HOMOLOG-FLIP-projeto`, cliente/quote sintéticos próprios, emenda §11),
-print pré-clique por caso (§2 do protocolo):
+print pré-clique por caso (§2 do protocolo). Agora referenciando o código
+real construído na Fase B (ver §6), não mais um esqueleto genérico:
 
-| Caso | O quê | Prova esperada |
-|---|---|---|
-| Usuário novo | `localStorage` limpo → F5 → criar projeto | Seletor já em "Supabase", badge operacional, projeto aparece na lista, SQL confirma linha |
-| Override negativo sobrevive | `supabaseWrite=false` manual → tentar editar | Bloqueia com toast explícito, nada muda no banco |
-| Override de dataSource | `dataSource=local` manual → F5 | Mostra local intacto, zero chamada de rede |
-| Edição real (create→update→archive) | Criar, mudar status, marcar entregável, arquivar | Cada transição reflete no banco; `archived` vira `true` + status neutro (prova O12) |
-| Central do Dia + ficha do cliente | Projeto atrasado sintético | Aparece em ambos, não só na tela principal (prova dos 5 consumidores migrados) |
-| Import pré-existente | Rodar import de um projeto local antes do flip | Aparece na tela sem duplicar após o flip |
-| Limpeza | Soft-delete/arquivar cenário sintético | Resíduo zero, SQL confirma |
+| # | Caso | Passos | Prova esperada |
+|---|---|---|---|
+| 1 | **Usuário novo, criar em modo Supabase** | Console: limpar `kora.projects.dataSource.v1`/`kora.projects.supabaseWrite.enabled` → F5 → alternar pra "Supabase experimental" → "+ Novo projeto" `HOMOLOG-FLIP-projeto`, cliente sintético → salvar | `createSupabaseProject` (`useSupabaseProjects.ts`) chamado, toast "Projeto criado", linha aparece na lista SEM passar por local. SQL: `select id, title, status from public.projects where workspace_id = '<ws>' and title = 'HOMOLOG-FLIP-projeto';` → 1 linha, `status='planning'`. |
+| 2 | **Override negativo sobrevive** | `kora.projects.dataSource.v1=local` manual → F5 | Seletor mostra "Local", projetos locais intactos, zero chamada de rede pra `public.projects` enquanto "Local" estiver selecionado. |
+| 3 | **Edição real em modo Supabase (create→status→archive)** | No projeto do caso 1: abrir drawer → "Iniciar projeto" → marcar um entregável concluído → "Arquivar" | Cada clique chama `updateProject` (`projectsRepository.ts`) direto — SQL confirma `status` mudando a cada passo; ao arquivar, `status='planning'` + **`archived=true`** (prova O12: nunca mais `status='archived'` cru saindo de escrita nova). |
+| 4 | **Espelho best-effort em modo local (G22)** | `dataSource=local` + `supabaseWrite=true` → criar projeto local → editar status | `mirrorProjectToSupabase` chamado nos dois momentos (create e update); SQL confirma linha espelhada com o MESMO `source_local_id` nos dois eventos (upsert, não duplicata). |
+| 5 | **`QuoteToProjectDialog` (Vendas) — resolve R5** | Orçamento aprovado sintético → Vendas → "Gerar projeto", com `supabaseWrite=true` | Projeto aparece local E na nuvem (espelho); alternar pra "Supabase experimental" na tela de Projetos e confirmar que o MESMO projeto aparece lá (prova de que não fica invisível). |
+| 6 | **Central do Dia + ficha do cliente** | Projeto do caso 1 com `dueDate` no passado (atrasado) | Aparece em "Central do Dia" (`useDayCenterData.ts`) E na aba "Projetos" da ficha do cliente sintético (`ClientProfileDrawer.tsx`) — prova dos 4 consumidores de leitura migrados (`useBifurcatedProjects`). |
+| 7 | **Import pré-existente + limpeza** | Criar 1 projeto 100% local (sem mirror) → rodar "Importar projetos locais" → depois: soft-delete/arquivar todo o cenário sintético | Projeto importado aparece sem duplicar; resíduo zero ao final — SQL: `select count(*) from public.projects where workspace_id = '<ws>' and title like 'HOMOLOG-FLIP-%' and deleted_at is null;` → **0**. |
 
 ### 4.4 Critérios de rollback
 
@@ -254,6 +255,96 @@ desde a Fatia 10; aqui a fatia N só entregou leitura).
 
 ---
 
+## 6. Fase B — Resultado (código, 2026-08-11)
+
+> "vai" literal do revisor, colado pelo operador: Fase B autorizada.
+> Decisões confirmadas: **O12 é gate desta fatia** (sem ele não há merge);
+> **exclusão fica fora do escopo** (repository pronto, UI é backlog de
+> produto — O9 passa de "morto" pra "aguardando UI").
+
+### 6.1 `updateProject` + O12 (item 1)
+
+`projectsRepository.updateProject(workspaceId, projectId, patch)` — novo,
+`UPDATE ... WHERE id AND workspace_id`, mesmo formato de `softDeleteProject`.
+
+`translateLocalProjectStatusToCloud` (novo, `projectsMapper.ts`) — mesmo
+mecanismo de `translateLocalStatusToCloud` (quoteMapper.ts, Q9): `"archived"`
+→ `{ status: "planning", archived: true }`; os outros 6 valores locais →
+passagem direta, `archived: false`. `mapLocalProjectToSupabase` agora usa
+essa tradução — afeta os 3 chamadores (import geral, espelho G22, e o
+`updateProject` novo) automaticamente, sem duplicar lógica. Dado legado
+(já gravado com `status='archived'` + `archived=false`) continua lido
+certo — `translateCloudProjectStatusToLocal` já cobria os dois formatos
+desde a fatia N.
+
+### 6.2 CRUD real em modo Supabase (item 1/2)
+
+`useSupabaseProjects.ts` (novo) — mesmo padrão de `useSupabaseQuotes.ts`:
+`createProject` (criação NATIVA via `buildNativeSourceLocalId()` +
+`projectsRepository.importProject`, mesmo precedente Q10 de quotes) +
+`updateProject` (edição direta). Cache compartilhado com
+`useSupabaseProjectsSummary.ts` (mesma `queryKey`, um fetch só quando os
+dois hooks estão montados).
+
+`ProjectsSection.tsx`: `handleCreate` bifurca por `dataSource` — modo
+Supabase cria DIRETO na nuvem (nunca toca local); modo local mantém o
+padrão G22 da fatia N (grava local + espelha se o flag estiver ON), **sem
+mudança nenhuma nesse caminho**.
+
+`ProjectDetailDrawer.tsx`: `blockWrite()` **removido**. `setDeliverableStatus`/
+`handleStatus` bifurcam por `dataSource` — modo Supabase chama
+`updateProject` direto (status traduzido via O12; `deliverables` sem
+`progress`, que nunca existiu como coluna); modo local inalterado (G22).
+Falha de rede em qualquer um dos dois modos vira toast de erro explícito
+— nunca um patch que parece ter aplicado mas não persistiu.
+
+### 6.3 Os 5 consumidores classe (a) (item 2)
+
+Novo hook compartilhado `useBifurcatedProjects.ts` — mesmo combo já usado
+em `ProjectsSection.tsx` (useProjects + useSupabaseProjectsSummary +
+useClientsDataSource + mapSupabaseProjectToLocal + dataSource), extraído
+pra não repetir em 4 arquivos. Migrados: `useDayCenterData.ts` (Central do
+Dia), `ClientProfileDrawer.tsx` (aba Projetos), `ClientActivitiesTab.tsx`,
+`ClientActivityLogDialog.tsx`.
+
+`QuoteToProjectDialog.tsx` (Vendas) — resolve **R5**, o risco mais crítico
+da Fase A: ganhou o mesmo espelho best-effort G22 já usado em
+`ProjectsSection.tsx` (fatia N). Local grava primeiro (autoritativo,
+inalterado); espelha só com `kora.projects.supabaseWrite.enabled` ON;
+falha nunca desfaz o local.
+
+### 6.4 Onboarding (item 3, classe b)
+
+`KoraOnboarding.tsx` — comentário registrando a limitação aceita
+(checklist do passo 5 pode não detectar um projeto criado só na nuvem),
+**sem mudança de código** — decisão da Fase A mantida.
+
+### 6.5 Testes (item 4)
+
+7 arquivos tocados/novos: `projectsMapper.test.ts` (+`translateLocalProjectStatusToCloud`
+nos dois sentidos, round-trip do status "archived" atualizado pro
+resultado correto pós-O12), `projectsRepository.test.ts` (+`updateProject`,
+sucesso e erro propagado), `useSupabaseProjectsWriteFlag.test.ts` (sem
+mudança), `useBifurcatedProjects.test.ts` (novo — matriz local/supabase
+dos 4 consumidores num só teste), `ProjectDetailDrawer.test.tsx` (novo,
+primeiro teste dedicado do drawer — CRUD nos 2 modos, O12 na escrita real,
+falha vira toast), `QuoteToProjectDialog.test.tsx` (novo — espelho G22,
+resolve R5), `ProjectsSection.test.tsx` (reescrito — describe "escrita
+bloqueada" removido, `blockWrite()` não existe mais; novo describe "CRUD
+real em modo Supabase").
+
+### 6.6 Gates finais
+
+`tsc --noEmit` **0 erros** · `npm run lint` **0 erros / 29 warnings**
+(mesmo baseline) · `npm run test` **416/416** verde. Um flake isolado foi
+observado em `CRM.test.tsx` (`describe("CRM · O2...")`) na 1ª rodada da
+suíte completa — passou sozinho e passou de novo na 2ª rodada da suíte
+completa; não reproduzível, não relacionado a nenhum arquivo tocado nesta
+fatia (domínio `opportunities`, não `projects`) — registrado por
+transparência, não investigado further (fora de escopo).
+
+---
+
 ## Referências
 
 - [`etapa-5-flip-quotes.md`](etapa-5-flip-quotes.md) — template completo do
@@ -261,8 +352,12 @@ desde a Fatia 10; aqui a fatia N só entregou leitura).
   dos defaults (§1.3).
 - [`etapa-5-flip-projetos.md`](etapa-5-flip-projetos.md) — fatia N (schema,
   leitura bifurcada, dual-write G22), já mesclada (`208ff9c`).
-- `docs/architecture/kora-hub-auditoria-e-plano.md` — O9 (softDeleteProject
-  morto), O10 (alias `active`), O11 (fixture de data), O12 (archived
-  boolean não traduzido) — O10 e O12 resolvidos juntos nesta fatia (§3.2).
+- `docs/architecture/kora-hub-auditoria-e-plano.md` — O9 (softDeleteProject,
+  atualizado de "morto" pra "aguardando UI" nesta fatia, §3.3/§6), O10
+  (alias `active` — dívida MANTIDA, decisão explícita de não resolver
+  nesta fatia), O11 (fixture de data), O12 (archived boolean não
+  traduzido — **resolvido** nesta fatia, §3.2/§6.1).
 
-**PARADO aqui — Fase B (código) só com novo "vai" do revisor.**
+**PARADO aqui — Fase B concluída (código, testes, gates verdes). Fase C
+(flip dos defaults, §4) é rodada própria, com "vai" próprio — não incluída
+nesta autorização.**

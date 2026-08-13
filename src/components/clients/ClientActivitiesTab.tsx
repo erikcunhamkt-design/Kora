@@ -17,7 +17,7 @@ import type { Client } from "@/hooks/useClients";
 import { useLeads } from "@/hooks/useLeads";
 import { useQuotes } from "@/hooks/useQuotes";
 import { useFinance } from "@/hooks/useFinance";
-import { useProjects } from "@/hooks/useProjects";
+import { useBifurcatedProjects } from "@/hooks/useBifurcatedProjects";
 import { useTasks } from "@/hooks/useTasks";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
@@ -426,7 +426,9 @@ export const ClientActivitiesTab = ({
   const { leads } = useLeads();
   const { quotes } = useQuotes();
   const { transactions } = useFinance();
-  const { projects } = useProjects();
+  // Etapa 5 · Pacote do Flip (projects) — Fase B, item 2 (achado (a)):
+  // timeline ficava incompleta pra clientes com projetos só na nuvem.
+  const projects = useBifurcatedProjects();
   const { tasks } = useTasks();
   const { logs, addLog, updateLog, deleteLog } = useClientActivityLogs(client.id);
 

@@ -42,7 +42,7 @@ import {
 } from "@/hooks/useClients";
 import { useLeads } from "@/hooks/useLeads";
 import { useQuotes } from "@/hooks/useQuotes";
-import { useProjects } from "@/hooks/useProjects";
+import { useBifurcatedProjects } from "@/hooks/useBifurcatedProjects";
 import { useFinance } from "@/hooks/useFinance";
 import { ClientLibrarySection } from "./ClientLibrarySection";
 import { ClientActivitiesTab } from "./ClientActivitiesTab";
@@ -907,7 +907,9 @@ const projectStatusLabels: Record<string, string> = {
 
 const ProjectsTab = ({ client, onClose }: { client: Client; onClose: () => void }) => {
   const navigate = useNavigate();
-  const { projects } = useProjects();
+  // Etapa 5 · Pacote do Flip (projects) — Fase B, item 2 (achado (a)): aba
+  // ficava vazia pra clientes com projetos só na nuvem, sem isto.
+  const projects = useBifurcatedProjects();
   const items = useMemo(
     () => projects.filter((p) => p.clientId === client.id || p.clientName === client.name),
     [projects, client.id, client.name]

@@ -15,7 +15,7 @@ import {
 import type { Client } from "@/hooks/useClients";
 import { useLeads } from "@/hooks/useLeads";
 import { useQuotes } from "@/hooks/useQuotes";
-import { useProjects } from "@/hooks/useProjects";
+import { useBifurcatedProjects } from "@/hooks/useBifurcatedProjects";
 
 interface Props {
   open: boolean;
@@ -32,7 +32,9 @@ const NONE = "__none__";
 export function ClientActivityLogDialog({ open, onOpenChange, client, editing, onSubmit }: Props) {
   const { leads } = useLeads();
   const { quotes } = useQuotes();
-  const { projects } = useProjects();
+  // Etapa 5 · Pacote do Flip (projects) — Fase B, item 2 (achado (a)): sem
+  // isto, impossível vincular uma atividade manual a projeto só na nuvem.
+  const projects = useBifurcatedProjects();
 
   const matchesByName = (n?: string) => !!n && n.toLowerCase() === client.name.toLowerCase();
 

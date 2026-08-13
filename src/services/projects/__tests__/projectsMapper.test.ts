@@ -15,6 +15,7 @@ import {
   resolveCloudProjectSource,
   resolveLocalProjectSource,
   translateCloudProjectStatusToLocal,
+  translateLocalProjectStatusToCloud,
 } from "@/services/projects/projectsMapper";
 import type { Project } from "@/hooks/useProjects";
 
@@ -129,10 +130,32 @@ describe("mapLocalProjectToSupabase — fan-out dos 3 import-maps + tradução d
     expect(payload.budget).toBe(0);
   });
 
-  it("nunca grava archived=true (achado item 3-b: boolean é campo morto na escrita atual)", () => {
+  it("O12 resolvido (Pacote do Flip, Fase B): status 'archived' grava archived=true + status neutro", () => {
     const payload = mapLocalProjectToSupabase(makeProject({ status: "archived" }));
-    expect(payload.archived).toBe(false);
-    expect(payload.status).toBe("archived");
+    expect(payload.archived).toBe(true);
+    expect(payload.status).toBe("planning");
+  });
+
+  it("qualquer outro status grava archived=false, passagem direta", () => {
+    const known: Array<Project["status"]> = ["planning", "in_progress", "review", "delivered", "paused", "cancelled"];
+    for (const status of known) {
+      const payload = mapLocalProjectToSupabase(makeProject({ status }));
+      expect(payload.archived).toBe(false);
+      expect(payload.status).toBe(status);
+    }
+  });
+});
+
+describe("translateLocalProjectStatusToCloud — item 1 da Fase B, resolve O12", () => {
+  it("'archived' -> texto neutro 'planning' + archived: true", () => {
+    expect(translateLocalProjectStatusToCloud("archived")).toEqual({ status: "planning", archived: true });
+  });
+
+  it("os outros 6 valores fazem passagem direta, archived sempre false", () => {
+    const known: Array<Project["status"]> = ["planning", "in_progress", "review", "delivered", "paused", "cancelled"];
+    for (const status of known) {
+      expect(translateLocalProjectStatusToCloud(status)).toEqual({ status, archived: false });
+    }
   });
 });
 

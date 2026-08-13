@@ -12,6 +12,7 @@ import { QuotesSection } from "@/components/vendas/QuotesSection";
 import { useQuotes, type Quote } from "@/hooks/useQuotes";
 import { useSupabaseQuotes } from "@/hooks/useSupabaseQuotes";
 import { useClients } from "@/hooks/useClients";
+import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { useLeads } from "@/hooks/useLeads";
 import { QUOTES_DATA_SOURCE_KEY } from "@/config/flags";
 import { QUOTES_SUPABASE_WRITE_FLAG_KEY } from "@/hooks/useSupabaseQuotesWriteFlag";
@@ -23,6 +24,11 @@ vi.mock("@/hooks/useQuotes", async () => {
 vi.mock("@/hooks/useSupabaseQuotes", () => ({ useSupabaseQuotes: vi.fn() }));
 vi.mock("@/hooks/useClients", () => ({ useClients: vi.fn() }));
 vi.mock("@/hooks/useLeads", () => ({ useLeads: vi.fn() }));
+// Etapa 5 · Pacote do Flip (projects) — QuoteToProjectDialog (renderizado
+// como filho de QuotesSection) passou a chamar useCurrentWorkspace() pro
+// espelho G22 (mirrorCreateToSupabase). Sem o mock, useAuth() (de dentro de
+// useCurrentWorkspace) quebra por falta de AuthProvider no teste.
+vi.mock("@/hooks/useCurrentWorkspace", () => ({ useCurrentWorkspace: vi.fn() }));
 vi.mock("sonner", () => ({
   toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() }),
 }));
@@ -106,6 +112,7 @@ function makeSupabaseMappedQuote(overrides: Partial<Quote> = {}): Quote {
 function setupCommonMocks() {
   vi.mocked(useClients).mockReturnValue({ clients: [] } as never);
   vi.mocked(useLeads).mockReturnValue({ leads: [], updateLead: vi.fn() } as never);
+  vi.mocked(useCurrentWorkspace).mockReturnValue({ workspace: { id: "ws1" } } as never);
 }
 
 beforeEach(() => {

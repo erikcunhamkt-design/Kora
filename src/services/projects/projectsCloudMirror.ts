@@ -55,7 +55,8 @@ function readMap(key: string): Record<string, string> {
   return {};
 }
 
-function readImportMaps(): ProjectImportMaps {
+/** Exportado para reuso por useSupabaseProjects.ts (create nativo em modo Supabase, Fase B). */
+export function readProjectImportMaps(): ProjectImportMaps {
   return {
     clients: readMap("kora.clients.supabaseImport.v1"),
     quotes: readMap("kora.quotes.supabaseImport.v1"),
@@ -72,7 +73,7 @@ export async function mirrorProjectToSupabase(
   workspaceId: string,
   project: Project,
 ): Promise<SupabaseProject> {
-  const payload = mapLocalProjectToSupabase(project, readImportMaps());
+  const payload = mapLocalProjectToSupabase(project, readProjectImportMaps());
   const sourceLocalId = buildSourceLocalId(getInstallId(), project.id);
   const created = await projectsRepository.importProject(workspaceId, sourceLocalId, payload);
 

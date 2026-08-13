@@ -112,6 +112,12 @@ export function KoraOnboarding() {
   }, [quotes]);
 
   // 5. Gerar recebível ou projeto
+  // Etapa 5 · Pacote do Flip (projects) — Fase A, item 1 (classe b): `projects`
+  // aqui é 100% local, NÃO bifurcado por dataSource, de propósito. Se o
+  // usuário gerou um projeto só na nuvem (modo Supabase), este checklist
+  // pode marcar o passo 5 como pendente mesmo já tendo sido feito —
+  // limitação aceita (sinal informativo de onboarding, baixo-stakes, não
+  // bloqueia nenhum fluxo real). Ver docs/qa/etapa-5-flip-projetos-pacote.md §1.
   const step5 = useMemo(() => {
     const hasFinance = transactions.some((t) => !t.isDemo && t.source === "quote");
     const hasProject = projects.some((p) => !p.isDemo && p.quoteId);
