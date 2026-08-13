@@ -8,13 +8,11 @@
 > `projects`/Fatia 10-equivalente, adaptado ao que a Fase A do Pacote do
 > Flip de `projects` já desenhou.
 >
-> **Dependência aberta, explícita:** a Fase B de código (CRUD completo em
-> modo Supabase, tradução de status/O12, migração dos 5 consumidores) está
-> em andamento pela LANE A (`Kora-laneA`, branch `etapa-5-flip-projetos-pacote`,
-> ainda não mesclada em `main` no momento desta rodada) e não faz parte do
-> escopo daqui. Onde este runbook depende de detalhe que só existe depois
-> daquele merge (nome exato de hook, arquivo:linha, hash de commit), está
-> marcado **`[completar pós-B]`** — não inventado.
+> **Atualização (rodada seguinte):** a Fase B mesclou em `main`
+> (`fbdea18`/merge `d90ba47`, tip confirmado `395a432`) — os
+> `[completar pós-B]` desta rodada foram resolvidos contra o código real,
+> não mais contra o desenho da Fase A. Nenhum caso mudou de forma, só os
+> detalhes antes marcados como pendentes.
 
 ## Abertura (§16/§17)
 
@@ -127,8 +125,12 @@ pronto, todo usuário cai em `blockWrite()` (bloqueio hoje existente em
 `ProjectDetailDrawer.tsx`) até o código de escrita chegar — regressão
 temporária desnecessária. Ordem obrigatória:
 
-1. Fase B (código) mesclada e homologada — `[completar pós-B]`: confirmar
-   hash do merge antes de abrir a Fase C.
+1. Fase B (código) mesclada — **confirmado**: `d90ba47` (merge em `main`),
+   commit de conteúdo `fbdea18` ("Pacote do Flip - Fase B (CRUD real em
+   modo Supabase, resolve O12)"). Homologação viva desta Fase B em si não
+   faz parte deste runbook (é código de escrita normal, gates de código
+   já cobriram); o que falta homologar é o FLIP dos defaults (Fase C/D
+   abaixo).
 2. Fase C (este runbook, §2.2-§2.4).
 3. Fase D (homologação, §3).
 
@@ -152,8 +154,8 @@ export function getProjectsDataSource(): DataSource {
 }
 ```
 
-**Flag 2 — `kora.projects.supabaseWrite.enabled`** (`src/hooks/useSupabaseProjectsWriteFlag.ts:29-31`,
-confirmado nesta rodada, código atual):
+**Flag 2 — `kora.projects.supabaseWrite.enabled`** (`src/hooks/useSupabaseProjectsWriteFlag.ts:29-32`,
+reconfirmado nesta rodada contra `main` pós-Fase-B — inalterado):
 
 ```ts
 // ANTES (Fatia N, hoje em produção) — opt-in, só "true" liga.
@@ -180,9 +182,9 @@ function readFlag(): boolean {
 
 **As duas flipam no mesmo pacote, não em rodadas separadas** — mesmo
 precedente de `quotes` (motivo registrado lá: "o cutover completo decide
-os dois juntos"). `[completar pós-B]`: confirmar que nenhum outro
-`readFlag`/`getProjectsDataSource` ganhou lógica adicional durante a Fase
-B que mude este diff.
+os dois juntos"). **Confirmado nesta rodada:** reconferido contra `main`
+pós-merge da Fase B (`d90ba47`) — nenhum dos dois pontos ganhou lógica
+adicional; os diffs "antes/depois" acima seguem literalmente aplicáveis.
 
 ### 2.3 Rollback nível 1 — override de flag, sem deploy
 
@@ -215,16 +217,18 @@ default). Ao contrário do precedente de `quotes` (que só descreveu o
 conceito, sem comando literal), aqui fica explícito:
 
 ```bash
-git revert <hash-do-commit-de-flip-da-Fase-C> --no-edit
+git revert <hash-do(s)-commit(s)-de-flip-da-Fase-C> --no-edit
 git push origin main
 ```
-`<hash-do-commit-de-flip-da-Fase-C>` — `[completar pós-B]`: só existe
-depois que a Fase C for de fato mesclada; registrar o hash exato no
-relatório daquela rodada, nunca por citação (mesmo princípio de todo este
-protocolo — `git log`, não memória). O revert de nível 2 mantém a Fatia N
-intacta (schema/dual-write já em produção não são tocados por este
-commit) — reverte só os 2 defaults + qualquer código de escrita da Fase B
-que tenha ido no mesmo commit.
+**Hash de referência (baseline, não o commit do flip em si):** `d90ba47`
+— é o merge da Fase B, confirmado por `git log` como ancestral de `main`
+(tip `395a432` no momento desta rodada). É o estado "tudo pronto, defaults
+ainda não flipados" — o(s) commit(s) da Fase C nascem em cima dele. Nível
+2 reverte especificamente o(s) commit(s) que a Fase C adicionar **depois**
+de `d90ba47`, nunca por citação — confirmar o hash exato do commit de flip
+por `git log` no relatório daquela rodada, quando ela acontecer. O revert
+de nível 2 mantém a Fase B intacta (CRUD/schema/dual-write já em produção
+não são tocados) — reverte só os 2 defaults.
 
 ### 2.5 Critério de acionamento do rollback
 
@@ -250,11 +254,11 @@ Sem symlink de conveniência pro `cwd` do dev server (incidente #3) — subir
 
 ### 3.1 Papéis das entidades sintéticas
 
-Mesmo padrão de nomeação de `quotes` (prefixo `HOMOLOG-FLIP-`), workspace
-de QA a confirmar com o operador antes de rodar (mesmo workspace usado nas
-rodadas anteriores de `quotes`/CRM — **`[completar pós-B]`/operador:
-confirmar que esse workspace segue sendo o padrão de QA antes de reusar o
-id literal**):
+Mesmo padrão de nomeação de `quotes` (prefixo `HOMOLOG-FLIP-`). **Workspace
+de QA: a confirmar com o operador na abertura da Fase D** — Code não tem
+como verificar qual workspace é o padrão de QA vigente sem acesso a
+banco/sessão autenticada (protocolo §0/§6); não presumir o id usado nas
+rodadas de `quotes`/CRM sem essa confirmação explícita.
 
 | Entidade sintética | Papel no runbook |
 |---|---|
@@ -311,7 +315,7 @@ pré-clique obrigatório (protocolo §2) em todo passo que grava na nuvem.
 | 4.3 | Marcar 1 entregável como concluído no drawer | `progress` recalculado na tela | Visual — barra/percentual |
 | 4.4 | — | `deliverables` gravado, `progress` segue derivado (sem coluna própria) | `SELECT deliverables FROM public.projects WHERE title = 'HOMOLOG-FLIP-projeto-A';` → jsonb com o item marcado |
 | 4.5 | Menu do projeto → "Arquivar" | Projeto sai da lista ativa (ou aparece marcado como arquivado, conforme UX da tela) | Visual |
-| 4.6 | **Prova O12 — o caso que esta fatia existe pra fechar** | `status` grava valor neutro (não mais literal `'archived'` puro sem o boolean) **E** `archived = true` na mesma linha | `SELECT status, archived FROM public.projects WHERE title = 'HOMOLOG-FLIP-projeto-A';` → `archived = true`, `status` no vocabulário neutro (`'planning'`, conforme desenho §3.2 do pacote — `[completar pós-B]`: confirmar o valor exato que a Fase B implementou) |
+| 4.6 | **Prova O12 — o caso que esta fatia existe pra fechar** | `status` grava valor neutro **E** `archived = true` na mesma linha | `SELECT status, archived FROM public.projects WHERE title = 'HOMOLOG-FLIP-projeto-A';` → **`status = 'planning'`, `archived = true`** — confirmado no código real (`translateLocalProjectStatusToCloud`, `src/services/projects/projectsMapper.ts:97-102`: `if (status === "archived") return { status: "planning", archived: true };`), não mais só o desenho da Fase A |
 
 **Este caso é vermelho automático se o passo 4.6 não bater** — é
 literalmente o achado que motivou a fatia (O12), não uma ressalva
@@ -326,18 +330,30 @@ migrar` na Fase A do pacote (`etapa-5-flip-projetos-pacote.md` §1):
 Central do Dia, `QuoteToProjectDialog` (Vendas), `ClientProfileDrawer`,
 `ClientActivitiesTab`, `ClientActivityLogDialog`.
 
+**Mecanismo real, confirmado contra `main` pós-Fase-B (não mais desenho):**
+4 dos 5 consumidores foram migrados via um hook novo e compartilhado,
+`useBifurcatedProjects()` (`src/hooks/useBifurcatedProjects.ts:27`,
+read-only por design — combina `useProjects()` local +
+`useSupabaseProjectsSummary()` + `mapSupabaseProjectToLocal`, resolve por
+`getProjectsDataSource()`, mesmo padrão da tela principal). O 5º
+(`QuoteToProjectDialog`) **não** usa esse hook — ver 5.2 abaixo, mecanismo
+diferente por ser um fluxo de criação, não de exibição contínua.
+
 | Passo | Consumidor | Ação | Esperado | Prova |
 |---|---|---|---|---|
 | 5.1 | Setup | Criar `HOMOLOG-FLIP-quote` (aprovada) vinculada a `HOMOLOG-FLIP-cliente`, ambos em modo Supabase | Quote/cliente existem na nuvem | Visual |
-| 5.2 | **`QuoteToProjectDialog`** (Vendas → "Gerar projeto") — **o mais crítico (R5)** | A partir de `HOMOLOG-FLIP-quote` aprovada, clicar "Gerar projeto" → nomear `HOMOLOG-FLIP-projeto-B` | Projeto aparece **imediatamente** na tela principal de Projetos (nuvem) — este é o caso cuja falha significa "projeto criado, mas invisível pro usuário assim que criado" (risco R5 do pacote) | Visual — projeto na lista + `SELECT * FROM public.projects WHERE title = 'HOMOLOG-FLIP-projeto-B';` → 1 linha |
-| 5.3 | **Central do Dia** | Definir `dueDate` de `HOMOLOG-FLIP-projeto-B` no passado (simular atraso), abrir Central do Dia | Item de atenção "projeto atrasado" aparece, referenciando o projeto da NUVEM (não um projeto local fantasma) | Visual — card na Central do Dia |
-| 5.4 | **`ClientProfileDrawer`** (aba "Projetos" da ficha) | Abrir ficha de `HOMOLOG-FLIP-cliente` → aba Projetos | `HOMOLOG-FLIP-projeto-B` aparece na lista | Visual |
-| 5.5 | **`ClientActivitiesTab`** (timeline) | Mesma ficha → aba Atividades | Evento relacionado ao projeto aparece na timeline | Visual |
-| 5.6 | **`ClientActivityLogDialog`** (registrar atividade manual) | Mesma ficha → "Registrar atividade" → selecionar projeto no dropdown | `HOMOLOG-FLIP-projeto-B` aparece como opção selecionável | Visual — dropdown populado |
+| 5.2 | **`QuoteToProjectDialog.tsx`** (Vendas → "Gerar projeto") — **o mais crítico (R5)** — mecanismo: `addProject` local (`:99`, sempre autoritativo) **+** espelho best-effort `mirrorProjectToSupabase` (`:168`), gated por `isSupabaseProjectsWriteEnabled()` (`:167`) — mesmo padrão G22, **não** `useBifurcatedProjects` | A partir de `HOMOLOG-FLIP-quote` aprovada, clicar "Gerar projeto" → nomear `HOMOLOG-FLIP-projeto-B` | Projeto grava local imediatamente **e** dispara o espelho em paralelo — **não é garantidamente instantâneo na tela principal** (best-effort, pode falhar/atrasar; se falhar, toast avisa "espelho falhou, rode a importação manual"). Esperar propagação e conferir toast antes de marcar vermelho — não é o mesmo tipo de "imediato" do caso 1 (escrita direta via `useSupabaseProjects`) | Visual — projeto na lista (após propagação) + `SELECT * FROM public.projects WHERE title = 'HOMOLOG-FLIP-projeto-B';` → 1 linha. Se não aparecer, checar toast de falha do espelho antes de abrir vermelho |
+| 5.3 | **Central do Dia** — `useDayCenterData.ts:27` (`useBifurcatedProjects()`, import `:6`) | Definir `dueDate` de `HOMOLOG-FLIP-projeto-B` no passado (simular atraso), abrir Central do Dia | Item de atenção "projeto atrasado" aparece, referenciando o projeto da NUVEM (não um projeto local fantasma) | Visual — card na Central do Dia |
+| 5.4 | **`ClientProfileDrawer.tsx:912`** (aba "Projetos" da ficha, `useBifurcatedProjects()`, import `:45`) | Abrir ficha de `HOMOLOG-FLIP-cliente` → aba Projetos | `HOMOLOG-FLIP-projeto-B` aparece na lista | Visual |
+| 5.5 | **`ClientActivitiesTab.tsx:431`** (timeline, `useBifurcatedProjects()`, import `:20`) | Mesma ficha → aba Atividades | Evento relacionado ao projeto aparece na timeline | Visual |
+| 5.6 | **`ClientActivityLogDialog.tsx:37`** (registrar atividade manual, `useBifurcatedProjects()`, import `:18`) | Mesma ficha → "Registrar atividade" → selecionar projeto no dropdown | `HOMOLOG-FLIP-projeto-B` aparece como opção selecionável | Visual — dropdown populado |
 
-`[completar pós-B]`: nomes exatos de hook/arquivo:linha de cada
-consumidor migrado só existem depois do merge da Fase B — os sub-passos
-acima descrevem o comportamento observável esperado, não a implementação.
+**Escrita real (`updateProject`) confirmada em `src/hooks/useSupabaseProjects.ts:33`**,
+consumida por `ProjectsSection.tsx:55` (tela principal) e
+`ProjectDetailDrawer.tsx:86` (`updateProject: updateSupabaseProject`,
+usado no caso 4) — os 4 consumidores read-only acima nunca escrevem,
+por design (comentário do próprio hook: "estes consumidores só
+EXIBEM/REFERENCIAM, nunca criam/editam").
 
 ---
 
@@ -397,14 +413,22 @@ formalizado como regra abstrata única, mas aplicado de forma consistente
 
 ## 5. O que este doc NÃO faz
 
-- Não executa nenhum caso — é preparação, Fase C ainda não mesclada.
-- Não inventa nome de hook/arquivo:linha da Fase B — marcado
-  `[completar pós-B]` onde depende disso.
+- Não executa nenhum caso — é preparação, Fase C ainda não existe (só a
+  Fase B, CRUD/leitura, está em `main`).
 - Não decide o workspace de QA a usar — fica como pergunta explícita ao
-  operador antes da execução real.
+  operador na abertura da Fase D (§3.1).
 - Não substitui os gates permanentes do protocolo (EXPORT MANUAL, PRINT
   PRÉ-CLIQUE, prova de servidor §17) — só aponta onde cada um entra nesta
   fatia especificamente.
+- Não cita o hash do commit de flip da Fase C — não existe ainda; §2.4
+  registra `d90ba47` como baseline, não como o commit a reverter.
 
-**PARADO aqui — este runbook é preparação. Execução real da Fase C/D só
-depois que a Fase B (LANE A) mesclar e um novo "vai" autorizar.**
+**Atualização desta rodada:** todos os `[completar pós-B]` da versão
+anterior foram resolvidos contra o código real mesclado (`d90ba47`/`fbdea18`)
+— nomes de hook, arquivo:linha e o valor exato do fix do O12, todos
+confirmados por leitura direta do código em `main`, não mais por citação
+do desenho da Fase A.
+
+**PARADO aqui — este runbook segue sendo preparação. Execução real da
+Fase C (flip) e Fase D (homologação) só com um novo "vai" que autorize
+especificamente abrir a Fase C.**

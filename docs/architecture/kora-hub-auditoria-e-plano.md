@@ -418,8 +418,15 @@ Achado durante o desenho do CHECK de `status` (Etapa 5, flip de `projects`, item
 
 ---
 
-**O13 — `CRM.test.tsx` (`describe("CRM · O2 (excluir)...")`) flaky na suíte completa. [REINCIDENTE — vira investigação, ainda não é bug confirmado no código]**
-Observado 3 vezes agora (Pacote do Flip de Projetos, gates de push da branch e gates pós-merge em `main`, 2026-08-11/12): falha 1/2 casos numa rodada da suíte completa (`npm run test`, 47 arquivos), conjunto de casos que falha muda a cada rodada (não é sempre o mesmo teste). **Isolado (`npx vitest run src/pages/__tests__/CRM.test.tsx`), passa 9/9 sempre, sem exceção, nas 3 checagens feitas.** Hipótese de contenção de recursos (múltiplos processos vitest/worktrees do repo rodando na mesma máquina) segue de pé — falha não-determinística e ausente em isolamento aponta pra ambiente/paralelismo, não pra lógica quebrada. **Nenhum arquivo tocado pelas fatias que observaram o flake tem relação com CRM/`opportunities`** (domínio `projects`, fatias distintas). Reincidência ativa o gatilho já registrado — recomendado abrir investigação dedicada (rodar a suíte completa isoladamente, sem outro processo pesado concorrente, pra confirmar se o flake desaparece; se persistir mesmo sem contenção, aí sim é um problema real de isolamento entre testes em `CRM.test.tsx`). Não bloqueou nenhum merge até agora — o código da fatia que triggou cada observação sempre saiu 100% verde.
+**O13 — `CRM.test.tsx` (`describe("CRM · O2 (excluir)...")`) flaky na suíte completa. [RESOLVIDO — causa confirmada: `testTimeout` global curto demais sob contenção real, não é bug de teste nem de produção]**
+Investigação dedicada (LANE C, 2026-08-12), conforme recomendado no achado original.
+
+- **Leitura do describe (O2):** sem `fake timers`, sem estado mutável compartilhado entre casos (`beforeEach` global limpa `localStorage`/mocks — `CRM.test.tsx:197-201`), sem `afterEach` explícito mas RTL registra cleanup automático via `globals: true` (padrão da lib, não uma lacuna). Único ponto sensível a tempo: um `waitFor` (`:236`) com o timeout default. Nada estruturalmente errado no teste em si.
+- **Reprodução — tentativa 1 (isolamento):** suíte completa 3x seguidas, sem carga concorrente própria — **3/3 rodadas 100% verdes** (47/47 arquivos, 416/416 testes cada). Flake NÃO reproduziu em isolamento.
+- **Reprodução — tentativa 2 (contenção real, deliberada):** 3 processos `npx vitest run` disparados em paralelo na mesma máquina (simulando as 3 worktrees ativas do repo) — **reproduzido de forma determinística nas 3 rodadas**: 5 a 8 arquivos falhando por rodada, conjunto variando a cada rodada (igual ao sintoma original), `CRM.test.tsx`/caso O2 entre os que falharam nas 3. **Toda falha, nas 3 rodadas, foi `Error: Test timed out in 5000ms`** — nunca um erro de asserção. Arquivos afetados sem relação nenhuma entre si: `QuotesSection.test.tsx`, `ProjectsSection.test.tsx`, `ProjectDetailDrawer.test.tsx`, `ContactsTab.test.tsx`, `CreateReceivableDialog.test.tsx`, `LinkedQuotesSection.test.tsx`, `SupabaseQuotesViewerCard.test.tsx` — confirma que **não é específico de CRM/`opportunities`**, é qualquer teste que dependa de um `waitFor`/efeito assíncrono ficando sem CPU sob carga.
+- **Causa raiz:** `testTimeout` do vitest (default 5000ms, nunca configurado explicitamente) é curto demais pro modo de operação real deste repo — múltiplas lanes rodando suítes completas ao mesmo tempo em worktrees separadas é prática normal e documentada (§16 do protocolo), não uma condição rara.
+- **Fix aplicado (disciplina fail→restore):** `testTimeout: 20000` em `vitest.config.ts`. Validado repetindo a MESMA reprodução de contenção (3 processos paralelos) com o fix: **3/3 rodadas 100% verdes** (47/47, 416/416 cada), sob a mesma carga que antes derrubava 5-9 arquivos por rodada de forma consistente. Fail confirmado → fix aplicado → restore confirmado, sob condição idêntica.
+- **Gates:** `tsc -p tsconfig.app.json --noEmit` inalterado por este fix (config de teste, não código de app — mas ver **G26**, achado não-relacionado nesta mesma rodada). `npm run lint`: 0 erros/29 warnings, inalterado.
 
 ---
 
@@ -439,6 +446,23 @@ Achado na mesma investigação. `git grep` (`71c4a75` e re-confirmado em `208ff9
 
 - **Cuidado ao decidir remover:** o cron do processor legado é hoje o heartbeat que mitiga a pausa por inatividade do projeto Supabase Free (`kora-roadmap.md` §6.3) — desagendá-lo por causa da UI órfã, sem decidir separadamente sobre esse heartbeat, reintroduz esse risco.
 - **Sem correção nesta rodada** — catalogado; decisão de remontar/remover/convergir fica pra fatia futura (opção (b), unificação v1→v2, registrada como fatia futura em `kora-roadmap.md` §4).
+
+---
+
+**G26 — Gate real (`npx tsc -p tsconfig.app.json --noEmit`) quebrado em `main` desde o merge da Fase B do Pacote do Flip de Projetos (`d90ba47`/`395a432`). [ALTO — confirmado, NÃO CORRIGIDO]**
+Achado ao rodar os gates desta rodada (LANE C, investigação O13) — fora do escopo pedido, reportado sem correção por não ser meu arquivo/lane. Reproduzido de forma limpa: `tsc -p tsconfig.app.json --noEmit` na tip atual de `main` (`395a432`) retorna 4 erros, todos em `src/components/clients/ClientActivitiesTab.tsx`:
+
+```
+src/components/clients/ClientActivitiesTab.tsx(167,31): error TS2304: Cannot find name 'useProjects'.
+src/components/clients/ClientActivitiesTab.tsx(303,43): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/components/clients/ClientActivitiesTab.tsx(304,56): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/components/clients/ClientActivitiesTab.tsx(305,27): error TS7006: Parameter 'p' implicitly has an 'any' type.
+```
+
+- **Causa raiz — resíduo de tipo, não bug de runtime:** `buildInferredEvents` (linha 162-169) declara `projects: ReturnType<typeof useProjects>["projects"]` no tipo dos argumentos — mas o import de `useProjects` foi removido desta rodada da Fase B, que migrou o consumidor pra `useBifurcatedProjects()` (linha 431, item deste mesmo pacote — ver G24/G25 e `etapa-5-flip-projetos-pacote.md`). O call-site (linha 440) passa `useBifurcatedProjects()` (tipo `Project[]`) pro parâmetro `projects` — estruturalmente idêntico ao que `useProjects().projects` também era, então o **comportamento em runtime não muda** (é por isso que `vitest` — que não faz checagem de tipo — passa 416/416 sem acusar nada). O problema é só a anotação de tipo `typeof useProjects`, que não resolve mais porque o import sumiu. Os outros 3 erros (implicit `any`) são cascata direta do primeiro — os `.filter((p) => ...)` nas linhas 303-305 perdem a inferência do elemento do array quando o tipo do parâmetro não resolve.
+- **Fix trivial, mas fora do meu escopo/lane:** trocar a anotação por `Project[]` (importar `type { Project }` de `@/hooks/useProjects` ou de onde o tipo estiver re-exportado — `useBifurcatedProjects.ts:21` já importa `type Project` de `@/hooks/useProjects`) resolve os 4 erros de uma vez, sem tocar lógica.
+- **Por que isso não bloqueou o merge da Fase B:** não determinado nesta rodada — `[completar por quem investigar]`: possível que os gates daquela rodada tenham rodado `tsc --noEmit` na raiz (o gate vazio do G9, `"files": []`) em vez de `-p tsconfig.app.json` (o gate real), ou que o erro tenha sido introduzido depois do último gate local e antes do push. Não investigado aqui — fora do escopo desta rodada (doc + flake).
+- **Sem correção nesta rodada** — arquivo/lane de outra sessão (Fase B, LANE A), reportado pra correção dedicada.
 
 ---
 
