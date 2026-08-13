@@ -5,7 +5,7 @@
 > [`kora-hub-auditoria-e-plano.md`](kora-hub-auditoria-e-plano.md) (catálogo técnico G/O,
 > plano de etapas original) e [`kora-ux-produto.md`](kora-ux-produto.md) (catálogo UX).
 > "Quantas faltam" deve ser respondível só pela tabela-resumo abaixo, sem precisar ler
-> nenhum outro doc. Regra de manutenção completa no rodapé (§7).
+> nenhum outro doc. Regra de manutenção completa no rodapé (§8).
 
 ---
 
@@ -15,7 +15,7 @@
 | :-- | :-- | :-- | :-- |
 | Etapa 0 — Rede de segurança | ✅ feito | Pipeline verde; nenhum segredo no histórico; testes rodando | *(hash não coletado nesta rodada — ver `docs/qa/etapa-0-rede-de-seguranca.md`)* |
 | Etapa 1 — Organização do repositório | ✅ feito | App inalterado; raiz limpa (só `README.md`); repo navegável | *(idem — ver `etapa-1-organizacao.md`)* |
-| Etapa 2 — Endurecer segurança | ✅ feito (1 item adiado por decisão) | Relatório de cada item (OK/corrigido); testes de webhook rejeitando assinatura inválida | S3/CORS adiado por decisão do dono do repo (§6) — ver `etapa-2-seguranca.md` |
+| Etapa 2 — Endurecer segurança | ✅ feito (1 item adiado por decisão) | Relatório de cada item (OK/corrigido); testes de webhook rejeitando assinatura inválida | S3/CORS adiado por decisão do dono do repo (§7) — ver `etapa-2-seguranca.md` |
 | Etapa 3 — Performance de banco | ✅ feito | `EXPLAIN ANALYZE` das queries quentes usando índice; migrações sem quebrar RLS | *(idem — ver `etapa-3-performance-db.md`)* |
 | Etapa 4 — Feature flags centralizadas | ✅ feito | UI intacta; toda flag lida de um lugar só (`src/config/flags.ts`); repositories com contrato único | *(idem — ver `etapa-4-flags.md`)* |
 | Etapa 5 · Fatia 1 — fichas técnicas (teste de fogo) | ✅ feito | 6/6 provas, homologado | Homologado 2026-07-18 (sem hash único de merge citado no doc) |
@@ -33,15 +33,16 @@
 | G1 · fichas técnicas | ✅ completo (confirmado no código) | Leitura+escrita default Supabase, flip por cliente | Ver §3.2 |
 | G1 · CRM/oportunidades | ✅ completo (confirmado no código) | Leitura+escrita default Supabase, flip reversível | Ver §3.3 |
 | G1 · financeiro | 🟡 dual-write parcial, leitura local por padrão | Ver §3.4 — critério de pronto detalhado | Fila |
-| G1 · projetos | 🟡 fundação pronta E DDL aplicada (Fatia N), dual-write parcial, leitura local por padrão | Ver §3.5 — falta só a Fatia N+1 (Pacote do Flip, sem pré-requisito de schema pendente) pra virar ✅ | `208ff9c` (código) / DDL aplicada 12/ago/2026; flip fica em fila |
+| G1 · projetos | 🟡 na reta final — Fase C (flip dos defaults) em execução, falta homologação | Ver §3.5 — fundação + DDL já prontas (Fatia N), só falta o flip fechar + Fase D pra virar ✅ | `208ff9c` (fundação) / DDL 12/ago/2026; Fase C em execução (13/ago/2026) |
 | G1 · tarefas | 🔴 não migrado na prática | Ver §3.6 | Backlog |
 | Etapa 6 — Fila, rate limit e worker | ✅ **concluído no repo e no banco** (G5 100% fechado; item 4 decidido, corrigido E aplicado) | Ver §4 — item 4: (c)+reaper (G24, **FECHADO**, reaper ativo em produção — `jobid 3`, `*/15`); unificação v1→v2 (opção b) fica registrada como fatia futura, não bloqueia o fechamento desta etapa | `6022d0f` (código) / DDL aplicada 12/ago/2026 |
 | Etapa 7 — Qualidade contínua | 🟡 em curso | Teto de lint menor; cobertura dos fluxos críticos; alertas ativos | Teto de lint 0/0 alcançado; cobertura/alertas não confirmados 100% |
 | Etapa 8 — WhatsApp Oficial (Tech Provider) | ⬜ backlog | PLANEJADA, não iniciada — depende de G1 avançar | — |
-| Transversal — UX/Produto | 🟡 catalogado, sem prazo | Ver §6.1 | `kora-ux-produto.md` |
-| Transversal — RBAC | ⬜ backlog, não planejado ainda | Ver §6.2 | — |
-| Transversal — Supabase Pro | ⬜ backlog, não decidido | Ver §6.3 | — |
-| Transversal — S3/CORS hardening | ⬜ adiado por decisão (aguarda domínios) | Ver §6.4 | `etapa-2-seguranca.md` |
+| Etapa 9 — Robô IA (4 itens: provider Claude, cérebro, base de conhecimento, construtor sem IA) | ⬜ backlog — decisão do operador, ainda não iniciada | Ver §6 — inicia **depois** do flip de Projetos fechar (não muda a prioridade atual, que continua sendo o flip) | Decisão registrada 13/ago/2026 |
+| Transversal — UX/Produto | 🟡 catalogado, sem prazo | Ver §7.1 | `kora-ux-produto.md` |
+| Transversal — RBAC | ⬜ backlog, não planejado ainda | Ver §7.2 | — |
+| Transversal — Supabase Pro | ⬜ backlog, não decidido | Ver §7.3 | — |
+| Transversal — S3/CORS hardening | ⬜ adiado por decisão (aguarda domínios) | Ver §7.4 | `etapa-2-seguranca.md` |
 
 **Legenda:** ✅ feito · 🟡 em curso/parcial · ⬜ fila/backlog · 🔴 não iniciado na prática
 
@@ -122,7 +123,7 @@ partir de oportunidade) é opt-in à parte, não afeta o CRUD principal.
   4. Decisão sobre o dual-write existente: pós-flip, o caminho local vira o espelho (ou é
      aposentado) — mesma decisão que CRM/clients já tomaram.
 
-### 3.5 Projetos — 🟡 fundação pronta E DDL aplicada (Fatia N, `208ff9c` + DDL 12/ago), flip ainda pendente (Fatia N+1)
+### 3.5 Projetos — 🟡 na reta final: fundação + DDL prontas (Fatia N), Fase C (flip) em execução (Fatia N+1)
 
 - **Antes desta fatia:** `ProjectsSection.tsx`/`ProjectDetailDrawer.tsx` liam só `useProjects()`
   (100% localStorage, sem seletor de fonte nenhum — diferente de CRM/quotes, aqui o hook nunca
@@ -143,13 +144,14 @@ partir de oportunidade) é opt-in à parte, não afeta o CRUD principal.
   resolver juntos numa fatia futura), O11 (classe de bug — fixture de teste com data absoluta).
   Gates: `tsc` 0 · lint 0/29 (baseline) · vitest 392/392. Detalhe completo:
   [`etapa-5-flip-projetos.md`](../qa/etapa-5-flip-projetos.md).
-- **Ainda não é "pronto" pelo critério do §7, regra 4** — os dois defaults (`dataSource`,
-  `supabaseWrite`) continuam local/OFF; isso é fundação (mesmo estágio que quotes tinha
-  pós-Fatia-10, pré-Pacote-do-Flip), não o flip em si. A DDL aplicada remove o
-  **pré-requisito de schema** da Fatia N+1 — a fatia do flip em si continua não escopada.
-- **Critério de pronto (Fatia N+1 — "Pacote do Flip — projetos", fila, sem bloqueio de schema
-  pendente):** flipar os 2 defaults pra supabase/ON, decidir o destino das flags experimentais
-  que ficarem redundantes (`projectsSupabaseCreateBaseTasks` provavelmente sobrevive — gate um
+- **Ainda não é "pronto" pelo critério do §8, regra 4 até o flip fechar** — critério é leitura
+  E escrita default Supabase, reversível, não só o código pronto.
+- **Estado em 13/ago/2026: Fase C (Pacote do Flip — projetos, Fatia N+1) em execução.** DDL
+  aplicada (sem pré-requisito de schema pendente), CRUD completo em modo Supabase mesclado
+  (Fase B, `d90ba47`/`fbdea18`, resolve O12), runbook das Fases C/D já preparado e mesclado
+  (`etapa-5-flip-projetos-runbook.md`, `1e66607`) — falta o flip dos 2 defaults em si fechar e
+  a Fase D (homologação B.3) rodar. Decidir o destino das flags experimentais que ficarem
+  redundantes no flip (`projectsSupabaseCreateBaseTasks` provavelmente sobrevive — gate um
   domínio adjacente, tasks, ainda não migrado).
 
 ### 3.6 Tarefas — 🔴 não migrado na prática
@@ -166,7 +168,7 @@ partir de oportunidade) é opt-in à parte, não afeta o CRUD principal.
   projeto) — trabalho de fundação equivalente ao que as Fatias 1-4 fizeram pros outros
   domínios, não um simples flip. Depois, os mesmos 4 passos das seções acima.
 - **Achado correlato:** G21 (`BotRulesPanel.tsx`, órfão) fica registrado aqui por proximidade
-  de área (WhatsApp/bot), não por dependência técnica com tarefas — ver §6.1.
+  de área (WhatsApp/bot), não por dependência técnica com tarefas — ver §7.1.
 
 ---
 
@@ -220,7 +222,7 @@ partir de oportunidade) é opt-in à parte, não afeta o CRUD principal.
      tabelas legadas depois — já era o "próximo passo" documentado em
      `SUPABASE-WHATSAPP-CAMPAIGNS-V1.md`. Não escopada nesta rodada.
    - **Atenção antes de mexer no cron do legado:** ele é hoje o heartbeat que mitiga a pausa
-     por inatividade do projeto Supabase Free (§6.3) — desagendar por causa da UI órfã (G25)
+     por inatividade do projeto Supabase Free (§7.3) — desagendar por causa da UI órfã (G25)
      sem decidir esse heartbeat à parte reintroduz o risco de pausa.
 
 **Etapa 6 — ✅ concluída no repo e no banco.** O escopo do G5 (rate limit/retry para chamadas de
@@ -260,9 +262,52 @@ Detalhamento completo: [`kora-hub-auditoria-e-plano.md` §Etapa 8](kora-hub-audi
 
 ---
 
-## 6. Transversais
+## 6. Etapa 9 — Robô IA (decisão do operador, 13/ago/2026)
 
-### 6.1 UX/Produto
+**Status: registrada, não iniciada.** Prioridade explícita: **começa depois do flip de
+Projetos fechar** (Fase C/D da Fatia N+1, ver §3.5) — essa decisão não muda a prioridade
+corrente, que continua sendo fechar o flip. Contexto de G1 no momento desta decisão: **4
+domínios completos** (clients, fichas técnicas, CRM, quotes — §3.1-3.3 + Pacote do Flip de
+quotes) + **Projetos na reta final** (Fase C em execução, falta homologação — §3.5) + restam
+**Financeiro e Tarefas** (§3.4, §3.6).
+
+4 itens, nesta ordem:
+
+1. **Migrar provider do robô: Gemini → Claude (API Anthropic).** Primeira da etapa — fatia
+   técnica curta. Molde direto: a migração Lovable→Gemini já feita e validada (**G18**,
+   `kora-hub-auditoria-e-plano.md`) — troca de provider default em `whatsapp-bot-reply/index.ts`
+   (mesmas 4 ocorrências de fallback já mapeadas por aquela fatia) + endpoint/parser novos (o
+   G18 não precisou trocar parser porque o formato de resposta já batia entre `gemini_api_key`
+   e `vertex_ai`; a API da Anthropic tem formato de resposta diferente — `content[].text`, não
+   `candidates[].content.parts[].text` — então esta migração precisa de um parser novo, não só
+   trocar a variável de provider. Escopo a confirmar na Fase A desta fatia, não presumido aqui.
+2. **"Cérebro" — instruções da empresa por workspace.** O que o robô pode/não pode falar, tom
+   de voz, produtos/serviços oferecidos — configuração por tenant, não hardcoded.
+3. **Base de conhecimento — robô estuda o workspace e aprende.** **Exige Fase A própria antes
+   de qualquer código** — 3 perguntas explícitas que a Fase A precisa responder antes de
+   escopar implementação: (a) LGPD — que dado de cliente/conversa pode alimentar o contexto do
+   modelo, sob qual base legal, com qual retenção; (b) escopo de leitura — quais tabelas/campos
+   do workspace o robô de fato lê pra "aprender" (todo o CRM? só produtos/serviços? histórico
+   de conversas?); (c) custo de contexto — impacto em tokens/custo por chamada de incluir esse
+   conhecimento, e se isso interage com o rate limit já existente (**G5**,
+   `kora-hub-auditoria-e-plano.md`, hoje escopado só pra `whatsapp-bot-reply`).
+4. **Construtor de fluxo SEM IA — menus fixos, transbordo (lojas/atendentes/humano).** Insumo
+   de produto já registrado: **UX3** (`kora-ux-produto.md`), a ideia de "modos de atendimento"
+   do `BotRulesPanel.tsx` removido no **G21** — não é um protótipo pronto (o componente era
+   100% mockado, sem backend), é uma nota de UX preservada antes da remoção do código morto.
+   UX3 fala em "modos" pré-definidos com guardrails e regras de elegibilidade/transferência em
+   accordion — não descreve literalmente "menus fixos", mas é o insumo mais próximo já
+   catalogado pra esse conceito; vale reler antes de desenhar este item.
+
+Nenhum dos 4 itens tem fatia própria aberta ainda — esta seção é o registro da decisão de
+prioridade e do que cada item precisa antes de virar código, não um plano de execução
+detalhado (isso é trabalho de uma futura Fase A por item, especialmente o item 3).
+
+---
+
+## 7. Transversais
+
+### 7.1 UX/Produto
 
 > **Nota de precisão:** a tarefa que originou este documento referenciava um "princípio
 > 'automático por default'" como tese central do catálogo de UX. **Busquei essa frase
@@ -291,7 +336,7 @@ do robô, escrita e nunca conectada à navegação — nem import órfão como o
 nunca ligada. Simulador interno dela é 100% mockado (resposta fixa, não chama function real).
 Decisão de remontar/absorver/aposentar pendente.
 
-### 6.2 RBAC — pós-G1, pré-requisito de multi-usuário
+### 7.2 RBAC — pós-G1, pré-requisito de multi-usuário
 
 **Não encontrado como feature planejada em nenhum doc do repo** (busca exaustiva). O único
 "role" que existe hoje é `workspace_members.role` (`owner`/`admin`/`member`/`viewer`), usado
@@ -300,7 +345,7 @@ diferencie os 4 valores entre si. Registrado aqui como item de backlog **não es
 por ser um pré-requisito natural de qualquer cenário multi-usuário dentro de um workspace —
 não tem doc próprio, não tem estimativa, não tem fatia definida.
 
-### 6.3 Supabase Pro — antes de tenant real
+### 7.3 Supabase Pro — antes de tenant real
 
 **Não encontrada nenhuma decisão registrada** de migrar do plano Free pro Pro. O que existe é
 o risco já aceito formalmente pelo dono do repo (`protocolo-homologacao.md` §0): projeto no
@@ -310,7 +355,7 @@ mitigado por construção enquanto o cron de campanhas (a cada minuto) existir. 
 item de backlog **não decidido ainda** — natural pré-requisito antes de operar com tenants
 pagantes reais (backup automático, sem risco de pausa por inatividade), mas sem gatilho/data.
 
-### 6.4 S3 — CORS hardening (adiado por decisão)
+### 7.4 S3 — CORS hardening (adiado por decisão)
 
 **Status: pendente, com adiamento explícito e documentado** (`etapa-2-seguranca.md`), não
 esquecido. Motivo do adiamento: não há domínios de produção do Kora definidos ainda —
@@ -323,7 +368,7 @@ functions a repontar (`whatsapp-official-send`, `-official-credentials`, `-insta
 
 ---
 
-## 7. Regra de manutenção
+## 8. Regra de manutenção
 
 1. **Este doc atualiza no fechamento de cada fatia/etapa** — idealmente no mesmo commit do
    sign-off, nunca numa rodada separada "pra depois". Se não der no mesmo commit, o próximo
