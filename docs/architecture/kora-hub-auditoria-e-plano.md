@@ -383,11 +383,11 @@ Achado durante o smoke pós-merge do Pacote do Flip de `quotes` (Etapa 5) — fo
 
 ---
 
-**O9 — `projectsRepository.softDeleteProject` é código morto (zero caller). [BAIXO — catalogado, não removido]**
-Achado durante a Fase A do flip de `projects` (Etapa 5). Grep repo-wide confirma zero chamadas a `projectsRepository.softDeleteProject` fora do próprio arquivo (`src/repositories/projectsRepository.ts:71-84`) — nenhuma UI aciona soft-delete de projeto na nuvem hoje. Detalhamento: [`etapa-5-flip-projetos.md`](../qa/etapa-5-flip-projetos.md) §1 (item 8 do inventário de escrita).
+**O9 — `projectsRepository.softDeleteProject` aguardando UI (repository pronto, sem caller de propósito). [BAIXO — exclusão fora do escopo do flip, decisão explícita]**
+Achado original durante a Fase A do flip de `projects` (Etapa 5). Grep repo-wide confirma zero chamadas a `projectsRepository.softDeleteProject` fora do próprio arquivo (`src/repositories/projectsRepository.ts`) — nenhuma UI aciona soft-delete de projeto na nuvem hoje. Detalhamento: [`etapa-5-flip-projetos.md`](../qa/etapa-5-flip-projetos.md) §1 (item 8 do inventário de escrita) e [`etapa-5-flip-projetos-pacote.md`](../qa/etapa-5-flip-projetos-pacote.md) §3.3.
 
-- **Catalogado, não removido** — por decisão explícita do revisor (retomada da Fase B.1, 2026-08-11): a função pode ser útil quando uma futura fatia adicionar exclusão de projeto pela tela principal; remover agora e reescrever depois é retrabalho sem ganho.
-- Nenhuma ação nesta rodada além do registro.
+- **Reclassificado (Pacote do Flip, Fase B, 2026-08-11):** decisão explícita do revisor — exclusão fica **fora do escopo** do flip. `deleteProject` (hook local) também não tem nenhum caller na UI hoje — nem local tem botão "excluir projeto" — então adicionar exclusão agora seria feature nova, não paridade. `softDeleteProject` (nuvem) fica pronta e esperando; UI de exclusão (local + nuvem juntos) é decisão de backlog de produto, não deste flip.
+- Nenhuma ação de código nesta rodada além do registro/reclassificação.
 
 ---
 
@@ -413,23 +413,29 @@ Achado na reabertura pós-formatação da máquina (item 0.5, retomada da Fase B
 
 ---
 
-**O12 — `mapLocalProjectToSupabase` nunca traduz `status === "archived"` pro boolean `archived` da nuvem. [BAIXO — dívida assumida, anda junto com O10]**
+**O12 — `mapLocalProjectToSupabase` nunca traduz `status === "archived"` pro boolean `archived` da nuvem. [RESOLVIDO — Pacote do Flip, Fase B, 2026-08-11]**
 Achado durante o desenho do CHECK de `status` (Etapa 5, flip de `projects`, item 3-a/migration `20260811000100`). `mapLocalProjectToSupabase` (`projectsMapper.ts:99`) grava `archived: false` **hardcoded**, sempre — nunca verifica `project.status === "archived"` pra setar `true`. Consequência prática: um projeto local arquivado, ao passar pelo import geral (`useLocalProjectsImport.ts`, já em `main` desde a Fatia 7), produz uma linha na nuvem com `status: "archived"` (texto) + `archived: false` (boolean) — os dois sinais divergem na mesma linha. É por isso que o CHECK constraint da migration `20260811000100` precisa admitir `'archived'` como valor de texto além do boolean (ver [`etapa-5-flip-projetos.md`](../qa/etapa-5-flip-projetos.md) item 3, justificativa do 8º valor).
 
 - **Não é um bug isolado** — é a mesma classe de dívida do O10 (alias legado `'active'`): os dois nascem do mesmo desenho provisório de `mapLocalProjectToSupabase`, escrito na Fatia 7 antes de existir qualquer normalização de vocabulário de `status`.
 - **Correção correta, se um dia for feita:** `mapLocalProjectToSupabase` passa a gravar `archived: project.status === "archived"` e, nesse caso, `status` sai como um valor neutro (mesmo padrão que `quoteMapper.ts` já usa pra `quotes`: `status === "arquivado"` → `{ status: "draft", archived: true }`) — aí sim o texto `'archived'` deixaria de ser necessário no CHECK, e o vocabulário de `status` ficaria mais enxuto.
-- **Resolver junto com O10, na mesma fatia futura** — não faz sentido eliminar só o alias `'active'` sem também consertar a tradução de `archived`, já que as duas mudanças tocam a mesma função e o mesmo CHECK.
-- Nenhuma ação nesta rodada além do registro — a migration `20260811000100` (escrita, não aplicada) já admite `'archived'` como texto, refletindo o comportamento atual, não o corrigido.
+- **Resolvido no Pacote do Flip (Fase B):** `translateLocalProjectStatusToCloud` (novo, `projectsMapper.ts`) — exatamente o mecanismo descrito acima. `mapLocalProjectToSupabase` agora usa essa tradução; escrita nova nunca mais grava `status='archived'` (texto) com `archived=false`. Dado legado (já gravado pelo comportamento antigo) continua lido certo, sem regressão — `translateCloudProjectStatusToLocal` já cobria os dois formatos desde a fatia N. Detalhamento: [`etapa-5-flip-projetos-pacote.md`](../qa/etapa-5-flip-projetos-pacote.md) §6.1.
+- **O10 permanece separado, não resolvido** — decisão explícita do revisor foi resolver só O12 nesta fatia; o alias `'active'` continua admitido (Opção A).
 
 ---
 
-**G24 — `whatsapp-campaign-v2-sender`: recipients presos em `status='sending'` sem reaper (classe P4 do Batch 3, reintroduzida no v2). [ALTO — confirmado]**
+**O13 — `CRM.test.tsx` (`describe("CRM · O2 (excluir)...")`) flaky na suíte completa. [REINCIDENTE — vira investigação, ainda não é bug confirmado no código]**
+Observado 3 vezes agora (Pacote do Flip de Projetos, gates de push da branch e gates pós-merge em `main`, 2026-08-11/12): falha 1/2 casos numa rodada da suíte completa (`npm run test`, 47 arquivos), conjunto de casos que falha muda a cada rodada (não é sempre o mesmo teste). **Isolado (`npx vitest run src/pages/__tests__/CRM.test.tsx`), passa 9/9 sempre, sem exceção, nas 3 checagens feitas.** Hipótese de contenção de recursos (múltiplos processos vitest/worktrees do repo rodando na mesma máquina) segue de pé — falha não-determinística e ausente em isolamento aponta pra ambiente/paralelismo, não pra lógica quebrada. **Nenhum arquivo tocado pelas fatias que observaram o flake tem relação com CRM/`opportunities`** (domínio `projects`, fatias distintas). Reincidência ativa o gatilho já registrado — recomendado abrir investigação dedicada (rodar a suíte completa isoladamente, sem outro processo pesado concorrente, pra confirmar se o flake desaparece; se persistir mesmo sem contenção, aí sim é um problema real de isolamento entre testes em `CRM.test.tsx`). Não bloqueou nenhum merge até agora — o código da fatia que triggou cada observação sempre saiu 100% verde.
+
+---
+
+**G24 — `whatsapp-campaign-v2-sender`: recipients presos em `status='sending'` sem reaper (classe P4 do Batch 3, reintroduzida no v2). [ALTO — FECHADO, reaper em produção]**
 Achado durante a investigação da Etapa 6, item 4 (fila de campanhas v2), Fase A (LANE C, ref. `71c4a75`) e re-verificado contra o tip real (`208ff9c`) na Fase B. O lock de idempotência do sender v2 (`whatsapp-campaign-v2-sender/index.ts:197-205`) é um `UPDATE ... WHERE status='queued'` por linha, sem contrapartida de liberação: se a invocação morre no meio do lote (timeout da edge function, queda de rede), os recipients já travados em `sending` nunca voltam pra `queued` — a próxima chamada de `send_batch` só seleciona `status='queued'` (`:180-187`), então ficam presos pra sempre, sem nenhum mecanismo de self-heal.
 
 - **Mesma classe de bug já resolvida uma vez, no legado:** `20260701220000_batch3_campaign_robustness.sql` (comentário P4, linhas 3-8) documenta ter corrigido exatamente isto no sistema legado ("ran up to ~6min per invocation and blew the wall-clock limit, stranding rows in status='sending' forever"). O v2 nasceu com o desenho pré-fix (sleep in-process, sem gate no banco, sem reaper) e nunca recebeu o mesmo tratamento.
 - **Janela de exposição calculada, não estimada:** `MAX_BATCH_SIZE=10` + delay `30-90s` entre envios (`index.ts:23-26`, aplicado entre cada um dos 9 gaps de um lote cheio, `:286-289`) soma até **~13,5 min de wall-clock por invocação**, fora rede/typing/DB — bem acima do timeout típico de Edge Function, tornando o timeout um risco real de uso normal, não só de falha de rede.
 - **Fix:** RPC dedicada `reap_stuck_campaign_v2_recipients` + cron a cada 15 min, migration `20260811000200_etapa6_campaign_v2_reaper.sql` (escrita, não aplicada — sessão §8-b). Decisão registrada (opção (c) + reaper, não (a) automação completa): ver `kora-roadmap.md` §4, item 4.
 - **Limitação conhecida do fix:** o reaper re-enfileira o recipient sem saber se o envio já tinha ocorrido antes do crash de status — semântica *at-least-once*, reenvio duplicado possível e aceito nesta rodada; resolução definitiva (idempotência forte por `provider_message_id` antes de reaptar) fica pra fatia futura de unificação/opção (b).
+- **Sessão §8-b APLICADA — 12/ago/2026.** Pacote 2 de 2 desta janela (o outro é a migration de Projetos, ver `etapa-5-flip-projetos.md`). `cron.job` confirma job **`jobid 3`**, schedule `*/15 * * * *`, ativo. Grants confirmados só `service_role` + dono da function (nenhum `anon`/`authenticated`/`PUBLIC`). Teste funcional manual (`SELECT reap_stuck_campaign_v2_recipients()`) retornou **0** (nenhum recipient preso no momento da aplicação — esperado, sem incidente em curso). **Zero incidentes.** Acompanhamento pendente, **não bloqueante** (mesmo espírito do kit (c) do `ai-rate-limit-cleanup`): confirmar em `cron.job_run_details` (jobid 3) que a 1ª execução automática rodou sozinha.
 
 ---
 

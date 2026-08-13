@@ -28,6 +28,8 @@ import { ClientTechnicalSheetSnapshot } from "@/components/clients/ClientTechnic
 import type { DataSource } from "@/config/flags";
 import { mirrorProjectToSupabase } from "@/services/projects/projectsCloudMirror";
 import { isSupabaseProjectsWriteEnabled } from "@/hooks/useSupabaseProjectsWriteFlag";
+import { useSupabaseProjects } from "@/hooks/useSupabaseProjects";
+import { translateLocalProjectStatusToCloud } from "@/services/projects/projectsMapper";
 
 interface ProjectDetailDrawerProps {
   project: Project | null;
@@ -80,7 +82,8 @@ const PRIORITY_STYLE: Record<TaskPriority, string> = {
 
 export function ProjectDetailDrawer({ project, open, onOpenChange, dataSource = "local" }: ProjectDetailDrawerProps) {
   const navigate = useNavigate();
-  const { updateProject } = useProjects();
+  const { updateProject: updateLocalProject } = useProjects();
+  const { updateProject: updateSupabaseProject } = useSupabaseProjects();
   const { tasks, addTask, moveTask } = useTasks();
   const { clients } = useClients();
   const { workspace } = useCurrentWorkspace();
@@ -109,22 +112,12 @@ export function ProjectDetailDrawer({ project, open, onOpenChange, dataSource = 
 
   if (!project) return null;
 
-  // Etapa 5 · Flip Projetos (item 2) — leitura bifurcada, escrita ainda não
-  // (item 4). Sem esta guarda, editar um projeto vindo da nuvem chamaria
-  // updateProject (sempre local) com o uuid do projeto — não encontraria
-  // nada pra atualizar e falharia em silêncio, sem toast nenhum (nem de
-  // sucesso nem de erro). Mensagem explícita em vez disso (lição O2/O3/O4).
-  const blockWrite = (): boolean => {
-    if (dataSource !== "supabase") return false;
-    toast.error("Escrita de projetos no modo Supabase chega numa próxima fatia — volte para Local para editar.");
-    return true;
-  };
-
-  // Etapa 5 · Flip Projetos (item 4) — espelho best-effort, padrão G22: local
-  // já gravado ANTES desta chamada (updateProject, autoritativo); isto só
-  // tenta espelhar na nuvem quando o flag mestre está ON. Falha aqui NUNCA
-  // desfaz nem bloqueia o local — só avisa. `blockWrite()` já garante que só
-  // chegamos aqui com `project` local (dataSource !== "supabase").
+  // Etapa 5 · Pacote do Flip (Fase B) — espelho best-effort, padrão G22:
+  // local já gravado ANTES desta chamada (updateLocalProject, autoritativo);
+  // isto só tenta espelhar na nuvem quando o flag mestre está ON. Falha
+  // aqui NUNCA desfaz nem bloqueia o local — só avisa. Só roda em modo
+  // local (dataSource !== "supabase") — em modo Supabase a escrita já vai
+  // direto pra nuvem, ver setDeliverableStatus/handleStatus abaixo.
   const mirrorUpdateToSupabase = (patched: Project) => {
     if (!isSupabaseProjectsWriteEnabled() || !workspace) return;
     mirrorProjectToSupabase(workspace.id, patched).catch((mirrorErr) => {
@@ -135,20 +128,49 @@ export function ProjectDetailDrawer({ project, open, onOpenChange, dataSource = 
     });
   };
 
-  const setDeliverableStatus = (id: string, status: ProjectDeliverable["status"]) => {
-    if (blockWrite()) return;
+  // Etapa 5 · Pacote do Flip (Fase B) — CRUD real em modo Supabase,
+  // substitui o antigo blockWrite() da fatia N. Falha de rede vira toast
+  // de erro explícito — nunca um patch que parece ter funcionado mas não
+  // persistiu (lição O2/O3/O4).
+  const updateSupabaseProjectField = async (patch: Parameters<typeof updateSupabaseProject>[1]) => {
+    if (!workspace) {
+      toast.error("Nenhum workspace ativo — não foi possível salvar.");
+      return false;
+    }
+    try {
+      await updateSupabaseProject(project.id, patch);
+      return true;
+    } catch (err) {
+      console.error("Falha ao atualizar projeto no Supabase:", err);
+      toast.error("Falha ao salvar no Supabase — tente novamente.");
+      return false;
+    }
+  };
+
+  const setDeliverableStatus = async (id: string, status: ProjectDeliverable["status"]) => {
     const next = deliverables.map((d) => (d.id === id ? { ...d, status } : d));
+    if (dataSource === "supabase") {
+      // progress não é coluna na nuvem (achado Fase A) — sempre derivado na leitura.
+      await updateSupabaseProjectField({ deliverables: next });
+      return;
+    }
     const done = next.filter((d) => d.status === "concluido").length;
     const progress = next.length ? Math.round((done / next.length) * 100) : project.progress;
-    updateProject(project.id, { deliverables: next, progress });
+    updateLocalProject(project.id, { deliverables: next, progress });
     mirrorUpdateToSupabase({ ...project, deliverables: next, progress });
   };
 
-  const handleStatus = (status: ProjectStatus) => {
-    if (blockWrite()) return;
+  const handleStatus = async (status: ProjectStatus) => {
+    if (dataSource === "supabase") {
+      // O12 (Pacote do Flip, Fase B): tradução correta na escrita —
+      // "archived" vira texto neutro + boolean archived=true.
+      const ok = await updateSupabaseProjectField(translateLocalProjectStatusToCloud(status));
+      if (ok) toast.success(`Projeto atualizado: ${PROJECT_STATUS_LABEL[status]}`);
+      return;
+    }
     const patch: Partial<Project> = { status };
     if (status === "delivered") patch.progress = 100;
-    updateProject(project.id, patch);
+    updateLocalProject(project.id, patch);
     toast.success(`Projeto atualizado: ${PROJECT_STATUS_LABEL[status]}`);
     mirrorUpdateToSupabase({ ...project, ...patch });
   };

@@ -28,10 +28,8 @@ export interface SupabaseProject {
    * legadas ou criadas nativamente na nuvem (ex.: via CreateProjectFromQuoteDialog
    * antes de F1, ou por outro fluxo que não passe pelo import). */
   source_local_id?: string | null;
-  /** Etapa 5 · Flip Projetos (item 3-b): coluna pendente da migration
-   * 20260811000100 (ESCRITA, AINDA NÃO APLICADA). Até a aplicação, o
-   * PostgREST simplesmente não devolve este campo (`undefined`) — o mapper
-   * (projectsMapper.ts) trata isso com o mesmo fallback de `?? []`. */
+  /** Etapa 5 · Flip Projetos (item 3-b): coluna da migration 20260811000100,
+   * aplicada em produção (kit de verificação 3/3 verde). */
   deliverables?: ProjectDeliverable[] | null;
 }
 
@@ -80,6 +78,25 @@ export const projectsRepository = {
       .update({
         deleted_at: new Date().toISOString(),
       })
+      .eq("id", projectId)
+      .eq("workspace_id", workspaceId)
+      .select()
+      .single();
+
+    if (error) throw normalizeSupabaseError(error);
+    return data as SupabaseProject;
+  },
+
+  // Etapa 5 · Flip Projetos (Fase B, Pacote do Flip) — edição direta de uma
+  // linha já existente, identificada pelo próprio uuid (`id`), não pelo
+  // `source_local_id` (esse é o arbiter de IMPORTAÇÃO — importProject —,
+  // não de edição pontual de um registro já lido da nuvem). Usado pela tela
+  // principal em modo Supabase (ProjectDetailDrawer.tsx: mudança de status,
+  // checklist de entregáveis) — substitui o antigo blockWrite() da fatia N.
+  async updateProject(workspaceId: string, projectId: string, patch: Partial<SupabaseProject>) {
+    const { data, error } = await supabase
+      .from("projects")
+      .update(patch as unknown as ProjectUpsert)
       .eq("id", projectId)
       .eq("workspace_id", workspaceId)
       .select()

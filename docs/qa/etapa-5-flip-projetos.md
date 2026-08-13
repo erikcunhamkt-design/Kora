@@ -364,6 +364,17 @@ desta rodada.
 > primeiro. Kit completo (pré-check + output esperado + 3 pós-checks) no
 > relatório da rodada de merge (chat, 2026-08-11).
 
+> **Sessão §8-b APLICADA — 12/ago/2026.** Pacote 1 de 2 desta janela (o outro
+> é o reaper de `whatsapp-campaign-v2`, G24, migration
+> `20260811000200_etapa6_campaign_v2_reaper.sql` — ver
+> [`kora-hub-auditoria-e-plano.md` G24](../architecture/kora-hub-auditoria-e-plano.md)).
+> Pré-check retornou **0 linhas** (nenhum `status` fora do vocabulário de 8
+> valores) — arquivo aplicado como escrito, sem ajuste. Pós-checks confirmam
+> coluna `deliverables jsonb DEFAULT '[]'` e `CHECK projects_status_known_chk`
+> presentes. **Zero incidentes.** Migration deixa de estar pendente — o
+> pré-requisito de schema da Fatia N+1 (Pacote do Flip — projetos) caiu; a
+> fatia em si (flip dos 2 defaults) continua não escopada/não decidida.
+
 - **(a) `deliverables`:** Opção A — coluna `jsonb DEFAULT '[]'`, mesmo molde
   da Fatia 8/O1 (`crm_opportunities.tags/history`). Selado pelo achado de que
   `progress` é calculado a partir de `deliverables` (`ProjectDetailDrawer.tsx:97-99`)
