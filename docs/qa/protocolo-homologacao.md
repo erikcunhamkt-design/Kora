@@ -501,3 +501,46 @@ Regra dura, sem exceção — vale inclusive para QA:
    funcionalmente, mas `npm run gates` existe justamente pra remover a chance de escolher o
    comando de `tsc` errado por engano.
 4. **Demais gates permanentes (seções 0–18) inalterados.**
+
+---
+
+## 20. Emenda 2026-08-13 — Porta de dev server nunca identifica o código servido; só o BUILD banner (§17) identifica
+
+> **Motivada por:** durante a verificação visual do merge do UX2 (rodada `ux2-g21-g23-g25-fase-a`)
+> e novamente na rodada de higiene de dev (`dev-hygiene-jsx-font-ports`), a porta `8080` já estava
+> ocupada por um dev server de **outra lane/worktree** no momento em que esta sessão tentou subir
+> a sua própria. O Vite, ao encontrar a porta ocupada, sobe silenciosamente na porta seguinte
+> (`8081`) sem erro — o comportamento padrão de "porta em uso, tentando outra" é discreto, fácil
+> de não notar numa saída de terminal corrida. Numa dessas ocorrências, o navegador desta sessão
+> foi apontado pra `localhost:8080` (a porta "óbvia", a que o `.claude/launch.json` padrão usa) —
+> e só respondia porque a OUTRA lane estava lá, servindo o código **dela**, branch dela. Só o
+> `[Kora] BUILD <hash> (<branch>)` do console (mecanismo do §17) expôs a discrepância — sem ele, a
+> verificação visual teria validado a tela errada, prova falsa de que o código desta sessão
+> funcionava.
+
+1. **Múltiplas worktrees ativas ao mesmo tempo (o padrão normal desta operação, §16) implicam
+   múltiplos dev servers ao mesmo tempo, cada um podendo acabar numa porta diferente** —
+   `8080`, `8081`, `8082`... dependendo de qual lane subiu o servidor primeiro. Isso não é uma
+   falha a corrigir; é a consequência esperada de rodar N worktrees em paralelo na mesma máquina.
+2. **Porta NUNCA é prova de qual código está sendo servido.** `localhost:8080` respondendo `200`
+   não diz nada sobre QUAL branch/commit gerou aquela resposta — pode ser o dev server desta
+   sessão, de outra lane, ou um processo esquecido de uma sessão anterior (mesmo risco já coberto
+   pelo item 3 do §17, agora generalizado: nunca inferir correspondência código↔servidor por
+   comportamento observado, porta incluída). **A única prova válida continua sendo o `[Kora]
+   BUILD <hash> (<branch>)` do console (§17, item 1)** — conferido **antes** de qualquer
+   verificação visual, toda vez, mesmo quando a porta "parece" a certa.
+3. **Antes de assumir uma porta, checar se ela já está ocupada** (`netstat -ano | grep :8080` ou
+   equivalente) e ler a saída do `npm run dev`/`vite` pra confirmar em qual porta ele realmente
+   subiu — não assumir `8080` só porque é o padrão do `vite.config.ts`. Se o servidor subiu numa
+   porta diferente da esperada, apontar o navegador pra ela explicitamente, não pra porta padrão.
+4. **PROIBIDO "resolver" isso fixando uma porta diferente por lane** (ex.: lane B sempre 8081,
+   lane C sempre 8082, hardcoded no `vite.config.ts` ou no `.claude/launch.json` de cada
+   worktree). Motivo: `localStorage` é isolado **por origem**, e origem inclui a porta
+   (`localhost:8080` e `localhost:8081` são origens diferentes, mesmo mesma máquina/mesmo
+   `localhost` — já registrado como fato geral no §17, item 4, aqui com a consequência
+   específica). Pinar portas por lane mudaria **qual `localStorage` cada lane historicamente usou
+   pra homologação** — flags, dados semeados e estado de onboarding ficariam
+   presos à porta antiga, não à branch/worktree, quebrando a continuidade de qualquer
+   homologação que dependa de estado local acumulado entre sessões. A porta variável (Vite
+   escolhendo a próxima livre) é incômoda mas inofensiva; portas fixas por lane seriam piores.
+5. **Demais gates permanentes (seções 0–19) inalterados.**

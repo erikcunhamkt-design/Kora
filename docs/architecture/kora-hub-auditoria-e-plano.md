@@ -574,6 +574,35 @@ Achado na Fase D (homologação), Caso 5.2, do Pacote do Flip de `projects` (Eta
 
 ---
 
+**G34 — `npm run dev` imprimia 2x "Warning: Invalid input options — For the 'jsx'" durante o scan de dependências (cache fria). [BAIXO — confirmado e FECHADO, causa: dependência desalinhada da versão do Vite]**
+Achado de ambiente reportado pela Fase D (homologação), rodada `dev-hygiene-jsx-font-ports`. Reproduzido de forma determinística: limpar `node_modules/.vite` (força um scan frio) e subir `npm run dev` — o warning aparecia 2x, imediatamente antes de "[optimizer] bundling dependencies...".
+
+- **Causa raiz:** `package.json` tinha `"vite": "^8.0.16"` mas `"@vitejs/plugin-react-swc": "^3.11.0"` — essa versão do plugin declara `peerDependencies: { vite: "^4 || ^5 || ^6 || ^7" }` (confirmado via `npm view`), **não cobre Vite 8**. O plugin passa uma opção de `esbuild`/transform (`jsx`) que a versão instalada do Vite 8 não reconhece mais nesse ponto da API — dependência desalinhada, não um bug de configuração do projeto.
+- **Fix:** `@vitejs/plugin-react-swc` atualizado pra `^4.3.3` (`peerDependencies: { vite: "^4 || ^5 || ^6 || ^7 || ^8" }` — cobre Vite 8 explicitamente). Nenhuma mudança de API usada pelo projeto (`plugins: [react()]` em `vite.config.ts`, uso trivial, não afetado por breaking changes entre major versions do plugin).
+- **Verificado 2x, cache fria (`rm -rf node_modules/.vite` + restart) em ambos os testes:** warning não reaparece; o optimizer roda normalmente (cache de deps populada) sem a mensagem de opção inválida.
+
+---
+
+**G35 — Fonte Google (`Inter`) 404 intermitente — carregada via `@import url()` dentro de `src/index.css`, um anti-padrão de performance/confiabilidade documentado pelo próprio Google Fonts. [BAIXO — mitigado, causa exata do 404 pontual não reproduzida, mas a classe de risco (waterfall serial, sem preconnect) eliminada]**
+Achado de ambiente reportado pela Fase D, mesma rodada do G34. Não foi possível reproduzir o 404 específico via ferramenta de automação desta sessão (o monitor de rede usado não captura sub-requests disparados por `@font-face` dentro de CSS, só requests JS/navegação) — tratado como achado real da Fase D (observado ao vivo pelo operador), não descartado por falta de reprodução própria.
+
+- **O que existia:** `src/index.css:1-2` — 2 linhas `@import url('https://fonts.googleapis.com/css2?family=...')` (Inter; Andika+Comic Neue) no topo do arquivo CSS. `@import` em CSS é **render-blocking e serial**: o browser precisa buscar+parsear `index.css`, só então descobre o `@import`, só então busca o CSS do Google Fonts, só então descobre as URLs de `fonts.gstatic.com` pra buscar os arquivos `.woff2` — 3 round-trips em cadeia antes da fonte estar disponível, sem nenhum `preconnect` paralelizando DNS/TLS. É exatamente o padrão que a própria documentação do Google Fonts recomenda evitar (recomendação oficial: `<link>` no `<head>` do HTML, não `@import` em CSS).
+- **Confirmado que a API/CDN do Google está saudável hoje** (`curl` direto em `fonts.googleapis.com`/`fonts.gstatic.com` devolveu `200` limpo) — não é uma fonte descontinuada nem uma URL hardcoded quebrada no repositório (busca exaustiva por `gstatic`/`googleapis` em `src/`/`index.html`/`public/` só encontrou as 2 linhas de `@import`, nenhuma URL fixa de arquivo `.woff2`).
+- **Fix:** as 2 linhas `@import` removidas de `src/index.css`; substituídas por `<link rel="preconnect">` (`fonts.googleapis.com` e `fonts.gstatic.com`, este com `crossorigin`) + um único `<link rel="stylesheet">` combinando as 3 famílias (Inter + Andika + Comic Neue) num só request, no `<head>` de `index.html`. Reduz de 2 imports seriais em cadeia pra 1 request direto com DNS/TLS pré-aquecido.
+- **Verificação visual (BUILD banner conferido antes, §17; porta conferida livre pra esta sessão — ver G36):** `document.fonts` inspecionado via console — `Inter` (pesos 400/500/600/700, os usados nesta página) com `status: "loaded"`; `getComputedStyle(document.body).fontFamily` → `"Inter, sans-serif"`. Tipografia não regrediu.
+- **Sem precedente de fonte self-hospedada no projeto** (`find` por `*font*` fora de `node_modules` não achou nada) — não introduzida agora; seria mudança maior que "fix mínimo" pede, fica pra decisão de produto futura se o `<link>`+preconnect não for suficiente.
+
+---
+
+**G36 — Porta de dev server ocupada por outra lane mascarada como sucesso silencioso — Vite sobe na próxima porta livre sem aviso destacado; só o BUILD banner (§17) expôs a discrepância. [BAIXO — sem código a corrigir, formalizado como emenda de processo]**
+Achado durante a verificação visual do UX2 (`ux2-g21-g23-g25-fase-a`) e reconfirmado nesta rodada (`dev-hygiene-jsx-font-ports`) — `localhost:8080` respondendo não provava nada sobre qual branch estava sendo servida; nas duas ocasiões era o dev server de **outra** worktree/lane, e o servidor desta sessão subiu silenciosamente em `8081` (mensagem "Port 8080 is in use, trying another one..." presente no log, mas fácil de não notar). Nenhum código do app está envolvido — é puramente uma lição de operação de sessões paralelas.
+
+- **Registrado como emenda permanente** do protocolo de homologação: [`protocolo-homologacao.md` §20](../qa/protocolo-homologacao.md#20-emenda-2026-08-13--porta-de-dev-server-nunca-identifica-o-código-servido-só-o-build-banner-§17-identifica).
+- **Núcleo da regra:** porta nunca prova qual código está sendo servido — só o `BUILD <hash> (<branch>)` do console prova (§17). Checar se a porta esperada já está ocupada antes de assumir; se o servidor subir noutra porta, apontar o navegador pra ela explicitamente.
+- **Aviso explícito registrado (para não virar "correção" errada no futuro):** **não** fixar portas diferentes por lane/worktree como forma de "resolver" isso. Porta faz parte da origem do `localStorage` do navegador (mesma classe de fato já coberta no §17 item 4, "troca de servidor reseta flags/dados locais") — pinar portas por lane prenderia o histórico de homologação de cada lane à porta, não à branch/worktree, quebrando continuidade de estado local entre sessões. Porta variável é incômoda, mas portas fixas por lane seriam um problema pior.
+
+---
+
 ## 3. Segurança / vulnerabilidades (verificar e endurecer)
 
 > Vários itens abaixo são **"confirmar no código"** — a arquitetura está certa, mas a implementação precisa ser auditada arquivo a arquivo pelo Code.
