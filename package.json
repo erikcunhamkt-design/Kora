@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "gates": "tsc -p tsconfig.app.json --noEmit && npm run lint && vitest run"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

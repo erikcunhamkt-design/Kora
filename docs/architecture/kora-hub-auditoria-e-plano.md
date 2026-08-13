@@ -484,6 +484,40 @@ src/components/clients/ClientActivitiesTab.tsx(305,27): error TS7006: Parameter 
 
 ---
 
+**G28 — Confirmação empírica, do lado de quem mergeou por cima do G27: o comando de gate usado (`npx tsc --noEmit`, sem `-p`) checava 0 arquivos, sempre "verde" independente do código real. [ALTO — confirmado, corrigido estruturalmente por `npm run gates`]**
+Achado durante a investigação do incidente do merge do UX2/G21/G23/G25 (`e86d7a6`, LANE B) — a mesma rodada que mergeou por cima do tip já quebrado pelo G27, reportando "tsc=0" no relatório de merge. Responde, para este caso concreto, a pergunta deixada em aberto no G27 ("por que isso não bloqueou o merge da Fase B") — não pro merge original da Fase B (não investigado, autor diferente), mas confirma que o **mesmo padrão de comando vazio** estava em uso pela Lane B nesta rodada seguinte, e teria mascarado o G27 (ou qualquer outro erro de tipo) indefinidamente se a Lane C não tivesse rodado o comando certo por fora.
+
+- **Comandos literais usados pela Lane B no merge de `e86d7a6`:** `npx tsc --noEmit` (tsc), `npm run lint` (lint), `npx vitest run` (testes) — os 3 rodados a cada commit da fatia e no tip final antes do push. `lint` e `vitest` bateram certo (0 erros / 430 testes verdes) porque cobrem o projeto inteiro por padrão, independente de flag `-p`; só o `tsc` divergiu.
+- **Reprodução (checkout detached de `e86d7a6`, sem tocar `main`):**
+  ```
+  $ npx tsc --noEmit; echo "EXIT: $?"
+  EXIT: 0
+  $ npx tsc --noEmit --listFiles | wc -l
+  0
+  ```
+  Zero arquivos processados — não "passou com cobertura parcial", literalmente não checou nada. Comparado ao comando certo no mesmo commit:
+  ```
+  $ npx tsc -p tsconfig.app.json --noEmit
+  src/components/clients/ClientActivitiesTab.tsx(167,31): error TS2304: Cannot find name 'useProjects'.
+  src/components/clients/ClientActivitiesTab.tsx(303,43): error TS7006: Parameter 'p' implicitly has an 'any' type.
+  src/components/clients/ClientActivitiesTab.tsx(304,56): error TS7006: Parameter 'p' implicitly has an 'any' type.
+  src/components/clients/ClientActivitiesTab.tsx(305,27): error TS7006: Parameter 'p' implicitly has an 'any' type.
+  EXIT: 2
+  $ npx tsc -p tsconfig.app.json --noEmit --listFiles | wc -l
+  1112
+  ```
+- **Causa raiz — mesma do G27, agora com o mecanismo exato provado:** `tsconfig.json` (raiz) tem `"compilerOptions"` + `"files": []` + `"references"` pros dois sub-projetos (`tsconfig.app.json`/`tsconfig.node.json`) — padrão de *project references* do TypeScript. Sem a flag `--build`/`-b`, `tsc` **não segue `references` automaticamente**; com `files: []` e nenhum `include`, o conjunto de entrada fica vazio — `tsc --noEmit` sempre sai `0`, para qualquer estado do código-fonte. Este já era o "gate vazio" descrito no achado G9 original (fora deste documento no momento da escrita, ver histórico) — não é uma regressão nova, é um comando errado que sobrevive porque "sai verde" nunca chama atenção pra si mesmo.
+- **Por que não é erro de julgamento pontual, é risco estrutural:** o comando errado não falha nunca, nem em CI nem localmente — não há sinal de alerta que diferencie "tsc rodou e passou" de "tsc não rodou de verdade". Qualquer lane, incluindo as que já sabem da distinção `-p tsconfig.app.json`, pode digitar o comando errado de memória num momento de pressa e nunca descobrir, porque o resultado observável (saída vazia, exit 0) é idêntico ao de um gate real que passou.
+- **Fix estrutural (não só desta instância):** script `"gates"` em `package.json` —
+  `tsc -p tsconfig.app.json --noEmit && npm run lint && vitest run` — e emenda permanente no
+  protocolo de homologação ([§19](../qa/protocolo-homologacao.md#19-emenda-2026-08-13--gate-de-tsc-padronizado-npm-run-gates-saída-literal-no-relatório)):
+  todo merge usa `npm run gates`, relatório sempre com a saída literal do `tsc` colada (não um
+  resumo tipo "tsc=0").
+- **Validação (tip real de `main`, pós-fix, `c73a175`):** ver saída literal de `npm run gates` no
+  commit desta correção (`gates-tsc-app-standardize`).
+
+---
+
 ## 3. Segurança / vulnerabilidades (verificar e endurecer)
 
 > Vários itens abaixo são **"confirmar no código"** — a arquitetura está certa, mas a implementação precisa ser auditada arquivo a arquivo pelo Code.
