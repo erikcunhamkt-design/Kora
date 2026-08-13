@@ -483,24 +483,28 @@ export default function WhatsAppPage() {
   }
 
   // ---- Sem instância conectada ----
-  if (!instance || status !== "connected") {
-    return (
-      <div className="flex h-[calc(100vh-8rem)] items-center justify-center">
-        <WhatsAppEmptyState
-          icon={Smartphone}
-          title="WhatsApp não conectado"
-          description="Conecte sua conta do WhatsApp em Automações para começar a atender seus clientes em um inbox profissional."
-          action={
-            <Button asChild>
-              <Link to="/automacoes?tab=integracoes">
-                <Plug className="h-4 w-4" /> Conectar WhatsApp
-              </Link>
-            </Button>
-          }
-        />
-      </div>
-    );
-  }
+  // UX2: o gate de conexão não engole mais a página inteira — a aba "Robô IA"
+  // (WhatsAppBotConfig) não depende de `instance`/`status` (o simulador chama
+  // whatsapp-bot-reply com isTest: true diretamente), então fica acessível mesmo
+  // sem conexão. As outras 4 abas (Inbox/Audiências/Campanhas/Modelos) continuam
+  // exigindo conexão — cada uma mostra este mesmo empty state em vez de conteúdo.
+  const isConnected = !!instance && status === "connected";
+  const notConnectedState = (
+    <div className="flex-1 flex items-center justify-center h-full bg-background/50">
+      <WhatsAppEmptyState
+        icon={Smartphone}
+        title="WhatsApp não conectado"
+        description="Conecte sua conta do WhatsApp em Automações para começar a atender seus clientes em um inbox profissional."
+        action={
+          <Button asChild>
+            <Link to="/automacoes?tab=integracoes">
+              <Plug className="h-4 w-4" /> Conectar WhatsApp
+            </Link>
+          </Button>
+        }
+      />
+    </div>
+  );
 
   const showSidebar = !selected; // mobile: hide sidebar when conversation is open
   const showChat = !!selected;   // mobile: hide chat when no conversation
@@ -535,7 +539,7 @@ export default function WhatsAppPage() {
 
       {/* Main Tab content container */}
       <div className="flex-1 flex overflow-hidden">
-        {activeMainTab === "chat" && (
+        {activeMainTab === "chat" && (isConnected ? (
           <div className="flex flex-1 overflow-hidden w-full">
             {/* ============ Sidebar de conversas ============ */}
             <aside
@@ -974,25 +978,25 @@ export default function WhatsAppPage() {
             </Sheet>
 
           </div>
-        )}
+        ) : notConnectedState)}
 
-        {activeMainTab === "audiences" && (
+        {activeMainTab === "audiences" && (isConnected ? (
           <div className="flex-1 overflow-hidden h-full bg-background/50">
             <AudiencesBackendPage />
           </div>
-        )}
+        ) : notConnectedState)}
 
-        {activeMainTab === "campaigns" && workspace && (
+        {activeMainTab === "campaigns" && workspace && (isConnected ? (
           <div className="flex-1 overflow-hidden h-full">
             <CampaignsBackendPage />
           </div>
-        )}
+        ) : notConnectedState)}
 
-        {activeMainTab === "templates" && (
+        {activeMainTab === "templates" && (isConnected ? (
           <div className="flex-1 overflow-hidden h-full bg-background/50">
             <TemplatesBackendPage />
           </div>
-        )}
+        ) : notConnectedState)}
 
         {activeMainTab === "bot" && workspace && (
           <div className="flex-1 overflow-y-auto h-full bg-background/50">
