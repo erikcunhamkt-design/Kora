@@ -17,7 +17,7 @@
 // budget é quantizado com roundMoney só para evitar artefato de float (0.1+0.2) —
 // SEM checagem de divergência tipo inspectFinanceMoney (decidida N/A na Fase A: é
 // uma estimativa editável pelo usuário, não uma cópia fixa do total do orçamento).
-import type { Project, ProjectSource, ProjectStatus } from "@/hooks/useProjects";
+import type { Project, ProjectDeliverable, ProjectSource, ProjectStatus } from "@/hooks/useProjects";
 import type { SupabaseProject } from "@/repositories/projectsRepository";
 import { roundMoney } from "@/services/quotes/quoteMoney";
 
@@ -36,16 +36,39 @@ export interface ProjectImportMaps {
 
 export const EMPTY_PROJECT_IMPORT_MAPS: ProjectImportMaps = { clients: {}, quotes: {}, opportunities: {} };
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * G34 — nem todo `localId` que chega aqui é de fato um id LOCAL precisando
+ * de tradução via import-map. `QuoteToProjectDialog.tsx` (Vendas → "Gerar
+ * projeto") passa `quoteId: quote.id` direto do objeto `Quote` — em modo
+ * Supabase, `quote.id` já É o uuid real de `public.quotes`
+ * (`mapSupabaseQuoteToLocalQuote`, `quoteMapper.ts:157`, sem cast/tradução).
+ * Procurar esse uuid no import-map (que só mapeia id LOCAL -> uuid) nunca
+ * bate, e o FK sempre volta null — era exatamente a causa raiz do G34
+ * (quote_id/source perdidos no espelho de um projeto gerado a partir de uma
+ * quote nativa da nuvem). Mesma ambiguidade existe estruturalmente pra
+ * client_id/opportunity_id (ambos smuggled como `number` via cast quando já
+ * são uuid — `useClientsDataSource.ts:9`, `mapSupabaseProjectToLocal:238`
+ * acima) — resolvida aqui de uma vez, mesmo sem um caminho de UI ativo
+ * exercitando isso hoje.
+ */
+function looksLikeUuid(value: string): boolean {
+  return UUID_RE.test(value);
+}
+
 /**
  * Resolve um id LOCAL para o UUID Supabase via import-map.
  * Regra de segurança (padrão Q4): mapeado → UUID; ausente/não-mapeado → null. NUNCA id
- * local cru.
+ * local cru. Exceção (G34): se `localId` já É um uuid válido, passa direto —
+ * não é um id local a traduzir, já é o destino.
  */
 export function resolveProjectFk(
   localId: string | number | null | undefined,
   map: Record<string, string>,
 ): string | null {
   if (localId === null || localId === undefined || localId === "") return null;
+  if (typeof localId === "string" && looksLikeUuid(localId)) return localId;
   return map[String(localId)] ?? null;
 }
 
@@ -76,6 +99,7 @@ export interface SupabaseProjectImportPayload extends Partial<SupabaseProject> {
   status: string;
   source: string;
   budget: number;
+  deliverables: ProjectDeliverable[];
 }
 
 /**
@@ -101,7 +125,15 @@ export function translateLocalProjectStatusToCloud(
   return { status, archived: false };
 }
 
-/** Converte um Project local no payload de import (FKs resolvidas, source traduzido, budget quantizado). */
+/**
+ * Converte um Project local no payload de import (FKs resolvidas, source
+ * traduzido, budget quantizado). `deliverables` (G34): campo esquecido desde
+ * a criação deste mapper — a coluna existe (`deliverables jsonb NOT NULL
+ * DEFAULT '[]'::jsonb`, migration 20260811000100, item 3-a) e a leitura
+ * (`mapSupabaseProjectToLocal` abaixo) já sempre a consumiu; só a escrita
+ * nunca a incluía no payload, então todo espelho gravava `[]` por omissão
+ * (o DEFAULT da coluna), mesmo com o projeto local tendo entregáveis reais.
+ */
 export function mapLocalProjectToSupabase(
   project: Project,
   maps: ProjectImportMaps = EMPTY_PROJECT_IMPORT_MAPS,
@@ -118,6 +150,7 @@ export function mapLocalProjectToSupabase(
     start_date: project.startDate || null,
     due_date: project.dueDate || null,
     budget: roundMoney(project.budget ?? 0),
+    deliverables: project.deliverables ?? [],
     source: resolveCloudProjectSource(project.source, quote_id),
     is_demo: false,
     archived,

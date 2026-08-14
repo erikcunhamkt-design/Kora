@@ -47,6 +47,24 @@
 > inalterado — `finance` ainda não migrou). Nenhum texto deste runbook
 > precisou mudar — a expectativa do Caso 5.2 já estava certa, era o código
 > que estava desatualizado.
+>
+> **Atualização (Fase D, Caso 5.2 → 2º vermelho corrigido, G34):** com G33
+> destravando o diálogo, o próprio espelho (`mirrorProjectToSupabase`)
+> gravava uma linha empobrecida — `source="manual"`, `quote_id=null`,
+> `deliverables=[]` — mesmo com o projeto local tendo `source="orçamento"`,
+> `quoteId` real e 2 deliverables. Causa raiz dupla, ambas em
+> `projectsMapper.ts`: (1) `resolveProjectFk` tratava `quoteId` sempre como
+> id LOCAL a traduzir via import-map, mas `quote.id` em modo Supabase já É
+> o uuid real de `public.quotes` (nunca passa por import) — lookup sempre
+> voltava null; (2) `deliverables` nunca fazia parte do payload de escrita,
+> só da leitura. **G34** (`kora-hub-auditoria-e-plano.md`) documenta os dois
+> fixes + um achado relacionado NÃO corrigido (client_id de uma quote lida
+> da nuvem nunca é restaurado por `mapSupabaseQuoteToLocalQuote` — lacuna do
+> lado da leitura de `quotes`, fora de escopo). Reporta também por que os
+> Casos 5.4-5.6 não vão casar `HOMOLOG-FLIP-projeto-B` na ficha do cliente
+> (a quote de origem nunca teve cliente real vinculado — não é regressão
+> deste fix) e o caminho de remediação da linha já gravada (soft-delete +
+> regenerar).
 
 ## Abertura (§16/§17)
 

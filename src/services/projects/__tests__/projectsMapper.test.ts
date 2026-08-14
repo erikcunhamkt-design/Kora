@@ -16,6 +16,7 @@ import {
   resolveLocalProjectSource,
   translateCloudProjectStatusToLocal,
   translateLocalProjectStatusToCloud,
+  EMPTY_PROJECT_IMPORT_MAPS,
 } from "@/services/projects/projectsMapper";
 import type { Project } from "@/hooks/useProjects";
 
@@ -59,6 +60,22 @@ describe("resolveProjectFk — padrão Q4 (mapeado -> uuid; ausente -> null, nun
     expect(resolveProjectFk(null, {})).toBeNull();
     expect(resolveProjectFk(undefined, {})).toBeNull();
     expect(resolveProjectFk("", {})).toBeNull();
+  });
+
+  // G34 — QuoteToProjectDialog.tsx passa quoteId: quote.id direto; em modo
+  // Supabase, quote.id já é o uuid real de public.quotes (mapSupabaseQuoteToLocalQuote
+  // não faz cast/tradução nenhuma, ao contrário de clientId/opportunityId). Sem
+  // esta exceção, o lookup no import-map (só mapeia id LOCAL) nunca bate, e o
+  // FK sempre volta null mesmo com um vínculo real.
+  it("já sendo um uuid válido, passa direto — nunca procura no import-map", () => {
+    const uuid = "a1b2c3d4-e5f6-4789-a012-b3c4d5e6f789";
+    expect(resolveProjectFk(uuid, {})).toBe(uuid);
+    expect(resolveProjectFk(uuid, { [uuid]: "outro-uuid-que-nunca-deveria-ganhar" })).toBe(uuid);
+  });
+
+  it("uma string que não é uuid continua tratada como id local (comportamento inalterado)", () => {
+    expect(resolveProjectFk("qt-1755000000000", { "qt-1755000000000": "quote-uuid-1" })).toBe("quote-uuid-1");
+    expect(resolveProjectFk("qt-nao-mapeada", {})).toBeNull();
   });
 });
 
@@ -143,6 +160,41 @@ describe("mapLocalProjectToSupabase — fan-out dos 3 import-maps + tradução d
       expect(payload.archived).toBe(false);
       expect(payload.status).toBe(status);
     }
+  });
+
+  // G34 (Fase D, Caso 5.2) — vermelho: "Gerar projeto" (Vendas) a partir de
+  // uma quote NATIVA DA NUVEM (quote.id já é uuid real) espelhava com
+  // source="manual", quote_id=null, deliverables=[] — mesmo o projeto local
+  // tendo source "orçamento", quoteId real e entregáveis. Reprodução exata
+  // do cenário: quoteId chega como uuid (não um id local "qt-..."), não
+  // existe em NENHUM import-map (a quote nunca passou pelo import — nasceu
+  // direto na nuvem), e o projeto tem 2 deliverables.
+  it("G34 — quote nativa da nuvem (quoteId já é uuid): quote_id/source resolvem certo mesmo SEM entrada no import-map", () => {
+    const cloudQuoteUuid = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
+    const project = makeProject({
+      source: "orçamento",
+      quoteId: cloudQuoteUuid,
+      deliverables: [
+        { id: "d1", title: "Etapa 1", status: "pendente" },
+        { id: "d2", title: "Etapa 2", status: "pendente" },
+      ],
+    });
+    // maps vazio de propósito — a quote nunca foi importada, não tem entrada
+    // nenhuma em kora.quotes.supabaseImport.v1. Antes do fix, isso derrubava
+    // quote_id/source pro fallback "sem vínculo" mesmo o vínculo sendo real.
+    const payload = mapLocalProjectToSupabase(project, EMPTY_PROJECT_IMPORT_MAPS);
+
+    expect(payload.quote_id).toBe(cloudQuoteUuid);
+    expect(payload.source).toBe("quote");
+    expect(payload.deliverables).toEqual([
+      { id: "d1", title: "Etapa 1", status: "pendente" },
+      { id: "d2", title: "Etapa 2", status: "pendente" },
+    ]);
+  });
+
+  it("G34 — deliverables ausente vira [] (nunca undefined — coluna é NOT NULL)", () => {
+    const payload = mapLocalProjectToSupabase(makeProject({ deliverables: undefined }));
+    expect(payload.deliverables).toEqual([]);
   });
 });
 
