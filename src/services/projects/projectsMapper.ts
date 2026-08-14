@@ -39,13 +39,13 @@ export const EMPTY_PROJECT_IMPORT_MAPS: ProjectImportMaps = { clients: {}, quote
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * G34 — nem todo `localId` que chega aqui é de fato um id LOCAL precisando
+ * G37 — nem todo `localId` que chega aqui é de fato um id LOCAL precisando
  * de tradução via import-map. `QuoteToProjectDialog.tsx` (Vendas → "Gerar
  * projeto") passa `quoteId: quote.id` direto do objeto `Quote` — em modo
  * Supabase, `quote.id` já É o uuid real de `public.quotes`
  * (`mapSupabaseQuoteToLocalQuote`, `quoteMapper.ts:157`, sem cast/tradução).
  * Procurar esse uuid no import-map (que só mapeia id LOCAL -> uuid) nunca
- * bate, e o FK sempre volta null — era exatamente a causa raiz do G34
+ * bate, e o FK sempre volta null — era exatamente a causa raiz do G37
  * (quote_id/source perdidos no espelho de um projeto gerado a partir de uma
  * quote nativa da nuvem). Mesma ambiguidade existe estruturalmente pra
  * client_id/opportunity_id (ambos smuggled como `number` via cast quando já
@@ -60,7 +60,7 @@ function looksLikeUuid(value: string): boolean {
 /**
  * Resolve um id LOCAL para o UUID Supabase via import-map.
  * Regra de segurança (padrão Q4): mapeado → UUID; ausente/não-mapeado → null. NUNCA id
- * local cru. Exceção (G34): se `localId` já É um uuid válido, passa direto —
+ * local cru. Exceção (G37): se `localId` já É um uuid válido, passa direto —
  * não é um id local a traduzir, já é o destino.
  */
 export function resolveProjectFk(
@@ -127,7 +127,7 @@ export function translateLocalProjectStatusToCloud(
 
 /**
  * Converte um Project local no payload de import (FKs resolvidas, source
- * traduzido, budget quantizado). `deliverables` (G34): campo esquecido desde
+ * traduzido, budget quantizado). `deliverables` (G37): campo esquecido desde
  * a criação deste mapper — a coluna existe (`deliverables jsonb NOT NULL
  * DEFAULT '[]'::jsonb`, migration 20260811000100, item 3-a) e a leitura
  * (`mapSupabaseProjectToLocal` abaixo) já sempre a consumiu; só a escrita

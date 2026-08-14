@@ -48,7 +48,7 @@
 > precisou mudar — a expectativa do Caso 5.2 já estava certa, era o código
 > que estava desatualizado.
 >
-> **Atualização (Fase D, Caso 5.2 → 2º vermelho corrigido, G34):** com G33
+> **Atualização (Fase D, Caso 5.2 → 2º vermelho corrigido, G37):** com G33
 > destravando o diálogo, o próprio espelho (`mirrorProjectToSupabase`)
 > gravava uma linha empobrecida — `source="manual"`, `quote_id=null`,
 > `deliverables=[]` — mesmo com o projeto local tendo `source="orçamento"`,
@@ -57,7 +57,7 @@
 > id LOCAL a traduzir via import-map, mas `quote.id` em modo Supabase já É
 > o uuid real de `public.quotes` (nunca passa por import) — lookup sempre
 > voltava null; (2) `deliverables` nunca fazia parte do payload de escrita,
-> só da leitura. **G34** (`kora-hub-auditoria-e-plano.md`) documenta os dois
+> só da leitura. **G37** (`kora-hub-auditoria-e-plano.md`) documenta os dois
 > fixes + um achado relacionado NÃO corrigido (client_id de uma quote lida
 > da nuvem nunca é restaurado por `mapSupabaseQuoteToLocalQuote` — lacuna do
 > lado da leitura de `quotes`, fora de escopo). Reporta também por que os

@@ -62,7 +62,7 @@ describe("resolveProjectFk — padrão Q4 (mapeado -> uuid; ausente -> null, nun
     expect(resolveProjectFk("", {})).toBeNull();
   });
 
-  // G34 — QuoteToProjectDialog.tsx passa quoteId: quote.id direto; em modo
+  // G37 — QuoteToProjectDialog.tsx passa quoteId: quote.id direto; em modo
   // Supabase, quote.id já é o uuid real de public.quotes (mapSupabaseQuoteToLocalQuote
   // não faz cast/tradução nenhuma, ao contrário de clientId/opportunityId). Sem
   // esta exceção, o lookup no import-map (só mapeia id LOCAL) nunca bate, e o
@@ -162,14 +162,14 @@ describe("mapLocalProjectToSupabase — fan-out dos 3 import-maps + tradução d
     }
   });
 
-  // G34 (Fase D, Caso 5.2) — vermelho: "Gerar projeto" (Vendas) a partir de
+  // G37 (Fase D, Caso 5.2) — vermelho: "Gerar projeto" (Vendas) a partir de
   // uma quote NATIVA DA NUVEM (quote.id já é uuid real) espelhava com
   // source="manual", quote_id=null, deliverables=[] — mesmo o projeto local
   // tendo source "orçamento", quoteId real e entregáveis. Reprodução exata
   // do cenário: quoteId chega como uuid (não um id local "qt-..."), não
   // existe em NENHUM import-map (a quote nunca passou pelo import — nasceu
   // direto na nuvem), e o projeto tem 2 deliverables.
-  it("G34 — quote nativa da nuvem (quoteId já é uuid): quote_id/source resolvem certo mesmo SEM entrada no import-map", () => {
+  it("G37 — quote nativa da nuvem (quoteId já é uuid): quote_id/source resolvem certo mesmo SEM entrada no import-map", () => {
     const cloudQuoteUuid = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
     const project = makeProject({
       source: "orçamento",
@@ -192,7 +192,7 @@ describe("mapLocalProjectToSupabase — fan-out dos 3 import-maps + tradução d
     ]);
   });
 
-  it("G34 — deliverables ausente vira [] (nunca undefined — coluna é NOT NULL)", () => {
+  it("G37 — deliverables ausente vira [] (nunca undefined — coluna é NOT NULL)", () => {
     const payload = mapLocalProjectToSupabase(makeProject({ deliverables: undefined }));
     expect(payload.deliverables).toEqual([]);
   });
