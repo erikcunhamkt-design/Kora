@@ -140,6 +140,23 @@ order by updated_at desc
 limit 50;
 ```
 
+### 1.9 Vocabulário de `priority` realmente em uso (checagem direta do risco G49)
+
+Mesmo espírito do §1.4, agora pra `priority`: `CreateProjectBaseTasksDialog.tsx` gravava
+`"medium"/"high"/"low"` (inglês) até o fix do G49
+(`docs/architecture/kora-hub-auditoria-e-plano.md`) — essa query mostra se alguma linha real já
+tem esses 3 valores legados (gerada por `createProjectBaseTasks` antes do fix) em vez do
+vocabulário oficial (`alta`/`média`/`baixa`, o que `importTask` sempre gravou). Sem CHECK
+constraint na coluna (mesma migration do §1.4), então qualquer string pode estar lá.
+
+```sql
+select priority, count(*) as total
+from public.tasks
+where deleted_at is null
+group by priority
+order by total desc;
+```
+
 ---
 
 ## 2. Caminhos de escrita ativos hoje em `public.tasks`

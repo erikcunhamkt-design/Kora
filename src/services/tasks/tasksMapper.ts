@@ -130,3 +130,34 @@ const LEGACY_CLOUD_TASK_STATUS: Readonly<Record<string, CloudTaskStatus>> = {
 export function normalizeCloudTaskStatus(status: string): CloudTaskStatus | string {
   return LEGACY_CLOUD_TASK_STATUS[status] ?? status;
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// G49 (docs/architecture/kora-hub-auditoria-e-plano.md) — mesmo defeito do
+// R1 acima, agora em `priority`: `CreateProjectBaseTasksDialog.tsx` gravava
+// "medium"/"high"/"low" (inglês) direto em `public.tasks.priority`, enquanto
+// o vocabulário oficial (o que `importTask`/`mapLocalTaskToSupabase` acima
+// já grava, verbatim, desde que este mapper existe) sempre foi o local
+// (`TaskPriority`, useTasks.ts: alta/média/baixa, português). Fix: o
+// diálogo passou a gravar o vocabulário local diretamente — não uma
+// tradução nova, alinhamento ao contrato que este arquivo já documentava.
+// `normalizeCloudTaskPriority` existe pela mesma razão que
+// `normalizeCloudTaskStatus`: proteger a leitura (`SupabaseOperationalDashboardCard.tsx`)
+// caso uma linha já tenha os 3 valores legados em inglês gravados (o gerador
+// de tarefas-base rodou antes deste fix) — nunca inventa, nunca mascara um
+// valor desconhecido.
+
+export type CloudTaskPriority = "alta" | "média" | "baixa";
+
+const LEGACY_CLOUD_TASK_PRIORITY: Readonly<Record<string, CloudTaskPriority>> = {
+  high: "alta",
+  medium: "média",
+  low: "baixa",
+};
+
+/** Normaliza uma `priority` bruta de `public.tasks` pro vocabulário local —
+ * trata os 3 valores legados em inglês (só possíveis numa linha gravada
+ * antes do fix do G49) como alias dos 3 valores reais; qualquer outro valor
+ * passa intocado (nunca mascara). */
+export function normalizeCloudTaskPriority(priority: string): CloudTaskPriority | string {
+  return LEGACY_CLOUD_TASK_PRIORITY[priority] ?? priority;
+}

@@ -158,3 +158,70 @@ describe("SupabaseOperationalDashboardCard · ProjectTasksList — R1, vocabulá
     expect(updateStatus).toHaveBeenCalledWith("tk-1", "revisao");
   });
 });
+
+// G49 (docs/architecture/kora-hub-auditoria-e-plano.md) — a badge de
+// prioridade deste painel comparava task.priority contra "high"/"medium"
+// (inglês) direto, mas o vocabulário oficial de public.tasks.priority
+// sempre foi o local (alta/média/baixa) — uma tarefa gravada pelo caminho
+// oficial (importTask) nunca batia "high"/"medium", caindo sempre no
+// "else" (badge/rótulo de baixa prioridade), mesmo sendo alta. Achado
+// irmão do R1 (status), agora do lado da LEITURA, não da escrita.
+describe("SupabaseOperationalDashboardCard · ProjectTasksList — G49, badge de prioridade", () => {
+  const mockProject = {
+    id: "proj-1", workspace_id: "ws-1", title: "Projeto X", status: "in_progress",
+    is_demo: false, archived: false, created_at: "", updated_at: "",
+  };
+
+  beforeEach(() => {
+    localStorage.clear();
+    vi.clearAllMocks();
+    localStorage.setItem(FLAG_KEY, "true");
+
+    vi.mocked(useCurrentWorkspace).mockReturnValue({
+      workspace: mockWorkspace, membership: null, loading: false, error: null,
+    } as never);
+    vi.mocked(useSupabaseOpportunities).mockReturnValue({
+      opportunities: [], loading: false, error: null, refresh: vi.fn(),
+    } as never);
+    vi.mocked(useSupabaseQuotes).mockReturnValue({
+      quotes: [], loading: false, error: null, refresh: vi.fn(),
+    } as never);
+    vi.mocked(useSupabaseFinancialSummary).mockReturnValue({
+      receivables: [], loading: false, error: null, refresh: vi.fn(),
+    } as never);
+    vi.mocked(useSupabaseProjectsSummary).mockReturnValue({
+      projects: [mockProject], loading: false, error: null, refresh: vi.fn(),
+    } as never);
+  });
+
+  async function renderWithTaskAtPriority(priority: string) {
+    vi.mocked(useSupabaseProjectTasks).mockReturnValue({
+      tasks: [{
+        id: "tk-1", workspace_id: "ws-1", project_id: "proj-1", title: "Revisar escopo",
+        status: "a_fazer", priority, source: "manual", sort_order: 0,
+        is_demo: false, archived: false, created_at: "", updated_at: "",
+      }],
+      loading: false, error: null, refresh: vi.fn(), updateStatus: vi.fn(),
+    } as never);
+
+    render(<SupabaseOperationalDashboardCard />);
+    fireEvent.click(screen.getByText("Ver tarefas"));
+    const title = await screen.findByText("Revisar escopo");
+    return title.closest("div")?.parentElement as HTMLElement;
+  }
+
+  it("priority='alta' (vocabulário oficial) mostra a badge Alta", async () => {
+    const row = await renderWithTaskAtPriority("alta");
+    expect(within(row).getByText("Alta")).toBeInTheDocument();
+  });
+
+  it("priority='high' (legado em inglês) também mostra a badge Alta — normalizado, não mascarado como Baixa", async () => {
+    const row = await renderWithTaskAtPriority("high");
+    expect(within(row).getByText("Alta")).toBeInTheDocument();
+  });
+
+  it("priority='medium' (legado em inglês) mostra a badge Média, não Baixa", async () => {
+    const row = await renderWithTaskAtPriority("medium");
+    expect(within(row).getByText("Média")).toBeInTheDocument();
+  });
+});

@@ -13,7 +13,7 @@ import { RefreshCw, FileText, TrendingUp, DollarSign, Briefcase, Activity, Check
 import { toast } from "sonner";
 import { CreateProjectBaseTasksDialog } from "@/components/projects/CreateProjectBaseTasksDialog";
 import { type SupabaseProject } from "@/repositories/projectsRepository";
-import { type CloudTaskStatus, normalizeCloudTaskStatus } from "@/services/tasks/tasksMapper";
+import { type CloudTaskStatus, normalizeCloudTaskStatus, normalizeCloudTaskPriority } from "@/services/tasks/tasksMapper";
 import { getBooleanFlag } from "@/config/flags";
 import {
   AlertDialog,
@@ -193,12 +193,15 @@ function ProjectTasksList({ projectId }: { projectId: string }) {
             </div>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
+            {/* G49 — task.priority normalizado (o vocabulário oficial é local,
+                alta/média/baixa; normalizeCloudTaskPriority trata os 3 legados
+                em inglês como alias, sem mascarar um valor desconhecido). */}
             <Badge variant="outline" className={`text-[9px] uppercase py-0 px-1 ${
-              task.priority === "high" ? "border-destructive/30 text-destructive bg-destructive/[0.02]" :
-              task.priority === "medium" ? "border-amber-500/30 text-amber-500 bg-amber-500/[0.02]" :
+              normalizeCloudTaskPriority(task.priority) === "alta" ? "border-destructive/30 text-destructive bg-destructive/[0.02]" :
+              normalizeCloudTaskPriority(task.priority) === "média" ? "border-amber-500/30 text-amber-500 bg-amber-500/[0.02]" :
               "border-muted text-muted-foreground"
             }`}>
-              {task.priority === "high" ? "Alta" : task.priority === "medium" ? "Média" : "Baixa"}
+              {normalizeCloudTaskPriority(task.priority) === "alta" ? "Alta" : normalizeCloudTaskPriority(task.priority) === "média" ? "Média" : "Baixa"}
             </Badge>
 
             {transitionEnabled ? (

@@ -2,7 +2,7 @@
 // map novo de projects), opportunity_id sempre null (ausência estrutural, não órfã),
 // e ausência de tradução de vocabulário (source/status/priority já disjuntos, §7.3).
 import { describe, it, expect } from "vitest";
-import { mapLocalTaskToSupabase, resolveTaskFk, normalizeCloudTaskStatus } from "@/services/tasks/tasksMapper";
+import { mapLocalTaskToSupabase, resolveTaskFk, normalizeCloudTaskStatus, normalizeCloudTaskPriority } from "@/services/tasks/tasksMapper";
 import type { Task } from "@/hooks/useTasks";
 
 function makeTask(overrides: Partial<Task> = {}): Task {
@@ -114,5 +114,28 @@ describe("normalizeCloudTaskStatus — R1, alinha updateTaskStatus ao vocabulár
 
   it("valor desconhecido passa intocado — nunca mascara, nunca inventa", () => {
     expect(normalizeCloudTaskStatus("status-bizarro")).toBe("status-bizarro");
+  });
+});
+
+// G49 (docs/architecture/kora-hub-auditoria-e-plano.md) — mesmo defeito do R1
+// acima, em priority: CreateProjectBaseTasksDialog.tsx gravava "medium"/
+// "high"/"low" (inglês) direto em public.tasks.priority, divergindo do
+// vocabulário oficial (local, alta/média/baixa) que este mapper sempre
+// documentou como o contrato de passagem direta.
+describe("normalizeCloudTaskPriority — G49, alinha CreateProjectBaseTasksDialog ao vocabulário que importTask já grava", () => {
+  it("os 3 valores locais passam intocados", () => {
+    expect(normalizeCloudTaskPriority("alta")).toBe("alta");
+    expect(normalizeCloudTaskPriority("média")).toBe("média");
+    expect(normalizeCloudTaskPriority("baixa")).toBe("baixa");
+  });
+
+  it("os 3 valores legados em inglês (só possíveis numa linha gravada antes do fix) viram o equivalente local", () => {
+    expect(normalizeCloudTaskPriority("high")).toBe("alta");
+    expect(normalizeCloudTaskPriority("medium")).toBe("média");
+    expect(normalizeCloudTaskPriority("low")).toBe("baixa");
+  });
+
+  it("valor desconhecido passa intocado — nunca mascara, nunca inventa", () => {
+    expect(normalizeCloudTaskPriority("priority-bizarra")).toBe("priority-bizarra");
   });
 });
