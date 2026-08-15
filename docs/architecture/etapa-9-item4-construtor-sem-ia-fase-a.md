@@ -382,7 +382,8 @@ perguntas mais abertas.
 - `docs/architecture/kora-ux-produto.md` linhas 90-91 — UX3, nota de produto sobre
   `BotRulesPanel.tsx` (removido no G21).
 - `docs/architecture/kora-hub-auditoria-e-plano.md` — G21 (resgate/remoção de código morto que
-  motivou o registro do UX3).
+  motivou o registro do UX3); G48 (catalogação do achado do §1.2 — nó "Transbordo Humano" nunca
+  atribui a conversa de verdade — como achado ATIVO, fix adiado pra Fase B).
 - `docs/architecture/etapa-9-item2-cerebro-fase-a.md` / `etapa-9-item3-base-conhecimento-fase-a.md`
   — precedentes de estrutura/profundidade desta série, fonte da convenção de nome de flag e padrão
   RLS reaproveitados aqui.
