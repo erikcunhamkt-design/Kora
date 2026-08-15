@@ -717,6 +717,17 @@ Achado durante o desenho do Pacote do Flip de Tarefas (`docs/qa/etapa-5-flip-tar
 
 ---
 
+**G52 — marcar transação como paga em modo Supabase (Financeiro) gravava `status:"paid"` sem `paid_at` — dado de "quando pagou" perdido em silêncio. [MÉDIO — confirmado e FECHADO, classe "UPDATE parcial nativo esquece um campo que a semântica local sempre preenche"]**
+Achado pela Lane C ao completar o runbook de homologação da Fase B do Pacote do Flip de Financeiro (`docs/qa/etapa-5-flip-financeiro-runbook.md`) — fix aplicado antes da Fase C, pra não abrir a homologação com um vermelho conhecido.
+
+- **Caminho exato do gap:** `Financeiro.tsx`, `SupabaseTransactionsPanel`'s `setStatus()` (o único caminho de escrita de status em modo Supabase — grep exaustivo confirmou que `useDayCenterActions.ts`/`DayCenter.tsx` estão bloqueados em modo Supabase desde a própria Fase B, G-guard do §3.1 do desenho) chamava `onUpdate(id, { status })` — só a chave `status`, nunca `paid_at`. O modelo local (`useFinance.ts:247-268`, `updateTransactionStatus`) tem semântica diferente: toda transição PRA `"paid"` grava `paidDate = iso(new Date())` (hoje, sempre reescrito); toda transição PRA FORA de `"paid"` mantém `paidDate` como estava. O caminho nativo da nuvem não espelhava nem metade dessa semântica — `paid_at` (coluna `timestamp with time zone`) ficava sempre `NULL`, mesmo para transações marcadas como pagas.
+- **Por que não achado antes:** os caminhos de CRIAÇÃO (QuickSaleDialog/ExpenseDialog em modo cloud, e os mirrors de CreateReceivableDialog/QuoteToReceivableDialog) já estavam corretos — os 2 diálogos passam `paidDate` no payload de criação via `mapLocalTransactionToSupabase` (lido normalmente quando `status="paid"` já nasce escolhido no formulário); os 2 mirrors sempre criam com `status:"pending"` hardcoded (nunca "paid" no nascimento, `paid_at` irrelevante ali). O gap era só no UPDATE de status de uma linha já existente — caminho que só a homologação da Fase B (marcar uma transação real como paga) exercitava de ponta a ponta.
+- **Fix aplicado nesta rodada:** `setStatus()` agora monta o patch condicionalmente — `{status: "paid", paid_at: <hoje, yyyy-mm-dd, mesmo formato do `iso()` local>}` na transição pra pago; `{status}` sozinho (sem `paid_at`, nem `null`) em qualquer outra transição, preservando o valor que já estava na coluna via UPDATE parcial — mesmo efeito de `t.paidDate` no local. G30 preservado (a resposta da própria mutation continua indo pro cache).
+- **Testes:** `Financeiro.test.tsx` — "marcar como pago... paid_at preenchido" (falha contra o código anterior, `updateTransaction` chamado só com `{status:"paid"}`; passa depois) e "cancelar... NUNCA envia paid_at" (prova a ausência real da chave via `not.toHaveProperty`, não um `objectContaining` que deixaria passar um `null` indevido).
+- **Referência:** `docs/qa/etapa-5-flip-financeiro-runbook.md` (achado original da Lane C), `docs/qa/etapa-5-flip-financeiro-pacote.md` §2.5 (desenho original do `updateTransaction`).
+
+---
+
 ## 3. Segurança / vulnerabilidades (verificar e endurecer)
 
 > Vários itens abaixo são **"confirmar no código"** — a arquitetura está certa, mas a implementação precisa ser auditada arquivo a arquivo pelo Code.

@@ -399,8 +399,20 @@ const SupabaseTransactionsPanel = ({
   onUpdate: (transactionId: string, patch: Partial<SupabaseFinancialTransaction>) => Promise<unknown>;
   onDelete: (transactionId: string) => Promise<unknown>;
 }) => {
+  // G52 — o único caminho de escrita de status em modo Supabase (grep
+  // exaustivo: nem useDayCenterActions.ts nem DayCenter.tsx chegam aqui,
+  // bloqueados desde a Fase B). Espelha a semântica local de
+  // updateTransactionStatus (useFinance.ts:247-268): transição PRA "paid"
+  // grava paid_at = hoje (mesmo formato `iso()`, yyyy-mm-dd, sempre
+  // reescrito mesmo se já tinha um valor — "quando pagou" é a última vez
+  // que a transação foi marcada como paga); transição PRA FORA de "paid"
+  // NÃO toca paid_at — omitido do patch, não `null` — um UPDATE parcial
+  // deixa a coluna intocada, mesmo efeito de `t.paidDate` (mantém o valor
+  // anterior) no local.
   const setStatus = (id: string, status: TxStatus, successMsg: string) => {
-    onUpdate(id, { status }).then(() => {
+    const patch: Partial<SupabaseFinancialTransaction> = { status };
+    if (status === "paid") patch.paid_at = new Date().toISOString().slice(0, 10);
+    onUpdate(id, patch).then(() => {
       toast.success(successMsg);
     }).catch((err) => {
       console.error("Falha ao atualizar status da transação (Supabase):", err);
