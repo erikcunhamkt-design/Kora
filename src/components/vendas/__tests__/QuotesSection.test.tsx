@@ -15,6 +15,7 @@ import { useClients } from "@/hooks/useClients";
 import { useClientsDataSource } from "@/hooks/useClientsDataSource";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { useLeads } from "@/hooks/useLeads";
+import { financeRepository } from "@/repositories/financeRepository";
 import { QUOTES_DATA_SOURCE_KEY } from "@/config/flags";
 import { QUOTES_SUPABASE_WRITE_FLAG_KEY } from "@/hooks/useSupabaseQuotesWriteFlag";
 
@@ -36,6 +37,15 @@ vi.mock("@/hooks/useLeads", () => ({ useLeads: vi.fn() }));
 // espelho G22 (mirrorCreateToSupabase). Sem o mock, useAuth() (de dentro de
 // useCurrentWorkspace) quebra por falta de AuthProvider no teste.
 vi.mock("@/hooks/useCurrentWorkspace", () => ({ useCurrentWorkspace: vi.fn() }));
+// G56 — QuoteToReceivableDialog (filho de QuotesSection) chama
+// financeRepository.createReceivableFromQuote no espelho; sem mock, o teste
+// de ponta a ponta (menu -> diálogo -> confirmar -> espelho) bateria no
+// client Supabase real. useFinance() NÃO é mockado de propósito — é a
+// mesma implementação real (localStorage) que G33/G55 já exercitam
+// implicitamente ao renderizar QuoteToProjectDialog/QuoteToReceivableDialog.
+vi.mock("@/repositories/financeRepository", () => ({
+  financeRepository: { createReceivableFromQuote: vi.fn() },
+}));
 vi.mock("sonner", () => ({
   toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() }),
 }));
@@ -365,6 +375,29 @@ describe("QuotesSection · G33/G55 — nem 'Gerar projeto' nem 'Gerar conta a re
 
     expect(document.querySelector('[role="dialog"]')).toBeInTheDocument();
     expect(toast.error).not.toHaveBeenCalledWith(expect.stringContaining("Edição de orçamentos"));
+  });
+
+  // G56 — o G55 só provava que o diálogo ABRE; nunca completava o fluxo até
+  // o espelho de verdade disparar. Essa era a lacuna real de teste: clicar
+  // o item REAL do menu (não um handler direto) até confirmar no diálogo e
+  // confirmar que financeRepository.createReceivableFromQuote é chamado —
+  // ponta a ponta, não só reachability.
+  it("atalho do menu ⋯ 'Gerar conta a receber': depois de confirmar no diálogo, o espelho dispara de verdade (G56)", async () => {
+    vi.mocked(financeRepository.createReceivableFromQuote).mockImplementation(
+      async (_ws, input) => ({ id: "ft-new", ...input }) as never,
+    );
+    await renderApprovedQuoteInSupabaseMode();
+
+    await openQuoteMenu("Orçamento Nuvem");
+    fireEvent.click(screen.getByText("Gerar conta a receber"));
+
+    const submitBtn = await screen.findByRole("button", { name: /Gerar conta a receber/ });
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => expect(financeRepository.createReceivableFromQuote).toHaveBeenCalledWith(
+      "ws1",
+      expect.objectContaining({ quote_id: "q-cloud-1" }),
+    ));
   });
 });
 

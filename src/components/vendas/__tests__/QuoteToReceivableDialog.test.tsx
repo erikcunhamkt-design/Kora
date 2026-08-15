@@ -59,7 +59,13 @@ describe("QuoteToReceivableDialog · espelho G22 (Fase B, §5.1) — gap real do
     vi.mocked(useFinance).mockReturnValue({
       addTransaction, categories: [{ id: "c1", name: "Serviços", type: "income" }],
     } as never);
-    vi.mocked(financeRepository.createReceivableFromQuote).mockResolvedValue({ id: "ft-1" } as never);
+    // Eco do que foi enviado (mesmo comportamento de um INSERT + .select().single()
+    // real, sem colisão) — evita falso positivo do aviso de colisão do G56
+    // (que compara o title devolvido contra o enviado) nos testes que não são
+    // sobre colisão.
+    vi.mocked(financeRepository.createReceivableFromQuote).mockImplementation(
+      async (_ws, input) => ({ id: "ft-1", ...input }) as never,
+    );
 
     renderDialog(makeQuote());
     fireEvent.click(screen.getByRole("button", { name: "Gerar conta a receber" }));
@@ -68,7 +74,13 @@ describe("QuoteToReceivableDialog · espelho G22 (Fase B, §5.1) — gap real do
   });
 
   it("espelha na nuvem com payload completo — quote_id, client/opportunity resolvidos, category e payment_method (só este diálogo tem)", async () => {
-    vi.mocked(financeRepository.createReceivableFromQuote).mockResolvedValue({ id: "ft-1" } as never);
+    // Eco do que foi enviado (mesmo comportamento de um INSERT + .select().single()
+    // real, sem colisão) — evita falso positivo do aviso de colisão do G56
+    // (que compara o title devolvido contra o enviado) nos testes que não são
+    // sobre colisão.
+    vi.mocked(financeRepository.createReceivableFromQuote).mockImplementation(
+      async (_ws, input) => ({ id: "ft-1", ...input }) as never,
+    );
 
     renderDialog(makeQuote({ clientId: 42, opportunityId: 7 }));
     fireEvent.click(screen.getByRole("button", { name: "Gerar conta a receber" }));
@@ -97,7 +109,13 @@ describe("QuoteToReceivableDialog · espelho G22 (Fase B, §5.1) — gap real do
   });
 
   it("client_id/opportunity_id já sendo uuid real (quote lida da nuvem) passam direto — G37 por desenho, §2.2", async () => {
-    vi.mocked(financeRepository.createReceivableFromQuote).mockResolvedValue({ id: "ft-1" } as never);
+    // Eco do que foi enviado (mesmo comportamento de um INSERT + .select().single()
+    // real, sem colisão) — evita falso positivo do aviso de colisão do G56
+    // (que compara o title devolvido contra o enviado) nos testes que não são
+    // sobre colisão.
+    vi.mocked(financeRepository.createReceivableFromQuote).mockImplementation(
+      async (_ws, input) => ({ id: "ft-1", ...input }) as never,
+    );
     const clientUuid = "a1b2c3d4-e5f6-4789-a012-b3c4d5e6f789";
 
     renderDialog(makeQuote({ clientId: clientUuid as unknown as number }));
@@ -109,7 +127,13 @@ describe("QuoteToReceivableDialog · espelho G22 (Fase B, §5.1) — gap real do
   });
 
   it("client_id local sem import-map disponível resolve null — nunca id local cru numa coluna uuid (padrão Q4)", async () => {
-    vi.mocked(financeRepository.createReceivableFromQuote).mockResolvedValue({ id: "ft-1" } as never);
+    // Eco do que foi enviado (mesmo comportamento de um INSERT + .select().single()
+    // real, sem colisão) — evita falso positivo do aviso de colisão do G56
+    // (que compara o title devolvido contra o enviado) nos testes que não são
+    // sobre colisão.
+    vi.mocked(financeRepository.createReceivableFromQuote).mockImplementation(
+      async (_ws, input) => ({ id: "ft-1", ...input }) as never,
+    );
 
     renderDialog(makeQuote({ clientId: 999 }));
     fireEvent.click(screen.getByRole("button", { name: "Gerar conta a receber" }));
@@ -129,6 +153,43 @@ describe("QuoteToReceivableDialog · espelho G22 (Fase B, §5.1) — gap real do
     await waitFor(() => expect(toast.warning).toHaveBeenCalledWith(
       expect.stringContaining("espelho no Supabase falhou"), expect.anything(),
     ));
+  });
+
+  // G56 — achado ao vivo (Fase D, Caso 4.3, 2º round): quando o MESMO orçamento
+  // já tem um recebível vivo na nuvem (ex.: gerado antes por
+  // CreateReceivableDialog.tsx no CRM, Caso 4.2), `createReceivableFromQuote`
+  // recupera do 23505 (`ux_ft_receivable_from_quote`) devolvendo a linha JÁ
+  // EXISTENTE — sem lançar erro, sem indicar nada de diferente pro chamador.
+  // Sem essa detecção, o toast de sucesso é IDÊNTICO a um espelho genuíno —
+  // category/payment_method escolhidos nesta tela somem silenciosamente.
+  it("espelho colide com um recebível já existente pra este orçamento — avisa que category/payment_method NÃO chegaram na nuvem (G56)", async () => {
+    // Simula createReceivableFromQuote recuperando do 23505 e devolvendo a
+    // linha existente (title diferente do que esta tela tentou enviar —
+    // fingerprint da colisão, já que um INSERT genuíno sempre ecoa o title
+    // enviado).
+    vi.mocked(financeRepository.createReceivableFromQuote).mockResolvedValue({
+      id: "ft-existing", title: "HOMOLOG-FIN-transacao-B",
+    } as never);
+
+    renderDialog(makeQuote());
+    fireEvent.click(screen.getByRole("button", { name: "Gerar conta a receber" }));
+
+    expect(toast.success).toHaveBeenCalledWith("Conta a receber gerada", expect.anything());
+    await waitFor(() => expect(toast.warning).toHaveBeenCalledWith(
+      expect.stringContaining("já tem uma conta a receber na nuvem"), expect.anything(),
+    ));
+  });
+
+  it("espelho SEM colisão (title devolvido bate com o enviado) NÃO dispara o aviso de colisão", async () => {
+    vi.mocked(financeRepository.createReceivableFromQuote).mockImplementation(
+      async (_ws, input) => ({ id: "ft-1", ...input }) as never,
+    );
+
+    renderDialog(makeQuote());
+    fireEvent.click(screen.getByRole("button", { name: "Gerar conta a receber" }));
+
+    await waitFor(() => expect(financeRepository.createReceivableFromQuote).toHaveBeenCalled());
+    expect(toast.warning).not.toHaveBeenCalled();
   });
 
   it("sem workspace ativo, não tenta espelhar (mas o local grava normalmente)", async () => {

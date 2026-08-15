@@ -141,13 +141,29 @@ export function QuoteToReceivableDialog({
   // DIFERENTE e sempre-ligado por desenho (local já grava, isto só tenta
   // replicar best-effort) — mesma classe de decisão do mirror de
   // CreateReceivableDialog.tsx, nunca gateada por flag nenhuma.
+  // G56 — achado ao vivo na Fase D (Caso 4.3, 2º round): `createReceivableFromQuote`
+  // (financeRepository.ts) trata 23505 (`ux_ft_receivable_from_quote` — no
+  // máximo 1 recebível VIVO por `quote_id`, migration
+  // `20260704120000_etapa3_unique_receivable_from_quote.sql`) devolvendo a
+  // linha JÁ EXISTENTE em vez de lançar erro — mesma proteção que
+  // `CreateReceivableDialog.tsx` (CRM) usa. Quando ESTE diálogo (Vendas) roda
+  // depois que o CRM já gerou um recebível pro MESMO orçamento (exatamente o
+  // Caso 4.2→4.3 do runbook), a chamada "sucede" silenciosamente devolvendo
+  // a linha do CRM — sem `category`/`payment_method` escolhidos aqui (G41: o
+  // mirror do CRM nunca os envia), sem a linha nova (`title` diferente) — o
+  // local já gravou certo (linha acima, autoritativo), mas a nuvem nunca vê
+  // as escolhas desta tela e o usuário não tem nenhum sinal disso. Comparar
+  // o `title` devolvido contra o que foi enviado é a forma mais barata de
+  // detectar "devolveu a linha de outro recebível", sem precisar que o
+  // repository sinalize created-vs-existing.
   const mirrorReceivableToSupabase = (localTransactionId: string) => {
     if (!workspace) return;
+    const intendedTitle = title.trim();
     financeRepository.createReceivableFromQuote(workspace.id, {
       quote_id: quote.id,
       client_id: resolveFinanceFk(quote.clientId, {}),
       opportunity_id: resolveFinanceFk(quote.opportunityId, {}),
-      title: title.trim(),
+      title: intendedTitle,
       description: quote.description || undefined,
       // NOTA-c (revisão Lane E) — quantiza a centavos antes da coluna
       // numeric, mesmo pipeline de mapLocalTransactionToSupabase
@@ -157,6 +173,16 @@ export function QuoteToReceivableDialog({
       due_date: dueDate,
       category,
       payment_method: paymentMethod,
+    }).then((mirrored) => {
+      if (mirrored.title !== intendedTitle) {
+        console.warn(
+          "Espelho do recebível colidiu com um recebível já existente pra este orçamento (ux_ft_receivable_from_quote) — categoria/forma de pagamento desta tela NÃO chegaram na nuvem.",
+          { localTransactionId, existingCloudTitle: mirrored.title },
+        );
+        toast.warning("Este orçamento já tem uma conta a receber na nuvem — categoria e forma de pagamento escolhidas aqui ficaram só no local.", {
+          description: "Veja/edite o recebível existente na tela Financeiro.",
+        });
+      }
     }).catch((mirrorErr) => {
       console.error("Espelho nuvem do recebível falhou (local já gravado):", mirrorErr, { localTransactionId });
       toast.warning("Recebível salvo localmente, mas o espelho no Supabase falhou.", {
