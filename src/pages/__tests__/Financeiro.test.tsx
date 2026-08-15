@@ -1,11 +1,19 @@
-// Etapa 5 · Financeiro Fatia N (item 4) — prova: (1) modo local (default)
-// funciona intocado, zero regressão nos 8 consumidores/abas atuais; (2)
-// seletor é opt-in (getFinanceDataSource, config/flags.ts); (3) painel de
-// leitura Supabase renderiza a lista real (React Query real, só
-// financeRepository/useCurrentWorkspace/useClientsDataSource mockados —
-// mesmo padrão de useSupabaseFinanceTransactions.test.tsx); (4) escrita
-// bloqueada em modo Supabase com toast explícito (molde do blockWrite() de
-// QuotesSection.tsx pré-flip).
+// Etapa 5 · Financeiro Fatia N (item 4) — nasceu provando: (1) modo local
+// (default) funciona intocado; (2) seletor é opt-in (getFinanceDataSource,
+// config/flags.ts); (3) painel de leitura Supabase renderiza a lista real
+// (React Query real, só financeRepository/useCurrentWorkspace/
+// useClientsDataSource mockados — mesmo padrão de
+// useSupabaseFinanceTransactions.test.tsx); (4) escrita bloqueada em modo
+// Supabase com toast explícito (molde do blockWrite() de QuotesSection.tsx
+// pré-flip).
+//
+// Etapa 5 · Pacote do Flip (Fase C) — os 2 defaults flipados
+// (getFinanceDataSource/useSupabaseFinanceWriteFlag, ambos "supabase"/ON
+// desde então). Cada describe "default" antigo virou "explícito" (grava o
+// valor antigo manualmente antes de renderizar, provando que a escolha
+// explícita continua funcionando), e testes novos provam o novo default
+// sem setar nada manualmente — mesmo padrão usado no flip de quotes/
+// projects (`b90f86a`).
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
@@ -94,8 +102,16 @@ function renderPage() {
   );
 }
 
-describe("Financeiro · modo local (default) — zero regressão nos consumidores atuais", () => {
+// Etapa 5 · Pacote do Flip (Fase C) — getFinanceDataSource() default virou
+// "supabase" (só "local" explícito escolhe local, mesmo formato de
+// CRM/quotes/projects pós-flip). Este describe passou de "default" pra
+// "explícito": cada teste grava "local" no seletor antes de renderizar,
+// provando que a escolha explícita continua funcionando — não mais o
+// cenário de "seletor nunca tocado", que agora mostra nuvem (ver describe
+// "modo Supabase (novo default)" abaixo).
+describe("Financeiro · modo local (explícito) — zero regressão nos consumidores atuais", () => {
   it("renderiza as 9 abas normalmente, sem o painel/banner Supabase", () => {
+    localStorage.setItem(FINANCE_DATA_SOURCE_KEY, "local");
     renderPage();
 
     expect(screen.getByText("Receber")).toBeInTheDocument();
@@ -105,6 +121,7 @@ describe("Financeiro · modo local (default) — zero regressão nos consumidore
   });
 
   it("botões de criação continuam abrindo os diálogos locais normalmente (sem bloqueio)", () => {
+    localStorage.setItem(FINANCE_DATA_SOURCE_KEY, "local");
     renderPage();
 
     fireEvent.click(screen.getByText("Venda rápida"));
@@ -121,16 +138,46 @@ describe("Financeiro · modo local (default) — zero regressão nos consumidore
   // remontagem do painel. A UI (banner/painel) continua só aparecendo em
   // modo Supabase — ver teste acima ("sem o painel/banner Supabase").
   it("financeRepository.listTransactions É chamado mesmo em modo local (Fase B, G32 — busca paralela, só a UI decide o que exibir)", async () => {
+    localStorage.setItem(FINANCE_DATA_SOURCE_KEY, "local");
     renderPage();
     await waitFor(() => expect(financeRepository.listTransactions).toHaveBeenCalled());
   });
 });
 
-describe("Financeiro · seletor opt-in (getFinanceDataSource — nasce pré-flip)", () => {
-  it("default é local sem tocar em nada — seletor mostra Local ativo", () => {
+// Etapa 5 · Pacote do Flip (Fase C) — os 2 novos defaults juntos: sessão
+// nova (nada gravado em localStorage) já cai em modo Supabase COM escrita
+// ligada — sem precisar tocar em nenhum dos 2 seletores/flags.
+describe("Financeiro · modo Supabase (novo default, Pacote do Flip)", () => {
+  it("painel/banner Supabase aparecem sem tocar em nada (novo default de dataSource)", async () => {
+    renderPage();
+
+    expect(await screen.findByText(/Transações operacionais \(Supabase\)/)).toBeInTheDocument();
+  });
+
+  it("\"Venda rápida\" abre o diálogo real da nuvem sem tocar em nada (novo default da flag de escrita)", async () => {
+    renderPage();
+    await screen.findByText(/Transações operacionais \(Supabase\)/);
+
+    fireEvent.click(screen.getByText("Venda rápida"));
+
+    expect(document.querySelector('[role="dialog"]')).toBeInTheDocument();
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+});
+
+describe("Financeiro · seletor (getFinanceDataSource — default SUPABASE desde o Pacote do Flip)", () => {
+  it("default é supabase sem tocar em nada — seletor mostra Supabase experimental ativo", () => {
     expect(localStorage.getItem(FINANCE_DATA_SOURCE_KEY)).toBeNull();
     renderPage();
     expect(screen.getByText("Fonte do financeiro:")).toBeInTheDocument();
+    expect(screen.getByText("Supabase experimental").className).toMatch(/bg-primary/);
+  });
+
+  it("trocar pra Local explícito grava a flag e persiste (override continua funcionando)", async () => {
+    renderPage();
+    fireEvent.click(screen.getByText("Local"));
+
+    await waitFor(() => expect(localStorage.getItem(FINANCE_DATA_SOURCE_KEY)).toBe("local"));
   });
 
   it("trocar pra Supabase experimental grava a flag e persiste", async () => {
@@ -141,8 +188,16 @@ describe("Financeiro · seletor opt-in (getFinanceDataSource — nasce pré-flip
   });
 });
 
-describe("Financeiro · painel de leitura Supabase renderiza (item 3/4)", () => {
-  it("lista real da nuvem aparece ao trocar pra Supabase experimental", async () => {
+describe("Financeiro · painel de leitura Supabase renderiza (item 3/4, novo default)", () => {
+  it("lista real da nuvem já aparece sem tocar em nada (novo default, Pacote do Flip)", async () => {
+    vi.mocked(financeRepository.listTransactions).mockResolvedValue([makeRow()]);
+    renderPage();
+
+    expect(await screen.findByText("Recebível Nuvem X")).toBeInTheDocument();
+  });
+
+  it("lista real da nuvem aparece ao trocar pra Supabase experimental (explícito)", async () => {
+    localStorage.setItem(FINANCE_DATA_SOURCE_KEY, "local");
     vi.mocked(financeRepository.listTransactions).mockResolvedValue([makeRow()]);
     renderPage();
 
@@ -152,8 +207,15 @@ describe("Financeiro · painel de leitura Supabase renderiza (item 3/4)", () => 
   });
 });
 
-describe("Financeiro · escrita bloqueada em modo Supabase (molde blockWrite pré-flip)", () => {
+// Etapa 5 · Pacote do Flip (Fase C) — useSupabaseFinanceWriteFlag default
+// virou ON (opt-out). Este describe reproduz o cenário BLOQUEADO da Fatia
+// N/Fase B (blockWrite() ativo) via override explícito ("false") — não é
+// mais o caminho feliz de uma sessão nova, que a partir de agora já
+// escreve direto (ver describe "escrita real com a flag ligada" abaixo,
+// inclusive o teste "novo default, sem setar nada").
+describe("Financeiro · escrita bloqueada em modo Supabase (override explícito — flag de escrita OFF)", () => {
   async function switchToSupabase() {
+    localStorage.setItem(FINANCE_SUPABASE_WRITE_FLAG_KEY, "false");
     renderPage();
     fireEvent.click(screen.getByText("Supabase experimental"));
     await screen.findByText(/Transações operacionais \(Supabase\)/);
@@ -193,6 +255,15 @@ describe("Financeiro · escrita bloqueada em modo Supabase (molde blockWrite pr�
 // testes contra o código PRÉ-Fase B (blockWrite() incondicional, painel
 // genuinamente read-only) falha todos — blockWrite() sempre bloqueava e o
 // painel não tinha coluna de Ações nenhuma.
+//
+// Etapa 5 · Pacote do Flip (Fase C) — a flag virou default ON (opt-out).
+// O helper `switchToSupabaseWithWrite()` continua setando "true" e
+// clicando o seletor explicitamente — override redundante com o novo
+// default, mas inofensivo, e continua provando que a combinação explícita
+// funciona. O caso "novo default, sem setar nada manualmente" já está
+// coberto pelo describe "modo Supabase (novo default, Pacote do Flip)"
+// acima (mesmo `blockWrite()` por trás) — não duplicado teste a teste
+// aqui.
 describe("Financeiro · escrita real com a flag ligada (Fase B, §2 do desenho)", () => {
   Element.prototype.hasPointerCapture = Element.prototype.hasPointerCapture || (() => false);
   Element.prototype.scrollIntoView = Element.prototype.scrollIntoView || (() => {});
@@ -271,7 +342,8 @@ describe("Financeiro · escrita real com a flag ligada (Fase B, §2 do desenho)"
     expect(screen.getByText("Ações")).toBeInTheDocument();
   });
 
-  it("painel NÃO tem coluna \"Ações\" quando a flag está desligada (comportamento Fatia N preservado)", async () => {
+  it("painel NÃO tem coluna \"Ações\" quando a flag está desligada (override explícito — comportamento Fatia N preservado)", async () => {
+    localStorage.setItem(FINANCE_SUPABASE_WRITE_FLAG_KEY, "false");
     vi.mocked(financeRepository.listTransactions).mockResolvedValue([makeRow()]);
     renderPage();
     fireEvent.click(screen.getByText("Supabase experimental"));
