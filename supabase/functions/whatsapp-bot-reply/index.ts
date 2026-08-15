@@ -6,6 +6,7 @@ import { applySendTemplate } from "../_shared/botFlowTemplate.ts";
 import { authorizeIsTestCaller } from "../_shared/isTestAuth.ts";
 import { decideRateLimitOutcome } from "../_shared/rateLimit.ts";
 import { fetchWithRetry } from "../_shared/retry.ts";
+import { buildAnthropicMessages, parseAnthropicReply } from "../_shared/anthropicParser.ts";
 
 interface BotFlowNodeProperties {
   respondAll?: boolean;
@@ -119,6 +120,11 @@ function baseForStoredSubdomain(input: string | null | undefined): string {
 // deploy needed — see docs/qa/etapa-6-g5-rate-limit.md ("model ID é configuração").
 const DEFAULT_MODEL = Deno.env.get("GEMINI_MODEL") || "gemini-3.6-flash";
 const LOVABLE_DEFAULT_MODEL = "google/gemini-2.5-flash";
+// claude-haiku-4-5: modelo Claude atual mais barato ($1/$5 por MTok) — o
+// pedido original citava "claude-3-5-haiku", um ID já aposentado (retirado
+// em 19/02/2026); Haiku 4.5 é o substituto direto na tabela de migração.
+// Mesmo padrão do GEMINI_MODEL acima: configurável via secret, sem deploy.
+const ANTHROPIC_DEFAULT_MODEL = Deno.env.get("ANTHROPIC_MODEL") || "claude-haiku-4-5";
 const MAX_HISTORY = 12;
 
 function normalizeGoogleModel(modelName: string, provider: string): string {
@@ -538,6 +544,10 @@ Deno.serve(async (req) => {
     const GCP_PROJECT_ID = gcpProjectId || Deno.env.get("GCP_PROJECT_ID") || null;
     const GCP_REGION = gcpRegion;
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY") || null;
+    // Mesmo padrão do LOVABLE_API_KEY: secret de projeto (não por-workspace),
+    // sem override via body/aiNode.properties (item 1 não expõe campo de key
+    // na UI - ver WhatsAppBotConfig.tsx, molde estrutural = branch lovable).
+    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY") || null;
 
     let reply = "";
     // Auto-map removed Google models to a currently supported Gemini model.
@@ -659,6 +669,43 @@ Deno.serve(async (req) => {
 
       const aiData = await aiRes.json() as { choices?: Array<{ message?: { content?: string } }> };
       reply = aiData.choices?.[0]?.message?.content?.trim() || "";
+    } else if (provider === "anthropic" && ANTHROPIC_API_KEY) {
+      // 4. Anthropic Claude API Mode — Etapa 9 item 1, paridade estrita com
+      // os 3 providers acima (sem streaming, sem tool-use, sem contagem de
+      // token). Molde estrutural: branch lovable (contents -> messages),
+      // NUNCA o gemini nativo (conforme docs/architecture/etapa-9-item1-parser-map.md).
+      // Diferença de protocolo do lovable: aqui `system` é campo top-level
+      // da requisição, não a primeira mensagem do array.
+      const anthropicModel = (modelName || "").trim() || ANTHROPIC_DEFAULT_MODEL;
+      console.log(`[bot-reply] Using Anthropic Claude API mode with model: ${anthropicModel}`);
+
+      const anthropicMessages = buildAnthropicMessages(contents);
+
+      const { res: aiRes, attempts } = await fetchWithRetry("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "x-api-key": ANTHROPIC_API_KEY,
+          "anthropic-version": "2023-06-01",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          model: anthropicModel,
+          max_tokens: 1024,
+          system: systemInstruction || undefined,
+          messages: anthropicMessages,
+        }),
+      });
+
+      if (!aiRes.ok) {
+        const detail = await aiRes.text();
+        console.error(`[bot-reply] Anthropic API error after ${attempts} attempt(s)`, aiRes.status, detail);
+        if (aiRes.status === 429) throw new Error(`Limite de requisições excedido na API Anthropic (429) após ${attempts} tentativa(s).`);
+        if (aiRes.status === 529) throw new Error(`API Anthropic sobrecarregada (529) após ${attempts} tentativa(s).`);
+        throw new Error(`API Anthropic retornou status ${aiRes.status} após ${attempts} tentativa(s): ${detail}`);
+      }
+
+      const aiData = await aiRes.json();
+      reply = parseAnthropicReply(aiData);
     } else {
       console.error("[bot-reply] Error: Provider configuration is invalid or missing keys.");
       throw new Error(`Configuração do provedor '${provider}' inválida ou chaves/credenciais não preenchidas.`);

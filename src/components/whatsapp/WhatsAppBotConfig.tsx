@@ -598,6 +598,11 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
                               <SelectItem value="gemini-2.5-flash-001">Gemini 2.5 Flash (001)</SelectItem>
                               <SelectItem value="gemini-2.5-pro-001">Gemini 2.5 Pro (001)</SelectItem>
                             </>
+                          ) : activeNode.properties.provider === "anthropic" ? (
+                            <>
+                              <SelectItem value="claude-haiku-4-5">Claude Haiku 4.5 (Recomendado, custo baixo)</SelectItem>
+                              <SelectItem value="claude-sonnet-5">Claude Sonnet 5 (Avançado)</SelectItem>
+                            </>
                           ) : (
                             <>
                               <SelectItem value="gemini-3.6-flash">Gemini 3.6 Flash (Recomendado)</SelectItem>
@@ -625,6 +630,7 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
                           <SelectItem value="lovable">Créditos KORA</SelectItem>
                           <SelectItem value="gemini_api_key">Gemini API Key Studio (Taxa 0)</SelectItem>
                           <SelectItem value="vertex_ai">Vertex AI GCP (Taxa 0)</SelectItem>
+                          <SelectItem value="anthropic">Claude (Anthropic) — Beta</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
