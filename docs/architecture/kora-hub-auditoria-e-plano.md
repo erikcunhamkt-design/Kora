@@ -695,6 +695,17 @@ Achado da Fase D de Projetos, repassado pra esta rodada. Confirmado por leitura:
 
 ---
 
+**G49 — `createProjectBaseTasks` grava `status`/`priority` em inglês (`"todo"`/`"medium"`/`"high"`/`"low"`) — gerador de divergência de vocabulário ARMADO, irmão do G40; bloqueia o CHECK preventivo de Tarefas até ser corrigido. [MÉDIO — confirmado, classe "2º dialeto ativo bloqueando hardening preventivo" — risco ARMADO, não disparando (2 flags default OFF)]**
+Achado durante o desenho do Pacote do Flip de Tarefas (`docs/qa/etapa-5-flip-tarefas-pacote.md` §3.1), ao confirmar contra o código se o CHECK preventivo que Financeiro conseguiu aplicar "de graça" (todo escritor já usando o vocabulário certo, G40 fechado) também se aplicaria a Tarefas.
+
+- **Caminho exato:** `CreateProjectBaseTasksDialog.tsx:123-124` grava `status: "todo"` (hardcoded) e `priority: t.priority` vindo de `DEFAULT_TASKS` (linhas 38-46, valores `"medium"`/`"high"`/`"low"`) — ambos em inglês, o vocabulário LEGADO segundo o próprio comentário de topo de `tasksMapper.ts` (linhas 14-18), que já documenta o vocabulário OFICIAL de `public.tasks.status`/`priority` como o local em português (`a_fazer`/`em_andamento`/`revisao`/`concluido`, `alta`/`média`/`baixa`), sem tradução — contrato que `importTask`/`updateTaskStatus` (pós-G40) já seguem, mas que `createProjectBaseTasks` nunca seguiu, porque o fix do G40 mexeu só no caminho do dropdown/`updateTaskStatus` do painel experimental, não neste produtor.
+- **Por que é ARMADO, não disparando:** o único chamador (`CreateProjectBaseTasksDialog.tsx`) está atrás de 2 flags default OFF simultâneas (`supabaseOperationalDashboard` + `projectsSupabaseCreateBaseTasks`) — mesma exigência dupla do G40 original, mesma contenção (a) registrada em `tarefas-r2-auditoria.md` §3. Nenhuma linha nova deveria estar sendo gravada com esse valor em produção hoje, mas o caminho é código vivo, alcançável assim que alguém ligar as 2 flags.
+- **Consequência concreta:** diferente de Financeiro (onde um equivalente-O12 nunca existiu, permitindo CHECK preventivo direto — `etapa-5-flip-financeiro-pacote.md` §2.1), o CHECK proposto para `public.tasks.status`/`priority` (`etapa-5-flip-tarefas-pacote.md` §1.1/§3.1) **não é seguro aplicar antes de corrigir este caminho** — o próximo clique em "Gerar tarefas base" (com as flags ligadas) quebraria contra a constraint. Mesma classe de dependência que o O12/G40 originais tiveram (shim/fix antes do hardening), não o caso limpo que Financeiro teve.
+- **Fix não aplicado nesta rodada** — achado catalogado durante desenho doc-only (Pacote do Flip de Tarefas, Fase A), não uma correção de código. `CreateProjectBaseTasksDialog.tsx` precisa traduzir `status`/`priority` pro vocabulário local antes do payload — mesmo padrão de fix que o G40 aplicou ao dropdown, agora no 2º produtor. Proposto como pré-requisito de Fase B do flip de Tarefas.
+- Detalhamento: `docs/qa/etapa-5-flip-tarefas-pacote.md` §3.1 (achado original), §1.1 (CHECK que este achado bloqueia).
+
+---
+
 ## 3. Segurança / vulnerabilidades (verificar e endurecer)
 
 > Vários itens abaixo são **"confirmar no código"** — a arquitetura está certa, mas a implementação precisa ser auditada arquivo a arquivo pelo Code.
