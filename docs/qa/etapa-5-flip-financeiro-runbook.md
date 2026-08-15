@@ -187,7 +187,9 @@ seguido de F5.
 
 ### 2.4 Rollback nível 2 — revert de código
 
-Só se o nível 1 não for suficiente. **Baseline: `dea8c75`** — fechamento da Fase B (`936c762` — CRUD real, `useBifurcatedFinance`, espelho; `dea8c75` — ajustes da revisão Lane E por cima), confirmado por `git log origin/main -1` como o tip real no momento desta rodada. Mesmo padrão de `projects` (`d90ba47`/`b90f86a`): este é o estado "tudo pronto, defaults ainda não flipados" — o(s) commit(s) da Fase C nascem em cima dele. **O hash a reverter no nível 2 é o(s) commit(s) que a Fase C adicionar DEPOIS de `dea8c75`, nunca `dea8c75` em si** — confirmar o hash exato do commit de flip por `git log` no relatório daquela rodada, quando ela acontecer (mesma disciplina de `projects` §2.4: nunca citar de memória).
+Só se o nível 1 não for suficiente. **Baseline: `dea8c75`** — fechamento da Fase B (`936c762` — CRUD real, `useBifurcatedFinance`, espelho; `dea8c75` — ajustes da revisão Lane E por cima), confirmado por `git log origin/main -1` como o tip real no momento daquela rodada. Mesmo padrão de `projects` (`d90ba47`/`b90f86a`): este é o estado "tudo pronto, defaults ainda não flipados" — o(s) commit(s) da Fase C nascem em cima dele. **O hash a reverter no nível 2 é o(s) commit(s) que a Fase C adicionar DEPOIS de `dea8c75`, nunca `dea8c75` em si** — confirmar o hash exato do commit de flip por `git log` no relatório daquela rodada, quando ela acontecer (mesma disciplina de `projects` §2.4: nunca citar de memória).
+
+**Confirmado — hash real do commit de flip da Fase C: `fc55c20` (`feat(financeiro): Pacote do Flip - Fase C (flip dos 2 defaults)`).** Nasceu como `a95b27b` sobre `a24c817`; virou `fc55c20` depois do rebase de merge (mesma substância, hash novo — o rebase reescreveu o commit). `git revert fc55c20 --no-edit` é o comando real do nível 2, não mais um placeholder.
 
 ```bash
 git revert <hash-do(s)-commit(s)-de-flip-da-Fase-C> --no-edit
