@@ -115,11 +115,17 @@ export const PROJECTS_DATA_SOURCE_KEY = "kora.projects.dataSource.v1";
 /**
  * Etapa 5 · Financeiro Fatia N — seletor de fonte de dados de `financial_transactions`.
  * Financeiro era, até esta fatia, o único domínio sem flag de fonte (achado
- * central de `etapa-5-flip-financeiro-fase-a.md` §1.3). Nasce no MESMO molde
- * de nascimento de `quotes`/`projects` (Fatia N deles, antes do Pacote do
- * Flip): default "local", só "supabase" explícito seleciona nuvem — zero
- * mudança pra quem não ligar nada. O flip (Fase C, desenho em paralelo pela
- * Lane B) decide, no futuro, se/quando isso inverte — não decidido aqui.
+ * central de `etapa-5-flip-financeiro-fase-a.md` §1.3). Nasceu no MESMO
+ * molde de nascimento de `quotes`/`projects` (Fatia N deles, antes do
+ * Pacote do Flip): default "local", só "supabase" explícito selecionava
+ * nuvem.
+ *
+ * Pacote do Flip (Fase C) — default flipado pra "supabase", mesmo formato
+ * de `getCrmDataSource()`/`getQuotesDataSource()`/`getProjectsDataSource()`
+ * pós-flip (só "local" explícito escolhe local). Sessões que já têm o valor
+ * gravado (qualquer um dos dois) não são afetadas — só quem nunca tocou no
+ * seletor herda o novo default. Ver
+ * docs/qa/etapa-5-flip-financeiro-runbook.md §2.2.
  */
 export const FINANCE_DATA_SOURCE_KEY = "kora.finance.dataSource.v1";
 
@@ -210,13 +216,11 @@ export function setProjectsDataSource(source: DataSource): void {
   safeSet(PROJECTS_DATA_SOURCE_KEY, source);
 }
 
-// ── seletor de fonte de financeiro (string plana; default "local", pré-flip) ──
+// ── seletor de fonte de financeiro (string plana; default "supabase" desde o Pacote do Flip) ──
 
-/** Só "supabase" explícito seleciona nuvem; qualquer outro valor (ausente,
- * "local", malformado) ⇒ "local". Semântica PRÉ-flip — mesmo nascimento de
- * `quotes`/`projects` antes do Pacote do Flip deles. */
+/** Só "local" explícito seleciona local; qualquer outro valor ⇒ "supabase". */
 export function getFinanceDataSource(): DataSource {
-  return safeGet(FINANCE_DATA_SOURCE_KEY) === "supabase" ? "supabase" : "local";
+  return safeGet(FINANCE_DATA_SOURCE_KEY) === "local" ? "local" : "supabase";
 }
 
 export function setFinanceDataSource(source: DataSource): void {

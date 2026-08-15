@@ -142,21 +142,27 @@ const Financeiro = () => {
   const metrics = useFinanceMetrics(fin.transactions);
   const chartData = useMonthlySeries(fin.transactions);
 
-  // Etapa 5 · Financeiro Fatia N (item 3) — seletor de fonte, default LOCAL
-  // (kora.finance.dataSource.v1, config/flags.ts), mesmo padrão de nascimento
-  // de quotes/projects (Fatia N deles). UI MÍNIMA e ADITIVA por design: as 8
-  // abas existentes (incl. Receber/Pagar) continuam 100% locais e intocadas,
-  // qualquer que seja o seletor — zero risco de regressão nos consumidores
-  // atuais (fin.updateTransactionStatus/deleteTransaction, chamados direto
-  // pelas linhas da tabela local, nunca veriam uma linha vinda da nuvem).
-  // Em modo Supabase, um painel SEPARADO (abaixo) mostra as transações da
-  // nuvem. Fase B (Pacote do Flip, item 2): esse painel ganha ações reais
-  // por linha (marcar pago/cancelar/excluir) e os 2 botões de criação do
-  // cabeçalho passam a gravar direto na nuvem — mas só quando
-  // `useSupabaseFinanceWriteFlag` (opt-in, nasce OFF) está ligada; com a
-  // flag OFF o comportamento é idêntico ao da Fatia N (painel read-only,
-  // blockWrite() sempre bloqueia). O flip dos defaults (ligar a flag pra
-  // todo mundo) é Fase C, desenho em paralelo.
+  // Etapa 5 · Financeiro Fatia N (item 3) — seletor de fonte, nasceu default
+  // LOCAL (kora.finance.dataSource.v1, config/flags.ts), mesmo padrão de
+  // nascimento de quotes/projects (Fatia N deles). UI MÍNIMA e ADITIVA por
+  // design: as 8 abas existentes (incl. Receber/Pagar) continuam 100%
+  // locais e intocadas, qualquer que seja o seletor — zero risco de
+  // regressão nos consumidores atuais (fin.updateTransactionStatus/
+  // deleteTransaction, chamados direto pelas linhas da tabela local, nunca
+  // veriam uma linha vinda da nuvem). Em modo Supabase, um painel SEPARADO
+  // (abaixo) mostra as transações da nuvem, com ações reais por linha
+  // (marcar pago/cancelar/excluir, Fase B) e os 2 botões de criação do
+  // cabeçalho gravando direto na nuvem — tudo gateado por
+  // `useSupabaseFinanceWriteFlag` (`writeEnabled` abaixo).
+  //
+  // Pacote do Flip (Fase C) — os 2 defaults flipados (`getFinanceDataSource()`
+  // e `useSupabaseFinanceWriteFlag`, ambos `config/flags.ts`/
+  // `useSupabaseFinanceWriteFlag.ts`): só "local"/"false" explícito escolhe
+  // o comportamento antigo; sessão nova cai direto em Supabase com escrita
+  // ligada. Sessões que já têm QUALQUER um dos 2 valores gravados
+  // (local/supabase, true/false) não são afetadas — só quem nunca tocou
+  // nos seletores herda o novo default. Ver
+  // docs/qa/etapa-5-flip-financeiro-runbook.md §2.2.
   const [dataSource, setDataSourceState] = useState<DataSource>(() => getFinanceDataSource());
 
   const handleSourceChange = (next: DataSource) => {
@@ -177,19 +183,19 @@ const Financeiro = () => {
     ...supabaseFinance
   } = useSupabaseFinanceTransactions();
 
-  // useSupabaseFinanceWriteFlag (reativo, Fatia N reservou/não consumiu
-  // ainda) em vez do leitor imperativo puro: some/reaparece nos 2 diálogos
-  // e no painel se a flag mudar em outra aba (mesmo padrão já usado pelas
-  // flags de dataSource neste arquivo).
+  // useSupabaseFinanceWriteFlag (reativo, default opt-out desde a Fase C —
+  // ver acima) em vez do leitor imperativo puro: some/reaparece nos 2
+  // diálogos e no painel se a flag mudar em outra aba (mesmo padrão já
+  // usado pelas flags de dataSource neste arquivo).
   const { enabled: writeEnabled } = useSupabaseFinanceWriteFlag();
 
   // G29 (lição aplicada desde o nascimento, não descoberta depois): texto
   // HONESTO desde o dia 1 — nunca promete escrita que não existe, nunca
   // sobrevive além do que o código realmente faz.
-  // Fase B, item 2 do desenho: blockWrite() passa a gatear pela flag mestre
-  // de escrita (opt-in nesta fase — nasce OFF, `useSupabaseFinanceWriteFlag`,
-  // Fatia N). Flag OFF preserva o comportamento anterior byte a byte
-  // (sempre bloqueia em modo Supabase) — nenhum teste Fatia N quebra.
+  // blockWrite() gateia pela flag mestre de escrita (`useSupabaseFinanceWriteFlag`,
+  // opt-out desde a Fase C — Pacote do Flip). Só dispara pra quem desligou a
+  // escrita explicitamente (`writeEnabled=false`); o caminho feliz (sessão
+  // nova, sem override) nunca vê este bloqueio.
   const blockWrite = (): boolean => {
     if (dataSource !== "supabase") return false;
     if (writeEnabled) return false;
@@ -264,7 +270,7 @@ const Financeiro = () => {
           <span className="text-xs font-semibold text-foreground">Fonte do financeiro:</span>
           {dataSource === "supabase" && (
             <Badge variant="outline" className="text-[10px] uppercase font-mono py-0 text-primary border-primary/30 bg-primary/5">
-              Modo leitura (Supabase)
+              {writeEnabled ? "Supabase" : "Modo leitura (Supabase)"}
             </Badge>
           )}
         </div>

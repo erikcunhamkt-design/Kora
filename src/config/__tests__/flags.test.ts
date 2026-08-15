@@ -278,29 +278,34 @@ describe("flags · seletor de fonte de projects (string plana, default SUPABASE 
   });
 });
 
-// Etapa 5 · Financeiro Fatia N — nasce no molde PRÉ-flip (default "local",
-// só "supabase" explícito seleciona nuvem) — mesmo nascimento de
-// quotes/projects antes do Pacote do Flip deles (inverso do estado pós-flip
-// testado acima). Financeiro era o único domínio sem flag de fonte
-// (etapa-5-flip-financeiro-fase-a.md §1.3).
-describe("flags · seletor de fonte de financeiro (string plana, default LOCAL — nasce pré-flip)", () => {
-  it("default é \"local\" quando ausente", () => {
+// Etapa 5 · Financeiro Fatia N — nasceu no molde PRÉ-flip (default "local",
+// só "supabase" explícito selecionava nuvem) — mesmo nascimento de
+// quotes/projects antes do Pacote do Flip deles. Financeiro era o único
+// domínio sem flag de fonte (etapa-5-flip-financeiro-fase-a.md §1.3).
+//
+// Etapa 5 · Pacote do Flip (Fase C) — default flipado de "local" pra
+// "supabase" (mesmo formato de CRM/quotes/projects pós-flip: só "local"
+// explícito escolhe local). Lição da Fatia 8 (O2/O3/O4): valor explícito
+// já persistido pelo usuário nunca deve ser pisado por um flip de default
+// de código — os 2 últimos testes provam isso nos dois sentidos.
+describe("flags · seletor de fonte de financeiro (string plana, default SUPABASE desde o Pacote do Flip)", () => {
+  it("default é \"supabase\" quando ausente (mesmo formato do CRM/quotes/projects desde o flip)", () => {
     expect(localStorage.getItem(FINANCE_DATA_SOURCE_KEY)).toBeNull();
-    expect(getFinanceDataSource()).toBe("local");
-  });
-
-  it("só o literal \"supabase\" seleciona nuvem", () => {
-    localStorage.setItem(FINANCE_DATA_SOURCE_KEY, "supabase");
     expect(getFinanceDataSource()).toBe("supabase");
   });
 
-  it("\"local\" e qualquer lixo resolvem para \"local\"", () => {
+  it("só o literal \"local\" seleciona local", () => {
     localStorage.setItem(FINANCE_DATA_SOURCE_KEY, "local");
     expect(getFinanceDataSource()).toBe("local");
+  });
+
+  it("\"supabase\" e qualquer lixo resolvem para \"supabase\"", () => {
+    localStorage.setItem(FINANCE_DATA_SOURCE_KEY, "supabase");
+    expect(getFinanceDataSource()).toBe("supabase");
     localStorage.setItem(FINANCE_DATA_SOURCE_KEY, "xpto");
-    expect(getFinanceDataSource()).toBe("local");
+    expect(getFinanceDataSource()).toBe("supabase");
     localStorage.setItem(FINANCE_DATA_SOURCE_KEY, "");
-    expect(getFinanceDataSource()).toBe("local");
+    expect(getFinanceDataSource()).toBe("supabase");
   });
 
   it("grava a string plana crua na chave certa", () => {
@@ -308,6 +313,11 @@ describe("flags · seletor de fonte de financeiro (string plana, default LOCAL �
     expect(localStorage.getItem(FINANCE_DATA_SOURCE_KEY)).toBe("supabase");
     setFinanceDataSource("local");
     expect(localStorage.getItem(FINANCE_DATA_SOURCE_KEY)).toBe("local");
+  });
+
+  it("valor explícito \"local\" já persistido sobrevive (não é o caso ambíguo, mas confirma round-trip)", () => {
+    setFinanceDataSource("local");
+    expect(getFinanceDataSource()).toBe("local");
   });
 
   it("valor explícito \"supabase\" já persistido nunca é sobrescrito por uma leitura", () => {

@@ -40,30 +40,38 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe("useBifurcatedFinance — modo local (default, pré-flip)", () => {
-  it("devolve as transações locais quando o seletor nunca foi tocado (default local)", () => {
-    vi.mocked(useFinance).mockReturnValue({ transactions: [makeLocalTx()] } as never);
-    vi.mocked(useSupabaseFinanceTransactions).mockReturnValue({ transactions: [] } as never);
-
-    const { result } = renderHook(() => useBifurcatedFinance());
-
-    expect(result.current).toHaveLength(1);
-    expect(result.current[0].title).toBe("Local X");
-  });
-
-  it("\"local\" explícito também devolve as locais", () => {
+// Etapa 5 · Pacote do Flip (Fase C) — getFinanceDataSource() default virou
+// "supabase" (só "local" explícito escolhe local, mesmo formato de
+// CRM/quotes/projects). Este describe passou de "default" pra "explícito":
+// o teste agora grava "local" no seletor antes de renderizar, provando que
+// a escolha explícita continua funcionando — não mais o cenário de
+// "seletor nunca tocado", que agora mostra nuvem (primeiro teste do
+// describe abaixo).
+describe("useBifurcatedFinance — modo local (explícito)", () => {
+  it("\"local\" explícito devolve as transações locais", () => {
     localStorage.setItem(FINANCE_DATA_SOURCE_KEY, "local");
     vi.mocked(useFinance).mockReturnValue({ transactions: [makeLocalTx()] } as never);
     vi.mocked(useSupabaseFinanceTransactions).mockReturnValue({ transactions: [makeCloudTx()] } as never);
 
     const { result } = renderHook(() => useBifurcatedFinance());
 
+    expect(result.current).toHaveLength(1);
     expect(result.current[0].title).toBe("Local X");
   });
 });
 
-describe("useBifurcatedFinance — modo Supabase (explícito)", () => {
-  it("devolve as transações já mapeadas de useSupabaseFinanceTransactions quando o seletor está em 'supabase'", () => {
+describe("useBifurcatedFinance — modo Supabase", () => {
+  it("devolve as transações da nuvem quando o seletor nunca foi tocado (novo default, Pacote do Flip)", () => {
+    vi.mocked(useFinance).mockReturnValue({ transactions: [] } as never);
+    vi.mocked(useSupabaseFinanceTransactions).mockReturnValue({ transactions: [makeCloudTx()] } as never);
+
+    const { result } = renderHook(() => useBifurcatedFinance());
+
+    expect(result.current).toHaveLength(1);
+    expect(result.current[0].title).toBe("Nuvem X");
+  });
+
+  it("devolve as transações já mapeadas de useSupabaseFinanceTransactions quando o seletor está em 'supabase' (explícito)", () => {
     localStorage.setItem(FINANCE_DATA_SOURCE_KEY, "supabase");
     vi.mocked(useFinance).mockReturnValue({ transactions: [makeLocalTx()] } as never);
     vi.mocked(useSupabaseFinanceTransactions).mockReturnValue({ transactions: [makeCloudTx()] } as never);

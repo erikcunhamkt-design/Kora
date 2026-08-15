@@ -8,12 +8,18 @@ import { useCallback, useEffect, useState } from "react";
  * `kora.projects.supabaseWrite.enabled` na Fatia N de projects, antes do
  * Pacote do Flip) — na Fatia N, primeira rodada de leitura do domínio,
  * reservada sem nenhum consumidor ainda (a escrita em modo Supabase ficava
- * bloqueada incondicionalmente). Correção (revisão Lane E, NOTA-f — este
- * comentário ficou desatualizado): Fase B (Pacote do Flip) passou a
- * consumi-la de verdade — `Financeiro.tsx` gateia `blockWrite()` por ela
- * (flag ON libera create/update/delete reais via `useSupabaseFinanceTransactions`;
- * OFF preserva o bloqueio incondicional da Fatia N, byte a byte). O flip dos
- * defaults (ligar pra todo mundo) continua sendo Fase C.
+ * bloqueada incondicionalmente). Fase B (Pacote do Flip) passou a consumi-la
+ * de verdade — `Financeiro.tsx` gateia `blockWrite()` por ela (flag ON
+ * liberava create/update/delete reais via `useSupabaseFinanceTransactions`;
+ * OFF preservava o bloqueio incondicional da Fatia N, byte a byte).
+ *
+ * Pacote do Flip (Fase C) — default flipado pra opt-out (ausência ou
+ * qualquer valor ≠ "false" ⇒ true), mesmo padrão de
+ * `kora.projects.supabaseWrite.enabled`/`kora.crm.supabaseWrite.enabled`/
+ * `kora.quotes.supabaseWrite.enabled` pós-flip. Sessões que já têm o valor
+ * gravado explicitamente ("true" ou "false") não são afetadas — só quem
+ * nunca tocou na flag herda o novo default. Ver
+ * docs/qa/etapa-5-flip-financeiro-runbook.md §2.2.
  *
  * Stored in localStorage under `kora.finance.supabaseWrite.enabled`.
  * Synced across tabs via `storage`, e dentro da mesma aba via um evento
@@ -26,10 +32,10 @@ const FLAG_EVENT = "kora:finance-supabase-write-flag";
 
 function readFlag(): boolean {
   try {
-    // Opt-in (nascimento, Fatia N): só o literal "true" liga.
-    return localStorage.getItem(FINANCE_SUPABASE_WRITE_FLAG_KEY) === "true";
+    // Opt-out desde o Pacote do Flip: só o literal "false" desliga.
+    return localStorage.getItem(FINANCE_SUPABASE_WRITE_FLAG_KEY) !== "false";
   } catch {
-    return false;
+    return true;
   }
 }
 
@@ -56,7 +62,7 @@ export function useSupabaseFinanceWriteFlag(): {
   useEffect(() => {
     const onStorage = (event: StorageEvent) => {
       if (event.key === FINANCE_SUPABASE_WRITE_FLAG_KEY) {
-        setEnabledState(event.newValue === "true");
+        setEnabledState(event.newValue !== "false");
       }
     };
     const onCustom = (event: Event) => {
