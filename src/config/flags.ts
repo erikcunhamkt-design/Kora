@@ -105,6 +105,17 @@ export const QUOTES_DATA_SOURCE_KEY = "kora.quotes.dataSource.v1";
  */
 export const PROJECTS_DATA_SOURCE_KEY = "kora.projects.dataSource.v1";
 
+/**
+ * Etapa 5 · Financeiro Fatia N — seletor de fonte de dados de `financial_transactions`.
+ * Financeiro era, até esta fatia, o único domínio sem flag de fonte (achado
+ * central de `etapa-5-flip-financeiro-fase-a.md` §1.3). Nasce no MESMO molde
+ * de nascimento de `quotes`/`projects` (Fatia N deles, antes do Pacote do
+ * Flip): default "local", só "supabase" explícito seleciona nuvem — zero
+ * mudança pra quem não ligar nada. O flip (Fase C, desenho em paralelo pela
+ * Lane B) decide, no futuro, se/quando isso inverte — não decidido aqui.
+ */
+export const FINANCE_DATA_SOURCE_KEY = "kora.finance.dataSource.v1";
+
 // ── acesso seguro a localStorage (SSR-safe / storage desabilitado) ──────────
 
 function safeGet(key: string): string | null {
@@ -190,6 +201,19 @@ export function getProjectsDataSource(): DataSource {
 
 export function setProjectsDataSource(source: DataSource): void {
   safeSet(PROJECTS_DATA_SOURCE_KEY, source);
+}
+
+// ── seletor de fonte de financeiro (string plana; default "local", pré-flip) ──
+
+/** Só "supabase" explícito seleciona nuvem; qualquer outro valor (ausente,
+ * "local", malformado) ⇒ "local". Semântica PRÉ-flip — mesmo nascimento de
+ * `quotes`/`projects` antes do Pacote do Flip deles. */
+export function getFinanceDataSource(): DataSource {
+  return safeGet(FINANCE_DATA_SOURCE_KEY) === "supabase" ? "supabase" : "local";
+}
+
+export function setFinanceDataSource(source: DataSource): void {
+  safeSet(FINANCE_DATA_SOURCE_KEY, source);
 }
 
 // ── seletor de fonte da ficha técnica (mapa JSON por cliente; default "supabase") ──

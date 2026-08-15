@@ -19,6 +19,7 @@ import {
   ArrowDownLeft, ArrowUpRight, AlertCircle, CheckCircle2, Timer, Ban,
   Wallet, Building2, Tags, QrCode, Repeat, FileBarChart, LayoutGrid,
   PiggyBank, Users2, Pencil, Trash2, Archive, HelpCircle, Download,
+  Database, Cloud, RefreshCw,
   type LucideIcon,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LineChart, Line, PieChart, Pie, Cell, type TooltipContentProps } from "recharts";
@@ -30,6 +31,8 @@ import {
 } from "@/hooks/useFinance";
 import { useFormat } from "@/hooks/useFormat";
 import { useClients } from "@/hooks/useClients";
+import { useSupabaseFinanceTransactions } from "@/hooks/useSupabaseFinanceTransactions";
+import { getFinanceDataSource, setFinanceDataSource, type DataSource } from "@/config/flags";
 import { toast } from "sonner";
 
 // ============================================================
@@ -136,6 +139,38 @@ const Financeiro = () => {
   const metrics = useFinanceMetrics(fin.transactions);
   const chartData = useMonthlySeries(fin.transactions);
 
+  // Etapa 5 · Financeiro Fatia N (item 3) — seletor de fonte, default LOCAL
+  // (kora.finance.dataSource.v1, config/flags.ts), mesmo padrão de nascimento
+  // de quotes/projects (Fatia N deles). UI MÍNIMA e ADITIVA por design: as 8
+  // abas existentes (incl. Receber/Pagar) continuam 100% locais e intocadas,
+  // qualquer que seja o seletor — zero risco de regressão nos consumidores
+  // atuais (fin.updateTransactionStatus/deleteTransaction, chamados direto
+  // pelas linhas da tabela local, nunca veriam uma linha vinda da nuvem).
+  // Em modo Supabase, um painel de leitura SEPARADO (abaixo) mostra as
+  // transações da nuvem — sem nenhuma ação por linha (genuinamente
+  // read-only, esta fatia não cria escrita nova nenhuma). Os 2 botões de
+  // criação do cabeçalho ficam bloqueados nesse modo (blockWrite()) — o
+  // flip real (Fase C, desenho em paralelo) decide no futuro se/como as
+  // abas passam a ler a nuvem de verdade.
+  const [dataSource, setDataSourceState] = useState<DataSource>(() => getFinanceDataSource());
+
+  const handleSourceChange = (next: DataSource) => {
+    setFinanceDataSource(next);
+    setDataSourceState(next);
+    toast.info(`Fonte do financeiro alterada para ${next === "supabase" ? "Supabase (leitura)" : "Local"}.`);
+  };
+
+  // G29 (lição aplicada desde o nascimento, não descoberta depois): texto
+  // HONESTO desde o dia 1 — nunca promete escrita que não existe, nunca
+  // sobrevive além do que o código realmente faz. Nenhuma flag de escrita
+  // checada aqui (diferente de quotes/projects pós-CRUD): esta fatia é
+  // só leitura, a escrita fica bloqueada incondicionalmente em modo Supabase.
+  const blockWrite = (): boolean => {
+    if (dataSource !== "supabase") return false;
+    toast.error("Escrita em modo Supabase ainda não existe pra Financeiro — volte para \"Local\" para lançar/editar.");
+    return true;
+  };
+
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTab = ((): TabKey => {
     const t = searchParams.get("tab");
@@ -180,15 +215,72 @@ const Financeiro = () => {
             <Button variant="outline" size="sm" onClick={() => setOpenCats(true)} className="gap-1.5">
               <Tags className="h-4 w-4" /> Categorias
             </Button>
-            <Button size="sm" variant="outline" onClick={() => setOpenExpense(true)} className="gap-1.5">
+            <Button size="sm" variant="outline" onClick={() => { if (blockWrite()) return; setOpenExpense(true); }} className="gap-1.5">
               <TrendingDown className="h-4 w-4" /> Lançar despesa
             </Button>
-            <Button size="sm" onClick={() => setOpenSale(true)} className="gap-1.5">
+            <Button size="sm" onClick={() => { if (blockWrite()) return; setOpenSale(true); }} className="gap-1.5">
               <Plus className="h-4 w-4" /> Venda rápida
             </Button>
           </>
         }
       />
+
+      {/* Etapa 5 · Financeiro Fatia N — seletor de fonte, mesmo padrão visual
+          de "Fonte dos projetos"/"Fonte dos orçamentos" (ProjectsSection.tsx/
+          QuotesSection.tsx). Nenhum botão das 8 abas abaixo desaparece —
+          só ficam bloqueados no primeiro passo dos 2 handlers de criação
+          (lição O2/O3/O4: guarda sempre ANTES de qualquer toast de sucesso). */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-border bg-card/30">
+        <div className="flex items-center gap-2">
+          <Database className="h-4 w-4 text-primary" />
+          <span className="text-xs font-semibold text-foreground">Fonte do financeiro:</span>
+          {dataSource === "supabase" && (
+            <Badge variant="outline" className="text-[10px] uppercase font-mono py-0 text-primary border-primary/30 bg-primary/5">
+              Modo leitura (Supabase)
+            </Badge>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => handleSourceChange("local")}
+            className={`text-xs px-3 h-8 rounded-md border transition ${
+              dataSource === "local"
+                ? "bg-primary text-primary-foreground border-primary"
+                : "border-border text-foreground hover:bg-muted/40"
+            }`}
+          >
+            Local
+          </button>
+          <button
+            type="button"
+            onClick={() => handleSourceChange("supabase")}
+            className={`text-xs px-3 h-8 rounded-md border transition ${
+              dataSource === "supabase"
+                ? "bg-primary text-primary-foreground border-primary"
+                : "border-border text-foreground hover:bg-muted/40"
+            }`}
+          >
+            Supabase experimental
+          </button>
+        </div>
+      </div>
+
+      {dataSource === "supabase" && (
+        <div className="flex items-start gap-2.5 p-3 rounded-lg border border-primary/20 bg-primary/5 text-xs text-foreground">
+          <Cloud className="h-4 w-4 shrink-0 mt-0.5 text-primary" />
+          <div className="flex-1">
+            <span className="font-semibold block">Transações operacionais (Supabase) — modo leitura</span>
+            <span className="text-muted-foreground">
+              A lista abaixo já vem da nuvem. Escrita (criar, editar, marcar como pago, excluir)
+              ainda não existe nesse modo — as abas locais continuam funcionando normalmente,
+              intocadas, pra você lançar e editar enquanto isso.
+            </span>
+          </div>
+        </div>
+      )}
+
+      {dataSource === "supabase" && <SupabaseTransactionsReadOnlyPanel />}
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
         <div className="-mx-1 px-1 overflow-x-auto scrollbar-thin">
@@ -239,6 +331,73 @@ const Financeiro = () => {
       <ExpenseDialog open={openExpense} onOpenChange={setOpenExpense} fin={fin} />
       <CategoriesDialog open={openCats} onOpenChange={setOpenCats} fin={fin} />
       <TutorialDialog open={tutorialOpen} onOpenChange={setTutorialOpen} />
+    </div>
+  );
+};
+
+// ============================================================
+// SUPABASE TRANSACTIONS — read-only (Fatia N, item 3)
+// ============================================================
+// Genuinely read-only: nenhuma ação por linha (sem status/excluir/editar) —
+// esta fatia não introduz nenhuma escrita nova pra financial_transactions.
+const SupabaseTransactionsReadOnlyPanel = () => {
+  const { transactions, loading, error, refresh } = useSupabaseFinanceTransactions();
+
+  return (
+    <div className="orbit-card p-4 space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+          <Cloud className="h-4 w-4 text-primary" /> Transações (Supabase — leitura)
+        </h3>
+        <Button variant="ghost" size="sm" onClick={refresh} className="h-7 gap-1 text-xs text-muted-foreground hover:text-foreground">
+          <RefreshCw className="h-3 w-3" /> Atualizar
+        </Button>
+      </div>
+
+      {loading && (
+        <p className="text-xs text-muted-foreground">Carregando transações do Supabase...</p>
+      )}
+      {error && (
+        <p className="text-xs text-destructive">Erro ao carregar transações do Supabase: {error}</p>
+      )}
+      {!loading && !error && transactions.length === 0 && (
+        <EmptyState icon={Cloud} title="Nenhuma transação na nuvem ainda" description="Transações criadas em modo Local não aparecem aqui até uma fatia futura de escrita/import." />
+      )}
+      {!loading && !error && transactions.length > 0 && (
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="border-border hover:bg-transparent">
+                <TableHead>Descrição</TableHead>
+                <TableHead>Tipo</TableHead>
+                <TableHead>Vencimento</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Valor</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {transactions.map((t) => (
+                <TableRow key={t.id} className="border-border hover:bg-muted/40 transition-colors">
+                  <TableCell className="font-medium text-foreground">
+                    <span className="truncate max-w-[260px] inline-block align-middle">{t.title}</span>
+                    {t.clientName && <span className="text-xs text-muted-foreground ml-1.5">· {t.clientName}</span>}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className={`text-[10px] ${t.type === "income" ? "border-emerald-500/30 text-emerald-400" : "border-destructive/30 text-destructive"}`}>
+                      {t.type === "income" ? "Receita" : "Despesa"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{formatDateBR(t.dueDate)}</TableCell>
+                  <TableCell><StatusBadge s={t.status} /></TableCell>
+                  <TableCell className={`text-right font-bold ${t.type === "income" ? "text-emerald-400" : "text-destructive"}`}>
+                    {t.type === "income" ? "" : "-"}{formatBRL(t.amount)}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
     </div>
   );
 };

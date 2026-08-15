@@ -99,6 +99,24 @@ export const financeRepository = {
     return data as SupabaseFinancialTransaction[];
   },
 
+  // Etapa 5 · Financeiro Fatia N — leitura opt-in pra tela principal
+  // (Financeiro.tsx). Diferente de listReceivables (só type=receivable, uso
+  // do painel de QA/G20): sem filtro de type — a tela mostra receitas E
+  // despesas juntas. Mesmo padrão G32 da casa: enabled: !!workspaceId no
+  // hook consumidor, nunca gated por dataSource — só o SELECT roda em
+  // paralelo, a decisão de qual fonte exibir é do seletor.
+  async listTransactions(workspaceId: string) {
+    const { data, error } = await supabase
+      .from("financial_transactions")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false });
+
+    if (error) throw normalizeSupabaseError(error);
+    return data as SupabaseFinancialTransaction[];
+  },
+
   // Etapa 5 · Fatia 6 (F2) — import geral, com a árvore de decisão do §6 do doc da
   // fatia: dois arbiters de idempotência coexistem sobre a mesma tabela, cada um
   // cobrindo um caso diferente, nunca a mesma operação de escrita.

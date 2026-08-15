@@ -15,7 +15,7 @@
 // usada em src/lib/dayCenter.ts (isIncome ? "receivable" : "payable") e nas abas de
 // Financeiro.tsx ("receivables"/"payables"), só a primeira vez que o import precisa
 // aplicá-la de forma explícita.
-import type { Transaction, TxType } from "@/hooks/useFinance";
+import type { Transaction, TxType, TxStatus, TxSource } from "@/hooks/useFinance";
 import type { Quote } from "@/hooks/useQuotes";
 import type { SupabaseFinancialTransaction } from "@/repositories/financeRepository";
 import { roundMoney } from "@/services/quotes/quoteMoney";
@@ -116,5 +116,109 @@ export function mapLocalTransactionToSupabase(
     source: transaction.source,
     is_demo: false,
     archived: false,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Etapa 5 · Financeiro Fatia N — direção nuvem -> local (leitura, item 2).
+//
+// G37 (projects): o espelho local->nuvem esqueceu `deliverables` do payload
+// por meses até a homologação achar — lição "payload completo desde o dia
+// 1". Esta é a PRIMEIRA leitura de `financial_transactions` pra tela
+// principal (antes só existia `useSupabaseFinancialSummary.ts`, painel de
+// QA) — por isso mapeia todo campo com contraparte local de uma vez, em vez
+// de crescer aos poucos e reencontrar o mesmo buraco num domínio novo.
+// ─────────────────────────────────────────────────────────────────────────
+
+const LOCAL_TYPE: Readonly<Record<string, TxType>> = { receivable: "income", payable: "expense" };
+const KNOWN_LOCAL_STATUS: ReadonlySet<string> = new Set<TxStatus>(["pending", "paid", "overdue", "canceled"]);
+const KNOWN_LOCAL_SOURCE: ReadonlySet<string> = new Set<TxSource>(["manual", "quote", "sale", "service", "recurring"]);
+
+/**
+ * Traduz `type`/`status` brutos da nuvem pro vocabulário local. Nenhum dos
+ * dois tem CHECK constraint (`etapa-5-flip-financeiro-fase-a.md` §3 — "o
+ * problema ainda não existe, mas é latente"), então um valor fora do
+ * vocabulário conhecido NUNCA quebra a leitura: cai num fallback seguro e o
+ * valor bruto fica em `cloudTypeRaw`/`cloudStatusRaw` pra UI decidir o que
+ * mostrar — nunca mascarado como um dos valores conhecidos (mesmo padrão de
+ * `cloudStatusRaw` em `quotes`/`projects`).
+ */
+export function translateCloudTransactionVocabulary(
+  cloudType: string,
+  cloudStatus: string,
+): { type: TxType; status: TxStatus; cloudTypeRaw?: string; cloudStatusRaw?: string } {
+  const type = LOCAL_TYPE[cloudType];
+  const status = KNOWN_LOCAL_STATUS.has(cloudStatus) ? (cloudStatus as TxStatus) : undefined;
+  return {
+    type: type ?? "expense",
+    status: status ?? "pending",
+    ...(type ? {} : { cloudTypeRaw: cloudType }),
+    ...(status ? {} : { cloudStatusRaw: cloudStatus }),
+  };
+}
+
+/**
+ * Converte um `SupabaseFinancialTransaction` pro formato `Transaction`
+ * local.
+ *
+ * Campos com contraparte local mas SEM coluna cloud (`category`,
+ * `paymentMethod`, `recurrence`, `supplierId`, `cashAccountId`) — gap
+ * catalogado em `etapa-5-flip-financeiro-fase-a.md` §3, ainda sem decisão
+ * de schema (Caso 5 do doc). "Reportar, não inventar": os 2 campos de
+ * vocabulário FECHADO (`paymentMethod`/`recurrence`, union type — não
+ * aceitam string livre) recebem o membro mais neutro já existente no
+ * próprio enum (`"other"`/`"none"`) — não é um valor real vindo da nuvem, é
+ * a ausência representada pelo membro menos presunçoso. `category` (string
+ * livre) usa um placeholder claramente rotulado, nunca um nome de
+ * categoria inventado. `supplierId`/`cashAccountId` (opcionais) ficam
+ * `undefined` — a forma mais honesta de "não sei", sem precisar de
+ * placeholder nenhum. `notes` também fica `undefined` — a nuvem funde
+ * notes dentro de `description` na ESCRITA (`mapLocalTransactionToSupabase`
+ * acima), não dá pra desfundir na leitura.
+ *
+ * `quoteTitle` fica `undefined` — mesmo gap não resolvido do G37 (achado
+ * #3 daquele fix): a nuvem não denormaliza título de quote, restaurar isso
+ * exigiria um join que este mapper não faz (fora de escopo desta fatia).
+ *
+ * `clientName` resolve via `clientNameById` (mesmo padrão de
+ * `mapSupabaseProjectToLocal`, `projectsMapper.ts`) — `financial_transactions`
+ * não denormaliza nome de cliente na própria linha (diferente de `quotes`).
+ */
+export function mapSupabaseTransactionToLocal(
+  st: SupabaseFinancialTransaction,
+  clientNameById: Record<string, string> = {},
+): Transaction {
+  const { type, status, cloudTypeRaw, cloudStatusRaw } = translateCloudTransactionVocabulary(st.type, st.status);
+  const source = KNOWN_LOCAL_SOURCE.has(st.source ?? "") ? (st.source as TxSource) : "manual";
+
+  return {
+    id: st.id,
+    type,
+    title: st.title,
+    description: st.description ?? undefined,
+    amount: Number(st.amount),
+    category: "Sem categoria (nuvem)",
+    clientName: st.client_id ? clientNameById[st.client_id] : undefined,
+    supplierId: undefined,
+    cashAccountId: undefined,
+    dueDate: st.due_date ?? st.created_at.slice(0, 10),
+    paidDate: st.paid_at ?? undefined,
+    status,
+    cloudStatusRaw,
+    cloudTypeRaw,
+    paymentMethod: "other",
+    recurrence: "none",
+    source,
+    notes: undefined,
+    createdAt: st.created_at?.slice(0, 10) ?? "",
+    isDemo: st.is_demo ?? false,
+    // Mesmo precedente de mapSupabaseProjectToLocal: uuid da nuvem smuggled
+    // como number via cast, só pra bater com o tipo local
+    // (Transaction.clientId/opportunityId: number) — nunca usado
+    // aritmeticamente, só como chave de lookup/comparação.
+    clientId: st.client_id ? (st.client_id as unknown as number) : undefined,
+    quoteId: st.quote_id ?? undefined,
+    quoteTitle: undefined,
+    opportunityId: st.opportunity_id ? (st.opportunity_id as unknown as number) : undefined,
   };
 }
