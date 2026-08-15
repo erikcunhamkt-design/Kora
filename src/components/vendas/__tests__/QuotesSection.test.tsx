@@ -292,10 +292,16 @@ describe("QuotesSection · modo Supabase (leitura)", () => {
 // quotes mesmo com QuoteToProjectDialog.tsx já resolvendo R5 (grava local +
 // espelho best-effort G22, independente do dataSource de quotes). O gate
 // bloqueava a ABERTURA do diálogo por dataSource de QUOTES — um domínio
-// diferente do que a ação realmente escreve (`projects`). "Gerar conta a
-// receber" continua bloqueado de propósito: QuoteToReceivableDialog.tsx só
-// grava local (`finance` ainda não migrou).
-describe("QuotesSection · G33 — 'Gerar projeto' não é mais bloqueado por blockWrite() em modo Supabase", () => {
+// diferente do que a ação realmente escreve (`projects`).
+//
+// G55 (Fase D, Caso 4.3 — irmão exato do G33) — "Gerar conta a receber"
+// continuava no MESMO blockWrite() fóssil, de propósito, enquanto `finance`
+// não tinha cutover: QuoteToReceivableDialog.tsx só gravava local. O Pacote
+// do Flip de Financeiro (Fase C, main) religou o diálogo — grava local
+// sempre + espelho best-effort G22, independente do dataSource de quotes,
+// mesmo contrato que liberou "Gerar projeto". `blockWrite()` não tinha mais
+// nenhum chamador depois desse fix — removido inteiro (gate vazio).
+describe("QuotesSection · G33/G55 — nem 'Gerar projeto' nem 'Gerar conta a receber' são mais bloqueados por blockWrite() em modo Supabase", () => {
   async function renderApprovedQuoteInSupabaseMode() {
     vi.mocked(useQuotes).mockReturnValue({
       quotes: [], addQuote: vi.fn(), updateStatus: vi.fn(), updateQuote: vi.fn(),
@@ -335,14 +341,30 @@ describe("QuotesSection · G33 — 'Gerar projeto' não é mais bloqueado por bl
     expect(toast.error).not.toHaveBeenCalledWith(expect.stringContaining("Edição de orçamentos"));
   });
 
-  it("'Gerar conta a receber' continua bloqueado — finance ainda não migrou", async () => {
+  // G55 — antes do fix, este clique disparava o toast fóssil de blockWrite()
+  // ("Edição de orçamentos no modo Supabase chega numa próxima fatia") e o
+  // diálogo nunca abria — mesmo com QuoteToReceivableDialog.tsx (Fase C de
+  // Financeiro) já sabendo gravar local + espelhar pra nuvem.
+  it("atalho do menu ⋯ 'Gerar conta a receber' abre o diálogo de verdade — sem toast de bloqueio (G55)", async () => {
     await renderApprovedQuoteInSupabaseMode();
 
     await openQuoteMenu("Orçamento Nuvem");
     fireEvent.click(screen.getByText("Gerar conta a receber"));
 
-    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("Edição de orçamentos"));
-    expect(screen.queryByText("Transforme este orçamento aprovado em uma")).not.toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /Gerar conta a receber/ })).toBeInTheDocument();
+    expect(document.querySelector('[role="dialog"]')).toBeInTheDocument();
+    expect(toast.error).not.toHaveBeenCalledWith(expect.stringContaining("Edição de orçamentos"));
+  });
+
+  it("dentro do 'Ver' (preview) — onGenerateReceivable também abre o diálogo, sem bloqueio (G55)", async () => {
+    await renderApprovedQuoteInSupabaseMode();
+
+    fireEvent.click(screen.getByText("Ver"));
+    const generateBtn = await screen.findByRole("button", { name: /Gerar conta a receber/ });
+    fireEvent.click(generateBtn);
+
+    expect(document.querySelector('[role="dialog"]')).toBeInTheDocument();
+    expect(toast.error).not.toHaveBeenCalledWith(expect.stringContaining("Edição de orçamentos"));
   });
 });
 
