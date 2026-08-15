@@ -4,9 +4,12 @@
 // runs under Deno (Edge Functions) and Node/Vitest (unit tests).
 // See docs/qa/etapa-6-g5-rate-limit.md §10.4.
 
+// 529 (Anthropic-specific "overloaded_error") adicionado na Etapa 9 item 1
+// para paridade com o provider Anthropic - Gemini/Vertex/Lovable usam
+// 503/429, a Anthropic Messages API usa 529 pro caso equivalente.
 export function shouldRetry(status: number, attempt: number, maxRetries: number): boolean {
   if (attempt >= maxRetries) return false;
-  return status === 503 || status === 429;
+  return status === 503 || status === 429 || status === 529;
 }
 
 export function backoffDelayMs(
