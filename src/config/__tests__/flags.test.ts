@@ -81,6 +81,16 @@ describe("flags · booleanas opt-in", () => {
     expect(BOOLEAN_FLAG_KEYS.projectsSupabaseCreateBaseTasks).toBe("kora.projects.supabaseCreateBaseTasks.enabled");
     expect(BOOLEAN_FLAG_KEYS.tasksSupabaseStatusTransition).toBe("kora.tasks.supabaseStatusTransition.enabled");
     expect(BOOLEAN_FLAG_KEYS.supabaseOperationalDashboard).toBe("kora.supabase.operationalDashboard.enabled");
+    expect(BOOLEAN_FLAG_KEYS.aiBrainEnabled).toBe("kora.ai.brain.enabled");
+  });
+
+  it("aiBrainEnabled (Etapa 9 item 2): default false, round-trip true/false", () => {
+    expect(getBooleanFlag("aiBrainEnabled")).toBe(false);
+    setBooleanFlag("aiBrainEnabled", true);
+    expect(localStorage.getItem(BOOLEAN_FLAG_KEYS.aiBrainEnabled)).toBe("true");
+    expect(getBooleanFlag("aiBrainEnabled")).toBe(true);
+    setBooleanFlag("aiBrainEnabled", false);
+    expect(getBooleanFlag("aiBrainEnabled")).toBe(false);
   });
 });
 

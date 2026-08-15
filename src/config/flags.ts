@@ -42,6 +42,13 @@ export const BOOLEAN_FLAG_KEYS = {
   projectsSupabaseCreateBaseTasks: "kora.projects.supabaseCreateBaseTasks.enabled",
   tasksSupabaseStatusTransition: "kora.tasks.supabaseStatusTransition.enabled",
   supabaseOperationalDashboard: "kora.supabase.operationalDashboard.enabled",
+  // Etapa 9 · item 2 — "Cérebro" do robô. Gateia SÓ a visibilidade da UI de
+  // edição em Configurações — a composição no servidor (supabase/functions/
+  // _shared/brainComposer.ts, chamada em whatsapp-bot-reply/index.ts) é
+  // gateada pela EXISTÊNCIA de um perfil em ai_brain_profiles, não por esta
+  // flag (a edge function não lê localStorage). Ver
+  // docs/architecture/etapa-9-item2-cerebro-fase-a.md §5.1.
+  aiBrainEnabled: "kora.ai.brain.enabled",
 } as const;
 
 export type BooleanFlagName = keyof typeof BOOLEAN_FLAG_KEYS;

@@ -39,6 +39,7 @@ import {
   RefreshCw,
   ChevronDown,
   Volume2,
+  BrainCircuit,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -90,6 +91,7 @@ import { useSupabaseClients } from "@/hooks/useSupabaseClients";
 import { useAccessibility } from "@/contexts/accessibility-context-value";
 import { useTranslation } from "@/contexts/language-context-value";
 import { SoundPreferencesSection } from "@/components/settings/SoundPreferencesSection";
+import { AiBrainSection } from "@/components/settings/AiBrainSection";
 
 
 
@@ -98,6 +100,7 @@ import { SoundPreferencesSection } from "@/components/settings/SoundPreferencesS
 const NAV_ITEMS: SettingsNavItem[] = [
   { id: "profile", label: "Perfil", icon: User },
   { id: "company", label: "Empresa", icon: Building2 },
+  { id: "brain", label: "Cérebro do Robô", icon: BrainCircuit },
   { id: "links", label: "Links públicos", icon: Link2 },
   { id: "appearance", label: "Aparência", icon: Palette },
   { id: "sounds", label: "Sons", icon: Volume2 },
@@ -134,6 +137,7 @@ const ActiveBadge = () => (
 const TAB_ALIASES: Record<string, string> = {
   perfil: "profile",
   empresa: "company",
+  cerebro: "brain",
   links: "links",
   aparencia: "appearance",
   sons: "sounds",
@@ -426,6 +430,8 @@ const Configuracoes = () => {
               </SettingsCard>
             </SettingsSection>
           )}
+
+          {active === "brain" && <AiBrainSection />}
 
           {active === "links" && (
             <SettingsSection title="Links públicos" description="Slugs que apontam para suas páginas externas.">
