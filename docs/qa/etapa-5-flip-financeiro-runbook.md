@@ -230,7 +230,7 @@ Entidades sintéticas (novas, prefixo `HOMOLOG-FIN-` — não reaproveitar o cli
 
 ### 3.3 Os 7 casos
 
-Esqueleto herdado de `etapa-5-flip-financeiro-pacote.md` §6.2, expandido aqui passo-a-passo. Print pré-clique obrigatório (protocolo §2) em todo passo que grava na nuvem. **Fase B fechada (`dea8c75`) — todos os 8 casos abaixo já são executáveis no código de hoje**, com uma ressalva única: os Casos 2/2.3/7 (que gravam `category`/`payment_method` ou dependem do CHECK) só rodam depois do gate do §1.3 (as 2 migrations aplicadas pelo operador) — sem isso, o passo de escrita falha por coluna inexistente, não por bug de código.
+Esqueleto herdado de `etapa-5-flip-financeiro-pacote.md` §6.2, expandido aqui passo-a-passo. Print pré-clique obrigatório (protocolo §2) em todo passo que grava na nuvem. **Fase B fechada (`dea8c75`) — todos os 8 casos abaixo já são executáveis no código de hoje**, com duas ressalvas: os Casos 2/2.3/7 (que gravam `category`/`payment_method` ou dependem do CHECK) só rodam depois do gate do §1.3 (as 2 migrations aplicadas pelo operador) — sem isso, o passo de escrita falha por coluna inexistente, não por bug de código; e o passo 3.2 (prova de `paid_at`) depende do G52 (Lane A, fix em andamento) estar mesclado — sem ele, `paid_at` fica `NULL` por um gap real de código, não um bug deste runbook.
 
 ---
 
@@ -259,14 +259,16 @@ Esqueleto herdado de `etapa-5-flip-financeiro-pacote.md` §6.2, expandido aqui p
 
 ---
 
-**Caso 3 — Edição real refletida na própria mutação (G30)** — código pronto (`936c762`)
+**Caso 3 — Edição real refletida na própria mutação (G30)** — código pronto (`936c762`); passo 3.2 (prova de `paid_at`) depende do G52 fechar (Lane A, em andamento)
 
 **Mecanismo real, confirmado contra `main` — o G30 foi aplicado por desenho, não precisou de fix reativo aqui**: `SupabaseTransactionsPanel` (`Financeiro.tsx:391-401`) → `setStatus` (`:402-409`) → `onUpdate` → `updateSupabaseTransaction` → `useSupabaseFinanceTransactions.ts:84-93` (`updateMutation`), cujo `onSuccess` chama `queryClient.setQueryData` com a linha devolvida pelo próprio `UPDATE` (`:87-92`) — nunca só `invalidateQueries()`. UI: dropdown "Marcar como recebido"/"Marcar como pago" na linha da transação (`Financeiro.tsx:478`).
 
 | Passo | Ação | Esperado | Prova |
 |---|---|---|---|
 | 3.1 | Ligar Flag 2 → em modo Supabase, no painel `SupabaseTransactionsPanel`, marcar `HOMOLOG-FIN-transacao-A` como "paga" (dropdown da própria linha, `Financeiro.tsx:478`) | **O próprio card da linha** reflete "paga" sem F5 — o `setQueryData` (`useSupabaseFinanceTransactions.ts:88-92`) atualiza a linha certa no array do cache, sem esperar refetch (lição G30, §3.2) | Visual — badge de status muda na mesma linha, sem reload |
-| 3.2 | — | Update gravado de verdade | `SELECT status, paid_at FROM public.financial_transactions WHERE title = 'HOMOLOG-FIN-transacao-A';` → `status = 'paid'`. **`paid_at` fica `NULL`** — confirmado por leitura de código, não é vermelho: `setStatus` (`Financeiro.tsx:402-403`) monta o patch só com `{ status }`, nenhuma linha do código grava `paid_at`, e não há trigger de banco pra isso (`financial_transactions.paid_at`, coluna simples desde `20260601020000_create_financial_transactions_schema.sql:16`, sem default/trigger). Não é escopo do Caso 3 (G30 — prova de cache, não de completude de campo) corrigir isso; registrado aqui pra não ser mal-lido como falha do UPDATE quando a Fase D rodar de verdade. Candidato a achado catalogável (`paid_at` nunca preenchido pelo caminho nativo de marcar-pago) se confirmado ao vivo — mesmo ID reservado do §4 (G43), a confirmar se ainda livre na hora. |
+| 3.2 | — (rodar só depois do G52 fechar — ver nota abaixo) | Update gravado de verdade, **`paid_at` preenchido** | `SELECT status, paid_at FROM public.financial_transactions WHERE title = 'HOMOLOG-FIN-transacao-A';` → `status = 'paid'` **E** `paid_at` com data/hora real (não `NULL`) |
+
+**G52 — fix pré-flip em andamento (Lane A)**: achado original desta rodada (`setStatus`, `Financeiro.tsx:402-403`, monta o patch só com `{ status }` — sem `paid_at`, e a coluna não tem default/trigger, `20260601020000_create_financial_transactions_schema.sql:16`) já virou catálogo — G52, fix em andamento pela Lane A, não mais "candidato" nem ID a confirmar (G43 segue livre, reservado só pro §4 deste doc). **O passo 3.2 muda de natureza**: deixa de tolerar `paid_at IS NULL` como comportamento aceito e passa a **PROVAR** que `paid_at` vem preenchido — mesma disciplina do Caso 2.3 (prova obrigatória, não assumida). Se `paid_at` continuar `NULL` na hora da Fase D executar, é vermelho — G52 precisa estar fechado (mesclado em `main`) antes deste caso rodar, mesmo tratamento de dependência do gate do §1.3 (Caso 2/7): confirmar o hash do fix G52 no relatório da rodada em que a Fase D abrir, não assumir que já aterrissou.
 
 Este caso já teve a prova empírica de que o padrão `setQueryData` (não invalidate-only) foi aplicado desde o desenho — não há fix a reproduzir aqui, só confirmar visualmente que o comportamento bate com o código lido acima.
 
@@ -342,10 +344,10 @@ Este caso é a **reconfirmação** formal de `useLocalFinanceImport.ts` pós-mud
 
 Mesmo critério operacional do precedente de `projects`/`quotes` (fixado em texto explícito pra não precisar re-derivar):
 
-- **Vermelho (para a homologação):** o comportamento **observado ao vivo diverge do comportamento desenhado/documentado**. Aciona o ciclo: diagnóstico → correção → novo commit → **PARADO** → aguardar novo "vai" antes de retomar o runbook do ponto onde parou. **O Caso 2.3 (prova do equivalente-O12) é vermelho automático se o UPDATE inválido não falhar** — é a prova de que o CHECK preventivo desenhado no pacote (§2.1) foi de fato aplicado em produção, não uma formalidade a assumir correta.
+- **Vermelho (para a homologação):** o comportamento **observado ao vivo diverge do comportamento desenhado/documentado**. Aciona o ciclo: diagnóstico → correção → novo commit → **PARADO** → aguardar novo "vai" antes de retomar o runbook do ponto onde parou. **O Caso 2.3 (prova do equivalente-O12) é vermelho automático se o UPDATE inválido não falhar** — é a prova de que o CHECK preventivo desenhado no pacote (§2.1) foi de fato aplicado em produção, não uma formalidade a assumir correta. **O Caso 3.2 (prova de `paid_at`) é vermelho automático se `paid_at` continuar `NULL`** depois de marcar uma transação como paga — prova de que o fix G52 (Lane A) foi de fato mesclado antes da Fase D rodar, não assumido.
 - **Ressalva (não bloqueia):** o mecanismo já está provado correto por outra via (teste automatizado + homologação ao vivo anterior — ex.: a mecânica de import geral, já coberta pela Fatia 6) e só uma recaptura específica não foi refeita nesta rodada. Decisão de não reabrir deve ser **registrada explicitamente**: *"Decisão: não reabrir/reexecutar esse sub-passo agora — [motivo]; registrado explicitamente pra não ficar implícito."*
 - **Achado catalogado, não é bug:** algo encontrado durante a homologação que não afeta o caminho testado — registra no catálogo mestre (`kora-hub-auditoria-e-plano.md`, próximo ID livre no momento da rodada — G43 reservado nesta preparação, **confirmado ainda livre nesta rodada** (catálogo hoje vai até G49, mas G43/G45/G50 nunca foram usados — reconfirmar de novo quando a Fase D executar de verdade, não assumir que continua livre só por esta checagem).
-- **Placar de fechamento:** formato herdado — `N/N casos verdes, com o Caso 2.3 obrigatoriamente incluindo prova SQL do equivalente-O12 — não pode fechar como "assumido correto"`.
+- **Placar de fechamento:** formato herdado — `N/N casos verdes, com o Caso 2.3 obrigatoriamente incluindo prova SQL do equivalente-O12 e o Caso 3.2 obrigatoriamente incluindo prova de paid_at preenchido (G52) — nenhum dos dois pode fechar como "assumido correto"`.
 
 ---
 
