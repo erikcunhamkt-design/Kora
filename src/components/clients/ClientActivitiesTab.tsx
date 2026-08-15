@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { formatCurrency as intlCurrency, formatDate as intlDate } from "@/lib/format";
+import { formatCurrency as intlCurrency } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -22,8 +22,6 @@ import { useTasks } from "@/hooks/useTasks";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   useClientActivityLogs,
-  manualTypeToCategory,
-  MANUAL_ACTIVITY_LABEL,
   type ClientManualActivity,
   type ManualActivityType,
 } from "@/hooks/useClientActivityLogs";
@@ -36,65 +34,18 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-
-// ---------- Types ----------
-
-type ActivityCategory = "all" | "commercial" | "finance" | "projects" | "tasks" | "materials";
-
-type InferredType =
-  | "client_created" | "client_updated" | "contact_added"
-  | "opportunity_created" | "opportunity_won" | "opportunity_lost"
-  | "quote_created" | "quote_sent" | "quote_approved" | "quote_rejected" | "quote_expired"
-  | "receivable_created" | "receivable_paid" | "receivable_overdue"
-  | "project_created" | "project_started" | "project_completed" | "project_cancelled"
-  | "task_created" | "task_completed"
-  | "material_added" | "technical_sheet_updated";
-
-type Tone = "neutral" | "success" | "warning" | "danger" | "primary";
-
-interface BaseEvent {
-  id: string;
-  category: Exclude<ActivityCategory, "all">;
-  title: string;
-  description?: string;
-  date: string; // ISO
-  status?: string;
-  tone?: Tone;
-  amount?: number;
-  action?: { label: string; href: string };
-}
-
-interface InferredEvent extends BaseEvent {
-  origin: "inferred";
-  type: InferredType;
-}
-
-interface ManualEvent extends BaseEvent {
-  origin: "manual";
-  type: ManualActivityType;
-  raw: ClientManualActivity;
-}
-
-type ClientActivityEvent = InferredEvent | ManualEvent;
+import type { ActivityCategory, InferredType, Tone, ClientActivityEvent } from "./activityTimeline/types";
+import { fmtDate } from "./activityTimeline/format";
+import { buildCommercialEvents } from "./activityTimeline/buildCommercialEvents";
+import { buildFinanceEvents } from "./activityTimeline/buildFinanceEvents";
+import { buildProjectEvents } from "./activityTimeline/buildProjectEvents";
+import { buildTaskEvents } from "./activityTimeline/buildTaskEvents";
+import { buildMaterialEvents } from "./activityTimeline/buildMaterialEvents";
+import { mergeManualAndInferredActivities } from "./activityTimeline/mergeActivities";
 
 // ---------- Helpers ----------
 
 const fmtBRL = (v: number) => intlCurrency(v, { minimumFractionDigits: 0 });
-
-const fmtDate = (iso: string) => {
-  try {
-    return intlDate(iso, { day: "2-digit", month: "short", year: "numeric" });
-  } catch {
-    return iso;
-  }
-};
-
-const parseDate = (s?: string): string | null => {
-  if (!s) return null;
-  const d = new Date(s);
-  if (!isNaN(d.getTime())) return d.toISOString();
-  return null;
-};
 
 const toneCls: Record<Tone, string> = {
   neutral: "bg-muted/50 text-muted-foreground",
@@ -143,277 +94,14 @@ const manualIcon: Record<ManualActivityType, LucideIcon> = {
   other: HelpCircle,
 };
 
-const manualTone: Record<ManualActivityType, Tone> = {
-  meeting: "primary",
-  call: "primary",
-  message: "neutral",
-  feedback: "primary",
-  scope_change: "warning",
-  material_request: "neutral",
-  decision: "success",
-  issue: "danger",
-  internal_note: "neutral",
-  follow_up: "warning",
-  other: "neutral",
-};
-
-// ---------- Build inferred timeline ----------
-
-function buildInferredEvents(args: {
-  client: Client;
-  leads: ReturnType<typeof useLeads>["leads"];
-  quotes: ReturnType<typeof useQuotes>["quotes"];
-  // useBifurcatedFinance()/useBifurcatedProjects() retornam array direto
-  // (não {transactions: [...]}/{projects: [...]} como os hooks locais
-  // antigos) — sem indexação, shape diferente do useQuotes()/useLeads()
-  // acima. Ver G26 (kora-hub-auditoria-e-plano.md) — mesmo achado, agora no
-  // 2º domínio bifurcado deste arquivo (Etapa 5, Financeiro Fase B, §3.2 do
-  // desenho).
-  transactions: ReturnType<typeof useBifurcatedFinance>;
-  projects: ReturnType<typeof useBifurcatedProjects>;
-  tasks: ReturnType<typeof useTasks>["tasks"];
-}): InferredEvent[] {
-  const { client, leads, quotes, transactions, projects, tasks } = args;
-  const evts: InferredEvent[] = [];
-  const today = new Date();
-  const matchesByName = (name?: string) => !!name && name.toLowerCase() === client.name.toLowerCase();
-
-  if (client.createdAt) {
-    evts.push({
-      origin: "inferred", id: `cli-created-${client.id}`, type: "client_created", category: "commercial",
-      title: "Cliente cadastrado", description: client.company || undefined,
-      date: client.createdAt, tone: "primary",
-    });
-  }
-  if (client.updatedAt && client.updatedAt !== client.createdAt) {
-    evts.push({
-      origin: "inferred", id: `cli-updated-${client.id}`, type: "client_updated", category: "commercial",
-      title: "Cliente atualizado", date: client.updatedAt, tone: "neutral",
-    });
-  }
-
-  (client.contacts ?? []).forEach((c) => {
-    const d = parseDate(c.createdAt);
-    if (!d) return;
-    evts.push({
-      origin: "inferred", id: `contact-${c.id}`, type: "contact_added", category: "commercial",
-      title: "Contato adicionado", description: `${c.name}${c.role ? ` · ${c.role}` : ""}`,
-      date: d, tone: "neutral",
-    });
-  });
-
-  const clientLeads = leads.filter(
-    (l) => l.clientId === client.id || l.convertedClientId === client.id || matchesByName(l.name) || matchesByName(l.company),
-  );
-  clientLeads.forEach((l) => {
-    const created = parseDate(l.createdAt);
-    if (created) {
-      evts.push({
-        origin: "inferred", id: `lead-c-${l.id}`, type: "opportunity_created", category: "commercial",
-        title: "Oportunidade criada", description: l.description || l.name,
-        amount: l.estimatedValue, date: created, tone: "primary",
-        action: { label: "Ver no CRM", href: `/crm?lead=${l.id}` },
-      });
-    }
-    if (l.wonAt) {
-      const w = parseDate(l.wonAt);
-      if (w) evts.push({
-        origin: "inferred", id: `lead-w-${l.id}`, type: "opportunity_won", category: "commercial",
-        title: "Oportunidade ganha", description: l.name, amount: l.estimatedValue,
-        date: w, status: "Ganho", tone: "success",
-        action: { label: "Ver no CRM", href: `/crm?lead=${l.id}` },
-      });
-    }
-    if (l.stage === "perdido" && l.lostReason) {
-      const lostDate = parseDate(l.updatedAt) ?? parseDate(l.createdAt);
-      if (lostDate) evts.push({
-        origin: "inferred", id: `lead-l-${l.id}`, type: "opportunity_lost", category: "commercial",
-        title: "Oportunidade perdida", description: l.lostReason,
-        date: lostDate, status: "Perdido", tone: "danger",
-      });
-    }
-  });
-
-  const clientQuotes = quotes.filter((q) => q.clientId === client.id || matchesByName(q.clientName));
-  clientQuotes.forEach((q) => {
-    const created = parseDate(q.createdAt);
-    if (created) evts.push({
-      origin: "inferred", id: `qt-c-${q.id}`, type: "quote_created", category: "commercial",
-      title: "Orçamento criado", description: q.title, amount: q.total,
-      date: created, tone: "neutral",
-      action: { label: "Ver orçamento", href: "/vendas" },
-    });
-    const sent = parseDate(q.sentAt);
-    if (sent) evts.push({
-      origin: "inferred", id: `qt-s-${q.id}`, type: "quote_sent", category: "commercial",
-      title: "Orçamento enviado", description: q.title, amount: q.total,
-      date: sent, status: "Enviado", tone: "warning",
-      action: { label: "Ver orçamento", href: "/vendas" },
-    });
-    const approved = parseDate(q.approvedAt);
-    if (approved) evts.push({
-      origin: "inferred", id: `qt-a-${q.id}`, type: "quote_approved", category: "commercial",
-      title: "Orçamento aprovado", description: q.title, amount: q.total,
-      date: approved, status: "Aprovado", tone: "success",
-      action: { label: "Ver orçamento", href: "/vendas" },
-    });
-    const rejected = parseDate(q.rejectedAt);
-    if (rejected) evts.push({
-      origin: "inferred", id: `qt-r-${q.id}`, type: "quote_rejected", category: "commercial",
-      title: "Orçamento recusado", description: q.title,
-      date: rejected, status: "Recusado", tone: "danger",
-    });
-    if (q.status === "vencido") {
-      const d = parseDate(q.updatedAt) ?? parseDate(q.sentAt) ?? parseDate(q.createdAt);
-      if (d) evts.push({
-        origin: "inferred", id: `qt-e-${q.id}`, type: "quote_expired", category: "commercial",
-        title: "Orçamento vencido", description: q.title,
-        date: d, status: "Vencido", tone: "warning",
-      });
-    }
-  });
-
-  const clientTxs = transactions.filter(
-    (t) => t.type === "income" && (t.clientId === client.id || matchesByName(t.clientName)),
-  );
-  clientTxs.forEach((t) => {
-    const created = parseDate(t.createdAt);
-    if (created) evts.push({
-      origin: "inferred", id: `tx-c-${t.id}`, type: "receivable_created", category: "finance",
-      title: "Conta a receber gerada",
-      description: `${t.title} · venc. ${fmtDate(t.dueDate)}`,
-      amount: t.amount, date: created, tone: "neutral",
-      action: { label: "Ver financeiro", href: `/financeiro?tab=receivables&entryId=${t.id}` },
-    });
-    if (t.status === "paid" && t.paidDate) {
-      const p = parseDate(t.paidDate);
-      if (p) evts.push({
-        origin: "inferred", id: `tx-p-${t.id}`, type: "receivable_paid", category: "finance",
-        title: "Pagamento recebido", description: t.title,
-        amount: t.amount, date: p, status: "Pago", tone: "success",
-        action: { label: "Ver financeiro", href: `/financeiro?tab=receivables&entryId=${t.id}` },
-      });
-    }
-    const dueDate = new Date(t.dueDate);
-    const isOverdue = t.status === "overdue" || (t.status === "pending" && !isNaN(dueDate.getTime()) && dueDate < today);
-    if (isOverdue) {
-      evts.push({
-        origin: "inferred", id: `tx-o-${t.id}`, type: "receivable_overdue", category: "finance",
-        title: "Recebível vencido", description: `${t.title} · venceu em ${fmtDate(t.dueDate)}`,
-        amount: t.amount, date: parseDate(t.dueDate) ?? created ?? new Date().toISOString(),
-        status: "Vencido", tone: "danger",
-      });
-    }
-  });
-
-  const clientProjects = projects.filter((p) => p.clientId === client.id || matchesByName(p.clientName));
-  const clientProjectIds = new Set(clientProjects.map((p) => p.id));
-  clientProjects.forEach((p) => {
-    const created = parseDate(p.createdAt);
-    if (created) evts.push({
-      origin: "inferred", id: `pj-c-${p.id}`, type: "project_created", category: "projects",
-      title: "Projeto criado", description: p.name,
-      date: created, tone: "primary",
-      action: { label: "Ver projeto", href: `/portfolio?tab=projetos&projectId=${p.id}` },
-    });
-    if (p.status === "in_progress" && p.startDate) {
-      const s = parseDate(p.startDate);
-      if (s) evts.push({
-        origin: "inferred", id: `pj-s-${p.id}`, type: "project_started", category: "projects",
-        title: "Projeto iniciado", description: p.name,
-        date: s, status: "Em andamento", tone: "warning",
-        action: { label: "Ver projeto", href: `/portfolio?tab=projetos&projectId=${p.id}` },
-      });
-    }
-    if (p.completedAt) {
-      const d = parseDate(p.completedAt);
-      if (d) evts.push({
-        origin: "inferred", id: `pj-done-${p.id}`, type: "project_completed", category: "projects",
-        title: "Projeto concluído", description: p.name,
-        date: d, status: "Entregue", tone: "success",
-        action: { label: "Ver projeto", href: `/portfolio?tab=projetos&projectId=${p.id}` },
-      });
-    }
-    if (p.status === "cancelled") {
-      const d = parseDate(p.updatedAt) ?? parseDate(p.createdAt);
-      if (d) evts.push({
-        origin: "inferred", id: `pj-x-${p.id}`, type: "project_cancelled", category: "projects",
-        title: "Projeto cancelado", description: p.name,
-        date: d, status: "Cancelado", tone: "danger",
-      });
-    }
-  });
-
-  const clientTasks = tasks.filter(
-    (t) =>
-      t.clientId === client.id ||
-      matchesByName(t.client) ||
-      (t.projectId && clientProjectIds.has(t.projectId)),
-  );
-  clientTasks.forEach((t) => {
-    const created = parseDate(t.createdAt);
-    if (created) evts.push({
-      origin: "inferred", id: `tk-c-${t.id}`, type: "task_created", category: "tasks",
-      title: "Tarefa criada", description: t.title,
-      date: created, tone: "neutral",
-    });
-    if (t.status === "concluido") {
-      const d = parseDate(t.updatedAt) ?? created;
-      if (d) evts.push({
-        origin: "inferred", id: `tk-done-${t.id}`, type: "task_completed", category: "tasks",
-        title: "Tarefa concluída", description: t.title,
-        date: d, status: "Concluída", tone: "success",
-      });
-    }
-  });
-
-  (client.technicalSheet?.assets ?? []).forEach((a) => {
-    const d = parseDate(a.createdAt);
-    if (!d) return;
-    evts.push({
-      origin: "inferred", id: `mat-${a.id}`, type: "material_added", category: "materials",
-      title: "Material adicionado", description: a.title,
-      date: d, tone: "neutral",
-      action: { label: "Ver Ficha Técnica", href: `/clientes/${client.id}/ficha-tecnica` },
-    });
-  });
-
-  return evts;
-}
-
-function manualToEvent(m: ClientManualActivity): ManualEvent {
-  return {
-    origin: "manual",
-    raw: m,
-    id: `manual-${m.id}`,
-    type: m.type,
-    category: manualTypeToCategory(m.type),
-    title: `${MANUAL_ACTIVITY_LABEL[m.type]}: ${m.title}`,
-    description: [
-      m.description,
-      m.outcome && `Resultado: ${m.outcome}`,
-      m.nextStep && `Próximo passo: ${m.nextStep}${m.nextStepDate ? ` (${intlDate(m.nextStepDate, { day: "2-digit", month: "short" })})` : ""}`,
-    ].filter(Boolean).join(" · ") || undefined,
-    date: m.date,
-    tone: manualTone[m.type],
-  };
-}
-
-function mergeManualAndInferredActivities(
-  inferred: InferredEvent[],
-  manual: ClientManualActivity[],
-): ClientActivityEvent[] {
-  const all: ClientActivityEvent[] = [
-    ...inferred,
-    ...manual.map(manualToEvent),
-  ];
-  const seen = new Set<string>();
-  const dedup = all.filter((e) => (seen.has(e.id) ? false : (seen.add(e.id), true)));
-  dedup.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  return dedup;
-}
-
 // ---------- Component ----------
+//
+// Timeline montada por composição: cada hook (bifurcado ou cru, como hoje)
+// alimenta 1 construtor por domínio (activityTimeline/build*Events.ts),
+// depois merge/dedup/sort (activityTimeline/mergeActivities.ts). Quando
+// Tarefas bifurcar (Fase B do flip), a mudança fica confinada ao hook de
+// tasks + buildTaskEvents.ts — refactor preventivo, etapa-5-flip-tarefas-
+// pacote.md §4 (G54).
 
 export const ClientActivitiesTab = ({
   client,
@@ -451,7 +139,14 @@ export const ClientActivitiesTab = ({
   const [toDelete, setToDelete] = useState<ClientManualActivity | null>(null);
 
   const events = useMemo<ClientActivityEvent[]>(() => {
-    const inferred = buildInferredEvents({ client, leads, quotes, transactions, projects, tasks });
+    const { events: projectEvents, projectIds } = buildProjectEvents({ client, projects });
+    const inferred = [
+      ...buildCommercialEvents({ client, leads, quotes }),
+      ...buildFinanceEvents({ client, transactions }),
+      ...projectEvents,
+      ...buildTaskEvents({ client, tasks, clientProjectIds: projectIds }),
+      ...buildMaterialEvents({ client }),
+    ];
     return mergeManualAndInferredActivities(inferred, logs);
   }, [client, leads, quotes, transactions, projects, tasks, logs]);
 

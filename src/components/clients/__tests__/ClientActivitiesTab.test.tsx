@@ -14,12 +14,16 @@ import { MemoryRouter } from "react-router-dom";
 
 import { ClientActivitiesTab } from "@/components/clients/ClientActivitiesTab";
 import { useLeads } from "@/hooks/useLeads";
+import type { Lead } from "@/hooks/useLeads";
 import { useQuotes } from "@/hooks/useQuotes";
+import type { Quote } from "@/hooks/useQuotes";
 import { useBifurcatedFinance } from "@/hooks/useBifurcatedFinance";
 import { useBifurcatedProjects } from "@/hooks/useBifurcatedProjects";
+import type { Project } from "@/hooks/useProjects";
 import { useTasks } from "@/hooks/useTasks";
+import type { Task } from "@/hooks/useTasks";
 import { useClientActivityLogs } from "@/hooks/useClientActivityLogs";
-import type { Client } from "@/types/domain";
+import type { Client, ClientContact, ClientManualActivity } from "@/types/domain";
 import type { Transaction } from "@/hooks/useFinance";
 
 vi.mock("@/hooks/useLeads", () => ({ useLeads: vi.fn() }));
@@ -55,6 +59,59 @@ function makeCloudReceivable(overrides: Partial<Transaction> = {}): Transaction 
     // mapSupabaseTransactionToLocal produz pra uma linha gravada por
     // CreateReceivableDialog.tsx:114 (client_id: clientId ?? null).
     clientId: "client-uuid-1" as unknown as number,
+    ...overrides,
+  };
+}
+
+function makeLead(overrides: Partial<Lead> = {}): Lead {
+  return {
+    id: 1, name: "Lead X", company: "", email: "", phone: "", serviceType: "",
+    estimatedValue: 0, priority: "média", lastInteraction: "", stage: "lead",
+    description: "", history: [], notes: "", createdAt: "2026-01-01T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function makeQuote(overrides: Partial<Quote> = {}): Quote {
+  return {
+    id: "q-1", clientName: "Acme Corp", clientEmail: "", clientWhatsapp: "",
+    title: "Orçamento X", description: "", items: [], subtotal: 0, discount: 0,
+    total: 0, paymentCondition: "", deliveryDeadline: "", validityDays: 0,
+    status: "rascunho", createdAt: "2026-01-01T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function makeProject(overrides: Partial<Project> = {}): Project {
+  return {
+    id: "p-1", name: "Projeto X", clientName: "Acme Corp", status: "planning",
+    priority: "medium", progress: 0, tags: [], createdAt: "2026-01-01T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function makeTask(overrides: Partial<Task> = {}): Task {
+  return {
+    id: 1, title: "Tarefa X", description: "", client: "", project: "",
+    priority: "média" as never, deadline: "", status: "pendente" as never,
+    createdAt: "2026-01-01T00:00:00.000Z", tags: [], subtasks: [], comments: [],
+    ...overrides,
+  };
+}
+
+function makeContact(overrides: Partial<ClientContact> = {}): ClientContact {
+  return {
+    id: "ct-1", name: "Fulano",
+    createdAt: "2026-01-05T00:00:00.000Z", updatedAt: "2026-01-05T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function makeManualActivity(overrides: Partial<ClientManualActivity> = {}): ClientManualActivity {
+  return {
+    id: "man-1", clientId: 1, type: "meeting", title: "Reunião inicial",
+    date: "2026-01-10T00:00:00.000Z", createdAt: "2026-01-10T00:00:00.000Z",
+    updatedAt: "2026-01-10T00:00:00.000Z",
     ...overrides,
   };
 }
@@ -109,5 +166,269 @@ describe("ClientActivitiesTab · G41 — recebível CRM (client_id da nuvem) ago
     renderTab(client);
 
     expect(await screen.findByText("Conta a receber gerada")).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// G54 — testes de caracterização pré-refactor (etapa-5-flip-tarefas-pacote.md
+// §4). Trava o comportamento ATUAL de buildInferredEvents/manualToEvent/
+// mergeManualAndInferredActivities antes da extração em construtores por
+// domínio — escritos e provados verdes contra o código de hoje, e devem
+// continuar verdes byte-a-byte (mesmos asserts) depois do refactor, já que
+// testam via render (caixa-preta do componente exportado), não os símbolos
+// internos que vão mudar de módulo.
+// ---------------------------------------------------------------------------
+
+describe("ClientActivitiesTab · G54 caracterização — comercial (leads/quotes/contatos)", () => {
+  it("cliente criado e atualizado geram eventos comerciais distintos", async () => {
+    vi.mocked(useBifurcatedFinance).mockReturnValue([] as never);
+    const client = makeClient({ createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-05T00:00:00.000Z" });
+
+    renderTab(client);
+
+    expect(await screen.findByText("Cliente cadastrado")).toBeInTheDocument();
+    expect(screen.getByText("Cliente atualizado")).toBeInTheDocument();
+  });
+
+  it("createdAt === updatedAt: NÃO duplica em 'Cliente atualizado'", async () => {
+    vi.mocked(useBifurcatedFinance).mockReturnValue([] as never);
+    const sameStamp = "2026-01-01T00:00:00.000Z";
+    const client = makeClient({ createdAt: sameStamp, updatedAt: sameStamp });
+
+    renderTab(client);
+
+    expect(await screen.findByText("Cliente cadastrado")).toBeInTheDocument();
+    expect(screen.queryByText("Cliente atualizado")).not.toBeInTheDocument();
+  });
+
+  it("contato com createdAt válido aparece como 'Contato adicionado' com nome e cargo", async () => {
+    vi.mocked(useBifurcatedFinance).mockReturnValue([] as never);
+    const client = makeClient({ contacts: [makeContact({ name: "Maria", role: "Financeiro" })] });
+
+    renderTab(client);
+
+    expect(await screen.findByText("Contato adicionado")).toBeInTheDocument();
+    expect(screen.getByText("Maria · Financeiro")).toBeInTheDocument();
+  });
+
+  it("contato sem createdAt parseável é omitido (data ausente = evento não gerado)", () => {
+    vi.mocked(useBifurcatedFinance).mockReturnValue([] as never);
+    const client = makeClient({ contacts: [makeContact({ name: "SemData", createdAt: undefined })] });
+
+    renderTab(client);
+
+    expect(screen.queryByText("Contato adicionado")).not.toBeInTheDocument();
+  });
+
+  it("lead criado e ganho: 2 eventos comerciais com valores e link pro CRM", async () => {
+    vi.mocked(useBifurcatedFinance).mockReturnValue([] as never);
+    const client = makeClient({ id: 1 });
+    vi.mocked(useLeads).mockReturnValue({
+      leads: [makeLead({ clientId: 1, name: "Oportunidade Y", estimatedValue: 5000, wonAt: "2026-02-01T00:00:00.000Z" })],
+    } as never);
+
+    renderTab(client);
+
+    expect(await screen.findByText("Oportunidade criada")).toBeInTheDocument();
+    expect(screen.getByText("Oportunidade ganha")).toBeInTheDocument();
+    expect(screen.getByText("Ganho")).toBeInTheDocument();
+  });
+
+  it("lead perdido com motivo: evento 'Oportunidade perdida' traz o motivo como descrição", async () => {
+    vi.mocked(useBifurcatedFinance).mockReturnValue([] as never);
+    const client = makeClient({ id: 1 });
+    vi.mocked(useLeads).mockReturnValue({
+      leads: [makeLead({ clientId: 1, stage: "perdido", lostReason: "Preço alto", updatedAt: "2026-02-01T00:00:00.000Z" })],
+    } as never);
+
+    renderTab(client);
+
+    expect(await screen.findByText("Oportunidade perdida")).toBeInTheDocument();
+    expect(screen.getByText("Preço alto")).toBeInTheDocument();
+    expect(screen.getByText("Perdido")).toBeInTheDocument();
+  });
+
+  it("orçamento com todos os carimbos de data gera os 5 eventos do ciclo de vida", async () => {
+    vi.mocked(useBifurcatedFinance).mockReturnValue([] as never);
+    const client = makeClient({ id: 1 });
+    vi.mocked(useQuotes).mockReturnValue({
+      quotes: [makeQuote({
+        clientId: 1, status: "vencido",
+        sentAt: "2026-01-02T00:00:00.000Z",
+        approvedAt: "2026-01-03T00:00:00.000Z",
+        rejectedAt: "2026-01-04T00:00:00.000Z",
+        updatedAt: "2026-01-05T00:00:00.000Z",
+      })],
+    } as never);
+
+    renderTab(client);
+
+    expect(await screen.findByText("Orçamento criado")).toBeInTheDocument();
+    expect(screen.getByText("Orçamento enviado")).toBeInTheDocument();
+    expect(screen.getByText("Orçamento aprovado")).toBeInTheDocument();
+    expect(screen.getByText("Orçamento recusado")).toBeInTheDocument();
+    expect(screen.getByText("Orçamento vencido")).toBeInTheDocument();
+  });
+});
+
+describe("ClientActivitiesTab · G54 caracterização — financeiro (recebível vencido)", () => {
+  it("recebível pending com dueDate no passado aparece como 'Recebível vencido'", async () => {
+    vi.mocked(useBifurcatedFinance).mockReturnValue([
+      makeCloudReceivable({ clientId: 1, status: "pending", dueDate: "2020-01-01" }),
+    ] as never);
+    const client = makeClient({ id: 1 });
+
+    renderTab(client);
+
+    expect(await screen.findByText("Recebível vencido")).toBeInTheDocument();
+  });
+});
+
+describe("ClientActivitiesTab · G54 caracterização — projetos", () => {
+  it("projeto criado + em andamento + concluído: 3 eventos (checks independentes, não mutuamente exclusivos)", async () => {
+    vi.mocked(useBifurcatedFinance).mockReturnValue([] as never);
+    const client = makeClient({ id: 1 });
+    vi.mocked(useBifurcatedProjects).mockReturnValue([
+      makeProject({ clientId: 1, status: "in_progress", startDate: "2026-01-02", completedAt: "2026-01-10T00:00:00.000Z" }),
+    ] as never);
+
+    renderTab(client);
+
+    expect(await screen.findByText("Projeto criado")).toBeInTheDocument();
+    expect(screen.getByText("Projeto iniciado")).toBeInTheDocument();
+    expect(screen.getByText("Projeto concluído")).toBeInTheDocument();
+  });
+
+  it("projeto cancelado gera 'Projeto cancelado' com tom danger (status Cancelado)", async () => {
+    vi.mocked(useBifurcatedFinance).mockReturnValue([] as never);
+    const client = makeClient({ id: 1 });
+    vi.mocked(useBifurcatedProjects).mockReturnValue([
+      makeProject({ clientId: 1, status: "cancelled", updatedAt: "2026-01-10T00:00:00.000Z" }),
+    ] as never);
+
+    renderTab(client);
+
+    expect(await screen.findByText("Projeto cancelado")).toBeInTheDocument();
+    expect(screen.getByText("Cancelado")).toBeInTheDocument();
+  });
+});
+
+describe("ClientActivitiesTab · G54 caracterização — tarefas", () => {
+  it("tarefa casada por clientId: criada + concluída", async () => {
+    vi.mocked(useBifurcatedFinance).mockReturnValue([] as never);
+    const client = makeClient({ id: 1 });
+    vi.mocked(useTasks).mockReturnValue({
+      tasks: [makeTask({ clientId: 1, status: "concluido" as never, updatedAt: "2026-01-10T00:00:00.000Z" })],
+    } as never);
+
+    renderTab(client);
+
+    expect(await screen.findByText("Tarefa criada")).toBeInTheDocument();
+    expect(screen.getByText("Tarefa concluída")).toBeInTheDocument();
+    expect(screen.getByText("Concluída")).toBeInTheDocument();
+  });
+
+  it("tarefa sem clientId direto, mas com projectId de um projeto do cliente, ainda casa (fallback via clientProjectIds)", async () => {
+    vi.mocked(useBifurcatedFinance).mockReturnValue([] as never);
+    const client = makeClient({ id: 1 });
+    vi.mocked(useBifurcatedProjects).mockReturnValue([
+      makeProject({ id: "proj-A", clientId: 1 }),
+    ] as never);
+    vi.mocked(useTasks).mockReturnValue({
+      tasks: [makeTask({ title: "Tarefa via projeto", projectId: "proj-A" })],
+    } as never);
+
+    renderTab(client);
+
+    expect(await screen.findByText("Tarefa criada")).toBeInTheDocument();
+    expect(screen.getByText("Tarefa via projeto")).toBeInTheDocument();
+  });
+});
+
+describe("ClientActivitiesTab · G54 caracterização — materiais (ficha técnica)", () => {
+  it("asset da ficha técnica com createdAt aparece como 'Material adicionado'", async () => {
+    vi.mocked(useBifurcatedFinance).mockReturnValue([] as never);
+    const client = makeClient({
+      technicalSheet: {
+        assets: [{
+          id: "a-1", title: "Manual da marca", type: "briefing", url: "https://x",
+          accessStatus: "liberado", createdAt: "2026-01-05T00:00:00.000Z",
+        } as never],
+      },
+    });
+
+    renderTab(client);
+
+    expect(await screen.findByText("Material adicionado")).toBeInTheDocument();
+    expect(screen.getByText("Manual da marca")).toBeInTheDocument();
+  });
+});
+
+describe("ClientActivitiesTab · G54 caracterização — atividades manuais (merge, título, descrição)", () => {
+  it("atividade manual vira evento com título 'Rótulo: título' e descrição composta (descrição · resultado · próximo passo)", async () => {
+    vi.mocked(useBifurcatedFinance).mockReturnValue([] as never);
+    const client = makeClient();
+    vi.mocked(useClientActivityLogs).mockReturnValue({
+      logs: [makeManualActivity({
+        type: "meeting", title: "Kickoff", description: "Alinhamento inicial",
+        outcome: "Aprovado escopo", nextStep: "Enviar proposta", nextStepDate: "2026-02-01",
+      })],
+      addLog: vi.fn(), updateLog: vi.fn(), deleteLog: vi.fn(),
+    } as never);
+
+    renderTab(client);
+
+    expect(await screen.findByText("Reunião: Kickoff")).toBeInTheDocument();
+    expect(screen.getByText(/Alinhamento inicial · Resultado: Aprovado escopo · Próximo passo: Enviar proposta/)).toBeInTheDocument();
+  });
+
+  it("atividade manual sem descrição/resultado/próximo passo: sem parágrafo de descrição", async () => {
+    vi.mocked(useBifurcatedFinance).mockReturnValue([] as never);
+    const client = makeClient();
+    vi.mocked(useClientActivityLogs).mockReturnValue({
+      logs: [makeManualActivity({ type: "call", title: "Ligação rápida", description: undefined })],
+      addLog: vi.fn(), updateLog: vi.fn(), deleteLog: vi.fn(),
+    } as never);
+
+    renderTab(client);
+
+    expect(await screen.findByText("Ligação: Ligação rápida")).toBeInTheDocument();
+  });
+});
+
+describe("ClientActivitiesTab · G54 caracterização — dedup e ordenação", () => {
+  it("dois contatos com o mesmo id colidem: só o primeiro sobrevive (dedup por id, mantém 1ª ocorrência)", async () => {
+    vi.mocked(useBifurcatedFinance).mockReturnValue([] as never);
+    const client = makeClient({
+      contacts: [
+        makeContact({ id: "dup-1", name: "Primeiro" }),
+        makeContact({ id: "dup-1", name: "Segundo" }),
+      ],
+    });
+
+    renderTab(client);
+
+    expect(await screen.findByText(/Primeiro/)).toBeInTheDocument();
+    expect(screen.queryByText(/Segundo/)).not.toBeInTheDocument();
+  });
+
+  it("eventos de domínios diferentes são ordenados por data desc (mais recente primeiro), não por domínio", async () => {
+    vi.mocked(useBifurcatedFinance).mockReturnValue([] as never);
+    const client = makeClient({ id: 1 });
+    vi.mocked(useBifurcatedProjects).mockReturnValue([
+      makeProject({ id: "old-proj", clientId: 1, createdAt: "2020-01-01T00:00:00.000Z" }),
+    ] as never);
+    vi.mocked(useQuotes).mockReturnValue({
+      quotes: [makeQuote({ id: "new-quote", clientId: 1, createdAt: "2024-06-01T00:00:00.000Z" })],
+    } as never);
+
+    const { container } = renderTab(client);
+
+    const titles = Array.from(container.querySelectorAll("li p.text-sm.font-medium")).map((el) => el.textContent);
+    const quoteIdx = titles.indexOf("Orçamento criado");
+    const projectIdx = titles.indexOf("Projeto criado");
+    expect(quoteIdx).toBeGreaterThanOrEqual(0);
+    expect(projectIdx).toBeGreaterThanOrEqual(0);
+    expect(quoteIdx).toBeLessThan(projectIdx);
   });
 });
