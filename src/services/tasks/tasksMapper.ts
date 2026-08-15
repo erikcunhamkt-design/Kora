@@ -16,8 +16,10 @@
 // "project_template" (usado só pelo gerador de tarefas base, Etapa 3) — os dois
 // vocabulários são disjuntos por construção (§7.3). status/priority também são
 // passagem direta — colunas TEXT livres, sem CHECK constraint.
-import type { Task } from "@/hooks/useTasks";
+import type { Task, TaskPriority, TaskSource, TaskStatus } from "@/hooks/useTasks";
 import type { SupabaseTask } from "@/repositories/tasksRepository";
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Import-maps local→Supabase usados para resolver as FKs de uma tarefa.
@@ -38,13 +40,24 @@ export const EMPTY_TASK_IMPORT_MAPS: TaskImportMaps = { clients: {}, quotes: {},
  * Resolve um id LOCAL para o UUID Supabase via import-map.
  * Regra de segurança (padrão Q4): mapeado → UUID; ausente/não-mapeado → null. NUNCA id
  * local cru.
+ *
+ * G53 (fundações de Fase B, `etapa-5-flip-tarefas-pacote.md` §3.2) — mesmo
+ * molde literal de `resolveProjectFk`/`resolveFinanceFk` pós-G37: nem todo
+ * `localId` que chega aqui é de fato um id LOCAL precisando de tradução via
+ * import-map — se `quoteId`/`clientId`/`projectId` já chegar como um uuid
+ * real (ex.: uma quote/projeto já lidos da nuvem, não de import), procurar
+ * esse uuid no import-map (que só mapeia id LOCAL → uuid) nunca bate, e a FK
+ * vira `null` silenciosamente. Passa direto quando já é um uuid válido —
+ * nunca procura no import-map nesse caso.
  */
 export function resolveTaskFk(
   localId: string | number | null | undefined,
   map: Record<string, string>,
 ): string | null {
   if (localId === null || localId === undefined || localId === "") return null;
-  return map[String(localId)] ?? null;
+  const key = String(localId);
+  if (UUID_RE.test(key)) return key;
+  return map[key] ?? null;
 }
 
 /**
@@ -160,4 +173,128 @@ const LEGACY_CLOUD_TASK_PRIORITY: Readonly<Record<string, CloudTaskPriority>> = 
  * passa intocado (nunca mascara). */
 export function normalizeCloudTaskPriority(priority: string): CloudTaskPriority | string {
   return LEGACY_CLOUD_TASK_PRIORITY[priority] ?? priority;
+}
+
+// G53 (fundações de Fase B, independentes da decisão de convivência com
+// `public.tasks` — `etapa-5-flip-tarefas-pacote.md` §3.4) — direção nuvem ->
+// local (leitura). Mesmo molde de `mapSupabaseTransactionToLocal`
+// (financeMapper.ts) e `mapSupabaseProjectToLocal` (projectsMapper.ts):
+// payload completo desde o dia 1 (G37, "achado do financeMapper" — nunca
+// nasce esquecendo um campo que já tem coluna, pra não reencontrar o mesmo
+// buraco que `deliverables` deixou em projects por meses).
+//
+// Vocabulário de `source`: mesma disciplina de `KNOWN_LOCAL_SOURCE`
+// (financeMapper.ts) — o comentário do topo deste arquivo já documenta que
+// local ("manual"/"projeto"/"orçamento") e nuvem ("project_template", G49)
+// são vocabulários DISJUNTOS por construção, não uma tradução 1:1. Uma linha
+// `project_template` (ou qualquer valor futuro desconhecido) cai no fallback
+// neutro "manual" — nunca inventa "projeto"/"orçamento" pra um vínculo que
+// não existe da mesma forma no local.
+const KNOWN_LOCAL_TASK_SOURCE: ReadonlySet<string> = new Set<TaskSource>(["manual", "projeto", "orçamento"]);
+
+/**
+ * Converte um `SupabaseTask` pro formato `Task` local.
+ *
+ * Tratamento campo a campo dos campos SEM contraparte cloud (7 gaps da
+ * triagem do pacote, §1 — nenhuma migration deste pacote foi aplicada, então
+ * NENHUM desses tem coluna hoje, incluindo os 4 que a triagem propõe como
+ * bloqueantes):
+ *   - `scope`/`recurrence` (enum) → membro NEUTRO (`"work"`/`"none"`), mesmo
+ *     tratamento que `recurrence: "none"` já recebe em
+ *     `mapSupabaseTransactionToLocal`.
+ *   - `tags`/`subtasks`/`comments` (coleção) → array vazio (`[]`), mesmo
+ *     espírito do membro neutro, aplicado a uma coleção em vez de um enum.
+ *   - `taskProjectId`/`milestoneId` (FK-shaped, apontam pra entidades sem
+ *     representação cloud — `TaskProject`/`Milestone`) → `undefined`, mesmo
+ *     tratamento de `supplierId`/`cashAccountId` em `mapSupabaseTransactionToLocal`.
+ *   - `reminderAt`/`reminderSentAt` (string opcional, sem sentido semântico
+ *     de "rótulo" como `category`) → `undefined`, mesmo tratamento de
+ *     `notes` em `mapSupabaseTransactionToLocal` (nem todo gap de string
+ *     vira um placeholder rotulado — só os que são campo de classificação
+ *     exibido, como `category` era antes de ganhar coluna).
+ *   - `reminderEnabled` (boolean) → `false`, o default neutro/seguro já
+ *     usado em `useTaskReminders.ts:109` pro mesmo campo quando ausente.
+ *   - Nenhum gap desta rodada é uma string livre "tipo `category`" (o único
+ *     candidato a placeholder rotulado — não há um campo de classificação
+ *     textual sem coluna em Tarefas hoje), por isso a categoria "placeholder
+ *     rotulado p/ string" do padrão do financeMapper não se aplica a nenhum
+ *     campo aqui; registrado explicitamente, não por omissão.
+ *
+ * Campos DERIVADOS (têm coluna cloud, mas sem denormalização pronta —
+ * diferente de gap estrutural):
+ *   - `client`/`project` (strings de exibição, REQUERIDAS no tipo local,
+ *     diferente de `clientName`/`quoteTitle` opcionais em Transaction) →
+ *     resolvidos via `clientNameById` (mesmo padrão de
+ *     `mapSupabaseProjectToLocal`) ou `""` quando não resolvível — `""` já é
+ *     um valor de tarefa solta legítimo hoje (`makeTask()` do teste usa o
+ *     mesmo default). `project` fica sempre `""` nesta rodada — resolver o
+ *     nome do projeto exigiria um join que este mapper não faz (mesmo gap
+ *     não resolvido do `quoteTitle` em `mapSupabaseTransactionToLocal`,
+ *     fora de escopo desta fundação).
+ *   - `deadline` (display legado, "mantido por compatibilidade" segundo o
+ *     próprio comentário do tipo) → `""`, nunca fabricado: a UI real
+ *     (`Tarefas.tsx:806,1009`) já prefere `dueDate` e só cai pra `deadline`
+ *     quando `dueDate` também está ausente — `""` cai corretamente no
+ *     fallback "Sem prazo"/"—" do próprio componente, sem regressão.
+ *
+ * `id`/`clientId`: uuid da nuvem smuggled como `number` via cast — mesmo
+ * precedente de `mapSupabaseProjectToLocal`/`mapSupabaseTransactionToLocal`
+ * (`as unknown as number`, nunca usado aritmeticamente, só como chave de
+ * lookup/comparação). Diferente dos outros dois domínios, aqui até o
+ * `id` da própria linha precisa do cast — `Task.id` é `number`
+ * (`useTasks.ts:16`), não `string` como `Project.id`/`Transaction.id`.
+ *
+ * `status`: usa `normalizeCloudTaskStatus` (G40) — nunca mascara um valor
+ * desconhecido, mas como `Task.status` é tipado estritamente (união de 4
+ * valores, sem um campo irmão tipo `cloudStatusRaw` pra guardar um valor
+ * fora do vocabulário), o cast final é `as TaskStatus` — aceito porque G40
+ * já fechou o único caminho de escrita real com esse gap (`updateTaskStatus`).
+ *
+ * `priority`: usa `normalizeCloudTaskPriority` (G49, mesmo molde de
+ * `normalizeCloudTaskStatus`/G40 acima) — G49 fechou exatamente o gap que
+ * esta fundação (G53) tinha deixado aberto de propósito (ver commit do G53:
+ * "priority fica passagem direta, sem normalizar — gap conhecido, ligado ao
+ * G49, em correção no lado da escrita"). Resolução da colisão semântica
+ * §18.3: a decisão da Lane B vence — o mapper de leitura passa a consumir
+ * `normalizeCloudTaskPriority` em vez do passthrough cru. Mesmo cast final
+ * `as TaskPriority` do `status` acima (`Task.priority` também não tem um
+ * campo irmão tipo `cloudPriorityRaw`).
+ */
+export function mapSupabaseTaskToLocal(
+  st: SupabaseTask,
+  clientNameById: Record<string, string> = {},
+): Task {
+  const source = KNOWN_LOCAL_TASK_SOURCE.has(st.source) ? (st.source as TaskSource) : "manual";
+
+  return {
+    // uuid da nuvem smuggled como number — ver nota acima (id).
+    id: st.id as unknown as number,
+    title: st.title,
+    description: st.description ?? "",
+    client: st.client_id ? (clientNameById[st.client_id] ?? "") : "",
+    project: "",
+    projectId: st.project_id ?? undefined,
+    // Gaps sem coluna cloud (§1 da triagem) — membro neutro / coleção vazia / undefined.
+    taskProjectId: undefined,
+    scope: "work",
+    priority: normalizeCloudTaskPriority(st.priority) as TaskPriority,
+    deadline: "",
+    dueDate: st.due_date ?? undefined,
+    status: normalizeCloudTaskStatus(st.status) as TaskStatus,
+    createdAt: st.created_at,
+    updatedAt: st.updated_at ?? undefined,
+    tags: [],
+    subtasks: [],
+    comments: [],
+    recurrence: "none",
+    archived: st.archived,
+    isDemo: st.is_demo ?? false,
+    reminderAt: undefined,
+    reminderEnabled: false,
+    reminderSentAt: undefined,
+    clientId: st.client_id ? (st.client_id as unknown as number) : undefined,
+    quoteId: st.quote_id ?? undefined,
+    milestoneId: undefined,
+    source,
+  };
 }
