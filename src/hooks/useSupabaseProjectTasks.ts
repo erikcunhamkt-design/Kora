@@ -3,6 +3,7 @@ import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { tasksRepository, type SupabaseTask } from "@/repositories/tasksRepository";
+import type { CloudTaskStatus } from "@/services/tasks/tasksMapper";
 import { getFriendlyMessage } from "@/lib/supabase/errors";
 
 export function useSupabaseProjectTasks(projectId?: string) {
@@ -18,7 +19,7 @@ export function useSupabaseProjectTasks(projectId?: string) {
   });
 
   const updateStatus = useCallback(
-    async (taskId: string, status: "todo" | "in_progress" | "done") => {
+    async (taskId: string, status: CloudTaskStatus) => {
       if (!workspaceId) throw new Error("Workspace ativo ausente");
       await tasksRepository.updateTaskStatus(workspaceId, taskId, status);
       await queryClient.invalidateQueries({

@@ -85,3 +85,48 @@ export function mapLocalTaskToSupabase(
     archived: false,
   };
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// R1 (docs/qa/tarefas-r2-auditoria.md §2.2) — vocabulário de status em
+// public.tasks.status.
+// ─────────────────────────────────────────────────────────────────────────
+//
+// O comentário no topo deste arquivo já documenta a decisão: status é
+// "passagem direta" — SEM tradução de vocabulário (diferente de `source` em
+// projects, §7.2 daquela fatia). Ou seja, o vocabulário oficial de
+// public.tasks.status SEMPRE foi o local (TaskStatus, useTasks.ts:
+// a_fazer/em_andamento/revisao/concluido, português) — é o que `importTask`
+// (o único caminho de escrita sem flag, ativo hoje) já grava, verbatim,
+// desde que este mapper existe.
+//
+// `tasksRepository.updateTaskStatus` nunca seguiu esse contrato: sua
+// assinatura só aceitava "todo" | "in_progress" | "done" (3 valores, inglês)
+// — um 2º dialeto pra mesma coluna, e sem "revisão" nenhuma forma de
+// representar (R1). Como as 2 flags que gateiam esse caminho
+// (`supabaseOperationalDashboard` + `tasksSupabaseStatusTransition`) são
+// default OFF, o risco está ARMADO, não disparando (nenhuma linha real
+// deveria ter os 3 valores em inglês hoje) — mas a assinatura permanecia
+// incorreta pra quem ligasse as flags.
+//
+// Fix: `updateTaskStatus` passou a aceitar os mesmos 4 valores locais — não
+// uma tradução nova, só alinhamento ao contrato que este arquivo já
+// documentava. `normalizeCloudTaskStatus` abaixo existe só de proteção pra
+// UI de leitura (`SupabaseOperationalDashboardCard.tsx`), caso uma linha já
+// tenha os 3 valores legados em inglês gravados (alguém ligou as flags antes
+// deste fix) — nunca inventa um valor, nunca mascara um status desconhecido
+// como "concluído" (mesma disciplina de `cloudStatusRaw` em quotes/projects).
+
+export type CloudTaskStatus = "a_fazer" | "em_andamento" | "revisao" | "concluido";
+
+const LEGACY_CLOUD_TASK_STATUS: Readonly<Record<string, CloudTaskStatus>> = {
+  todo: "a_fazer",
+  in_progress: "em_andamento",
+  done: "concluido",
+};
+
+/** Normaliza um `status` bruto de `public.tasks` pro vocabulário local — trata
+ * os 3 valores legados em inglês (nunca escritos por código novo) como alias
+ * dos 4 valores reais; qualquer outro valor passa intocado (nunca mascara). */
+export function normalizeCloudTaskStatus(status: string): CloudTaskStatus | string {
+  return LEGACY_CLOUD_TASK_STATUS[status] ?? status;
+}

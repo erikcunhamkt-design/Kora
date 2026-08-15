@@ -75,7 +75,14 @@ export const tasksRepository = {
     return data as SupabaseTask;
   },
 
-  async updateTaskStatus(workspaceId: string, taskId: string, status: "todo" | "in_progress" | "done"): Promise<SupabaseTask> {
+  // R1 (docs/qa/tarefas-r2-auditoria.md §2.2, src/services/tasks/tasksMapper.ts) —
+  // vocabulário alinhado ao que importTask já grava (local, sem tradução):
+  // os 4 valores locais, não mais só 3 em inglês sem "revisão".
+  async updateTaskStatus(
+    workspaceId: string,
+    taskId: string,
+    status: "a_fazer" | "em_andamento" | "revisao" | "concluido",
+  ): Promise<SupabaseTask> {
     const { data, error } = await supabase
       .from("tasks")
       .update({

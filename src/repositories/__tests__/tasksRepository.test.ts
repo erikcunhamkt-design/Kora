@@ -8,8 +8,17 @@ const mocks = vi.hoisted(() => {
   const upsertSingle = vi.fn();
   const upsertSelect = vi.fn(() => ({ single: upsertSingle }));
   const upsert = vi.fn(() => ({ select: upsertSelect }));
-  const from = vi.fn(() => ({ upsert }));
-  return { upsertSingle, upsert, upsertSelect, from };
+  const updateSingle = vi.fn();
+  const updateSelect = vi.fn(() => ({ single: updateSingle }));
+  const updateIs = vi.fn(() => ({ select: updateSelect }));
+  const updateEqWorkspace = vi.fn(() => ({ is: updateIs }));
+  const updateEqId = vi.fn(() => ({ eq: updateEqWorkspace }));
+  const update = vi.fn(() => ({ eq: updateEqId }));
+  const from = vi.fn(() => ({ upsert, update }));
+  return {
+    upsertSingle, upsert, upsertSelect, from,
+    update, updateEqId, updateEqWorkspace, updateIs, updateSelect, updateSingle,
+  };
 });
 
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: mocks.from } }));
@@ -74,4 +83,27 @@ describe("tasksRepository.importTask — sempre o caminho geral (sem árvore de 
       { onConflict: "workspace_id,source_local_id" },
     );
   });
+});
+
+// R1 (docs/qa/tarefas-r2-auditoria.md §2.2) — updateTaskStatus só aceitava
+// todo/in_progress/done; "revisão" (4º valor do vocabulário local,
+// useTasks.ts) não tinha pra onde ir. Prova o round-trip dos 4 valores —
+// falha contra a assinatura anterior (TS rejeitaria "revisao"/"a_fazer"/
+// "em_andamento" como argumento; aqui provamos em runtime que os 4 chegam
+// intactos no payload do UPDATE, sem tradução nenhuma).
+describe("tasksRepository.updateTaskStatus — R1, vocabulário dos 4 estados locais", () => {
+  it.each(["a_fazer", "em_andamento", "revisao", "concluido"] as const)(
+    "grava o status \"%s\" verbatim no UPDATE, sem tradução",
+    async (status) => {
+      mocks.updateSingle.mockResolvedValue({ data: { id: "tk-1", status }, error: null });
+
+      const result = await tasksRepository.updateTaskStatus("ws1", "tk-1", status);
+
+      expect(mocks.from).toHaveBeenCalledWith("tasks");
+      expect(mocks.update).toHaveBeenCalledWith(expect.objectContaining({ status }));
+      expect(mocks.updateEqId).toHaveBeenCalledWith("id", "tk-1");
+      expect(mocks.updateEqWorkspace).toHaveBeenCalledWith("workspace_id", "ws1");
+      expect(result.status).toBe(status);
+    },
+  );
 });
