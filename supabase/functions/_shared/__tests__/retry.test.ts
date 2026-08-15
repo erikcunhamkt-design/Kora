@@ -11,6 +11,10 @@ describe("shouldRetry", () => {
     expect(shouldRetry(429, 0, 2)).toBe(true);
   });
 
+  it("retry em 529 (overloaded_error da Anthropic)", () => {
+    expect(shouldRetry(529, 0, 2)).toBe(true);
+  });
+
   it("nao retry apos esgotar as tentativas", () => {
     expect(shouldRetry(503, 2, 2)).toBe(false);
     expect(shouldRetry(429, 2, 2)).toBe(false);
