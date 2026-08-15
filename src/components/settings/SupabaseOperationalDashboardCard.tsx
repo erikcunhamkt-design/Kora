@@ -13,6 +13,7 @@ import { RefreshCw, FileText, TrendingUp, DollarSign, Briefcase, Activity, Check
 import { toast } from "sonner";
 import { CreateProjectBaseTasksDialog } from "@/components/projects/CreateProjectBaseTasksDialog";
 import { type SupabaseProject } from "@/repositories/projectsRepository";
+import { type CloudTaskStatus, normalizeCloudTaskStatus } from "@/services/tasks/tasksMapper";
 import { getBooleanFlag } from "@/config/flags";
 import {
   AlertDialog,
@@ -25,6 +26,24 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+// R1 (docs/qa/tarefas-r2-auditoria.md §2.2) — rótulo/estilo por status,
+// incluindo os 3 valores legados em inglês (nunca escritos por código novo,
+// só possíveis numa linha gravada antes deste fix). Fallback nunca cai em
+// "Concluído"/verde por omissão — um status desconhecido mostra o valor
+// bruto com estilo neutro, nunca mascarado como um dos 4 conhecidos.
+const CLOUD_TASK_STATUS_LABEL: Record<string, string> = {
+  a_fazer: "A Fazer", todo: "A Fazer",
+  em_andamento: "Em Andamento", in_progress: "Em Andamento",
+  revisao: "Revisão",
+  concluido: "Concluído", done: "Concluído",
+};
+const CLOUD_TASK_STATUS_BADGE_CLASS: Record<string, string> = {
+  a_fazer: "border-blue-400/30 text-blue-400", todo: "border-blue-400/30 text-blue-400",
+  em_andamento: "border-amber-400/30 text-amber-400", in_progress: "border-amber-400/30 text-amber-400",
+  revisao: "border-purple-400/30 text-purple-400",
+  concluido: "border-emerald-400/30 text-emerald-400", done: "border-emerald-400/30 text-emerald-400",
+};
+
 function ProjectTasksList({ projectId }: { projectId: string }) {
   const { tasks, loading, error, refresh, updateStatus } = useSupabaseProjectTasks(projectId);
   const [transitionEnabled, setTransitionEnabled] = useState(false);
@@ -32,7 +51,7 @@ function ProjectTasksList({ projectId }: { projectId: string }) {
   const [pendingTransition, setPendingTransition] = useState<{
     id: string;
     fromStatus: string;
-    toStatus: "todo" | "in_progress" | "done";
+    toStatus: CloudTaskStatus;
     projectId: string;
   } | null>(null);
 
@@ -55,7 +74,7 @@ function ProjectTasksList({ projectId }: { projectId: string }) {
   const executeTransition = async (
     taskId: string,
     fromStatus: string,
-    toStatus: "todo" | "in_progress" | "done",
+    toStatus: CloudTaskStatus,
     projId: string
   ) => {
     try {
@@ -87,7 +106,7 @@ function ProjectTasksList({ projectId }: { projectId: string }) {
   const handleStatusChange = async (
     taskId: string,
     fromStatus: string,
-    toStatus: "todo" | "in_progress" | "done",
+    toStatus: CloudTaskStatus,
     projId: string
   ) => {
     const isTransitionEnabled = getBooleanFlag("tasksSupabaseStatusTransition");
@@ -96,13 +115,13 @@ function ProjectTasksList({ projectId }: { projectId: string }) {
       return;
     }
 
-    if (toStatus === "done") {
+    if (toStatus === "concluido") {
       setPendingTransition({ id: taskId, fromStatus, toStatus, projectId: projId });
       setConfirmOpen(true);
       return;
     }
 
-    // Direct transition for other status (todo, in_progress) without dialog confirmation
+    // Direct transition for other status (a_fazer, em_andamento, revisao) without dialog confirmation
     await executeTransition(taskId, fromStatus, toStatus, projId);
   };
 
@@ -184,26 +203,24 @@ function ProjectTasksList({ projectId }: { projectId: string }) {
 
             {transitionEnabled ? (
               <select
-                value={task.status === "concluido" ? "done" : task.status === "a_fazer" ? "todo" : task.status === "em_andamento" ? "in_progress" : task.status}
-                onChange={(e) => handleStatusChange(task.id, task.status, e.target.value as "todo" | "in_progress" | "done", projectId)}
+                value={normalizeCloudTaskStatus(task.status)}
+                onChange={(e) => handleStatusChange(task.id, task.status, e.target.value as CloudTaskStatus, projectId)}
                 className="text-[10px] bg-background/50 border border-border/80 rounded px-1.5 py-0.5 h-6 text-foreground font-medium focus-visible:outline-none"
               >
-                <option value="todo">A Fazer</option>
-                <option value="in_progress">Em Andamento</option>
-                <option value="done">Concluída</option>
+                <option value="a_fazer">A Fazer</option>
+                <option value="em_andamento">Em Andamento</option>
+                <option value="revisao">Revisão</option>
+                <option value="concluido">Concluída</option>
               </select>
             ) : (
-              <Badge 
-                variant="outline" 
+              <Badge
+                variant="outline"
                 onClick={() => toast.info("Transição de tarefas Supabase entra nesta etapa experimental. Ative em Configurações.")}
                 className={`text-[9px] uppercase py-0.5 px-1 cursor-pointer hover:bg-muted/30 transition-colors ${
-                  task.status === "todo" ? "border-blue-400/30 text-blue-400" :
-                  task.status === "in_progress" ? "border-amber-400/30 text-amber-400" :
-                  task.status === "revisao" ? "border-purple-400/30 text-purple-400" :
-                  "border-emerald-400/30 text-emerald-400"
+                  CLOUD_TASK_STATUS_BADGE_CLASS[task.status] ?? "border-muted text-muted-foreground"
                 }`}
               >
-                {task.status === "todo" ? "A Fazer" : task.status === "in_progress" ? "Em Andamento" : task.status === "revisao" ? "Revisão" : "Concluído"}
+                {CLOUD_TASK_STATUS_LABEL[task.status] ?? task.status}
               </Badge>
             )}
           </div>

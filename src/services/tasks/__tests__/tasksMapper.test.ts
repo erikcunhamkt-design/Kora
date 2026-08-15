@@ -2,7 +2,7 @@
 // map novo de projects), opportunity_id sempre null (ausência estrutural, não órfã),
 // e ausência de tradução de vocabulário (source/status/priority já disjuntos, §7.3).
 import { describe, it, expect } from "vitest";
-import { mapLocalTaskToSupabase, resolveTaskFk } from "@/services/tasks/tasksMapper";
+import { mapLocalTaskToSupabase, resolveTaskFk, normalizeCloudTaskStatus } from "@/services/tasks/tasksMapper";
 import type { Task } from "@/hooks/useTasks";
 
 function makeTask(overrides: Partial<Task> = {}): Task {
@@ -90,5 +90,29 @@ describe("mapLocalTaskToSupabase — fan-out incl. o 4º map (projects), sem tra
   it('source ausente vira "manual", nunca undefined', () => {
     const payload = mapLocalTaskToSupabase(makeTask({ source: undefined }));
     expect(payload.source).toBe("manual");
+  });
+});
+
+// R1 (docs/qa/tarefas-r2-auditoria.md §2.2) — updateTaskStatus só aceitava
+// todo/in_progress/done (3 valores, inglês) — sem "revisão", divergindo do
+// próprio contrato "sem tradução de vocabulário" que este arquivo já
+// documentava (o vocabulário real, gravado por importTask, sempre foi o
+// local em português).
+describe("normalizeCloudTaskStatus — R1, alinha updateTaskStatus ao vocabulário que importTask já grava", () => {
+  it("os 4 valores locais passam intocados", () => {
+    expect(normalizeCloudTaskStatus("a_fazer")).toBe("a_fazer");
+    expect(normalizeCloudTaskStatus("em_andamento")).toBe("em_andamento");
+    expect(normalizeCloudTaskStatus("revisao")).toBe("revisao");
+    expect(normalizeCloudTaskStatus("concluido")).toBe("concluido");
+  });
+
+  it("os 3 valores legados em inglês (só possíveis numa linha gravada antes do fix) viram o equivalente local", () => {
+    expect(normalizeCloudTaskStatus("todo")).toBe("a_fazer");
+    expect(normalizeCloudTaskStatus("in_progress")).toBe("em_andamento");
+    expect(normalizeCloudTaskStatus("done")).toBe("concluido");
+  });
+
+  it("valor desconhecido passa intocado — nunca mascara, nunca inventa", () => {
+    expect(normalizeCloudTaskStatus("status-bizarro")).toBe("status-bizarro");
   });
 });
