@@ -7,6 +7,7 @@ import { authorizeIsTestCaller } from "../_shared/isTestAuth.ts";
 import { decideRateLimitOutcome } from "../_shared/rateLimit.ts";
 import { fetchWithRetry } from "../_shared/retry.ts";
 import { buildAnthropicMessages, parseAnthropicReply } from "../_shared/anthropicParser.ts";
+import { composeSystemInstruction } from "../_shared/brainComposer.ts";
 
 interface BotFlowNodeProperties {
   respondAll?: boolean;
@@ -76,6 +77,14 @@ interface GeminiRequestBody {
 interface BotReplyHistoryItem {
   role: string;
   text: string;
+}
+
+interface AiBrainProfileRow {
+  tone: string | null;
+  talk_about: string | null;
+  dont_talk_about: string | null;
+  products_services: string | null;
+  limits: string | null;
 }
 
 interface BotReplyRequestBody {
@@ -537,6 +546,40 @@ Deno.serve(async (req) => {
         }))
         .filter((m) => m.parts[0].text);
     }
+
+    // Etapa 9 · item 2 — "Cérebro" do robô: composição provider-agnóstica,
+    // ponto único, ANTES de qualquer branch de provider (docs/architecture/
+    // etapa-9-item2-cerebro-fase-a.md §3.1) — os 4 providers abaixo recebem
+    // o systemInstruction já composto, sem nenhuma mudança nos seus branches.
+    //
+    // Gate real é a EXISTÊNCIA de uma linha em ai_brain_profiles pro
+    // workspace — não a flag kora.ai.brain.enabled (essa é só do navegador,
+    // localStorage; esta function roda no Deno, não tem acesso a ela e não
+    // deveria — a flag só decide se a UI de EDIÇÃO aparece em Configurações).
+    // Falha ao buscar (ex.: migration ainda não aplicada pelo operador,
+    // §8-b) nunca derruba a geração de resposta — fail-open pro
+    // comportamento de hoje, sem cérebro.
+    const { data: brainRow, error: brainErr } = await adminClient
+      .from("ai_brain_profiles")
+      .select("tone, talk_about, dont_talk_about, products_services, limits")
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+    if (brainErr) {
+      console.warn("[bot-reply] brain profile fetch failed, composing without it:", brainErr.message);
+    }
+    const brain = !brainErr && brainRow ? (brainRow as AiBrainProfileRow) : null;
+    systemInstruction = composeSystemInstruction(
+      brain
+        ? {
+            tone: brain.tone,
+            talkAbout: brain.talk_about,
+            dontTalkAbout: brain.dont_talk_about,
+            productsServices: brain.products_services,
+            limits: brain.limits,
+          }
+        : null,
+      systemInstruction,
+    );
 
     // Default environment variables (fallback)
     const GEMINI_API_KEY = geminiApiKey || Deno.env.get("GEMINI_API_KEY") || Deno.env.get("VERTEX_API_KEY") || null;
