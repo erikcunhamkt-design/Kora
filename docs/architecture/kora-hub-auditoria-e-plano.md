@@ -656,6 +656,30 @@ Achado durante a mitigação cirúrgica do R1 catalogado em `etapa-5-flip-tarefa
 
 ---
 
+**G41 — Financeiro: os 2 diálogos de "gerar recebível" (`CreateReceivableDialog` no CRM, `QuoteToReceivableDialog` em Vendas). A divergência documentada em `etapa-5-fatia-6-finance.md` §9 (espelho vs. sem espelho) já está RESOLVIDA (G22); a divergência real hoje é de CAMPO, não de destino. [MÉDIO — 1 achado mecânico FECHADO (quoteId ausente); 3 achados de decisão de produto, catalogados sem corrigir]**
+Achado ao confirmar contra o código o inventário de Financeiro (`etapa-5-flip-financeiro-fase-a.md` §item 3, "2 diálogos de escrita inconsistentes"), que aponta pro diagnóstico de `etapa-5-fatia-6-finance.md` §9 — escrito **antes** do G22 (dashboard-g22-fix) mudar o comportamento de `CreateReceivableDialog.tsx`.
+
+- **O que §9 diagnosticou (histórico, já não é mais verdade):** na época, `CreateReceivableDialog` gravava **só** na nuvem (invisível em `Financeiro.tsx`, que só lê local) enquanto `QuoteToReceivableDialog` gravava só local (visível). Recomendação registrada: opção (b), fazer `CreateReceivableDialog` também gravar local. **G22 já implementou isso** (dual-write: local sempre + espelho nuvem best-effort) — confirmado lendo o código atual (`CreateReceivableDialog.tsx:90-125`), não só o comentário. A invisibilidade que §9 descrevia **não existe mais**; ambos os diálogos hoje gravam local, ambos aparecem em Financeiro. Esta rodada fecha esse ciclo: a recomendação de §9 foi cumprida por outro achado (G22), sem nenhum doc dizendo isso explicitamente até agora.
+- **Divergência real hoje, achada nesta rodada (comparação campo-a-campo dos dois `fin.addTransaction(...)`):**
+
+| Campo gravado localmente | `QuoteToReceivableDialog.tsx` (Vendas) | `CreateReceivableDialog.tsx` (CRM) | Classe |
+|---|---|---|---|
+| `quoteId` | `quote.id` (repassado) | **ausente** — recebido como prop (`quoteId: string`), usado só no espelho nuvem (`:112`), nunca no `addTransaction` local | **Mecânico — FECHADO nesta rodada** |
+| `clientId` | `quote.clientId` (`number`, local) | **ausente** — prop `clientId` é uuid da nuvem (`string \| null`), espaço de id diferente de `Transaction.clientId: number` | Decisão de produto — ver abaixo |
+| `opportunityId` | `quote.opportunityId` (`number`, local) | **ausente** — mesmo motivo de `clientId` (prop é uuid nuvem, campo local é `number`) | Decisão de produto — ver abaixo |
+| `clientName` | `quote.clientName` (string, já disponível) | **ausente** — componente não recebe esse prop hoje, exigiria buscar o nome a partir do uuid | Decisão de produto — ver abaixo |
+| `category` | seletor do usuário (`<Select>`, categorias de `fin.categories`) | hardcoded `"Serviços"` | Decisão de produto — ver abaixo |
+| `paymentMethod` | seletor do usuário (`<Select>`, 6 opções) | hardcoded `"pix"` | Decisão de produto — ver abaixo |
+
+- **Por que só `quoteId` é mecânico:** mesmo tipo (`Transaction.quoteId: string`, sem distinção de espaço de id — confirmado que `QuoteToReceivableDialog` já passa `quote.id` puro, seja local ou uuid de nuvem, sem tradução), e o valor já existe como prop do componente (`quoteId`, usado no espelho). É literalmente "esquecido de repassar pro outro lugar que já recebe o mesmo dado" — sem ambiguidade de design.
+- **Por que `clientId`/`opportunityId` NÃO são mecânicos:** `Transaction.clientId`/`opportunityId` são tipados `number` (espaço de id LOCAL); as props do diálogo (`clientId`/`opportunityId`) são uuids de nuvem (`string`). Preencher um `number` com um uuid exigiria uma tradução reversa (uuid nuvem → id local), que dependeria de um mapa reverso do import-map (`kora.clients.supabaseImport.v1` só mapeia local→nuvem hoje) — não existe hoje, e criar um é decisão de arquitetura, não um alinhamento de 1 linha. **Consequência prática, não corrigida:** um recebível gerado via CRM não aparece na aba de atividades do cliente (`ClientActivitiesTab.tsx:270-271`, que casa por `t.clientId === client.id || matchesByName(t.clientName)`) — sem `clientId` NEM `clientName`, nenhum dos dois critérios casa. Gap real, mas fora do escopo "mecânico" desta rodada.
+- **Por que `category`/`paymentMethod` hardcoded é decisão, não bug:** `CreateReceivableDialog` é acionado a partir de um contexto (CRM, orçamento aprovado) onde reduzir a fricção pode ser deliberado — diferente de "mesmo dado divergindo por descuido", é uma escolha de quanto controle dar ao usuário em cada fluxo. Não há evidência (comentário, doc, commit) de que os hardcodes foram um esquecimento; tratado como decisão de produto existente, não revertida sem pedido explícito.
+- **Proposta, não implementada:** se um dia fizer sentido dar ao CRM o mesmo nível de controle que Vendas tem, os seletores de `QuoteToReceivableDialog` (`category`/`paymentMethod`) podem ser copiados diretamente — mesmo componente `<Select>`, mesma fonte de dados (`fin.categories`). Resolver `clientId`/`opportunityId` exigiria decidir se vale a pena construir um mapa reverso uuid→local só para isso, ou se o gap de `ClientActivitiesTab` é aceito como dívida (mesma classe dos gaps já catalogados em Tarefas/Financeiro na Fase A).
+- **Fix aplicado (só `quoteId`):** `CreateReceivableDialog.tsx` — `addTransaction({ ..., quoteId, ... })`, 1 linha.
+- **Teste novo** (`CreateReceivableDialog.test.tsx`, describe "G41"): `addTransaction` (local) é chamado com `quoteId` igual ao prop recebido. Falha contra o código anterior ao fix (confirmado por reprodução antes de corrigir).
+
+---
+
 ## 3. Segurança / vulnerabilidades (verificar e endurecer)
 
 > Vários itens abaixo são **"confirmar no código"** — a arquitetura está certa, mas a implementação precisa ser auditada arquivo a arquivo pelo Code.
