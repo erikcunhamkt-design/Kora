@@ -39,6 +39,79 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_brain_profiles: {
+        Row: {
+          created_at: string
+          dont_talk_about: string | null
+          id: string
+          limits: string | null
+          products_services: string | null
+          talk_about: string | null
+          tone: string | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          dont_talk_about?: string | null
+          id?: string
+          limits?: string | null
+          products_services?: string | null
+          talk_about?: string | null
+          tone?: string | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          dont_talk_about?: string | null
+          id?: string
+          limits?: string | null
+          products_services?: string | null
+          talk_about?: string | null
+          tone?: string | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_brain_profiles_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: true
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_rate_limit_counters: {
+        Row: {
+          bucket: string
+          count: number
+          window_start: string
+          workspace_id: string
+        }
+        Insert: {
+          bucket: string
+          count?: number
+          window_start: string
+          workspace_id: string
+        }
+        Update: {
+          bucket?: string
+          count?: number
+          window_start?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_rate_limit_counters_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_contacts: {
         Row: {
           client_id: string
@@ -336,6 +409,7 @@ export type Database = {
           deleted_reason: string | null
           email: string | null
           expected_close_date: string | null
+          history: Json | null
           id: string
           is_demo: boolean | null
           lost_at: string | null
@@ -353,6 +427,7 @@ export type Database = {
           source_local_id: string | null
           stage: string
           status: string | null
+          tags: string[] | null
           temperature: string | null
           title: string
           updated_at: string | null
@@ -372,6 +447,7 @@ export type Database = {
           deleted_reason?: string | null
           email?: string | null
           expected_close_date?: string | null
+          history?: Json | null
           id?: string
           is_demo?: boolean | null
           lost_at?: string | null
@@ -389,6 +465,7 @@ export type Database = {
           source_local_id?: string | null
           stage?: string
           status?: string | null
+          tags?: string[] | null
           temperature?: string | null
           title: string
           updated_at?: string | null
@@ -408,6 +485,7 @@ export type Database = {
           deleted_reason?: string | null
           email?: string | null
           expected_close_date?: string | null
+          history?: Json | null
           id?: string
           is_demo?: boolean | null
           lost_at?: string | null
@@ -425,6 +503,7 @@ export type Database = {
           source_local_id?: string | null
           stage?: string
           status?: string | null
+          tags?: string[] | null
           temperature?: string | null
           title?: string
           updated_at?: string | null
@@ -453,6 +532,7 @@ export type Database = {
         Row: {
           amount: number
           archived: boolean | null
+          category: string | null
           client_id: string | null
           created_at: string | null
           deleted_at: string | null
@@ -462,6 +542,7 @@ export type Database = {
           is_demo: boolean | null
           opportunity_id: string | null
           paid_at: string | null
+          payment_method: string | null
           quote_id: string | null
           source: string | null
           source_local_id: string | null
@@ -474,6 +555,7 @@ export type Database = {
         Insert: {
           amount?: number
           archived?: boolean | null
+          category?: string | null
           client_id?: string | null
           created_at?: string | null
           deleted_at?: string | null
@@ -483,6 +565,7 @@ export type Database = {
           is_demo?: boolean | null
           opportunity_id?: string | null
           paid_at?: string | null
+          payment_method?: string | null
           quote_id?: string | null
           source?: string | null
           source_local_id?: string | null
@@ -495,6 +578,7 @@ export type Database = {
         Update: {
           amount?: number
           archived?: boolean | null
+          category?: string | null
           client_id?: string | null
           created_at?: string | null
           deleted_at?: string | null
@@ -504,6 +588,7 @@ export type Database = {
           is_demo?: boolean | null
           opportunity_id?: string | null
           paid_at?: string | null
+          payment_method?: string | null
           quote_id?: string | null
           source?: string | null
           source_local_id?: string | null
@@ -626,6 +711,7 @@ export type Database = {
           client_id: string | null
           created_at: string | null
           deleted_at: string | null
+          deliverables: Json
           description: string | null
           due_date: string | null
           id: string
@@ -646,6 +732,7 @@ export type Database = {
           client_id?: string | null
           created_at?: string | null
           deleted_at?: string | null
+          deliverables?: Json
           description?: string | null
           due_date?: string | null
           id?: string
@@ -666,6 +753,7 @@ export type Database = {
           client_id?: string | null
           created_at?: string | null
           deleted_at?: string | null
+          deliverables?: Json
           description?: string | null
           due_date?: string | null
           id?: string
@@ -759,14 +847,19 @@ export type Database = {
           client_email: string | null
           client_id: string | null
           client_name: string | null
+          client_whatsapp: string | null
+          company: string | null
           created_at: string | null
           deleted_at: string | null
           deleted_by: string | null
           deleted_reason: string | null
+          delivery_deadline: string | null
           description: string | null
           discount: number | null
           id: string
+          notes: string | null
           opportunity_id: string | null
+          payment_condition: string | null
           rejected_at: string | null
           source_local_id: string | null
           status: string | null
@@ -774,6 +867,7 @@ export type Database = {
           title: string
           total: number | null
           updated_at: string | null
+          validity_days: number | null
           workspace_id: string
         }
         Insert: {
@@ -782,14 +876,19 @@ export type Database = {
           client_email?: string | null
           client_id?: string | null
           client_name?: string | null
+          client_whatsapp?: string | null
+          company?: string | null
           created_at?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
           deleted_reason?: string | null
+          delivery_deadline?: string | null
           description?: string | null
           discount?: number | null
           id?: string
+          notes?: string | null
           opportunity_id?: string | null
+          payment_condition?: string | null
           rejected_at?: string | null
           source_local_id?: string | null
           status?: string | null
@@ -797,6 +896,7 @@ export type Database = {
           title: string
           total?: number | null
           updated_at?: string | null
+          validity_days?: number | null
           workspace_id: string
         }
         Update: {
@@ -805,14 +905,19 @@ export type Database = {
           client_email?: string | null
           client_id?: string | null
           client_name?: string | null
+          client_whatsapp?: string | null
+          company?: string | null
           created_at?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
           deleted_reason?: string | null
+          delivery_deadline?: string | null
           description?: string | null
           discount?: number | null
           id?: string
+          notes?: string | null
           opportunity_id?: string | null
+          payment_condition?: string | null
           rejected_at?: string | null
           source_local_id?: string | null
           status?: string | null
@@ -820,6 +925,7 @@ export type Database = {
           title?: string
           total?: number | null
           updated_at?: string | null
+          validity_days?: number | null
           workspace_id?: string
         }
         Relationships: [
@@ -2184,6 +2290,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_and_increment_ai_rate_limit: {
+        Args: {
+          p_bucket: string
+          p_max: number
+          p_window_s?: number
+          p_workspace_id: string
+        }
+        Returns: boolean
+      }
       claim_campaign_messages: {
         Args: {
           p_max_delay_s?: number
@@ -2207,15 +2322,21 @@ export type Database = {
           p_client_email: string
           p_client_id: string
           p_client_name: string
+          p_client_whatsapp?: string
+          p_company?: string
+          p_delivery_deadline?: string
           p_description: string
           p_discount: number
           p_items: Json
+          p_notes?: string
           p_opportunity_id: string
+          p_payment_condition?: string
           p_source_local_id: string
           p_status: string
           p_subtotal: number
           p_title: string
           p_total: number
+          p_validity_days?: number
           p_workspace_id: string
         }
         Returns: {
@@ -2224,14 +2345,19 @@ export type Database = {
           client_email: string | null
           client_id: string | null
           client_name: string | null
+          client_whatsapp: string | null
+          company: string | null
           created_at: string | null
           deleted_at: string | null
           deleted_by: string | null
           deleted_reason: string | null
+          delivery_deadline: string | null
           description: string | null
           discount: number | null
           id: string
+          notes: string | null
           opportunity_id: string | null
+          payment_condition: string | null
           rejected_at: string | null
           source_local_id: string | null
           status: string | null
@@ -2239,6 +2365,7 @@ export type Database = {
           title: string
           total: number | null
           updated_at: string | null
+          validity_days: number | null
           workspace_id: string
         }
         SetofOptions: {
@@ -2251,6 +2378,10 @@ export type Database = {
       is_workspace_admin: { Args: { w_id: string }; Returns: boolean }
       is_workspace_member: { Args: { w_id: string }; Returns: boolean }
       reap_stuck_campaign_messages: {
+        Args: { p_cutoff_s?: number }
+        Returns: number
+      }
+      reap_stuck_campaign_v2_recipients: {
         Args: { p_cutoff_s?: number }
         Returns: number
       }
