@@ -33,6 +33,14 @@ export interface Transaction {
   quoteId?: string;
   quoteTitle?: string;
   opportunityId?: number;
+  // --- Etapa 5 · Financeiro Fatia N — só presentes numa Transaction lida da
+  // nuvem (mapSupabaseTransactionToLocal, financeMapper.ts). `status`/`type`
+  // de public.financial_transactions não têm CHECK constraint (confirmado em
+  // etapa-5-flip-financeiro-fase-a.md §3) — um valor bruto fora do
+  // vocabulário local cai no fallback seguro e o valor original fica aqui
+  // pra UI nunca mascarar, mesmo padrão de cloudStatusRaw em quotes/projects. ---
+  cloudStatusRaw?: string;
+  cloudTypeRaw?: string;
 }
 
 /** Legacy categorias usadas como fallback */

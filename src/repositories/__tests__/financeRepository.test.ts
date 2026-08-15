@@ -17,10 +17,12 @@ const mocks = vi.hoisted(() => {
   const update = vi.fn(() => ({ eq: updateEqId }));
 
   // Chain for listReceivables: select("*").eq(workspace).eq(type).is(deleted_at).order(...)
+  // Chain for listTransactions (Fatia N, sem filtro de type): select("*").eq(workspace).is(deleted_at).order(...)
+  // listEqWorkspace expõe os 2 próximos passos possíveis (eq OU is direto).
   const listOrder = vi.fn();
   const listIs = vi.fn(() => ({ order: listOrder }));
   const listEqType = vi.fn(() => ({ is: listIs }));
-  const listEqWorkspace = vi.fn(() => ({ eq: listEqType }));
+  const listEqWorkspace = vi.fn(() => ({ eq: listEqType, is: listIs }));
   const select = vi.fn(() => ({ eq: listEqWorkspace }));
 
   const from = vi.fn(() => ({ upsert, update, select }));
@@ -188,5 +190,32 @@ describe("financeRepository.listReceivables — filtra por type (G20)", () => {
     expect(mocks.listEqType).toHaveBeenCalledWith("type", "receivable");
     expect(mocks.listIs).toHaveBeenCalledWith("deleted_at", null);
     expect(result).toEqual([{ id: "ft-1", type: "receivable", status: "pending", amount: 100 }]);
+  });
+});
+
+// Etapa 5 · Financeiro Fatia N — listTransactions é o irmão sem filtro de
+// type do listReceivables (G20): a tela principal precisa de receitas E
+// despesas juntas, listReceivables existe só pro painel de QA.
+describe("financeRepository.listTransactions — sem filtro de type (Fatia N, leitura da tela principal)", () => {
+  it("consulta financial_transactions sem eq(type) — devolve receivable E payable juntos", async () => {
+    mocks.listOrder.mockResolvedValue({
+      data: [
+        { id: "ft-1", type: "receivable", status: "pending", amount: 100 },
+        { id: "ft-2", type: "payable", status: "paid", amount: 50 },
+      ],
+      error: null,
+    });
+
+    const result = await financeRepository.listTransactions("ws1");
+
+    expect(mocks.from).toHaveBeenCalledWith("financial_transactions");
+    expect(mocks.select).toHaveBeenCalledWith("*");
+    expect(mocks.listEqWorkspace).toHaveBeenCalledWith("workspace_id", "ws1");
+    // Nunca chama eq("type", ...) — esse é o passo exclusivo de listReceivables;
+    // listTransactions vai direto de eq(workspace_id) pra is(deleted_at).
+    expect(mocks.listEqType).not.toHaveBeenCalled();
+    expect(mocks.listIs).toHaveBeenCalledWith("deleted_at", null);
+    expect(result).toHaveLength(2);
+    expect(result.map((r) => r.type)).toEqual(["receivable", "payable"]);
   });
 });

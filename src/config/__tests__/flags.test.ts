@@ -25,6 +25,9 @@ import {
   PROJECTS_DATA_SOURCE_KEY,
   getProjectsDataSource,
   setProjectsDataSource,
+  FINANCE_DATA_SOURCE_KEY,
+  getFinanceDataSource,
+  setFinanceDataSource,
 } from "@/config/flags";
 
 beforeEach(() => {
@@ -262,6 +265,47 @@ describe("flags · seletor de fonte de projects (string plana, default SUPABASE 
     getProjectsDataSource();
     expect(localStorage.getItem(PROJECTS_DATA_SOURCE_KEY)).toBe("supabase");
     expect(getProjectsDataSource()).toBe("supabase");
+  });
+});
+
+// Etapa 5 · Financeiro Fatia N — nasce no molde PRÉ-flip (default "local",
+// só "supabase" explícito seleciona nuvem) — mesmo nascimento de
+// quotes/projects antes do Pacote do Flip deles (inverso do estado pós-flip
+// testado acima). Financeiro era o único domínio sem flag de fonte
+// (etapa-5-flip-financeiro-fase-a.md §1.3).
+describe("flags · seletor de fonte de financeiro (string plana, default LOCAL — nasce pré-flip)", () => {
+  it("default é \"local\" quando ausente", () => {
+    expect(localStorage.getItem(FINANCE_DATA_SOURCE_KEY)).toBeNull();
+    expect(getFinanceDataSource()).toBe("local");
+  });
+
+  it("só o literal \"supabase\" seleciona nuvem", () => {
+    localStorage.setItem(FINANCE_DATA_SOURCE_KEY, "supabase");
+    expect(getFinanceDataSource()).toBe("supabase");
+  });
+
+  it("\"local\" e qualquer lixo resolvem para \"local\"", () => {
+    localStorage.setItem(FINANCE_DATA_SOURCE_KEY, "local");
+    expect(getFinanceDataSource()).toBe("local");
+    localStorage.setItem(FINANCE_DATA_SOURCE_KEY, "xpto");
+    expect(getFinanceDataSource()).toBe("local");
+    localStorage.setItem(FINANCE_DATA_SOURCE_KEY, "");
+    expect(getFinanceDataSource()).toBe("local");
+  });
+
+  it("grava a string plana crua na chave certa", () => {
+    setFinanceDataSource("supabase");
+    expect(localStorage.getItem(FINANCE_DATA_SOURCE_KEY)).toBe("supabase");
+    setFinanceDataSource("local");
+    expect(localStorage.getItem(FINANCE_DATA_SOURCE_KEY)).toBe("local");
+  });
+
+  it("valor explícito \"supabase\" já persistido nunca é sobrescrito por uma leitura", () => {
+    setFinanceDataSource("supabase");
+    getFinanceDataSource();
+    getFinanceDataSource();
+    expect(localStorage.getItem(FINANCE_DATA_SOURCE_KEY)).toBe("supabase");
+    expect(getFinanceDataSource()).toBe("supabase");
   });
 });
 
