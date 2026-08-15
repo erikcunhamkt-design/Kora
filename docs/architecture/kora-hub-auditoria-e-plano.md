@@ -619,6 +619,26 @@ Achado na Fase D (homologação), Caso 5.2, do Pacote do Flip de `projects` (Eta
 
 ---
 
+**G38 — Filtro "Ativos" de Clientes mostrava cliente arquivado em modo Supabase — `mapSupabaseClientToLocalClient` nunca lia a coluna `archived` do banco. [MÉDIO — confirmado e FECHADO, classe "campo opcional omitido no mapper — filtro correto, dado incompleto"]**
+Achado ao vivo na Fase D (homologação de Tarefas/backlog de UI): arquivar um cliente em modo Supabase disparou o toast de sucesso e o contador "Ativos" caiu pra 0 — mas a lista sob o filtro "Ativos" continuou mostrando o cliente arquivado, discordando do próprio contador na mesma tela.
+
+- **O filtro em si estava certo:** `Clientes.tsx:344-345` já checa `c.archived` corretamente (`if (!showArchived && c.archived) return false`). O bug não é de lógica de filtro — é de dado: `mapSupabaseClientToLocalClient` (`useClientsDataSource.ts:7-41`) mapeia todos os campos da linha do Supabase **exceto `archived`** — o campo simplesmente não aparecia no objeto literal retornado. Como `Client.archived` é opcional (`archived?: boolean`, `types/domain.ts:162`), isso nunca deu erro de `tsc` — o campo só ficava `undefined` silenciosamente, e `!showArchived && undefined` nunca é `true`, então o filtro nunca excluía ninguém, não importa o valor real gravado no banco.
+- **Confirmado que o banco recebe o valor certo:** `clientsRepository.archiveClient` (`:83-86`) já fazia `.update({ archived })` corretamente — a escrita nunca foi o problema, só a leitura de volta pro estado local.
+- **Fix (diff de 1 linha):** `mapSupabaseClientToLocalClient` passou a incluir `archived: !!s.archived`.
+- **Testes novos** (`useClientsDataSource.test.ts`, novo arquivo): mapeia `archived: true`/`archived: false` de uma linha simulada do Supabase, confirma que nenhum dos dois vira `undefined`. Ambos falham contra o código anterior ao fix (confirmado por reprodução antes de aplicar a correção).
+
+---
+
+**G39 — Filtro "Todos status" de Projetos incluía projeto arquivado — mesmo padrão já resolvido em Quotes, nunca replicado em Projects. [MÉDIO — confirmado e FECHADO, classe "filtro 'todos' não exclui estado terminal — irmão do G29"]**
+Achado por leitura no sign-off da Fase D de Projetos: `ProjectsSection.tsx:110` só excluía por status quando `filterStatus !== "all"` — sob "Todos status" (o filtro default), nada excluía `status === "archived"`. Contraste direto com `QuotesSection.tsx:236`, que já exclui `"arquivado"` explicitamente sob `filterStatus === "all"` e só mostra arquivados quando o filtro de status é `"arquivado"` de propósito — o padrão certo já existia no código, só nunca foi replicado pra Projetos.
+
+- **Verificação (item 3 do pacote) — é o MESMO defeito, não um distinto:** o achado da homologação ("HOMOLOG-FLIP-projeto-A" apareceu na lista principal com badge "Arquivado" mesmo sob "Todos status") usa o único caminho de renderização de `ProjectsSection.tsx` — confirmado por grep que existe **um único** `filtered.map(...)` na tela (`:354`), sem view alternativa (kanban/lista) com lógica de filtro própria. A causa é a mesma `filtered` corrigida abaixo; não há um segundo defeito a catalogar separadamente.
+- **Fix (diff de 1 linha, mesmo padrão de `QuotesSection.tsx:236`):** `filtered` (`ProjectsSection.tsx`) ganhou `if (filterStatus === "all" && p.status === "archived") return false;` antes da checagem de filtro específico — arquivado continua acessível selecionando "Arquivado" explicitamente no mesmo `<Select>` (já era uma opção válida via `PROJECT_STATUS_LABEL`, só a exclusão do "all" faltava).
+- **Fora de escopo, sinalizado sem corrigir:** o KPI "Total" (`metrics.total = projects.length`, `ProjectsSection.tsx:126`) continua contando projetos arquivados — é uma métrica separada (card de resumo, não a lista/filtro), não mencionada no achado original da Fase D. Não alterado nesta rodada; candidato a checagem numa rodada futura se o mesmo padrão de "total deveria excluir arquivado" for confirmado como intencional em Quotes.
+- **Testes novos** (`ProjectsSection.test.tsx`, describe "Fase D"): projeto arquivado fica de fora sob "Todos status"; projeto arquivado aparece ao selecionar "Arquivado" explicitamente no filtro (prova que a exclusão é só do "all", não um bloqueio geral). Ambos falham contra o código anterior ao fix (confirmado por reprodução antes de aplicar a correção).
+
+---
+
 ## 3. Segurança / vulnerabilidades (verificar e endurecer)
 
 > Vários itens abaixo são **"confirmar no código"** — a arquitetura está certa, mas a implementação precisa ser auditada arquivo a arquivo pelo Code.
