@@ -36,6 +36,8 @@ import {
 import { useDayCenterData } from "@/hooks/useDayCenterData";
 import { useTasks } from "@/hooks/useTasks";
 import { useFinance } from "@/hooks/useFinance";
+import { useBifurcatedFinance } from "@/hooks/useBifurcatedFinance";
+import { getFinanceDataSource } from "@/config/flags";
 import { useClientActivityLogs, useAllClientActivityLogs } from "@/hooks/useClientActivityLogs";
 import { useDayCenterResolvedActions } from "@/hooks/useDayCenterResolvedActions";
 import {
@@ -116,7 +118,14 @@ export function DayCenter({ open, onOpenChange }: Props) {
   const [, setTick] = useState(0);
   const result = useDayCenterData();
   const { updateTask } = useTasks();
-  const { updateTransactionStatus, transactions } = useFinance();
+  // Etapa 5 · Financeiro Fase B (Pacote do Flip, §3.1 do desenho) — mesma
+  // guarda de useDayCenterActions.ts: transactions vem bifurcado (leitura),
+  // updateTransactionStatus continua o mutator LOCAL (escrita local-only
+  // por decisão do desenho) — confirmMarkPaid/canMarkPaid abaixo bloqueiam
+  // a ação em modo Supabase pra nunca virar um no-op silencioso contra uma
+  // linha que só existe na nuvem.
+  const { updateTransactionStatus } = useFinance();
+  const transactions = useBifurcatedFinance();
   const { updateLog } = useClientActivityLogs();
   const allManualLogs = useAllClientActivityLogs();
   const { todayCount, todayActions, addAction } = useDayCenterResolvedActions();
@@ -171,6 +180,11 @@ export function DayCenter({ open, onOpenChange }: Props) {
 
   const confirmMarkPaid = () => {
     if (!payConfirm || !payConfirm.relatedId) return;
+    if (getFinanceDataSource() === "supabase") {
+      toast.error("Marcar como pago pela Central do Dia ainda não funciona em modo Supabase — use a tela Financeiro.");
+      setPayConfirm(null);
+      return;
+    }
     const txId = String(payConfirm.relatedId);
     const tx = transactions.find((t) => t.id === txId);
     try {
@@ -194,6 +208,7 @@ export function DayCenter({ open, onOpenChange }: Props) {
 
   const canMarkPaid = (item: DayActionItem): boolean => {
     if (item.relatedType !== "finance_transaction") return false;
+    if (getFinanceDataSource() === "supabase") return false;
     const tx = transactions.find((t) => t.id === item.relatedId);
     return !!tx && tx.type === "income" && tx.status !== "paid" && tx.status !== "canceled";
   };

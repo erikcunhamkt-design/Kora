@@ -219,3 +219,24 @@ describe("financeRepository.listTransactions — sem filtro de type (Fatia N, le
     expect(result.map((r) => r.type)).toEqual(["receivable", "payable"]);
   });
 });
+
+// Etapa 5 · Financeiro Fase B (§2.5 do desenho) — updateTransaction, mesmo
+// formato de projectsRepository.updateProject (UPDATE ... WHERE id AND
+// workspace_id, devolve a linha via .select().single()). Mesma cadeia de
+// chamadas que softDeleteReceivable já usa — reaproveita os mocks de update.
+describe("financeRepository.updateTransaction — Fase B, edição direta por id (§2.5)", () => {
+  it("grava o patch, filtra por id E workspace_id, devolve a linha atualizada", async () => {
+    mocks.updateSingle.mockResolvedValue({
+      data: { id: "ft-1", status: "paid", updated_at: "2026-08-15T12:00:00Z" },
+      error: null,
+    });
+
+    const result = await financeRepository.updateTransaction("ws1", "ft-1", { status: "paid" });
+
+    expect(mocks.from).toHaveBeenCalledWith("financial_transactions");
+    expect(mocks.update).toHaveBeenCalledWith({ status: "paid" });
+    expect(mocks.updateEqId).toHaveBeenCalledWith("id", "ft-1");
+    expect(mocks.updateEqWorkspace).toHaveBeenCalledWith("workspace_id", "ws1");
+    expect(result).toEqual({ id: "ft-1", status: "paid", updated_at: "2026-08-15T12:00:00Z" });
+  });
+});

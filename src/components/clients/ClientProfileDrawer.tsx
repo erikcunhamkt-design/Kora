@@ -43,7 +43,7 @@ import {
 import { useLeads } from "@/hooks/useLeads";
 import { useQuotes } from "@/hooks/useQuotes";
 import { useBifurcatedProjects } from "@/hooks/useBifurcatedProjects";
-import { useFinance } from "@/hooks/useFinance";
+import { useBifurcatedFinance } from "@/hooks/useBifurcatedFinance";
 import { ClientLibrarySection } from "./ClientLibrarySection";
 import { ClientActivitiesTab } from "./ClientActivitiesTab";
 
@@ -959,7 +959,10 @@ const ProjectsTab = ({ client, onClose }: { client: Client; onClose: () => void 
 
 const FinanceTab = ({ client, onClose }: { client: Client; onClose: () => void }) => {
   const navigate = useNavigate();
-  const { transactions } = useFinance();
+  // Etapa 5 · Financeiro Fase B (Pacote do Flip, §3.1 do desenho) — mesmo
+  // padrão já usado pra projects (linha ~912): lê a fonte que o seletor de
+  // Financeiro.tsx decidir, sem duplicar o combo local+supabase+dataSource.
+  const transactions = useBifurcatedFinance();
   const items = useMemo(
     () => transactions.filter((t) => t.type === "income" && (t.clientId === client.id || t.clientName === client.name)),
     [transactions, client.id, client.name]

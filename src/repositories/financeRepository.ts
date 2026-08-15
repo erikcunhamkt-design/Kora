@@ -28,6 +28,10 @@ export interface SupabaseFinancialTransaction {
    * legadas ou criadas nativamente na nuvem (ex.: via CreateReceivableDialog antes de
    * F1, ou por outro fluxo que não passe pelo import). */
   source_local_id?: string | null;
+  /** Etapa 5 · Financeiro Fase B (Pacote do Flip, §1.1): colunas da migration
+   * 20260815000100, aplicação é gate do operador (protocolo §8-b). */
+  category?: string | null;
+  payment_method?: string | null;
 }
 
 export const financeRepository = {
@@ -115,6 +119,25 @@ export const financeRepository = {
 
     if (error) throw normalizeSupabaseError(error);
     return data as SupabaseFinancialTransaction[];
+  },
+
+  // Etapa 5 · Financeiro Fase B (Pacote do Flip, §2.5 do desenho) — edição
+  // direta de uma linha já existente, identificada pelo próprio uuid (`id`),
+  // mesmo formato de `projectsRepository.updateProject`. Usado pela tela
+  // principal em modo Supabase (Financeiro.tsx: marcar como pago/cancelar) —
+  // a mutation consumidora escreve a linha devolvida aqui direto no cache
+  // (G30 por desenho, nunca só invalidateQueries).
+  async updateTransaction(workspaceId: string, transactionId: string, patch: Partial<SupabaseFinancialTransaction>) {
+    const { data, error } = await supabase
+      .from("financial_transactions")
+      .update(patch as unknown as FinancialTransactionUpsert)
+      .eq("id", transactionId)
+      .eq("workspace_id", workspaceId)
+      .select()
+      .single();
+
+    if (error) throw normalizeSupabaseError(error);
+    return data as SupabaseFinancialTransaction;
   },
 
   // Etapa 5 · Fatia 6 (F2) — import geral, com a árvore de decisão do §6 do doc da

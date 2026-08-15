@@ -17,12 +17,18 @@ import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { useClientsDataSource } from "@/hooks/useClientsDataSource";
 import { financeRepository } from "@/repositories/financeRepository";
 import { FINANCE_DATA_SOURCE_KEY } from "@/config/flags";
+import { FINANCE_SUPABASE_WRITE_FLAG_KEY } from "@/hooks/useSupabaseFinanceWriteFlag";
 import type { SupabaseFinancialTransaction } from "@/repositories/financeRepository";
 
 vi.mock("@/hooks/useCurrentWorkspace", () => ({ useCurrentWorkspace: vi.fn() }));
 vi.mock("@/hooks/useClientsDataSource", () => ({ useClientsDataSource: vi.fn() }));
 vi.mock("@/repositories/financeRepository", () => ({
-  financeRepository: { listTransactions: vi.fn() },
+  financeRepository: {
+    listTransactions: vi.fn(),
+    importTransaction: vi.fn(),
+    updateTransaction: vi.fn(),
+    softDeleteReceivable: vi.fn(),
+  },
 }));
 // QuickSaleDialog/ExpenseDialog (sempre montados, mesmo com open=false) usam
 // useFormat() -> useTranslation() -> LanguageContext, que exige um
@@ -33,6 +39,29 @@ vi.mock("@/hooks/useFormat", () => ({ useFormat: () => ({ currency: "BRL" }) }))
 vi.mock("sonner", () => ({
   toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() }),
 }));
+
+// Radix DropdownMenu (v2) abre no `pointerdown`, não no `click` — e este
+// jsdom não implementa `PointerEvent` (typeof window.PointerEvent ===
+// "undefined"), então fireEvent.pointerDown cairia num MouseEvent genérico
+// sem os campos que o handler do Radix lê. Mesmo polyfill de CRM.test.tsx —
+// precisa aqui pela primeira vez nesta suíte porque o painel de ações do
+// Supabase (Fase B) é o primeiro DropdownMenu de Financeiro.tsx exercitado
+// via clique num teste.
+if (typeof window !== "undefined" && !("PointerEvent" in window)) {
+  class PointerEventPolyfill extends MouseEvent {
+    public pointerId: number;
+    public pointerType: string;
+    public isPrimary: boolean;
+    constructor(type: string, params: MouseEventInit & { pointerId?: number; pointerType?: string; isPrimary?: boolean } = {}) {
+      super(type, params);
+      this.pointerId = params.pointerId ?? 1;
+      this.pointerType = params.pointerType ?? "mouse";
+      this.isPrimary = params.isPrimary ?? true;
+    }
+  }
+  // @ts-expect-error — polyfill de teste, jsdom não implementa PointerEvent.
+  window.PointerEvent = PointerEventPolyfill;
+}
 
 function makeRow(overrides: Partial<SupabaseFinancialTransaction> = {}): SupabaseFinancialTransaction {
   return {
@@ -83,9 +112,17 @@ describe("Financeiro · modo local (default) — zero regressão nos consumidore
     expect(toast.error).not.toHaveBeenCalled();
   });
 
-  it("financeRepository.listTransactions nunca é chamado em modo local (painel Supabase nem monta)", () => {
+  // Fase B (Pacote do Flip, item 2/§2 do desenho) — useSupabaseFinanceTransactions()
+  // sobe pro topo de Financeiro (G32 da casa, mesmo padrão de
+  // useSupabaseProjects()/useSupabaseQuotes() em ProjectsSection.tsx/
+  // QuotesSection.tsx: o hook busca em paralelo sempre, só o seletor decide
+  // qual resultado a tela EXIBE) — precisa estar pronto pra escrita
+  // (create/update/delete) assim que a flag ligar, sem esperar uma
+  // remontagem do painel. A UI (banner/painel) continua só aparecendo em
+  // modo Supabase — ver teste acima ("sem o painel/banner Supabase").
+  it("financeRepository.listTransactions É chamado mesmo em modo local (Fase B, G32 — busca paralela, só a UI decide o que exibir)", async () => {
     renderPage();
-    expect(financeRepository.listTransactions).not.toHaveBeenCalled();
+    await waitFor(() => expect(financeRepository.listTransactions).toHaveBeenCalled());
   });
 });
 
@@ -147,5 +184,131 @@ describe("Financeiro · escrita bloqueada em modo Supabase (molde blockWrite pr�
     fireEvent.click(screen.getByText("Venda rápida"));
 
     expect(document.querySelector('[role="dialog"]')).toBeInTheDocument();
+  });
+});
+
+// Etapa 5 · Financeiro Fase B (Pacote do Flip, item 2/§2 do desenho) —
+// escrita real quando useSupabaseFinanceWriteFlag está ligada
+// (kora.finance.supabaseWrite.enabled). Prova fail->fix->pass: rodar estes
+// testes contra o código PRÉ-Fase B (blockWrite() incondicional, painel
+// genuinamente read-only) falha todos — blockWrite() sempre bloqueava e o
+// painel não tinha coluna de Ações nenhuma.
+describe("Financeiro · escrita real com a flag ligada (Fase B, §2 do desenho)", () => {
+  Element.prototype.hasPointerCapture = Element.prototype.hasPointerCapture || (() => false);
+  Element.prototype.scrollIntoView = Element.prototype.scrollIntoView || (() => {});
+
+  async function switchToSupabaseWithWrite() {
+    localStorage.setItem(FINANCE_SUPABASE_WRITE_FLAG_KEY, "true");
+    renderPage();
+    fireEvent.click(screen.getByText("Supabase experimental"));
+    await screen.findByText(/Transações operacionais \(Supabase\)/);
+  }
+
+  function pickCategory(name: string) {
+    const trigger = screen.getByText("Selecione");
+    fireEvent.pointerDown(trigger, { button: 0, pointerId: 1, isPrimary: true });
+    fireEvent.pointerUp(trigger, { button: 0, pointerId: 1, isPrimary: true });
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByText(name));
+  }
+
+  it("com a flag ligada, \"Venda rápida\" abre o diálogo normalmente — blockWrite() não bloqueia mais", async () => {
+    await switchToSupabaseWithWrite();
+
+    fireEvent.click(screen.getByText("Venda rápida"));
+
+    expect(document.querySelector('[role="dialog"]')).toBeInTheDocument();
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("criar uma venda em modo Supabase (flag ligada) grava via financeRepository.importTransaction — nunca no addTransaction local", async () => {
+    vi.mocked(financeRepository.importTransaction).mockResolvedValue({
+      id: "sft-new", workspace_id: "ws1", type: "receivable", status: "pending",
+      title: "Venda nuvem", amount: 250, source: "sale", is_demo: false, archived: false,
+      created_at: "2026-08-15T00:00:00Z", updated_at: "2026-08-15T00:00:00Z",
+    } as never);
+    await switchToSupabaseWithWrite();
+
+    fireEvent.click(screen.getByText("Venda rápida"));
+    fireEvent.change(screen.getByPlaceholderText("Ex: Projeto de branding"), { target: { value: "Venda nuvem" } });
+    fireEvent.change(screen.getByRole("spinbutton"), { target: { value: "250" } });
+    pickCategory("Serviços");
+    fireEvent.click(screen.getByRole("button", { name: "Registrar venda" }));
+
+    await waitFor(() => expect(financeRepository.importTransaction).toHaveBeenCalledWith(
+      "ws1",
+      expect.stringContaining("native:"),
+      expect.objectContaining({ type: "receivable", title: "Venda nuvem", amount: 250, category: "Serviços" }),
+    ));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Venda registrada na nuvem"));
+  });
+
+  it("escolher \"Recorrente\" em modo Supabase avisa (post-flip gap) mas NÃO bloqueia a criação — §1.2 do desenho", async () => {
+    vi.mocked(financeRepository.importTransaction).mockResolvedValue({
+      id: "sft-new2", workspace_id: "ws1", type: "receivable", status: "pending",
+      title: "Venda recorrente", amount: 100, source: "sale", is_demo: false, archived: false,
+      created_at: "2026-08-15T00:00:00Z", updated_at: "2026-08-15T00:00:00Z",
+    } as never);
+    await switchToSupabaseWithWrite();
+
+    fireEvent.click(screen.getByText("Venda rápida"));
+    fireEvent.change(screen.getByPlaceholderText("Ex: Projeto de branding"), { target: { value: "Venda recorrente" } });
+    fireEvent.change(screen.getByRole("spinbutton"), { target: { value: "100" } });
+    pickCategory("Serviços");
+    fireEvent.click(screen.getByText("À vista"));
+    fireEvent.click(screen.getByText("Recorrente"));
+    fireEvent.click(screen.getByRole("button", { name: "Registrar venda" }));
+
+    await waitFor(() => expect(toast.warning).toHaveBeenCalledWith(expect.stringContaining("Recorrência ainda não é gravada")));
+    await waitFor(() => expect(financeRepository.importTransaction).toHaveBeenCalled());
+  });
+
+  it("painel ganha coluna \"Ações\" quando a flag está ligada (some quando desligada)", async () => {
+    vi.mocked(financeRepository.listTransactions).mockResolvedValue([makeRow()]);
+    await switchToSupabaseWithWrite();
+
+    expect(await screen.findByText("Recebível Nuvem X")).toBeInTheDocument();
+    expect(screen.getByText("Ações")).toBeInTheDocument();
+  });
+
+  it("painel NÃO tem coluna \"Ações\" quando a flag está desligada (comportamento Fatia N preservado)", async () => {
+    vi.mocked(financeRepository.listTransactions).mockResolvedValue([makeRow()]);
+    renderPage();
+    fireEvent.click(screen.getByText("Supabase experimental"));
+
+    expect(await screen.findByText("Recebível Nuvem X")).toBeInTheDocument();
+    expect(screen.queryByText("Ações")).not.toBeInTheDocument();
+  });
+
+  it("marcar como pago no painel chama financeRepository.updateTransaction (G30 — a própria resposta atualiza a linha)", async () => {
+    vi.mocked(financeRepository.listTransactions).mockResolvedValue([makeRow()]);
+    vi.mocked(financeRepository.updateTransaction).mockResolvedValue(makeRow({ status: "paid" }) as never);
+    await switchToSupabaseWithWrite();
+    await screen.findByText("Recebível Nuvem X");
+
+    const trigger1 = screen.getByRole("button", { name: "Ações" });
+    fireEvent.pointerDown(trigger1, { button: 0, pointerId: 1, isPrimary: true });
+    fireEvent.pointerUp(trigger1, { button: 0, pointerId: 1, isPrimary: true });
+    fireEvent.click(trigger1);
+    fireEvent.click(await screen.findByText("Marcar como recebido"));
+
+    await waitFor(() => expect(financeRepository.updateTransaction).toHaveBeenCalledWith("ws1", "sft-1", { status: "paid" }));
+    expect(financeRepository.listTransactions).toHaveBeenCalledTimes(1);
+  });
+
+  it("excluir no painel chama financeRepository.softDeleteReceivable e a linha some", async () => {
+    vi.mocked(financeRepository.listTransactions).mockResolvedValue([makeRow()]);
+    vi.mocked(financeRepository.softDeleteReceivable).mockResolvedValue(makeRow() as never);
+    await switchToSupabaseWithWrite();
+    await screen.findByText("Recebível Nuvem X");
+
+    const trigger2 = screen.getByRole("button", { name: "Ações" });
+    fireEvent.pointerDown(trigger2, { button: 0, pointerId: 1, isPrimary: true });
+    fireEvent.pointerUp(trigger2, { button: 0, pointerId: 1, isPrimary: true });
+    fireEvent.click(trigger2);
+    fireEvent.click(await screen.findByText("Excluir"));
+
+    await waitFor(() => expect(financeRepository.softDeleteReceivable).toHaveBeenCalledWith("ws1", "sft-1"));
+    await waitFor(() => expect(screen.queryByText("Recebível Nuvem X")).not.toBeInTheDocument());
   });
 });

@@ -32,7 +32,10 @@ import {
 import { useFormat } from "@/hooks/useFormat";
 import { useClients } from "@/hooks/useClients";
 import { useSupabaseFinanceTransactions } from "@/hooks/useSupabaseFinanceTransactions";
+import type { SupabaseFinancialTransaction } from "@/repositories/financeRepository";
 import { getFinanceDataSource, setFinanceDataSource, type DataSource } from "@/config/flags";
+import { useSupabaseFinanceWriteFlag } from "@/hooks/useSupabaseFinanceWriteFlag";
+import type { NewTransactionInput } from "@/hooks/useSupabaseFinanceTransactions";
 import { toast } from "sonner";
 
 // ============================================================
@@ -146,30 +149,55 @@ const Financeiro = () => {
   // qualquer que seja o seletor — zero risco de regressão nos consumidores
   // atuais (fin.updateTransactionStatus/deleteTransaction, chamados direto
   // pelas linhas da tabela local, nunca veriam uma linha vinda da nuvem).
-  // Em modo Supabase, um painel de leitura SEPARADO (abaixo) mostra as
-  // transações da nuvem — sem nenhuma ação por linha (genuinamente
-  // read-only, esta fatia não cria escrita nova nenhuma). Os 2 botões de
-  // criação do cabeçalho ficam bloqueados nesse modo (blockWrite()) — o
-  // flip real (Fase C, desenho em paralelo) decide no futuro se/como as
-  // abas passam a ler a nuvem de verdade.
+  // Em modo Supabase, um painel SEPARADO (abaixo) mostra as transações da
+  // nuvem. Fase B (Pacote do Flip, item 2): esse painel ganha ações reais
+  // por linha (marcar pago/cancelar/excluir) e os 2 botões de criação do
+  // cabeçalho passam a gravar direto na nuvem — mas só quando
+  // `useSupabaseFinanceWriteFlag` (opt-in, nasce OFF) está ligada; com a
+  // flag OFF o comportamento é idêntico ao da Fatia N (painel read-only,
+  // blockWrite() sempre bloqueia). O flip dos defaults (ligar a flag pra
+  // todo mundo) é Fase C, desenho em paralelo.
   const [dataSource, setDataSourceState] = useState<DataSource>(() => getFinanceDataSource());
 
   const handleSourceChange = (next: DataSource) => {
     setFinanceDataSource(next);
     setDataSourceState(next);
-    toast.info(`Fonte do financeiro alterada para ${next === "supabase" ? "Supabase (leitura)" : "Local"}.`);
+    toast.info(`Fonte do financeiro alterada para ${next === "supabase" ? "Supabase" : "Local"}.`);
   };
+
+  // Etapa 5 · Financeiro Fase B (Pacote do Flip, item 2) — hook único no
+  // topo, molde de ProjectsSection.tsx/QuotesSection.tsx: create/update/
+  // delete de verdade, threaded pros diálogos (QuickSaleDialog/
+  // ExpenseDialog) e pro painel abaixo. Um só cache React Query (mesma
+  // queryKey) — sem instância duplicada da mutation.
+  const {
+    createTransaction: createSupabaseTransaction,
+    updateTransaction: updateSupabaseTransaction,
+    deleteTransaction: deleteSupabaseTransaction,
+    ...supabaseFinance
+  } = useSupabaseFinanceTransactions();
+
+  // useSupabaseFinanceWriteFlag (reativo, Fatia N reservou/não consumiu
+  // ainda) em vez do leitor imperativo puro: some/reaparece nos 2 diálogos
+  // e no painel se a flag mudar em outra aba (mesmo padrão já usado pelas
+  // flags de dataSource neste arquivo).
+  const { enabled: writeEnabled } = useSupabaseFinanceWriteFlag();
 
   // G29 (lição aplicada desde o nascimento, não descoberta depois): texto
   // HONESTO desde o dia 1 — nunca promete escrita que não existe, nunca
-  // sobrevive além do que o código realmente faz. Nenhuma flag de escrita
-  // checada aqui (diferente de quotes/projects pós-CRUD): esta fatia é
-  // só leitura, a escrita fica bloqueada incondicionalmente em modo Supabase.
+  // sobrevive além do que o código realmente faz.
+  // Fase B, item 2 do desenho: blockWrite() passa a gatear pela flag mestre
+  // de escrita (opt-in nesta fase — nasce OFF, `useSupabaseFinanceWriteFlag`,
+  // Fatia N). Flag OFF preserva o comportamento anterior byte a byte
+  // (sempre bloqueia em modo Supabase) — nenhum teste Fatia N quebra.
   const blockWrite = (): boolean => {
     if (dataSource !== "supabase") return false;
-    toast.error("Escrita em modo Supabase ainda não existe pra Financeiro — volte para \"Local\" para lançar/editar.");
+    if (writeEnabled) return false;
+    toast.error("Escrita em modo Supabase ainda não existe pra Financeiro — volte para \"Local\" para lançar/editar, ou ative a escrita experimental.");
     return true;
   };
+
+  const cloudWriteMode = dataSource === "supabase" && writeEnabled;
 
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTab = ((): TabKey => {
@@ -270,17 +298,26 @@ const Financeiro = () => {
         <div className="flex items-start gap-2.5 p-3 rounded-lg border border-primary/20 bg-primary/5 text-xs text-foreground">
           <Cloud className="h-4 w-4 shrink-0 mt-0.5 text-primary" />
           <div className="flex-1">
-            <span className="font-semibold block">Transações operacionais (Supabase) — modo leitura</span>
+            <span className="font-semibold block">
+              Transações operacionais (Supabase) — {writeEnabled ? "escrita experimental" : "modo leitura"}
+            </span>
             <span className="text-muted-foreground">
-              A lista abaixo já vem da nuvem. Escrita (criar, editar, marcar como pago, excluir)
-              ainda não existe nesse modo — as abas locais continuam funcionando normalmente,
-              intocadas, pra você lançar e editar enquanto isso.
+              {writeEnabled
+                ? "A lista abaixo já vem da nuvem e aceita criar/editar/marcar pago/excluir. Recorrência e fornecedor ainda não têm coluna na nuvem — leia o aviso ao usá-los."
+                : "A lista abaixo já vem da nuvem. Escrita (criar, editar, marcar como pago, excluir) ainda não existe nesse modo — as abas locais continuam funcionando normalmente, intocadas, pra você lançar e editar enquanto isso."}
             </span>
           </div>
         </div>
       )}
 
-      {dataSource === "supabase" && <SupabaseTransactionsReadOnlyPanel />}
+      {dataSource === "supabase" && (
+        <SupabaseTransactionsPanel
+          {...supabaseFinance}
+          writeEnabled={writeEnabled}
+          onUpdate={updateSupabaseTransaction}
+          onDelete={deleteSupabaseTransaction}
+        />
+      )}
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
         <div className="-mx-1 px-1 overflow-x-auto scrollbar-thin">
@@ -327,8 +364,14 @@ const Financeiro = () => {
       </Tabs>
 
       {/* Modals */}
-      <QuickSaleDialog open={openSale} onOpenChange={setOpenSale} fin={fin} clients={clients} />
-      <ExpenseDialog open={openExpense} onOpenChange={setOpenExpense} fin={fin} />
+      <QuickSaleDialog
+        open={openSale} onOpenChange={setOpenSale} fin={fin} clients={clients}
+        cloudMode={cloudWriteMode} onCreateCloud={createSupabaseTransaction}
+      />
+      <ExpenseDialog
+        open={openExpense} onOpenChange={setOpenExpense} fin={fin}
+        cloudMode={cloudWriteMode} onCreateCloud={createSupabaseTransaction}
+      />
       <CategoriesDialog open={openCats} onOpenChange={setOpenCats} fin={fin} />
       <TutorialDialog open={tutorialOpen} onOpenChange={setTutorialOpen} />
     </div>
@@ -336,18 +379,49 @@ const Financeiro = () => {
 };
 
 // ============================================================
-// SUPABASE TRANSACTIONS — read-only (Fatia N, item 3)
+// SUPABASE TRANSACTIONS (Fatia N item 3 -> Fase B item 2, §2.5 do desenho)
 // ============================================================
-// Genuinely read-only: nenhuma ação por linha (sem status/excluir/editar) —
-// esta fatia não introduz nenhuma escrita nova pra financial_transactions.
-const SupabaseTransactionsReadOnlyPanel = () => {
-  const { transactions, loading, error, refresh } = useSupabaseFinanceTransactions();
+// Nasceu genuinely read-only (Fatia N). Fase B acrescenta ações por linha
+// (marcar pago/cancelar/excluir via updateSupabaseTransaction/
+// deleteSupabaseTransaction, G30 por desenho — a própria resposta da
+// mutation já atualiza o cache, sem invalidateQueries) — mas SÓ quando
+// `writeEnabled` (useSupabaseFinanceWriteFlag) está ligado. Flag OFF
+// preserva o painel 100% read-only de antes, byte a byte (mesma condição
+// de vazio/erro/loading, mesma tabela sem coluna de ações).
+const SupabaseTransactionsPanel = ({
+  transactions, loading, error, refresh, writeEnabled, onUpdate, onDelete,
+}: {
+  transactions: Transaction[];
+  loading: boolean;
+  error: string | null;
+  refresh: () => void;
+  writeEnabled: boolean;
+  onUpdate: (transactionId: string, patch: Partial<SupabaseFinancialTransaction>) => Promise<unknown>;
+  onDelete: (transactionId: string) => Promise<unknown>;
+}) => {
+  const setStatus = (id: string, status: TxStatus, successMsg: string) => {
+    onUpdate(id, { status }).then(() => {
+      toast.success(successMsg);
+    }).catch((err) => {
+      console.error("Falha ao atualizar status da transação (Supabase):", err);
+      toast.error("Não foi possível atualizar essa transação na nuvem.");
+    });
+  };
+
+  const remove = (id: string) => {
+    onDelete(id).then(() => {
+      toast.success("Excluído");
+    }).catch((err) => {
+      console.error("Falha ao excluir transação (Supabase):", err);
+      toast.error("Não foi possível excluir essa transação na nuvem.");
+    });
+  };
 
   return (
     <div className="orbit-card p-4 space-y-3">
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
-          <Cloud className="h-4 w-4 text-primary" /> Transações (Supabase — leitura)
+          <Cloud className="h-4 w-4 text-primary" /> Transações (Supabase{writeEnabled ? "" : " — leitura"})
         </h3>
         <Button variant="ghost" size="sm" onClick={refresh} className="h-7 gap-1 text-xs text-muted-foreground hover:text-foreground">
           <RefreshCw className="h-3 w-3" /> Atualizar
@@ -361,7 +435,7 @@ const SupabaseTransactionsReadOnlyPanel = () => {
         <p className="text-xs text-destructive">Erro ao carregar transações do Supabase: {error}</p>
       )}
       {!loading && !error && transactions.length === 0 && (
-        <EmptyState icon={Cloud} title="Nenhuma transação na nuvem ainda" description="Transações criadas em modo Local não aparecem aqui até uma fatia futura de escrita/import." />
+        <EmptyState icon={Cloud} title="Nenhuma transação na nuvem ainda" description="Transações criadas em modo Local não aparecem aqui automaticamente — use a importação manual em Configurações → Dados." />
       )}
       {!loading && !error && transactions.length > 0 && (
         <div className="overflow-x-auto">
@@ -373,6 +447,7 @@ const SupabaseTransactionsReadOnlyPanel = () => {
                 <TableHead>Vencimento</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Valor</TableHead>
+                {writeEnabled && <TableHead className="text-right">Ações</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -392,6 +467,30 @@ const SupabaseTransactionsReadOnlyPanel = () => {
                   <TableCell className={`text-right font-bold ${t.type === "income" ? "text-emerald-400" : "text-destructive"}`}>
                     {t.type === "income" ? "" : "-"}{formatBRL(t.amount)}
                   </TableCell>
+                  {writeEnabled && (
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Ações"><MoreHorizontal className="h-4 w-4" /></Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {t.status !== "paid" && (
+                            <DropdownMenuItem onClick={() => setStatus(t.id, "paid", t.type === "income" ? "Marcado como recebido" : "Marcado como pago")}>
+                              {t.type === "income" ? "Marcar como recebido" : "Marcar como pago"}
+                            </DropdownMenuItem>
+                          )}
+                          {t.status !== "canceled" && (
+                            <DropdownMenuItem onClick={() => setStatus(t.id, "canceled", "Cancelado")}>
+                              Cancelar
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem className="text-destructive" onClick={() => remove(t.id)}>
+                            Excluir
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>
@@ -1471,8 +1570,15 @@ const ReportsTab = ({ fin, chartData, metrics }: {
 // ============================================================
 // QUICK SALE DIALOG (income)
 // ============================================================
-const QuickSaleDialog = ({ open, onOpenChange, fin, clients }: {
+const QuickSaleDialog = ({ open, onOpenChange, fin, clients, cloudMode, onCreateCloud }: {
   open: boolean; onOpenChange: (v: boolean) => void; fin: ReturnType<typeof useFinance>; clients: ReturnType<typeof useClients>["clients"];
+  /** Etapa 5 · Financeiro Fase B (§2 do desenho) — quando true, submit grava
+   * direto na nuvem (createSupabaseTransaction) em vez do addTransaction
+   * local; blockWrite() em Financeiro.tsx já garante que este diálogo só
+   * abre quando cloudMode reflete o estado real (dataSource=supabase E flag
+   * de escrita ligada) ou quando dataSource=local (cloudMode=false). */
+  cloudMode: boolean;
+  onCreateCloud: (input: NewTransactionInput) => Promise<unknown>;
 }) => {
   const { currency } = useFormat();
   const incCats = fin.categories.filter((c) => c.type === "income");
@@ -1486,15 +1592,36 @@ const QuickSaleDialog = ({ open, onOpenChange, fin, clients }: {
   const submit = () => {
     const amount = parseFloat(form.amount);
     if (!form.title.trim() || !amount || amount <= 0 || !form.category) { toast.error("Preencha descrição, valor e categoria"); return; }
-    fin.addTransaction({
-      type: "income", title: form.title.trim(), description: form.description.trim() || undefined,
+    const input = {
+      type: "income" as const, title: form.title.trim(), description: form.description.trim() || undefined,
       amount, category: form.category, clientName: form.clientName || undefined,
       dueDate: form.dueDate, status: form.status, paymentMethod: form.paymentMethod,
-      recurrence: form.mode === "recurring" ? "monthly" : "none",
-      source: form.mode === "recurring" ? "recurring" : "sale",
+      recurrence: form.mode === "recurring" ? "monthly" as const : "none" as const,
+      source: form.mode === "recurring" ? "recurring" as const : "sale" as const,
       notes: form.notes || undefined,
       paidDate: form.status === "paid" ? new Date().toISOString().slice(0, 10) : undefined,
-    });
+    };
+
+    if (cloudMode) {
+      // §1.2 do desenho — recurrence não tem coluna na nuvem ainda: NUNCA
+      // bloqueia a criação (post-flip gap explícito), só avisa que aquele
+      // pedaço específico não é gravado, pra não confundir quem escolheu
+      // "Recorrente" achando que teria o mesmo efeito do modo Local.
+      if (form.mode === "recurring") {
+        toast.warning("Recorrência ainda não é gravada em modo Supabase — a venda será criada como avulsa na nuvem.");
+      }
+      onCreateCloud(input).then(() => {
+        toast.success("Venda registrada na nuvem");
+        onOpenChange(false);
+        setForm({ ...form, title: "", description: "", amount: "", clientName: "", notes: "" });
+      }).catch((err) => {
+        console.error("Falha ao registrar venda no Supabase:", err);
+        toast.error("Não foi possível registrar a venda no Supabase. Tente novamente.");
+      });
+      return;
+    }
+
+    fin.addTransaction(input);
     toast.success("Venda registrada");
     onOpenChange(false);
     setForm({ ...form, title: "", description: "", amount: "", clientName: "", notes: "" });
@@ -1587,7 +1714,13 @@ const QuickSaleDialog = ({ open, onOpenChange, fin, clients }: {
 // ============================================================
 // EXPENSE DIALOG
 // ============================================================
-const ExpenseDialog = ({ open, onOpenChange, fin }: { open: boolean; onOpenChange: (v: boolean) => void; fin: ReturnType<typeof useFinance> }) => {
+const ExpenseDialog = ({ open, onOpenChange, fin, cloudMode, onCreateCloud }: {
+  open: boolean; onOpenChange: (v: boolean) => void; fin: ReturnType<typeof useFinance>;
+  /** Etapa 5 · Financeiro Fase B (§2 do desenho) — mesmo contrato de
+   * QuickSaleDialog: cloudMode=true grava direto na nuvem. */
+  cloudMode: boolean;
+  onCreateCloud: (input: NewTransactionInput) => Promise<unknown>;
+}) => {
   const { currency } = useFormat();
   const expCats = fin.categories.filter((c) => c.type === "expense");
   const [form, setForm] = useState({
@@ -1600,15 +1733,38 @@ const ExpenseDialog = ({ open, onOpenChange, fin }: { open: boolean; onOpenChang
   const submit = () => {
     const amount = parseFloat(form.amount);
     if (!form.title.trim() || !amount || amount <= 0 || !form.category) { toast.error("Preencha descrição, valor e categoria"); return; }
-    fin.addTransaction({
-      type: "expense", title: form.title.trim(), description: form.description.trim() || undefined,
+    const input = {
+      type: "expense" as const, title: form.title.trim(), description: form.description.trim() || undefined,
       amount, category: form.category, supplierId: form.supplierId || undefined,
       dueDate: form.dueDate, status: form.status, paymentMethod: form.paymentMethod,
-      recurrence: form.kind === "recurring" ? "monthly" : "none",
-      source: form.kind === "recurring" ? "recurring" : "manual",
+      recurrence: form.kind === "recurring" ? "monthly" as const : "none" as const,
+      source: form.kind === "recurring" ? "recurring" as const : "manual" as const,
       notes: form.notes || undefined,
       paidDate: form.status === "paid" ? new Date().toISOString().slice(0, 10) : undefined,
-    });
+    };
+
+    if (cloudMode) {
+      // §1.2 do desenho — recurrence e supplierId não têm coluna na nuvem
+      // ainda: NUNCA bloqueia a criação, só avisa o que não vai ser gravado
+      // (mesmo contrato de QuickSaleDialog acima).
+      const gaps: string[] = [];
+      if (form.kind === "recurring") gaps.push("recorrência");
+      if (form.supplierId) gaps.push("fornecedor");
+      if (gaps.length > 0) {
+        toast.warning(`${gaps.join(" e ")} ainda não ${gaps.length > 1 ? "são gravados" : "é gravado"} em modo Supabase — a despesa será criada sem ${gaps.length > 1 ? "esses campos" : "esse campo"}.`);
+      }
+      onCreateCloud(input).then(() => {
+        toast.success("Despesa lançada na nuvem");
+        onOpenChange(false);
+        setForm({ ...form, title: "", description: "", amount: "", supplierId: "", notes: "" });
+      }).catch((err) => {
+        console.error("Falha ao lançar despesa no Supabase:", err);
+        toast.error("Não foi possível lançar a despesa no Supabase. Tente novamente.");
+      });
+      return;
+    }
+
+    fin.addTransaction(input);
     toast.success("Despesa lançada");
     onOpenChange(false);
     setForm({ ...form, title: "", description: "", amount: "", supplierId: "", notes: "" });

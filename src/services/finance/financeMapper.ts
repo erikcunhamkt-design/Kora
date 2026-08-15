@@ -15,7 +15,7 @@
 // usada em src/lib/dayCenter.ts (isIncome ? "receivable" : "payable") e nas abas de
 // Financeiro.tsx ("receivables"/"payables"), só a primeira vez que o import precisa
 // aplicá-la de forma explícita.
-import type { Transaction, TxType, TxStatus, TxSource } from "@/hooks/useFinance";
+import type { Transaction, TxType, TxStatus, TxSource, PaymentMethod } from "@/hooks/useFinance";
 import type { Quote } from "@/hooks/useQuotes";
 import type { SupabaseFinancialTransaction } from "@/repositories/financeRepository";
 import { roundMoney } from "@/services/quotes/quoteMoney";
@@ -35,17 +35,27 @@ export interface FinanceImportMaps {
 
 export const EMPTY_FINANCE_IMPORT_MAPS: FinanceImportMaps = { clients: {}, quotes: {}, opportunities: {} };
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
  * Resolve um id LOCAL para o UUID Supabase via import-map.
  * Regra de segurança (padrão Q4): mapeado → UUID; ausente/não-mapeado → null. NUNCA id
  * local cru.
+ *
+ * G37 por desenho (`etapa-5-flip-financeiro-pacote.md` §2.2), não por
+ * incidente: se `localId` já é um uuid real (ex.: `quoteId` vindo de uma
+ * quote já lida da nuvem, não de import — mesmo cenário que pegou o G37 em
+ * `projectsMapper.ts`), passa direto — nunca procura no import-map, que só
+ * mapeia id LOCAL → uuid e nunca teria essa entrada.
  */
 export function resolveFinanceFk(
   localId: string | number | null | undefined,
   map: Record<string, string>,
 ): string | null {
   if (localId === null || localId === undefined || localId === "") return null;
-  return map[String(localId)] ?? null;
+  const key = String(localId);
+  if (UUID_RE.test(key)) return key;
+  return map[key] ?? null;
 }
 
 const CLOUD_TYPE: Record<TxType, string> = { income: "receivable", expense: "payable" };
@@ -92,10 +102,18 @@ export interface SupabaseTransactionImportPayload extends Partial<SupabaseFinanc
   status: string;
   title: string;
   amount: number;
+  category: string | null;
+  payment_method: string | null;
   source: string;
 }
 
-/** Converte uma Transaction local no payload de import (FKs resolvidas, type traduzido, amount quantizado). */
+/**
+ * Converte uma Transaction local no payload de import (FKs resolvidas, type
+ * traduzido, amount quantizado). `category`/`payment_method` (Fase B, §1.1/
+ * §2.3 do desenho) — payload completo desde o dia 1 (G37, 2ª metade):
+ * `supplierId`/`cashAccountId`/`recurrence` (pós-flip, sem coluna) NUNCA
+ * entram aqui — omitidos, não `null` forçado por engano.
+ */
 export function mapLocalTransactionToSupabase(
   transaction: Transaction,
   maps: FinanceImportMaps = EMPTY_FINANCE_IMPORT_MAPS,
@@ -111,6 +129,8 @@ export function mapLocalTransactionToSupabase(
     description: transaction.description ?? null,
     // F4: dinheiro quantizado a centavos antes da coluna numeric.
     amount: roundMoney(transaction.amount),
+    category: transaction.category ?? null,
+    payment_method: transaction.paymentMethod ?? null,
     due_date: transaction.dueDate || null,
     paid_at: transaction.paidDate || null,
     source: transaction.source,
@@ -133,6 +153,7 @@ export function mapLocalTransactionToSupabase(
 const LOCAL_TYPE: Readonly<Record<string, TxType>> = { receivable: "income", payable: "expense" };
 const KNOWN_LOCAL_STATUS: ReadonlySet<string> = new Set<TxStatus>(["pending", "paid", "overdue", "canceled"]);
 const KNOWN_LOCAL_SOURCE: ReadonlySet<string> = new Set<TxSource>(["manual", "quote", "sale", "service", "recurring"]);
+const KNOWN_PAYMENT_METHOD: ReadonlySet<string> = new Set<PaymentMethod>(["pix", "card", "boleto", "transfer", "cash", "other"]);
 
 /**
  * Traduz `type`/`status` brutos da nuvem pro vocabulário local. Nenhum dos
@@ -161,24 +182,27 @@ export function translateCloudTransactionVocabulary(
  * Converte um `SupabaseFinancialTransaction` pro formato `Transaction`
  * local.
  *
- * Campos com contraparte local mas SEM coluna cloud (`category`,
- * `paymentMethod`, `recurrence`, `supplierId`, `cashAccountId`) — gap
- * catalogado em `etapa-5-flip-financeiro-fase-a.md` §3, ainda sem decisão
- * de schema (Caso 5 do doc). "Reportar, não inventar": os 2 campos de
- * vocabulário FECHADO (`paymentMethod`/`recurrence`, union type — não
- * aceitam string livre) recebem o membro mais neutro já existente no
- * próprio enum (`"other"`/`"none"`) — não é um valor real vindo da nuvem, é
- * a ausência representada pelo membro menos presunçoso. `category` (string
- * livre) usa um placeholder claramente rotulado, nunca um nome de
- * categoria inventado. `supplierId`/`cashAccountId` (opcionais) ficam
- * `undefined` — a forma mais honesta de "não sei", sem precisar de
- * placeholder nenhum. `notes` também fica `undefined` — a nuvem funde
- * notes dentro de `description` na ESCRITA (`mapLocalTransactionToSupabase`
- * acima), não dá pra desfundir na leitura.
+ * `category`/`paymentMethod` (Fase B, §1.1 do desenho): agora TÊM coluna
+ * cloud (migration `20260815000100`) — lidos de `st.category`/
+ * `st.payment_method` quando presentes. `paymentMethod` é validado contra
+ * o enum fechado local (mesmo se o CHECK da migration já garantir isso no
+ * banco — nunca confiar só na constraint remota, a leitura teria que lidar
+ * com uma linha pré-migration de qualquer forma). Só cai no placeholder/
+ * fallback neutro quando a coluna vier `null` (linha pré-migration, ou
+ * nunca preenchida) — "reportar, não inventar" continua valendo pro que
+ * ainda não tem dado real.
+ *
+ * `recurrence`/`supplierId`/`cashAccountId` continuam SEM coluna cloud
+ * (pós-flip, §1.2 do desenho — domínio relacional novo, fora de escopo
+ * desta fase). Mesmo tratamento da Fatia N: enum fechado (`recurrence`)
+ * recebe o membro neutro (`"none"`); os 2 opcionais ficam `undefined`.
+ * `notes` também fica `undefined` — a nuvem funde notes dentro de
+ * `description` na ESCRITA (`mapLocalTransactionToSupabase` acima), não dá
+ * pra desfundir na leitura.
  *
  * `quoteTitle` fica `undefined` — mesmo gap não resolvido do G37 (achado
  * #3 daquele fix): a nuvem não denormaliza título de quote, restaurar isso
- * exigiria um join que este mapper não faz (fora de escopo desta fatia).
+ * exigiria um join que este mapper não faz (fora de escopo desta fase).
  *
  * `clientName` resolve via `clientNameById` (mesmo padrão de
  * `mapSupabaseProjectToLocal`, `projectsMapper.ts`) — `financial_transactions`
@@ -190,6 +214,9 @@ export function mapSupabaseTransactionToLocal(
 ): Transaction {
   const { type, status, cloudTypeRaw, cloudStatusRaw } = translateCloudTransactionVocabulary(st.type, st.status);
   const source = KNOWN_LOCAL_SOURCE.has(st.source ?? "") ? (st.source as TxSource) : "manual";
+  const paymentMethod: PaymentMethod = st.payment_method && KNOWN_PAYMENT_METHOD.has(st.payment_method)
+    ? (st.payment_method as PaymentMethod)
+    : "other";
 
   return {
     id: st.id,
@@ -197,7 +224,7 @@ export function mapSupabaseTransactionToLocal(
     title: st.title,
     description: st.description ?? undefined,
     amount: Number(st.amount),
-    category: "Sem categoria (nuvem)",
+    category: st.category ?? "Sem categoria (nuvem)",
     clientName: st.client_id ? clientNameById[st.client_id] : undefined,
     supplierId: undefined,
     cashAccountId: undefined,
@@ -206,7 +233,7 @@ export function mapSupabaseTransactionToLocal(
     status,
     cloudStatusRaw,
     cloudTypeRaw,
-    paymentMethod: "other",
+    paymentMethod,
     recurrence: "none",
     source,
     notes: undefined,

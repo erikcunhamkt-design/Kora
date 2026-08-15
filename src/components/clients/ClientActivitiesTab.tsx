@@ -16,7 +16,7 @@ import {
 import type { Client } from "@/hooks/useClients";
 import { useLeads } from "@/hooks/useLeads";
 import { useQuotes } from "@/hooks/useQuotes";
-import { useFinance } from "@/hooks/useFinance";
+import { useBifurcatedFinance } from "@/hooks/useBifurcatedFinance";
 import { useBifurcatedProjects } from "@/hooks/useBifurcatedProjects";
 import { useTasks } from "@/hooks/useTasks";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -163,10 +163,13 @@ function buildInferredEvents(args: {
   client: Client;
   leads: ReturnType<typeof useLeads>["leads"];
   quotes: ReturnType<typeof useQuotes>["quotes"];
-  transactions: ReturnType<typeof useFinance>["transactions"];
-  // useBifurcatedProjects() retorna Project[] direto (não {projects: Project[]}
-  // como o useProjects() antigo) — sem indexação ["projects"], shape diferente
-  // do padrão dos outros campos acima. Ver G26 (kora-hub-auditoria-e-plano.md).
+  // useBifurcatedFinance()/useBifurcatedProjects() retornam array direto
+  // (não {transactions: [...]}/{projects: [...]} como os hooks locais
+  // antigos) — sem indexação, shape diferente do useQuotes()/useLeads()
+  // acima. Ver G26 (kora-hub-auditoria-e-plano.md) — mesmo achado, agora no
+  // 2º domínio bifurcado deste arquivo (Etapa 5, Financeiro Fase B, §3.2 do
+  // desenho).
+  transactions: ReturnType<typeof useBifurcatedFinance>;
   projects: ReturnType<typeof useBifurcatedProjects>;
   tasks: ReturnType<typeof useTasks>["tasks"];
 }): InferredEvent[] {
@@ -428,10 +431,18 @@ export const ClientActivitiesTab = ({
 
   const { leads } = useLeads();
   const { quotes } = useQuotes();
-  const { transactions } = useFinance();
   // Etapa 5 · Pacote do Flip (projects) — Fase B, item 2 (achado (a)):
   // timeline ficava incompleta pra clientes com projetos só na nuvem.
   const projects = useBifurcatedProjects();
+  // Etapa 5 · Financeiro Fase B (Pacote do Flip, §3.2 do desenho) — mesmo
+  // achado, 2º domínio: recebível gerado via CreateReceivableDialog (CRM)
+  // não batia por clientId/clientName em modo local puro (G41, achado não
+  // mecânico — client_id ali é uuid da nuvem, Transaction.clientId local é
+  // number, sem mapa reverso). Lendo via useBifurcatedFinance() em modo
+  // Supabase, a transação já vem da nuvem com client_id (cast uuid->number,
+  // mesmo precedente de clientId/opportunityId em mapSupabaseProjectToLocal)
+  // — bate por p.clientId === client.id sem precisar de mapa reverso nenhum.
+  const transactions = useBifurcatedFinance();
   const { tasks } = useTasks();
   const { logs, addLog, updateLog, deleteLog } = useClientActivityLogs(client.id);
 

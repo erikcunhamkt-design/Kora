@@ -15,6 +15,9 @@ import type { Quote } from "@/hooks/useQuotes";
 import {
   useFinance, formatBRL, type PaymentMethod,
 } from "@/hooks/useFinance";
+import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
+import { financeRepository } from "@/repositories/financeRepository";
+import { resolveFinanceFk } from "@/services/finance/financeMapper";
 
 const paymentLabels: Record<PaymentMethod, string> = {
   pix: "PIX",
@@ -43,6 +46,7 @@ export function QuoteToReceivableDialog({
   quote, open, onOpenChange, onGenerated,
 }: QuoteToReceivableDialogProps) {
   const fin = useFinance();
+  const { workspace } = useCurrentWorkspace();
 
   const incomeCategories = useMemo(
     () => fin.categories.filter((c) => c.type === "income"),
@@ -106,8 +110,48 @@ export function QuoteToReceivableDialog({
     toast.success("Conta a receber gerada", {
       description: `${title.trim()} · ${formatBRL(numericAmount)}`,
     });
+    mirrorReceivableToSupabase(tx.id);
     onGenerated(tx.id);
     onOpenChange(false);
+  };
+
+  // Etapa 5 · Financeiro Fase B (Pacote do Flip, §5.1 do desenho) — o gap
+  // real que sobrou do G41 (kora-hub-auditoria-e-plano.md): este diálogo só
+  // gravava local, sem mirror nenhum, enquanto CreateReceivableDialog.tsx
+  // (CRM) já tinha o dual-write G22 desde dashboard-g22-fix. Mesmo padrão:
+  // local sempre autoritativo e grava primeiro (acima); isto só tenta
+  // espelhar DEPOIS, best-effort, nunca bloqueia nem desfaz o local.
+  // Unificando de propósito o comportamento dos 2 diálogos: mesma função
+  // (`createReceivableFromQuote`, já idempotente contra 23505/
+  // ux_ft_receivable_from_quote), sem gate de flag nenhum — CreateReceivableDialog.tsx
+  // também nunca gateou o próprio mirror, e este diálogo replica esse
+  // comportamento de propósito, não por omissão. "Payload completo desde o
+  // dia 1" (G37): diferente do mirror de CreateReceivableDialog.tsx (que
+  // não tem category/paymentMethod pra enviar — são hardcoded lá, achado
+  // G41), aqui os 2 campos são escolhidos pelo usuário e viajam de verdade.
+  // client_id/opportunity_id passam por resolveFinanceFk — se quote.clientId/
+  // opportunityId já forem uuid real (quote lida da nuvem), o passthrough
+  // (G37 por desenho, §2.2) encaminha direto; se forem id local sem mapa
+  // (cenário comum aqui — sem import-map disponível neste componente),
+  // resolve null, nunca um id cru na coluna uuid (padrão Q4).
+  const mirrorReceivableToSupabase = (localTransactionId: string) => {
+    if (!workspace) return;
+    financeRepository.createReceivableFromQuote(workspace.id, {
+      quote_id: quote.id,
+      client_id: resolveFinanceFk(quote.clientId, {}),
+      opportunity_id: resolveFinanceFk(quote.opportunityId, {}),
+      title: title.trim(),
+      description: quote.description || undefined,
+      amount: numericAmount,
+      due_date: dueDate,
+      category,
+      payment_method: paymentMethod,
+    }).catch((mirrorErr) => {
+      console.error("Espelho nuvem do recebível falhou (local já gravado):", mirrorErr, { localTransactionId });
+      toast.warning("Recebível salvo localmente, mas o espelho no Supabase falhou.", {
+        description: "Rode a importação manual em Configurações → Dados quando possível.",
+      });
+    });
   };
 
   return (

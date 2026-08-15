@@ -2,6 +2,8 @@ import { useCallback } from "react";
 import { toast } from "sonner";
 import { useTasks } from "@/hooks/useTasks";
 import { useFinance } from "@/hooks/useFinance";
+import { useBifurcatedFinance } from "@/hooks/useBifurcatedFinance";
+import { getFinanceDataSource } from "@/config/flags";
 import { useAllClientActivityLogs, useClientActivityLogs } from "@/hooks/useClientActivityLogs";
 import { useDayCenterResolvedActions } from "@/hooks/useDayCenterResolvedActions";
 import type { DayActionItem } from "@/lib/dayCenter";
@@ -10,10 +12,23 @@ import type { DayActionItem } from "@/lib/dayCenter";
  * Hook compartilhado entre o drawer da Central do Dia e a página /central-do-dia.
  * Expõe ações rápidas reais (concluir tarefa, resolver follow-up, marcar recebível pago)
  * e centraliza a regra de "pode marcar pago" sem duplicar lógica.
+ *
+ * Etapa 5 · Financeiro Fase B (Pacote do Flip, §3.1 do desenho) —
+ * `transactions` (leitura/exibição) vem de `useBifurcatedFinance()`, mas
+ * `updateTransactionStatus` (escrita) continua sendo o mutator LOCAL de
+ * `useFinance()`, por decisão explícita do desenho ("escrita segue
+ * local-only por enquanto — concluir transação pela Central do Dia não é a
+ * rota crítica desta fase"). Ler bifurcado e escrever só local, sem gate,
+ * seria um no-op silencioso em modo Supabase (a transação exibida pode ser
+ * uma linha da nuvem, sem contraparte local com esse id) — `canMarkPaid`
+ * bloqueia a ação inteira quando `dataSource=supabase` (some do menu, não
+ * fica clicável-mas-quebrado), e `markReceivablePaid` tem a mesma guarda
+ * como defesa em profundidade, com toast explicando o porquê.
  */
 export function useDayCenterActions() {
   const { updateTask } = useTasks();
-  const { updateTransactionStatus, transactions } = useFinance();
+  const { updateTransactionStatus } = useFinance();
+  const transactions = useBifurcatedFinance();
   const { updateLog } = useClientActivityLogs();
   const allManualLogs = useAllClientActivityLogs();
   const { addAction } = useDayCenterResolvedActions();
@@ -57,6 +72,10 @@ export function useDayCenterActions() {
 
   const markReceivablePaid = useCallback((item: DayActionItem) => {
     if (!item.relatedId) return;
+    if (getFinanceDataSource() === "supabase") {
+      toast.error("Marcar como pago pela Central do Dia ainda não funciona em modo Supabase — use a tela Financeiro.");
+      return;
+    }
     const txId = String(item.relatedId);
     const tx = transactions.find((t) => t.id === txId);
     try {
@@ -78,6 +97,7 @@ export function useDayCenterActions() {
 
   const canMarkPaid = useCallback((item: DayActionItem): boolean => {
     if (item.relatedType !== "finance_transaction") return false;
+    if (getFinanceDataSource() === "supabase") return false;
     const tx = transactions.find((t) => t.id === item.relatedId);
     return !!tx && tx.type === "income" && tx.status !== "paid" && tx.status !== "canceled";
   }, [transactions]);

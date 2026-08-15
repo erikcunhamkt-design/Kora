@@ -41,6 +41,21 @@ describe("resolveFinanceFk — padrão Q4 (mapeado -> uuid; ausente -> null, nun
     expect(resolveFinanceFk(undefined, {})).toBeNull();
     expect(resolveFinanceFk("", {})).toBeNull();
   });
+
+  // Fase B (§2.2 do desenho, G37 por desenho) — mesma exceção já aplicada em
+  // projectsMapper.ts/tasksMapper.ts: um localId que já é uuid real (ex.:
+  // quoteId vindo de uma quote lida da nuvem) passa direto, nunca procura no
+  // import-map (que só mapeia id LOCAL -> uuid e nunca teria essa entrada).
+  it("já sendo um uuid válido, passa direto — nunca procura no import-map", () => {
+    const uuid = "a1b2c3d4-e5f6-4789-a012-b3c4d5e6f789";
+    expect(resolveFinanceFk(uuid, {})).toBe(uuid);
+    expect(resolveFinanceFk(uuid, { [uuid]: "outro-uuid-que-nunca-deveria-ganhar" })).toBe(uuid);
+  });
+
+  it("uma string que não é uuid continua tratada como id local (comportamento inalterado, regressão do import geral)", () => {
+    expect(resolveFinanceFk("tx-local-1", { "tx-local-1": "uuid-real-1" })).toBe("uuid-real-1");
+    expect(resolveFinanceFk("tx-local-nao-mapeada", {})).toBeNull();
+  });
 });
 
 describe("mapLocalTransactionToSupabase — fan-out dos 3 import-maps", () => {
@@ -87,6 +102,21 @@ describe("mapLocalTransactionToSupabase — tradução de type e precisão monet
   it("quantiza amount a centavos (artefato de float do JS)", () => {
     const payload = mapLocalTransactionToSupabase(makeTransaction({ amount: 0.1 + 0.2 }));
     expect(payload.amount).toBe(0.3);
+  });
+});
+
+// Fase B (§1.1/§2.3 do desenho) — category/payment_method ganharam coluna
+// cloud (migration 20260815000100); payload completo desde o dia 1 (G37).
+describe("mapLocalTransactionToSupabase — category/payment_method no payload (Fase B, §1.1/§2.3)", () => {
+  it("inclui category e payment_method no payload", () => {
+    const payload = mapLocalTransactionToSupabase(makeTransaction({ category: "Marketing", paymentMethod: "boleto" }));
+    expect(payload.category).toBe("Marketing");
+    expect(payload.payment_method).toBe("boleto");
+  });
+
+  it("category ausente vira null, nunca undefined (coluna aceita NULL)", () => {
+    const payload = mapLocalTransactionToSupabase(makeTransaction({ category: undefined as unknown as string }));
+    expect(payload.category).toBeNull();
   });
 });
 
@@ -222,17 +252,35 @@ describe("mapSupabaseTransactionToLocal — payload completo desde o dia 1 (liç
     expect(mapSupabaseTransactionToLocal(makeSupabaseTransaction({ source: "quote" })).source).toBe("quote");
   });
 
-  // "Reportar, não inventar" — os 5 gaps de schema catalogados
-  // (etapa-5-flip-financeiro-fase-a.md §3): nunca um valor plausível
-  // inventado, sempre um placeholder honesto ou undefined.
-  describe("campos sem coluna cloud (§3/§5 do doc da fatia) — reportar, não inventar", () => {
-    it("category vira placeholder claramente rotulado, nunca um nome de categoria real", () => {
-      expect(mapSupabaseTransactionToLocal(makeSupabaseTransaction()).category).toBe("Sem categoria (nuvem)");
+  // Fase B (§1.1) — category/payment_method GANHARAM coluna cloud
+  // (migration 20260815000100). Lidos de verdade quando presentes; só caem
+  // no placeholder/fallback quando a coluna vier null (linha pré-migration,
+  // ou nunca preenchida) — "reportar, não inventar" continua valendo só
+  // pro que ainda não tem dado real.
+  describe("category/payment_method — Fase B, agora COM coluna cloud (§1.1)", () => {
+    it("lê category/payment_method reais quando a coluna vem preenchida", () => {
+      const tx = mapSupabaseTransactionToLocal(makeSupabaseTransaction({ category: "Marketing", payment_method: "boleto" }));
+      expect(tx.category).toBe("Marketing");
+      expect(tx.paymentMethod).toBe("boleto");
     });
-    it("paymentMethod/recurrence caem no membro neutro do enum fechado, não um valor inventado", () => {
-      const tx = mapSupabaseTransactionToLocal(makeSupabaseTransaction());
-      expect(tx.paymentMethod).toBe("other");
-      expect(tx.recurrence).toBe("none");
+
+    it("category null (linha pré-migration/nunca preenchida) cai no placeholder rotulado, nunca um nome inventado", () => {
+      expect(mapSupabaseTransactionToLocal(makeSupabaseTransaction({ category: null })).category).toBe("Sem categoria (nuvem)");
+    });
+
+    it("payment_method null ou fora do enum fechado cai em \"other\" (nunca mascara nem quebra)", () => {
+      expect(mapSupabaseTransactionToLocal(makeSupabaseTransaction({ payment_method: null })).paymentMethod).toBe("other");
+      expect(mapSupabaseTransactionToLocal(makeSupabaseTransaction({ payment_method: "criptomoeda" })).paymentMethod).toBe("other");
+    });
+  });
+
+  // "Reportar, não inventar" — os 3 gaps de schema que continuam SEM coluna
+  // cloud (pós-flip, §1.2 do desenho — domínio relacional novo, fora de
+  // escopo desta fase): nunca um valor plausível inventado, sempre um
+  // placeholder honesto ou undefined.
+  describe("campos ainda sem coluna cloud (§1.2 do desenho) — reportar, não inventar", () => {
+    it("recurrence cai no membro neutro do enum fechado, não um valor inventado", () => {
+      expect(mapSupabaseTransactionToLocal(makeSupabaseTransaction()).recurrence).toBe("none");
     });
     it("supplierId/cashAccountId/notes/quoteTitle ficam undefined — nunca um valor inventado", () => {
       const tx = mapSupabaseTransactionToLocal(makeSupabaseTransaction());

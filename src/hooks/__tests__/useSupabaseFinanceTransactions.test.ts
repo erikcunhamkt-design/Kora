@@ -3,7 +3,7 @@
 // useSupabaseOpportunityQuotes.test.tsx/useSupabaseProjects.test.tsx —
 // exercita a integração real em vez de mockar o hook inteiro.
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { renderHook, waitFor } from "@testing-library/react";
+import { renderHook, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createElement, type ReactNode } from "react";
 
@@ -16,7 +16,12 @@ import type { SupabaseFinancialTransaction } from "@/repositories/financeReposit
 vi.mock("@/hooks/useCurrentWorkspace", () => ({ useCurrentWorkspace: vi.fn() }));
 vi.mock("@/hooks/useClientsDataSource", () => ({ useClientsDataSource: vi.fn() }));
 vi.mock("@/repositories/financeRepository", () => ({
-  financeRepository: { listTransactions: vi.fn() },
+  financeRepository: {
+    listTransactions: vi.fn(),
+    importTransaction: vi.fn(),
+    updateTransaction: vi.fn(),
+    softDeleteReceivable: vi.fn(),
+  },
 }));
 
 function makeRow(overrides: Partial<SupabaseFinancialTransaction> = {}): SupabaseFinancialTransaction {
@@ -89,5 +94,72 @@ describe("useSupabaseFinanceTransactions · leitura opt-in, read-only (Fatia N)"
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.error).toBeTruthy();
     expect(result.current.transactions).toEqual([]);
+  });
+});
+
+// Etapa 5 · Financeiro Fase B (§2.5 do desenho) — escrita real. G30 por
+// desenho: updateTransaction/deleteTransaction escrevem a resposta da
+// própria mutação direto no cache (setQueryData), nunca só
+// invalidateQueries — a mesma classe de bug que Projetos só descobriu
+// reativamente (drawer aberto preso no status antigo) nunca deveria
+// aparecer aqui, porque o padrão já nasce certo.
+describe("useSupabaseFinanceTransactions · escrita real (Fase B, §2.5) — G30 por desenho", () => {
+  it("createTransaction usa importTransaction com source_local_id nativo e insere a linha no cache sem esperar refetch", async () => {
+    vi.mocked(financeRepository.listTransactions).mockResolvedValue([]);
+    const created = makeRow({ id: "sft-novo", title: "Venda rápida" });
+    vi.mocked(financeRepository.importTransaction).mockResolvedValue(created);
+
+    const { result } = renderHook(() => useSupabaseFinanceTransactions(), { wrapper });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.createTransaction({
+        type: "income", title: "Venda rápida", amount: 100, category: "Serviços",
+        dueDate: "2026-08-20", status: "pending", paymentMethod: "pix", recurrence: "none", source: "manual",
+      });
+    });
+
+    expect(financeRepository.importTransaction).toHaveBeenCalledWith(
+      "ws1", expect.stringContaining("native:"), expect.objectContaining({ title: "Venda rápida" }),
+    );
+    // listTransactions nunca foi re-chamado — a UI usa a resposta da própria
+    // mutação, não um refetch (G30).
+    expect(financeRepository.listTransactions).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(result.current.transactions.some((t) => t.id === "sft-novo")).toBe(true));
+  });
+
+  it("updateTransaction reflete o status novo mesmo se um refetch subsequente ainda devolvesse a linha antiga (G30)", async () => {
+    vi.mocked(financeRepository.listTransactions).mockResolvedValue([makeRow({ id: "sft-1", status: "pending" })]);
+    vi.mocked(financeRepository.updateTransaction).mockResolvedValue(makeRow({ id: "sft-1", status: "paid" }));
+
+    const { result } = renderHook(() => useSupabaseFinanceTransactions(), { wrapper });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.transactions[0].status).toBe("pending");
+
+    await act(async () => {
+      await result.current.updateTransaction("sft-1", { status: "paid" });
+    });
+
+    // listTransactions nunca foi re-chamado pra confirmar — mesma prova que
+    // o G30 de Projetos exigiu (useSupabaseProjects.test.ts).
+    expect(financeRepository.listTransactions).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(result.current.transactions[0].status).toBe("paid"));
+  });
+
+  it("deleteTransaction remove a linha do cache com a confirmação do próprio soft-delete", async () => {
+    vi.mocked(financeRepository.listTransactions).mockResolvedValue([
+      makeRow({ id: "sft-1" }), makeRow({ id: "sft-2" }),
+    ]);
+    vi.mocked(financeRepository.softDeleteReceivable).mockResolvedValue(makeRow({ id: "sft-1", deleted_at: "2026-08-15T12:00:00Z" }));
+
+    const { result } = renderHook(() => useSupabaseFinanceTransactions(), { wrapper });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.deleteTransaction("sft-1");
+    });
+
+    expect(financeRepository.softDeleteReceivable).toHaveBeenCalledWith("ws1", "sft-1");
+    await waitFor(() => expect(result.current.transactions.map((t) => t.id)).toEqual(["sft-2"]));
   });
 });
