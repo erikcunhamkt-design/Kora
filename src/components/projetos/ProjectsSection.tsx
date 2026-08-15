@@ -107,6 +107,7 @@ export function ProjectsSection() {
   const filtered = useMemo(() => projects.filter((p) => {
     const q = search.toLowerCase();
     if (q && !p.name.toLowerCase().includes(q) && !p.clientName.toLowerCase().includes(q)) return false;
+    if (filterStatus === "all" && p.status === "archived") return false;
     if (filterStatus !== "all" && p.status !== filterStatus) return false;
     if (filterService !== "all" && p.serviceType !== filterService) return false;
     if (filterPriority !== "all" && p.priority !== filterPriority) return false;

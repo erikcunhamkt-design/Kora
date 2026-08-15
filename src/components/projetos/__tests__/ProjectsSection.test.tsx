@@ -88,6 +88,11 @@ beforeEach(() => {
   localStorage.clear();
   vi.clearAllMocks();
   setupCommonMocks();
+  // jsdom não implementa scrollIntoView/hasPointerCapture — o <Select> (Radix)
+  // do filtro de status precisa dos dois pra abrir via interação real. Mesmo
+  // polyfill já usado em QuotesSection.test.tsx/WhatsApp.tab-gate.test.tsx.
+  Element.prototype.hasPointerCapture = Element.prototype.hasPointerCapture || (() => false);
+  Element.prototype.scrollIntoView = Element.prototype.scrollIntoView || (() => {});
 });
 
 function renderSection() {
@@ -332,5 +337,50 @@ describe("ProjectsSection · espelho best-effort no create em modo local (fatia 
         expect.objectContaining({ title: expect.stringContaining("espelho no Supabase falhou") }),
       ),
     );
+  });
+});
+
+// Fase D (homologação) — achado ao vivo: um projeto arquivado ("HOMOLOG-FLIP-projeto-A")
+// apareceu na lista principal com badge "Arquivado" mesmo com o filtro em "Todos status".
+// Causa: `filtered` (ProjectsSection.tsx) só excluía por status quando `filterStatus !==
+// "all"` — sob "all" (o default), nada excluía `status === "archived"`. Contraste com
+// QuotesSection.tsx:236, que já exclui "arquivado" explicitamente sob "all" e só mostra
+// arquivados quando o filtro de status é "arquivado" de propósito.
+describe("ProjectsSection · Fase D — \"Todos status\" não inclui projeto arquivado", () => {
+  it("projeto arquivado fica de fora da lista sob o filtro default \"Todos status\"", async () => {
+    localStorage.setItem(PROJECTS_DATA_SOURCE_KEY, "local");
+    vi.mocked(useProjects).mockReturnValue({
+      projects: [
+        makeLocalProject({ id: "pj-ativo", name: "Projeto Ativo", status: "in_progress" }),
+        makeLocalProject({ id: "pj-arquivado", name: "Projeto Arquivado", status: "archived" }),
+      ],
+      addProject: vi.fn(),
+    } as never);
+
+    renderSection();
+
+    expect(await screen.findByText("Projeto Ativo")).toBeInTheDocument();
+    expect(screen.queryByText("Projeto Arquivado")).not.toBeInTheDocument();
+  });
+
+  it("projeto arquivado aparece quando o filtro de status é explicitamente \"Arquivado\"", async () => {
+    localStorage.setItem(PROJECTS_DATA_SOURCE_KEY, "local");
+    vi.mocked(useProjects).mockReturnValue({
+      projects: [
+        makeLocalProject({ id: "pj-ativo", name: "Projeto Ativo", status: "in_progress" }),
+        makeLocalProject({ id: "pj-arquivado", name: "Projeto Arquivado", status: "archived" }),
+      ],
+      addProject: vi.fn(),
+    } as never);
+
+    renderSection();
+    await screen.findByText("Projeto Ativo");
+
+    const statusSelect = screen.getByText("Todos status");
+    fireEvent.click(statusSelect);
+    fireEvent.click(await screen.findByText("Arquivado"));
+
+    expect(await screen.findByText("Projeto Arquivado")).toBeInTheDocument();
+    expect(screen.queryByText("Projeto Ativo")).not.toBeInTheDocument();
   });
 });
