@@ -24,6 +24,11 @@ import type { DayActionItem } from "@/lib/dayCenter";
  * bloqueia a ação inteira quando `dataSource=supabase` (some do menu, não
  * fica clicável-mas-quebrado), e `markReceivablePaid` tem a mesma guarda
  * como defesa em profundidade, com toast explicando o porquê.
+ *
+ * TODO (revisão Lane E, NOTA-d — etapa-5-flip-financeiro-pacote.md §6.4):
+ * esta guarda existe DUPLICADA em `DayCenter.tsx` (canMarkPaid/confirmMarkPaid,
+ * mesma lógica). Extrair pra um helper compartilhado — não feito nesta
+ * rodada pra não aumentar o escopo da Fase B além do desenho.
  */
 export function useDayCenterActions() {
   const { updateTask } = useTasks();

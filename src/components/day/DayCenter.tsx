@@ -124,6 +124,10 @@ export function DayCenter({ open, onOpenChange }: Props) {
   // por decisão do desenho) — confirmMarkPaid/canMarkPaid abaixo bloqueiam
   // a ação em modo Supabase pra nunca virar um no-op silencioso contra uma
   // linha que só existe na nuvem.
+  // TODO (revisão Lane E, NOTA-d — etapa-5-flip-financeiro-pacote.md §6.4):
+  // esta guarda existe DUPLICADA em useDayCenterActions.ts (mesma lógica).
+  // Extrair pra um helper compartilhado — não feito nesta rodada pra não
+  // aumentar o escopo da Fase B além do desenho.
   const { updateTransactionStatus } = useFinance();
   const transactions = useBifurcatedFinance();
   const { updateLog } = useClientActivityLogs();

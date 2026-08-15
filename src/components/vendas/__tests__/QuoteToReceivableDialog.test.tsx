@@ -83,6 +83,17 @@ describe("QuoteToReceivableDialog · espelho G22 (Fase B, §5.1) — gap real do
         payment_method: "pix",
       }),
     ));
+
+    // Revisão Lane E (AJUSTE-a) — objectContaining sozinho não prova
+    // ausência (uma chave presente com valor undefined ainda passa nele).
+    // `notes` é preenchido no formulário deste diálogo mas NUNCA viaja no
+    // espelho (sem coluna cloud, §1.2 do desenho) — checa a ausência real
+    // no argumento que realmente chegou na chamada, não um subconjunto.
+    const mirrorPayload = vi.mocked(financeRepository.createReceivableFromQuote).mock.calls[0][1];
+    expect(mirrorPayload).not.toHaveProperty("notes");
+    expect(mirrorPayload).not.toHaveProperty("recurrence");
+    expect(mirrorPayload).not.toHaveProperty("supplierId");
+    expect(mirrorPayload).not.toHaveProperty("cashAccountId");
   });
 
   it("client_id/opportunity_id já sendo uuid real (quote lida da nuvem) passam direto — G37 por desenho, §2.2", async () => {

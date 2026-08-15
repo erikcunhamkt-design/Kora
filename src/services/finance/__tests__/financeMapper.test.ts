@@ -118,6 +118,25 @@ describe("mapLocalTransactionToSupabase — category/payment_method no payload (
     const payload = mapLocalTransactionToSupabase(makeTransaction({ category: undefined as unknown as string }));
     expect(payload.category).toBeNull();
   });
+
+  // Revisão Lane E (AJUSTE-a) — objectContaining sozinho não prova ausência
+  // (um objeto com a chave presente e valor undefined ainda passa nele).
+  // recurrence/supplierId/cashAccountId/notes (§1.2 do desenho, pós-flip)
+  // precisam estar de fato AUSENTES do payload, não só "não verificados" —
+  // notes em especial porque o comentário do mapper reverso (corrigido
+  // nesta revisão) chegou a afirmar, por engano, que ele era fundido em
+  // description na escrita.
+  it("recurrence/supplierId/cashAccountId/notes NUNCA entram no payload (pós-flip, §1.2 — ausência real, não só null)", () => {
+    const payload = mapLocalTransactionToSupabase(makeTransaction({
+      recurrence: "monthly", supplierId: "sup-1", cashAccountId: "cash-1", notes: "observação qualquer",
+    }));
+    expect(payload).not.toHaveProperty("recurrence");
+    expect(payload).not.toHaveProperty("supplierId");
+    expect(payload).not.toHaveProperty("supplier_id");
+    expect(payload).not.toHaveProperty("cashAccountId");
+    expect(payload).not.toHaveProperty("cash_account_id");
+    expect(payload).not.toHaveProperty("notes");
+  });
 });
 
 describe("inspectFinanceMoney — divergência amount vs quotes.total (reporta, não corrige)", () => {

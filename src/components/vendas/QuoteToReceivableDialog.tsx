@@ -18,6 +18,7 @@ import {
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { financeRepository } from "@/repositories/financeRepository";
 import { resolveFinanceFk } from "@/services/finance/financeMapper";
+import { roundMoney } from "@/services/quotes/quoteMoney";
 
 const paymentLabels: Record<PaymentMethod, string> = {
   pix: "PIX",
@@ -134,6 +135,12 @@ export function QuoteToReceivableDialog({
   // (G37 por desenho, §2.2) encaminha direto; se forem id local sem mapa
   // (cenário comum aqui — sem import-map disponível neste componente),
   // resolve null, nunca um id cru na coluna uuid (padrão Q4).
+  // NOTA-e (revisão Lane E) — não confundir com `blockWrite()`/`useSupabaseFinanceWriteFlag`
+  // em Financeiro.tsx: aquela flag gateia a criação NATIVA na nuvem (o CRUD
+  // novo da Fase B, sem contraparte local); este espelho é um caminho
+  // DIFERENTE e sempre-ligado por desenho (local já grava, isto só tenta
+  // replicar best-effort) — mesma classe de decisão do mirror de
+  // CreateReceivableDialog.tsx, nunca gateada por flag nenhuma.
   const mirrorReceivableToSupabase = (localTransactionId: string) => {
     if (!workspace) return;
     financeRepository.createReceivableFromQuote(workspace.id, {
@@ -142,7 +149,11 @@ export function QuoteToReceivableDialog({
       opportunity_id: resolveFinanceFk(quote.opportunityId, {}),
       title: title.trim(),
       description: quote.description || undefined,
-      amount: numericAmount,
+      // NOTA-c (revisão Lane E) — quantiza a centavos antes da coluna
+      // numeric, mesmo pipeline de mapLocalTransactionToSupabase
+      // (financeMapper.ts, F4); local (linha 95, addTransaction) não precisa
+      // — não escreve na coluna numeric da nuvem.
+      amount: roundMoney(numericAmount),
       due_date: dueDate,
       category,
       payment_method: paymentMethod,

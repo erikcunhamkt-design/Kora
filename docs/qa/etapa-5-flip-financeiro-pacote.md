@@ -41,8 +41,9 @@ ALTER TABLE public.financial_transactions
 | `supplierId` | Só usado em transações `type="expense"` — fatia menor da tela. Fechar exigiria uma tabela `suppliers` própria (nome, contato, etc.) — um domínio novo, não uma coluna. | Tabela `suppliers` + FK + tela de gestão de fornecedores na nuvem |
 | `cashAccountId` | Usado só na aba "Caixa" (gestão de saldo por conta) — feature de produto mais funda que "guardar um id". Fechar como coluna solta sem tabela de contas perderia o propósito (saldo agregado por conta). | Tabela `cash_accounts` (com saldo derivado) + FK + UI |
 | `recurrence` | **O maior gap dos 5** — não é só um campo, é uma sub-feature inteira: `RecurringEntry[]` (`useFinance.ts:173-186`, chave `kora.finance.recurring.v1`) é um store SEPARADO de templates que geram transações futuras. Fechar isso exige lógica de geração (quem cria a próxima ocorrência? client-side ao abrir o app, ou um cron server-side?), não uma migration de coluna. | Tabela `recurring_entries` + mecanismo de geração (decisão de arquitetura própria, fora do escopo de um flip de storage) |
+| `notes` | Texto livre opcional, sem contraparte cloud — nunca foi fundido em `description` na escrita (correção de comentário, revisão Lane E — AJUSTE-a, Fase B: um comentário do mapper afirmava essa fusão por engano; `mapLocalTransactionToSupabase` sempre omitiu `notes` do payload, igual aos outros 3 campos desta tabela). | Coluna `text` simples — mais barato que os outros 3, mas fora do escopo bloqueante original da Fase A |
 
-**Comportamento com os 3 campos pós-flip, em modo Supabase**: nem perder silenciosamente, nem bloquear a ação — a transação salva normalmente (os 3 campos simplesmente não têm coluna pra ir), e a UI mostra um aviso pontual explícito ("Fornecedor/Conta/Recorrência ainda não sincronizam com a nuvem — disponível só em modo Local") quando o usuário tenta usar um desses campos com `dataSource=supabase`. Decisão de UX final (aviso inline vs. desabilitar o campo) fica para a Fase B — este pacote só fecha que a transação em si não é bloqueada por causa deles.
+**Comportamento com os 4 campos pós-flip, em modo Supabase**: nem perder silenciosamente, nem bloquear a ação — a transação salva normalmente (os 4 campos simplesmente não têm coluna pra ir), e a UI mostra um aviso pontual explícito ("Fornecedor/Conta/Recorrência ainda não sincronizam com a nuvem — disponível só em modo Local") quando o usuário tenta usar um desses campos com `dataSource=supabase`. Decisão de UX final (aviso inline vs. desabilitar o campo) fica para a Fase B — este pacote só fecha que a transação em si não é bloqueada por causa deles.
 
 ---
 
@@ -196,6 +197,10 @@ Nenhuma mudança neste pacote acorda Asaas/Pix — confirmado na Fase A (`etapa-
 
 - **Nível 1 (imediato, sem código)**: `kora.finance.dataSource.v1=local` — reversível a qualquer momento, sem perda (transações criadas em modo Supabase somem da view local, não são apagadas). A flag de escrita sozinha não bloqueia CRUD (lição G29) — só a combinação com `dataSource=local` garante leitura 100% local.
 - **Nível 2 (revert de código)**: só se o Nível 1 não bastar — `git revert` do commit de flip, mantendo o schema/mapper (Fase B) intactos, mesmo tratamento de Projetos.
+
+### 6.4 Melhorias conhecidas, não endereçadas nesta rodada (revisão Lane E)
+
+- **NOTA-d**: `canMarkPaid`/`markReceivablePaid`/`confirmMarkPaid` (guarda de §3.1 contra no-op silencioso em modo Supabase) existem duplicados em `useDayCenterActions.ts` e `DayCenter.tsx` — mesma lógica, dois pontos de manutenção. Deduplicar (extrair pra um helper compartilhado) fica pendente, com TODO nos 2 arquivos referenciando esta revisão.
 
 ---
 

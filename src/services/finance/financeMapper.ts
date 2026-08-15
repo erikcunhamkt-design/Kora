@@ -111,8 +111,12 @@ export interface SupabaseTransactionImportPayload extends Partial<SupabaseFinanc
  * Converte uma Transaction local no payload de import (FKs resolvidas, type
  * traduzido, amount quantizado). `category`/`payment_method` (Fase B, §1.1/
  * §2.3 do desenho) — payload completo desde o dia 1 (G37, 2ª metade):
- * `supplierId`/`cashAccountId`/`recurrence` (pós-flip, sem coluna) NUNCA
- * entram aqui — omitidos, não `null` forçado por engano.
+ * `supplierId`/`cashAccountId`/`recurrence`/`notes` (pós-flip, sem coluna)
+ * NUNCA entram aqui — omitidos, não `null` forçado por engano. `notes` NÃO
+ * é fundido em `description` (revisão Lane E, AJUSTE-a — o comentário do
+ * mapper reverso, abaixo, afirmava essa fusão por engano; nunca existiu no
+ * código: é exclusão documentada, o 4º campo sem coluna cloud, mesmo
+ * tratamento de supplierId/cashAccountId/recurrence).
  */
 export function mapLocalTransactionToSupabase(
   transaction: Transaction,
@@ -192,13 +196,14 @@ export function translateCloudTransactionVocabulary(
  * nunca preenchida) — "reportar, não inventar" continua valendo pro que
  * ainda não tem dado real.
  *
- * `recurrence`/`supplierId`/`cashAccountId` continuam SEM coluna cloud
- * (pós-flip, §1.2 do desenho — domínio relacional novo, fora de escopo
- * desta fase). Mesmo tratamento da Fatia N: enum fechado (`recurrence`)
- * recebe o membro neutro (`"none"`); os 2 opcionais ficam `undefined`.
- * `notes` também fica `undefined` — a nuvem funde notes dentro de
- * `description` na ESCRITA (`mapLocalTransactionToSupabase` acima), não dá
- * pra desfundir na leitura.
+ * `recurrence`/`supplierId`/`cashAccountId`/`notes` continuam SEM coluna
+ * cloud (pós-flip, §1.2 do desenho — domínio relacional novo, fora de
+ * escopo desta fase). Mesmo tratamento da Fatia N: enum fechado
+ * (`recurrence`) recebe o membro neutro (`"none"`); os 3 opcionais
+ * (`supplierId`/`cashAccountId`/`notes`) ficam `undefined`. Correção
+ * (revisão Lane E, AJUSTE-a): `notes` NUNCA foi fundido em `description` na
+ * escrita — `mapLocalTransactionToSupabase` (acima) já omite `notes` por
+ * completo, exclusão documentada como os demais, não "não dá pra desfundir".
  *
  * `quoteTitle` fica `undefined` — mesmo gap não resolvido do G37 (achado
  * #3 daquele fix): a nuvem não denormaliza título de quote, restaurar isso

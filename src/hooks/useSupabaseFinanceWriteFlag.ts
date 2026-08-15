@@ -1,17 +1,19 @@
 import { useCallback, useEffect, useState } from "react";
 
 /**
- * Etapa 5 · Financeiro Fatia N — flag mestre de escrita de `financial_transactions`
+ * Etapa 5 · Financeiro — flag mestre de escrita de `financial_transactions`
  * na nuvem.
  *
- * Nasce opt-in (default OFF, mesmo nascimento de
+ * Nasceu opt-in (default OFF, mesmo nascimento de
  * `kora.projects.supabaseWrite.enabled` na Fatia N de projects, antes do
- * Pacote do Flip) — primeira rodada de leitura do domínio, sem nenhum
- * código de escrita/espelho consumindo esta flag ainda. Reservada pra
- * quando a Fase C (flip real, desenho em paralelo pela Lane B) precisar de
- * um gate de escrita — não usada por nenhum componente nesta fatia (a
- * escrita em modo Supabase fica bloqueada incondicionalmente, ver
- * `Financeiro.tsx`, `blockWrite()`).
+ * Pacote do Flip) — na Fatia N, primeira rodada de leitura do domínio,
+ * reservada sem nenhum consumidor ainda (a escrita em modo Supabase ficava
+ * bloqueada incondicionalmente). Correção (revisão Lane E, NOTA-f — este
+ * comentário ficou desatualizado): Fase B (Pacote do Flip) passou a
+ * consumi-la de verdade — `Financeiro.tsx` gateia `blockWrite()` por ela
+ * (flag ON libera create/update/delete reais via `useSupabaseFinanceTransactions`;
+ * OFF preserva o bloqueio incondicional da Fatia N, byte a byte). O flip dos
+ * defaults (ligar pra todo mundo) continua sendo Fase C.
  *
  * Stored in localStorage under `kora.finance.supabaseWrite.enabled`.
  * Synced across tabs via `storage`, e dentro da mesma aba via um evento
