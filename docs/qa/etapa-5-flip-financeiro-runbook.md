@@ -17,6 +17,19 @@
 > Supabase opt-in + as 2 flags) — os trechos que ela já resolve estão
 > escritos contra o código real, não mais como placeholder; o que ainda
 > falta (escrita real, migrations do pacote §1.1/§2.1) continua marcado.
+>
+> **Atualização (rodada seguinte) — Fase B FECHADA:** `main` chegou em
+> `dea8c75` (`936c762` — Fase B completa: CRUD real, `useBifurcatedFinance`,
+> espelho de `QuoteToReceivableDialog` — + `dea8c75` — ajustes da revisão
+> Lane E sobre `936c762`). **Todos os `[completar pós-B]` desta rodada foram
+> resolvidos contra o código real mesclado**, mesmo movimento do runbook de
+> `projects` — nomes de hook, arquivo:linha e comportamento exato, todos
+> confirmados por leitura direta do código em `main`, não mais por citação
+> do desenho do pacote. Nenhum caso mudou de forma; alguns tiveram a
+> expectativa corrigida contra uma divergência real do código (marcado
+> inline onde ocorreu). `dea8c75` é registrado como o fechamento da Fase B
+> — baseline do rollback nível 2 (§2.4) —, não como o commit da Fase C
+> (que ainda não existe).
 
 ## Abertura (§16/§17)
 
@@ -68,21 +81,47 @@
    Comparar contra a contagem local anotada no passo 2 — a diferença esperada é exatamente o número de candidatos `new` importados no passo 3, mais os recebíveis já criados nativamente na nuvem (via `CreateReceivableDialog`/`QuoteToReceivableDialog`, que não têm `source_local_id` de import).
 6. **Decisão explícita de prosseguir** (gate, não formalidade): só depois de (a) export confirmado (§1.1), (b) nenhum candidato `new` restante ou decisão documentada de não importar algum, (c) prova de contagem batendo — a Fase C pode começar. Registrar essa decisão no relatório da sessão de flip, mesmo que a resposta seja "zero transações locais reais além das já homologadas na Fatia 6, nada a importar".
 
+### 1.3 Gate NOVO — as 2 migrations são PRÉ-REQUISITO da Fase C (`projects` não tinha isso)
+
+**Diferente de `projects`** (cuja Fase A/pacote não deixou nenhuma migration pendente de aplicação antes do flip dos defaults — `deliverables`/CHECK de status já tinham sido aplicados numa sessão §8-b anterior à Fase C daquele pacote): aqui a Fase B **já escreveu o código de escrita assumindo que as 2 migrations do pacote (§1.1/§2.1) existem** — `mapLocalTransactionToSupabase` (`financeMapper.ts:136-137`) já envia `category`/`payment_method` no payload de todo INSERT/UPSERT novo. **Sem as colunas, o INSERT falha** — não é uma melhoria opcional, é uma dependência dura entre código já mesclado e schema ainda não aplicado.
+
+As 2 migrations, escritas na Fase B, **não aplicadas** (Code não roda DDL, protocolo §0/§6/§8-b):
+
+1. `supabase/migrations/20260815000100_etapa5_flip_financeiro_add_category_payment_method.sql` — `category`/`payment_method` (colunas) + CHECK de `payment_method`.
+2. `supabase/migrations/20260815000200_etapa5_flip_financeiro_type_status_known_chk.sql` — CHECK preventivo de `type`/`status` (§2.1 do pacote).
+
+**Passo explícito do operador, ANTES do "vai" da Fase C** (a migration 2 já embute as verificações no próprio arquivo, linhas 13-16 — reproduzidas aqui para o operador não precisar abrir o SQL pra achá-las):
+
+```sql
+-- Rodar ANTES de aplicar a migration 2 (CHECK de type/status). Expectativa é
+-- ZERO linha em qualquer uma das 2 — confirmar, não supor (mesma migration já
+-- documenta isso, 20260815000200_...sql linhas 13-16).
+SELECT DISTINCT type FROM public.financial_transactions WHERE type NOT IN ('receivable','payable');
+SELECT DISTINCT status FROM public.financial_transactions WHERE status NOT IN ('pending','paid','overdue','canceled');
+```
+
+1. Aplicar a migration 1 (`..._add_category_payment_method.sql`).
+2. Rodar as 2 SELECTs de verificação acima. Se qualquer uma devolver linha: **PARAR** — não aplicar a migration 2 sem decidir o que fazer com o dado fora do vocabulário primeiro (mesma trava que a própria migration já registra em comentário).
+3. Se as 2 SELECTs devolverem zero linhas: aplicar a migration 2 (`..._type_status_known_chk.sql`).
+4. **Confirmação por escrito do operador** ("apliquei as 2 migrations, as 2 SELECTs de verificação vieram vazias") é o gate — Code não aplica DDL, só verifica que a confirmação chegou antes de considerar a Fase C liberada para abrir.
+
+Sem este passo, a Fase C não pode abrir — o flip do default de `dataSource` pra `supabase` exporia imediatamente o caminho de escrita nativa (Caso 2, §3.3) a um INSERT que falha em produção.
+
 ---
 
 ## 2. FASE C — flip dos defaults
 
 ### 2.1 Pré-requisito de ordem — não flipar antes do CRUD estar pronto
 
-Mesma lição de `projects` (`etapa-5-flip-projetos-runbook.md` §2.1) e do próprio pacote de Financeiro (§Fase B/C/D, item 1): se `dataSource` flipar antes da escrita real estar pronta, todo usuário cai no `blockWrite()` incondicional que `Financeiro.tsx` já tem hoje (linha 168-172, bloqueia qualquer criação em modo Supabase, independente de flag) — regressão temporária desnecessária. **A fatia da Fase B já mesclada (`e7d21b7`) é só leitura** — não muda esse cálculo: `blockWrite()` continua incondicional até a escrita real chegar. Ordem obrigatória:
+Mesma lição de `projects` (`etapa-5-flip-projetos-runbook.md` §2.1) e do próprio pacote de Financeiro (§Fase B/C/D, item 1): se `dataSource` flipar antes da escrita real estar pronta, todo usuário cai no `blockWrite()` que `Financeiro.tsx` tem hoje — regressão temporária desnecessária. **Confirmado contra o código real**: `blockWrite()` (`Financeiro.tsx:193-198`) **não é mais incondicional** — a Fase B (`936c762`) mudou o gate de "sempre bloqueia em modo Supabase" pra "bloqueia só se `writeEnabled` (`useSupabaseFinanceWriteFlag`) estiver OFF" (linha 195: `if (writeEnabled) return false;`). Com a flag ligada (opt-in, nasce OFF — Flag 2, §2.2), a escrita nativa já funciona hoje, mesmo antes da Fase C flipar os defaults. Ordem obrigatória:
 
-1. Fase B (código) — **item 2 (leitura) confirmado mesclado**: `e7d21b7`. **Itens restantes `[completar pós-B]`**: migrations do pacote §1.1 (`category`/`payment_method` + CHECK) e §2.1 (CHECK de `type`/`status`), `updateTransaction`/`createTransaction` no repository (pacote §2.5), `QuoteToReceivableDialog.tsx` ganhando o espelho G22 (pacote §5.1 — G41 confirmou que isso **ainda não existe**, só o fix mecânico de `quoteId` local foi feito).
-2. Fase C (este runbook, §2.2-§2.5) — só depois do item 1 fechar por completo, não só a fatia de leitura.
+1. **Fase B (código) — FECHADA**: `936c762` (CRUD real, `useBifurcatedFinance`, espelho de `QuoteToReceivableDialog`) + `dea8c75` (ajustes da revisão Lane E — ver notas inline nesta rodada). Nenhum item pendente de código — o que resta antes da Fase C é o gate de schema do §1.3 (migrations), que é do operador, não de código.
+2. Fase C (este runbook, §2.2-§2.5) — só depois do §1.3 (migrations aplicadas e confirmadas) fechar.
 3. Fase D (homologação, §3).
 
 ### 2.2 As duas flags — antes (hoje, confirmado) / depois (proposto)
 
-**Flag 1 — `kora.finance.dataSource.v1`** (`src/config/flags.ts:117,211-213`, código real, já mesclado em `e7d21b7`):
+**Flag 1 — `kora.finance.dataSource.v1`** (`src/config/flags.ts:124,218-219`, código real — linhas reconfirmadas nesta rodada; deslocaram de `117,211-213` porque `flags.ts` ganhou a flag `aiBrainEnabled` — Etapa 9 item 2 — entre as duas rodadas, sem relação com Financeiro):
 
 ```ts
 // ANTES (Fase B item 2, hoje em produção) — só "supabase" explícito seleciona nuvem.
@@ -99,7 +138,7 @@ export function getFinanceDataSource(): DataSource {
 }
 ```
 
-**Flag 2 — `kora.finance.supabaseWrite.enabled`** (`src/hooks/useSupabaseFinanceWriteFlag.ts:25-32`, código real, já mesclado — nasceu reservada, "não usada por nenhum componente ainda", comentário do próprio hook, linhas 10-14):
+**Flag 2 — `kora.finance.supabaseWrite.enabled`** (`src/hooks/useSupabaseFinanceWriteFlag.ts:27-34`, código real). **Divergência corrigida nesta rodada**: a versão anterior deste runbook citava o comentário do hook como "nasceu reservada, não usada por nenhum componente ainda" — isso descrevia só a Fatia N (leitura). A Fase B (`936c762`) mudou isso, e a própria revisão Lane E (NOTA-f, `dea8c75`) já corrigiu o comentário do hook por estar desatualizado (`useSupabaseFinanceWriteFlag.ts:11-16`): a flag hoje **tem consumidor real** — `Financeiro.tsx:193-198` (`blockWrite()`) e, por extensão, todo o CRUD de `useSupabaseFinanceTransactions.ts`:
 
 ```ts
 // ANTES (Fase B item 2, hoje em produção) — opt-in, só "true" liga.
@@ -124,7 +163,10 @@ function readFlag(): boolean {
 }
 ```
 
-**As duas flipam no mesmo pacote, não em rodadas separadas** — mesmo precedente de `quotes`/`projects` ("o cutover completo decide os dois juntos"). Diferente de `projects`, aqui a Flag 2 nasceu **sem nenhum consumidor** (nenhum espelho/mirror usa `isSupabaseFinanceWriteEnabled()` ainda) — o "depois" proposto acima só passa a ter efeito observável quando `QuoteToReceivableDialog.tsx` ganhar o espelho G22 (`[completar pós-B]`, pacote §5.1). Até lá, flipar a Flag 2 sozinha não muda nenhum comportamento visível — confirmar isso explicitamente no relatório da Fase C, pra não ser lido como "a flag não fez nada, bug" quando na verdade é "a flag ainda não tem consumidor".
+**As duas flipam no mesmo pacote, não em rodadas separadas** — mesmo precedente de `quotes`/`projects` ("o cutover completo decide os dois juntos"). **Correção desta rodada**: a versão anterior deste runbook dizia que a Flag 2 nasceu "sem nenhum consumidor" e que o "depois" proposto só teria efeito quando `QuoteToReceivableDialog.tsx` ganhasse o espelho — isso já não é verdade. Dois esclarecimentos, confirmados contra o código real:
+
+1. **A Flag 2 já tem consumidor desde a Fase B** (`Financeiro.tsx:193-198`, `blockWrite()`) — não desde a Fase C. Ligar a Flag 2 manualmente hoje (antes da Fase C) já libera CRUD nativo real na tela principal — é o próprio Caso 2 (§3.3), executável agora.
+2. **O espelho de `QuoteToReceivableDialog.tsx` NÃO é gateado pela Flag 2** — nem antes, nem depois do flip. Confirmado por comentário explícito no próprio código (NOTA-e, revisão Lane E, `QuoteToReceivableDialog.tsx:138-143`): o mirror é "sempre-ligado por desenho" (mesma classe de decisão do mirror de `CreateReceivableDialog.tsx`, que também nunca teve gate de flag) — completamente ortogonal à Flag 2, que gateia só a criação NATIVA sem origem local. Flipar a Flag 2 pra opt-out na Fase C não muda o comportamento do espelho em nada — ele já roda incondicionalmente desde a Fase B.
 
 ### 2.3 Rollback nível 1 — override de flag, sem deploy
 
@@ -141,11 +183,11 @@ seguido de F5.
 - Dado criado/editado em Supabase: não é apagado no revert — só para de aparecer na tela se o usuário também trocar pra "Local"; continua em `public.financial_transactions`, reaparece assim que o seletor volta pra "supabase".
 - **Nenhuma direção do rollback nível 1 perde dado** — pior caso é perda de visibilidade temporária, sempre reversível.
 
-**Nota (G29, aplicada por desenho aqui — não descoberta depois):** `Financeiro.tsx` já nasceu (`e7d21b7`) com o texto do `blockWrite()` (linha 170) honesto desde o dia 1 — "Escrita em modo Supabase ainda não existe pra Financeiro" — nunca prometendo uma escrita que não existe. Quando a Fase C ligar a escrita real, este texto **precisa mudar** ou desaparecer (o botão para de bloquear) — se sobreviver depois da escrita real funcionar, é o mesmo vermelho que `projects` teve no G29 (banner fóssil). Marcar isso explicitamente na checklist da Fase C, não deixar implícito.
+**Nota (G29, aplicada por desenho aqui — não descoberta depois):** **Atualizado contra o código real.** A versão anterior deste runbook citava o texto de `blockWrite()` da Fatia N ("Escrita em modo Supabase ainda não existe pra Financeiro"), quando o bloqueio ainda era incondicional. A Fase B (`936c762`) já reescreveu o texto junto com a mudança de gate (`Financeiro.tsx:196`): *"Escrita em modo Supabase ainda não existe pra Financeiro — volte para \"Local\" para lançar/editar, ou ative a escrita experimental."* — honesto com o estado real de HOJE (aparece só quando `writeEnabled` é `false`, e já menciona a saída real). **Não é um fóssil G29** — não promete nada que o código não faz. Ponto de atenção que sobrevive pra Fase C: quando a Flag 2 flipar pra opt-out (default ON), a mensagem passa a aparecer só pra quem desligou a escrita explicitamente — o texto continua correto nesse cenário (ainda existe uma saída real, "ative a escrita experimental" → já vai estar ativa por padrão, mas o override existe). Nada a corrigir no texto na Fase C; só confirmar visualmente que a mensagem não aparece mais pro caminho feliz (usuário novo, sem override).
 
 ### 2.4 Rollback nível 2 — revert de código
 
-Só se o nível 1 não for suficiente. **Baseline `[completar pós-B]`**: ao contrário de `projects` (onde `d90ba47` já era um merge único fechando toda a Fase B), Financeiro está mesclando em fatias — `e7d21b7` é só a fatia de leitura, não a baseline completa "tudo pronto, defaults ainda não flipados". O hash de referência correto só existe quando o ÚLTIMO commit da Fase B (migrations + escrita real + espelho de `QuoteToReceivableDialog`) mesclar — esse hash substitui este placeholder na próxima rodada, confirmado por `git log` como ancestral de `main` no momento em que a Fase C for de fato aberta (mesma disciplina de `projects` §2.4: nunca citar de memória).
+Só se o nível 1 não for suficiente. **Baseline: `dea8c75`** — fechamento da Fase B (`936c762` — CRUD real, `useBifurcatedFinance`, espelho; `dea8c75` — ajustes da revisão Lane E por cima), confirmado por `git log origin/main -1` como o tip real no momento desta rodada. Mesmo padrão de `projects` (`d90ba47`/`b90f86a`): este é o estado "tudo pronto, defaults ainda não flipados" — o(s) commit(s) da Fase C nascem em cima dele. **O hash a reverter no nível 2 é o(s) commit(s) que a Fase C adicionar DEPOIS de `dea8c75`, nunca `dea8c75` em si** — confirmar o hash exato do commit de flip por `git log` no relatório daquela rodada, quando ela acontecer (mesma disciplina de `projects` §2.4: nunca citar de memória).
 
 ```bash
 git revert <hash-do(s)-commit(s)-de-flip-da-Fase-C> --no-edit
@@ -188,80 +230,99 @@ Entidades sintéticas (novas, prefixo `HOMOLOG-FIN-` — não reaproveitar o cli
 
 ### 3.3 Os 7 casos
 
-Esqueleto herdado de `etapa-5-flip-financeiro-pacote.md` §6.2, expandido aqui passo-a-passo. Print pré-clique obrigatório (protocolo §2) em todo passo que grava na nuvem. Cada caso indica se já é executável com o código mesclado hoje (`e7d21b7`) ou depende do restante da Fase B (`[completar pós-B]`).
+Esqueleto herdado de `etapa-5-flip-financeiro-pacote.md` §6.2, expandido aqui passo-a-passo. Print pré-clique obrigatório (protocolo §2) em todo passo que grava na nuvem. **Fase B fechada (`dea8c75`) — todos os 8 casos abaixo já são executáveis no código de hoje**, com uma ressalva única: os Casos 2/2.3/7 (que gravam `category`/`payment_method` ou dependem do CHECK) só rodam depois do gate do §1.3 (as 2 migrations aplicadas pelo operador) — sem isso, o passo de escrita falha por coluna inexistente, não por bug de código.
 
 ---
 
-**Caso 1 — Leitura em modo Supabase** — **já executável hoje** (código de leitura mesclado, `e7d21b7`)
+**Caso 1 — Leitura em modo Supabase** — código pronto desde a fatia de leitura (`e7d21b7`), reconfirmado com Fase B fechada (`936c762`/`dea8c75`)
 
 | Passo | Ação | Esperado | Prova |
 |---|---|---|---|
-| 1.1 | Console: `localStorage.setItem("kora.finance.dataSource.v1", "supabase");` → F5, abrir Financeiro.tsx | Seletor mostra "Supabase (leitura)"; painel de leitura separado aparece (`useSupabaseFinanceTransactions`, `Financeiro.tsx:344`) | Visual |
+| 1.1 | Console: `localStorage.setItem("kora.finance.dataSource.v1", "supabase");` → F5, abrir Financeiro.tsx | Seletor mostra "Supabase"; painel de leitura separado aparece (`SupabaseTransactionsPanel`, `Financeiro.tsx:313-320`, alimentado por `useSupabaseFinanceTransactions()` desestruturado em `:173-178`) — linha reconfirmada nesta rodada, deslocou de `344` (citação antiga) por causa do CRUD que a Fase B acrescentou ao arquivo | Visual |
 | 1.2 | — | Painel mostra as transações já reais do workspace (recebíveis homologados na Fatia 6), sem duplicar as locais equivalentes | Visual — comparar contagem do painel com `SELECT count(*) FROM public.financial_transactions WHERE workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' AND deleted_at IS NULL;` |
 | 1.3 | Conferir os campos sem coluna cloud (§Caso 5) | `category` aparece como `"Sem categoria (nuvem)"`, `paymentMethod` como `"other"`, nunca um valor inventado — mesmo comportamento documentado em `mapSupabaseTransactionToLocal` (`financeMapper.ts:200,209-210`) | Visual — nenhuma categoria real "adivinhada" |
 
 ---
 
-**Caso 2 — Escrita nativa + prova obrigatória do equivalente-O12** `[completar pós-B — updateTransaction/createTransaction + migrations §1.1/§2.1 do pacote]`
+**Caso 2 — Escrita nativa + prova obrigatória do equivalente-O12** — código pronto (`936c762`); execução real depende do gate do §1.3 (migrations aplicadas)
+
+**Mecanismo real, confirmado contra `main`**: "Venda rápida"/"Lançar despesa" (`Financeiro.tsx:246-249`, atrás de `blockWrite()`) chamam `createSupabaseTransaction` → `useSupabaseFinanceTransactions.ts:59-79` (`createMutation`) — reaproveita `financeRepository.importTransaction` com `buildNativeSourceLocalId()`, mesmo precedente de criação nativa de `projects`/`quotes` (nenhuma função nova no repository).
 
 | Passo | Ação | Esperado | Prova |
 |---|---|---|---|
-| 2.1 | Criar transação manual `HOMOLOG-FIN-transacao-A` pela tela, em modo Supabase (`source='manual'`) | Toast de sucesso, aparece no painel sem reload | Visual |
-| 2.2 | — (SELECT depois da ação, §3.2) | Linha existe na nuvem com `category`/`payment_method` preenchidos (pós-migration §1.1 do pacote) | `SELECT title, category, payment_method, type, status FROM public.financial_transactions WHERE workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' AND title = 'HOMOLOG-FIN-transacao-A';` → 1 linha |
-| **2.3** | **Prova obrigatória do equivalente-O12 — não pode fechar como "assumido correto"** (lição G40, pacote §2.1) | Tentar gravar um valor FORA do vocabulário direto por SQL, contornando a UI | `UPDATE public.financial_transactions SET status = 'valor-invalido' WHERE title = 'HOMOLOG-FIN-transacao-A';` → **DEVE FALHAR** com violação de `financial_transactions_status_known_chk` (ou constraint equivalente aplicada na migration do pacote §2.1) |
+| 2.0 | **Pré-condição**: confirmar que o §1.3 já fechou (as 2 migrations aplicadas, SELECTs de verificação vazias) | Colunas `category`/`payment_method` existem, CHECK de `type`/`status` ativo | `SELECT column_name FROM information_schema.columns WHERE table_name='financial_transactions' AND column_name IN ('category','payment_method');` → 2 linhas |
+| 2.1 | Ligar `kora.finance.supabaseWrite.enabled` (Flag 2, §2.2) → criar transação manual `HOMOLOG-FIN-transacao-A` pela tela, em modo Supabase (`source='manual'`) | Toast de sucesso, aparece no painel sem reload (`createMutation.onSuccess`, `useSupabaseFinanceTransactions.ts:73-78`, escreve direto no cache) | Visual |
+| 2.2 | — (SELECT depois da ação, §3.2) | Linha existe na nuvem com `category`/`payment_method` preenchidos | `SELECT title, category, payment_method, type, status FROM public.financial_transactions WHERE workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' AND title = 'HOMOLOG-FIN-transacao-A';` → 1 linha |
+| **2.3** | **Prova obrigatória do equivalente-O12 — não pode fechar como "assumido correto"** (lição G40, pacote §2.1) | Tentar gravar um valor FORA do vocabulário direto por SQL, contornando a UI | `UPDATE public.financial_transactions SET status = 'valor-invalido' WHERE title = 'HOMOLOG-FIN-transacao-A';` → **DEVE FALHAR** com violação de `financial_transactions_status_known_chk` (migration `20260815000200_etapa5_flip_financeiro_type_status_known_chk.sql`) |
 
 **O passo 2.3 é vermelho automático se o UPDATE inválido NÃO falhar** — mesma classe do Caso 4.6 (O12) de `projects`: é literalmente a prova de que o CHECK preventivo desenhado no pacote foi de fato aplicado, não só desenhado. Diferente de `projects` (onde o CHECK era reativo a um problema já observado), aqui o risco é o oposto — não confirmar que uma migration proposta em doc realmente virou constraint em produção antes de assumir que o "equivalente-O12 resolvido por desenho" (pacote §2.1) é verdade.
 
 ---
 
-**Caso 3 — Edição real refletida na própria mutação (G30)** `[completar pós-B — updateTransaction]`
+**Caso 3 — Edição real refletida na própria mutação (G30)** — código pronto (`936c762`)
+
+**Mecanismo real, confirmado contra `main` — o G30 foi aplicado por desenho, não precisou de fix reativo aqui**: `SupabaseTransactionsPanel` (`Financeiro.tsx:391-401`) → `setStatus` (`:402-409`) → `onUpdate` → `updateSupabaseTransaction` → `useSupabaseFinanceTransactions.ts:84-93` (`updateMutation`), cujo `onSuccess` chama `queryClient.setQueryData` com a linha devolvida pelo próprio `UPDATE` (`:87-92`) — nunca só `invalidateQueries()`. UI: dropdown "Marcar como recebido"/"Marcar como pago" na linha da transação (`Financeiro.tsx:478`).
 
 | Passo | Ação | Esperado | Prova |
 |---|---|---|---|
-| 3.1 | Com `HOMOLOG-FIN-transacao-A` aberta (drawer/detalhe, se a UI tiver um; senão, direto na linha da lista), marcar como "paga" | **O próprio ponto de origem da edição** reflete "paga" sem fechar/reabrir ou F5 (lição G30, §3.2) — não basta o card da lista atualizar | Visual — mudança aparece no MESMO lugar que disparou a ação |
-| 3.2 | — | Update gravado de verdade | `SELECT status, paid_at FROM public.financial_transactions WHERE title = 'HOMOLOG-FIN-transacao-A';` → `status = 'paid'`, `paid_at` preenchido |
+| 3.1 | Ligar Flag 2 → em modo Supabase, no painel `SupabaseTransactionsPanel`, marcar `HOMOLOG-FIN-transacao-A` como "paga" (dropdown da própria linha, `Financeiro.tsx:478`) | **O próprio card da linha** reflete "paga" sem F5 — o `setQueryData` (`useSupabaseFinanceTransactions.ts:88-92`) atualiza a linha certa no array do cache, sem esperar refetch (lição G30, §3.2) | Visual — badge de status muda na mesma linha, sem reload |
+| 3.2 | — | Update gravado de verdade | `SELECT status, paid_at FROM public.financial_transactions WHERE title = 'HOMOLOG-FIN-transacao-A';` → `status = 'paid'`. **`paid_at` fica `NULL`** — confirmado por leitura de código, não é vermelho: `setStatus` (`Financeiro.tsx:402-403`) monta o patch só com `{ status }`, nenhuma linha do código grava `paid_at`, e não há trigger de banco pra isso (`financial_transactions.paid_at`, coluna simples desde `20260601020000_create_financial_transactions_schema.sql:16`, sem default/trigger). Não é escopo do Caso 3 (G30 — prova de cache, não de completude de campo) corrigir isso; registrado aqui pra não ser mal-lido como falha do UPDATE quando a Fase D rodar de verdade. Candidato a achado catalogável (`paid_at` nunca preenchido pelo caminho nativo de marcar-pago) se confirmado ao vivo — mesmo ID reservado do §4 (G43), a confirmar se ainda livre na hora. |
 
-Se a mutation usada seguir o padrão invalidate-only (só `invalidateQueries()`, sem escrever a resposta do próprio `UPDATE` no cache), este caso reproduz o G30 e deve usar o mesmo fix (`setQueryData` com a linha devolvida pelo `.select().single()`).
+Este caso já teve a prova empírica de que o padrão `setQueryData` (não invalidate-only) foi aplicado desde o desenho — não há fix a reproduzir aqui, só confirmar visualmente que o comportamento bate com o código lido acima.
 
 ---
 
-**Caso 4 — Consistência cruzada, os 2 diálogos de recebível** `[parcialmente executável — quoteId já fechado por G41; espelho de QuoteToReceivableDialog completar pós-B]`
+**Caso 4 — Consistência cruzada, os 2 diálogos de recebível** — código pronto (`936c762`), os 2 diálogos têm espelho agora
+
+**Mecanismo real, confirmado contra `main`**: `QuoteToReceivableDialog.tsx` ganhou o espelho G22 na Fase B — `mirrorReceivableToSupabase` (`QuoteToReceivableDialog.tsx:144-166`), chamada logo após o `addTransaction` local (linha 114). **Divergência importante entre os 2 mirrors, confirmada por leitura de código — os SELECTs de prova abaixo refletem isso, não esperam o que não viaja**:
+
+| Campo | Mirror de `CreateReceivableDialog.tsx` (`:112-120`) | Mirror de `QuoteToReceivableDialog.tsx` (`:146-159`) |
+|---|---|---|
+| `category`/`payment_method` | **NÃO envia** — `category`/`paymentMethod` são hardcoded só no lançamento LOCAL (`:95,100`), nunca chegam no payload do mirror (achado de decisão de produto do G41, não corrigido) | **Envia** — usuário escolhe na tela, `category`/`payment_method` fazem parte do payload (`:158-159`) |
+| `quote_id` | Envia (`:113`) | Envia (`:147`) |
+| `client_id`/`opportunity_id` | Envia direto (`:114-115`, já uuid de nuvem — não passa por `resolveFinanceFk`) | Envia via `resolveFinanceFk` (`:148-149`, passthrough de UUID G37 por desenho) |
+| `notes`/`recurrence`/`supplierId`/`cashAccountId` | Nenhum dos 2 mirrors envia — 4 campos sem coluna cloud (pacote §1.2, AJUSTE-a da revisão Lane E) |
 
 | Passo | Ação | Esperado | Prova |
 |---|---|---|---|
 | 4.1 | Setup | Criar `HOMOLOG-FIN-quote` (aprovada), vinculada a um cliente sintético | Quote existe (local ou nuvem, conforme o modo do domínio `quotes` no momento) | Visual |
-| 4.2 | **`CreateReceivableDialog.tsx`** (CRM, atrás de `kora.quotes.supabaseCreateReceivable.enabled`) — gerar `HOMOLOG-FIN-transacao-B` a partir de `HOMOLOG-FIN-quote` | Grava local (`fin.addTransaction`, `CreateReceivableDialog.tsx:90-104`, **já com `quoteId` desde o fix G41**, linha 97) **e** dispara o espelho best-effort (`createReceivableFromQuote`, linha 112-113) — **toast de espelho best-effort não é vermelho** (§3.2): esperar propagação antes de marcar vermelho | Visual (local imediato) + `SELECT quote_id, source FROM public.financial_transactions WHERE title = 'HOMOLOG-FIN-transacao-B';` → `quote_id` preenchido (confirma G41), `source = 'quote'` |
-| 4.3 | **`QuoteToReceivableDialog.tsx`** (Vendas) — gerar `HOMOLOG-FIN-transacao-C` a partir da MESMA `HOMOLOG-FIN-quote` | Grava local (`fin.addTransaction`, `QuoteToReceivableDialog.tsx:87-104`, já inclui `quoteId`/`category`/`paymentMethod` selecionados pelo usuário, linhas 92-100) — **espelho nuvem ainda NÃO existe** (`[completar pós-B]`, pacote §5.1) | Aparece local; **NÃO aparece na nuvem ainda** — comportamento esperado até o espelho ser implementado, não é vermelho | Visual (local) + `SELECT count(*) FROM public.financial_transactions WHERE title = 'HOMOLOG-FIN-transacao-C';` → **0**, esperado nesta rodada |
-| 4.4 | Reexecutar 4.3 **depois** do espelho de `QuoteToReceivableDialog` mesclar (`[completar pós-B]`) | Mesmo resultado de 4.2 — `HOMOLOG-FIN-transacao-C` aparece na nuvem, mesmo padrão G22 | `SELECT quote_id, source FROM public.financial_transactions WHERE title = 'HOMOLOG-FIN-transacao-C';` → 1 linha |
+| 4.2 | **`CreateReceivableDialog.tsx`** (CRM, atrás de `kora.quotes.supabaseCreateReceivable.enabled`) — gerar `HOMOLOG-FIN-transacao-B` a partir de `HOMOLOG-FIN-quote` | Grava local (`fin.addTransaction`, `:90-103`, **já com `quoteId` desde o fix G41**, linha 97) **e** dispara o espelho best-effort (`createReceivableFromQuote`, `:112-120`) — **toast de espelho best-effort não é vermelho** (§3.2): esperar propagação antes de marcar vermelho | Visual (local imediato) + `SELECT quote_id, source, category, payment_method FROM public.financial_transactions WHERE title = 'HOMOLOG-FIN-transacao-B';` → `quote_id` preenchido (confirma G41), `source = 'quote'`, **`category`/`payment_method` NULL** (não viajam neste mirror — não é vermelho, ver tabela acima) |
+| 4.3 | **`QuoteToReceivableDialog.tsx`** (Vendas) — gerar `HOMOLOG-FIN-transacao-C` a partir da MESMA `HOMOLOG-FIN-quote`, escolhendo categoria/forma de pagamento na tela | Grava local (`:92-109`) **e** dispara o espelho (`mirrorReceivableToSupabase`, `:144-166`) — mesmo aviso de best-effort do 4.2 | Visual (local imediato) + `SELECT quote_id, source, category, payment_method FROM public.financial_transactions WHERE title = 'HOMOLOG-FIN-transacao-C';` → `quote_id` preenchido, `source = 'quote'`, **`category`/`payment_method` preenchidos com o que foi escolhido na tela** (diferente do 4.2 — ver tabela acima) |
 
-**Nota — achados de decisão de produto do G41 não são escopo deste caso**: `clientId`/`opportunityId`/`clientName`/`category`/`paymentMethod` divergem entre os 2 diálogos por decisão de produto documentada (G41), não por bug — não vira vermelho aqui, ver `kora-hub-auditoria-e-plano.md` G41 pra detalhe completo.
+**Nota — achados de decisão de produto do G41 não são escopo deste caso**: `clientId`/`opportunityId`/`clientName` (formato) e agora explicitamente `category`/`payment_method` (presença) divergem entre os 2 diálogos por decisão de produto documentada (G41), não por bug — não vira vermelho aqui, ver `kora-hub-auditoria-e-plano.md` G41 pra detalhe completo.
 
 ---
 
-**Caso 5 — Campos pós-flip (§1.2 do pacote) não bloqueiam nem perdem silenciosamente**
+**Caso 5 — Campos pós-flip (§1.2 do pacote, agora 4 — não 3) não bloqueiam nem perdem silenciosamente**
+
+**Divergência corrigida nesta rodada**: a versão anterior deste runbook citava 3 campos (fornecedor/conta-caixa/recorrência). A revisão Lane E (AJUSTE-a, `dea8c75`) adicionou um 4º: `notes` nunca teve coluna cloud nem foi fundido em `description` (um comentário do mapper afirmava essa fusão por engano — corrigido). `mapLocalTransactionToSupabase`/`mapSupabaseTransactionToLocal` (`financeMapper.ts:112-119,199-205`) documentam os 4 juntos: `recurrence`/`supplierId`/`cashAccountId`/`notes`, todos "reportar, não inventar" — `recurrence` vira o membro neutro (`"none"`), os 3 restantes ficam `undefined`.
 
 | Passo | Ação | Esperado | Prova |
 |---|---|---|---|
-| 5.1 | Em modo Supabase, tentar usar fornecedor/conta-caixa/recorrência em `HOMOLOG-FIN-transacao-A` | Aviso explícito aparece (UX final decidida na Fase B), transação salva mesmo assim — nunca bloqueia, nunca perde silenciosamente | Visual — aviso + transação continua editável |
-| 5.2 | — | Nenhuma coluna cloud recebe esses 3 campos (não existem, decisão pós-flip do pacote §1.2) | `SELECT * FROM public.financial_transactions WHERE title = 'HOMOLOG-FIN-transacao-A';` → sem colunas `supplier_id`/`cash_account_id`/`recurrence` |
+| 5.1 | Em modo Supabase, tentar usar fornecedor/conta-caixa/recorrência/observações (`notes`) em `HOMOLOG-FIN-transacao-A` | Aviso explícito aparece (UX final decidida na Fase B), transação salva mesmo assim — nunca bloqueia, nunca perde silenciosamente | Visual — aviso + transação continua editável |
+| 5.2 | — | Nenhuma coluna cloud recebe esses 4 campos (não existem, decisão pós-flip do pacote §1.2) | `SELECT * FROM public.financial_transactions WHERE title = 'HOMOLOG-FIN-transacao-A';` → sem colunas `supplier_id`/`cash_account_id`/`recurrence`/`notes` |
 
 ---
 
-**Caso 6 — `ClientActivitiesTab.tsx` com os 2 domínios bifurcados** `[completar pós-B — useBifurcatedFinance ainda não existe]`
+**Caso 6 — `ClientActivitiesTab.tsx` com os 2 domínios bifurcados** — código pronto (`936c762`)
+
+**Mecanismo real, confirmado contra `main`**: `useBifurcatedFinance()` (`src/hooks/useBifurcatedFinance.ts` — molde simplificado de `useBifurcatedProjects.ts`, só escolhe entre as 2 fontes já prontas, sem mapear nada — `useSupabaseFinanceTransactions` já devolve `Transaction[]` pronto) consumido em `ClientActivitiesTab.tsx:19,445` e também em `ClientProfileDrawer.tsx:46,965` e `useDayCenterData.ts:6,33` (os 3 consumidores classe (a) do inventário — Central do Dia incluída, não só a ficha do cliente). Achado adicional confirmado no commit da Fase B (`936c762`, mensagem): a leitura bifurcada em `ClientActivitiesTab.tsx` resolve *de graça* o gap do G41 ("recebível do CRM invisível na ficha do cliente" — antes só lia local, agora lê a fonte certa conforme o seletor).
 
 | Passo | Ação | Esperado | Prova |
 |---|---|---|---|
 | 6.1 | Abrir ficha de `HOMOLOG-FIN-cliente` → aba Atividades, com projetos E finanças desse cliente em modo Supabase | Timeline mostra eventos de projeto (já bifurcado, herdado de `projects`) E de finanças (bifurcado nesta fatia) corretamente — tasks (ainda cru) sem regressão visível | Visual |
-| 6.2 | — | Confirma que o arquivo acumula 2 domínios bifurcados + 1 cru (tasks), não mais 1+2 (achado do pacote §3.2) | Leitura de código — `useBifurcatedFinance()` presente em `ClientActivitiesTab.tsx` |
+| 6.2 | — | Confirma que o arquivo acumula 2 domínios bifurcados + 1 cru (tasks), não mais 1+2 (achado do pacote §3.2) | Leitura de código — `useBifurcatedFinance()` presente em `ClientActivitiesTab.tsx:19,445` |
+| 6.3 | Recebível gerado via `CreateReceivableDialog` (CRM, Caso 4.2) por um cliente com `client_id` real (diferente do cenário do G41, onde a quote de teste não tinha cliente vinculado) | Aparece na timeline de atividades desse cliente em modo Supabase — prova viva de que a leitura bifurcada fecha o gap do G41 sem precisar de fix dedicado | Visual — evento na aba Atividades |
 
 ---
 
-**Caso 7 — Regressão do import (Fatia 6 já homologada)**
+**Caso 7 — Regressão do import (Fatia 6 já homologada)** — código pronto; execução real depende do gate do §1.3 (migrations)
 
 | Passo | Ação | Esperado | Prova |
 |---|---|---|---|
+| 7.0 | **Pré-condição**: §1.3 fechado (migrations aplicadas) — sem a coluna `category`/`payment_method`, o import geral (`importTransaction`, mesmo caminho de escrita do Caso 2) falha do mesmo jeito | — | — |
 | 7.1 | **Antes** deste caso, garantir que `HOMOLOG-FIN-transacao-import` foi criada em modo **local** (dataSource=local) numa sessão anterior ao flip | Transação existe só em `orbyt.finance.v1` | `SELECT count(*) FROM public.financial_transactions WHERE title = 'HOMOLOG-FIN-transacao-import';` → 0 |
-| 7.2 | Configurações → "Importar transações locais" → localizar como candidato `new` → importar | Import bem-sucedido, incluindo os campos novos (`category`/`payment_method`, pós-migration) no payload | Visual — toast |
+| 7.2 | Configurações → "Importar transações locais" → localizar como candidato `new` → importar | Import bem-sucedido, incluindo `category`/`payment_method` no payload (`mapLocalTransactionToSupabase`, `financeMapper.ts:136-137`) | Visual — toast |
 | 7.3 | Voltar pra modo Supabase | Transação aparece, **sem duplicar** | `SELECT count(*) FROM public.financial_transactions WHERE title = 'HOMOLOG-FIN-transacao-import';` → 1 |
 
 Este caso é a **reconfirmação** formal de `useLocalFinanceImport.ts` pós-mudanças (§1.2 acima) — não a primeira homologação (essa já aconteceu na Fatia 6).
@@ -283,17 +344,17 @@ Mesmo critério operacional do precedente de `projects`/`quotes` (fixado em text
 
 - **Vermelho (para a homologação):** o comportamento **observado ao vivo diverge do comportamento desenhado/documentado**. Aciona o ciclo: diagnóstico → correção → novo commit → **PARADO** → aguardar novo "vai" antes de retomar o runbook do ponto onde parou. **O Caso 2.3 (prova do equivalente-O12) é vermelho automático se o UPDATE inválido não falhar** — é a prova de que o CHECK preventivo desenhado no pacote (§2.1) foi de fato aplicado em produção, não uma formalidade a assumir correta.
 - **Ressalva (não bloqueia):** o mecanismo já está provado correto por outra via (teste automatizado + homologação ao vivo anterior — ex.: a mecânica de import geral, já coberta pela Fatia 6) e só uma recaptura específica não foi refeita nesta rodada. Decisão de não reabrir deve ser **registrada explicitamente**: *"Decisão: não reabrir/reexecutar esse sub-passo agora — [motivo]; registrado explicitamente pra não ficar implícito."*
-- **Achado catalogado, não é bug:** algo encontrado durante a homologação que não afeta o caminho testado — registra no catálogo mestre (`kora-hub-auditoria-e-plano.md`, próximo ID livre no momento da rodada — G43 reservado nesta preparação, a confirmar se ainda está livre quando a Fase D executar de verdade).
+- **Achado catalogado, não é bug:** algo encontrado durante a homologação que não afeta o caminho testado — registra no catálogo mestre (`kora-hub-auditoria-e-plano.md`, próximo ID livre no momento da rodada — G43 reservado nesta preparação, **confirmado ainda livre nesta rodada** (catálogo hoje vai até G49, mas G43/G45/G50 nunca foram usados — reconfirmar de novo quando a Fase D executar de verdade, não assumir que continua livre só por esta checagem).
 - **Placar de fechamento:** formato herdado — `N/N casos verdes, com o Caso 2.3 obrigatoriamente incluindo prova SQL do equivalente-O12 — não pode fechar como "assumido correto"`.
 
 ---
 
 ## 5. O que este doc NÃO faz
 
-- Não executa nenhum caso — é preparação. Caso 1 é o único genuinamente executável com o código de hoje (`e7d21b7`); os demais dependem do restante da Fase B.
-- Não decide se/quando o restante da Fase B (migrations, escrita real, espelho de `QuoteToReceivableDialog`) mescla — isso é rodada própria da Lane A, com "vai" próprio.
-- Não cita o hash do commit de flip da Fase C — não existe ainda; §2.4 registra a baseline como `[completar pós-B]` explicitamente, não como um hash a inventar.
+- Não executa nenhum caso — é preparação, mesmo com a Fase B fechada (`dea8c75`). Todos os 8 casos são executáveis no código de hoje, alguns condicionados ao gate de schema do §1.3 (migrations aplicadas pelo operador).
+- Não aplica as migrations do §1.3 nem confirma que foram aplicadas — isso é ação do operador, registrada em texto explícito nesta rodada por ser um gate NOVO que `projects` não teve.
+- Não cita o hash do commit de flip da Fase C — não existe ainda; §2.4 registra a baseline como `dea8c75` (fechamento da Fase B, confirmado), não como o commit a reverter.
 - Não substitui os gates permanentes do protocolo (EXPORT MANUAL, PRINT PRÉ-CLIQUE, prova de servidor §17) — só aponta onde cada um entra nesta fatia especificamente.
 - Não reabre nenhuma das 4 divergências de produto catalogadas em G41 (`clientId`/`opportunityId`/`clientName`/`category`/`paymentMethod` hardcoded em `CreateReceivableDialog`) — ficam como estão, fora de escopo deste runbook.
 
-**PARADO aqui — este runbook segue sendo preparação. Execução real da Fase C (flip) e Fase D (homologação) só com um novo "vai" que autorize especificamente abrir a Fase C — e só depois do restante da Fase B (§2.1) mesclar.**
+**PARADO aqui — este runbook segue sendo preparação, mesmo com a Fase B fechada. Execução real da Fase C (flip) e Fase D (homologação) só com um novo "vai" que autorize especificamente abrir a Fase C — e só depois do gate do §1.3 (as 2 migrations aplicadas pelo operador, com confirmação por escrito) fechar.**
