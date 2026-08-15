@@ -220,6 +220,11 @@ adotar já como prática registrada, independente do resultado da quantificaçã
 pena depois de rodar §1 e ver se o volume justifica o esforço de código. Não recomendo (c) puro
 sem pelo menos (a), porque (a) não tem custo nem trade-off negativo.
 
+**Decisão registrada (revisor, 14/ago/2026):** contenção **(a) ADOTADA** —
+`kora.projects.supabaseCreateBaseTasks.enabled` e a flag de transição de status permanecem OFF
+por política até a decisão do flip de Tarefas. Contenção **(b) condicionada ao volume da
+quantificação §1**, a rodar na abertura daquele ciclo.
+
 ---
 
 ## Referências
