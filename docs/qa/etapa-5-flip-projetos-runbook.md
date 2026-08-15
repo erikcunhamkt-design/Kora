@@ -519,3 +519,108 @@ do desenho da Fase A.
 **PARADO aqui — este runbook segue sendo preparação. Execução real da
 Fase C (flip) e Fase D (homologação) só com um novo "vai" que autorize
 especificamente abrir a Fase C.**
+
+> **Nota (14/ago/2026):** Fase C e Fase D foram executadas nas rodadas
+> seguintes, ao vivo pelo operador. O "PARADO" acima é registro histórico
+> do momento em que este doc era só preparação — ver §6/§7 abaixo pro
+> resultado e fechamento reais.
+
+---
+
+## 6. Fase D — Resultado (7/7) e fechamento pré-sign-off
+
+**Placar: 7/7**, executado ao vivo pelo operador contra os BUILDs de cada
+rodada (hashes citados nas notas de atualização do topo deste doc — `b90f86a`
+até `ba8f748`), provado por SQL/print conforme cada caso exige (§4).
+
+| Caso | Resultado |
+|---|---|
+| 1 Usuário novo | ✅ default Supabase sem setar nada, criação confirmada por SQL |
+| 2 Prova da semântica real da flag | ✅ — **emendado pelo G29** durante a própria rodada (banner/badge "modo leitura" fóssil, escrita real já funcionava) |
+| 3 Override de dataSource | ✅ — **emendado pelo G32** (achado de design: hooks paralelos sempre buscam, gate é só de exibição — não é vazamento desta fatia) |
+| 4 Edição real, prova O12 | ✅ **com prova SQL do O12**: `SELECT status, archived FROM public.projects WHERE title = 'HOMOLOG-FLIP-projeto-A'` → `status = 'planning'`, `archived = true` — o caso que esta fatia existia pra fechar, fechado como desenhado, não como ressalva |
+| 5 Os 5 consumidores migrados | ✅ — sub-caso 5.2 ("Gerar projeto") passou por **2 vermelhos em sequência**: **G33** (gate fóssil `blockWrite()` bloqueando a ação) e, destravado o diálogo, **G37** (o espelho gravava `source`/`quote_id`/`deliverables` incompletos) — os 2 fechados antes do caso fechar verde |
+| 6 Import pré-existente | ✅ — primeira homologação real de `useLocalProjectsImport.ts` (risco R4 do pacote) |
+| 7 Limpeza | ✅ — resíduo zero confirmado por SQL |
+
+### Decisões registradas durante a execução
+
+- **Pré-flip (§1) fechado por vacuidade:** zero projetos locais reais
+  (não-demo) no workspace de QA — nenhum candidato `new` a importar antes
+  do flip. Gate cumprido por ausência de dado a migrar, não por import
+  executado; export manual (protocolo §1) ainda exigido e confirmado antes
+  de prosseguir, independente da contagem ser zero.
+- **Casos 4.3/4.4 re-sequenciados:** a ordem escrita neste doc (4.3 marcar
+  entregável na tela → 4.4 conferir jsonb no banco) foi executada fora de
+  ordem ao vivo — o **G30** (drawer preso no status antigo após a própria
+  mutação) bloqueava a prova visual de 4.3 até o fix daquela rodada
+  aterrissar; a confirmação por SQL (4.4) e a reexecução visual de 4.3
+  foram refeitas na ordem correta só depois do G30 fechado, não na
+  primeira passada.
+- **Vínculo do caso 5.2 confirmado por SQL, não só visual:** depois do
+  fix do G37, o vínculo `quote_id`/`source="quote"` de
+  `HOMOLOG-FLIP-projeto-B` foi conferido direto na linha da nuvem (não só
+  "o card apareceu na lista") — mesma disciplina de prova que pegou o G37
+  em primeiro lugar (o vermelho original também só apareceu na inspeção
+  SQL, a UI já mostrava sucesso).
+- **Setup do atraso do caso 5.3 via SQL:** o `dueDate` de
+  `HOMOLOG-FLIP-projeto-B` (pra simular o item "atrasado" na Central do
+  Dia) foi setado por `UPDATE` direto na linha, não pelo formulário da
+  tela — mais rápido pra montar o cenário e sem risco de o formulário
+  aplicar alguma regra de validação de data que interferisse no teste.
+
+### Os 5 vermelhos desta rodada — todos FECHADOS
+
+| Achado | Uma linha | Status |
+|---|---|---|
+| **G29** | Banner/badge "modo leitura" sobreviveu intacto da Fatia N com a escrita já operacional — texto de UI nunca atualizado, não divergência de flag. | FECHADO |
+| **G30** | Drawer aberto em modo Supabase ficava preso no status antigo após a própria mutação — cache de mutação confiava só no refetch, não na resposta da própria escrita. | FECHADO |
+| **G32** | Fetch de `projects` em modo local (`dataSource=local`) — investigado e confirmado como design da casa (hooks paralelos), não vazamento; nenhum código mudou. | FECHADO |
+| **G33** | "Gerar projeto" bloqueado em modo Supabase por `blockWrite()`, gate fóssil de `quotes` apontando pra um cutover de `projects` que já tinha acontecido. | FECHADO |
+| **G37** | `mirrorProjectToSupabase` espelhava projeto empobrecido (`source`/`quote_id`/`deliverables` perdidos) sempre que a origem era uma quote nativa da nuvem. | FECHADO |
+
+Detalhamento completo de cada um em
+[`kora-hub-auditoria-e-plano.md`](../architecture/kora-hub-auditoria-e-plano.md).
+
+### Achados catalogados de backlog (não bloquearam, registrados)
+
+- **Seletor de cliente no form de orçamento:** `NewQuoteWizard`
+  (`QuotesSection.tsx`) só tem um campo de nome livre com autocomplete
+  (`clientId` setado só se o texto bater exato com um cliente existente,
+  `useClients()` — hook **local**, não `useClientsDataSource()`) — sem um
+  seletor de verdade forçando um vínculo real. É a raiz direta do achado
+  #3 do G37 (client_id nunca resolve num projeto gerado a partir de uma
+  quote sem cliente real vinculado). Backlog de UX/Produto, não um bug de
+  escrita.
+- **Filtro "Todos status" (Portfolio → Projetos) inclui arquivado:**
+  `ProjectsSection.tsx:110` — `if (filterStatus !== "all" && p.status !== filterStatus) return false` — quando `filterStatus === "all"`, nenhuma exclusão de status roda, então um projeto arquivado aparece na lista "padrão". Causa provável identificada por leitura de código (mesmo padrão do achado O8 do precedente de `quotes` — não confirmada ao vivo nesta sessão, contraste com o filtro equivalente de `quotes`, que exclui `arquivado` explicitamente no ramo `"all"`, `QuotesSection.tsx:236`). Registrado pra sessão dedicada decidir se é bug ou comportamento intencional.
+- **Round-trip de `quoteTitle`/`clientId` perdido (G37, achado #3):**
+  `mapSupabaseQuoteToLocalQuote` (`quoteMapper.ts:152-182`) nunca restaura
+  `clientId`/`opportunityId` ao ler uma quote da nuvem (só `clientName`
+  desnormalizado), e `mapSupabaseProjectToLocal` não tem de onde puxar
+  `quoteTitle` (sem coluna denormalizada em `projects`). Já documentado no
+  catálogo mestre como parte do G37 — registrado aqui de novo porque é
+  achado de backlog do domínio `quotes`/leitura, não algo que o fix do
+  G37 (escopo `projects`/escrita) resolve.
+
+---
+
+**PARADO aqui.** Fase D encerrada, 7/7. Os 5 vermelhos fechados, 3 achados
+de backlog registrados. Sign-off a seguir.
+
+---
+
+## 7. Sign-off — domínio Projetos
+
+**G1/`projects` HOMOLOGADO** — segundo domínio do Kora Hub (depois de
+`quotes`) 100% Supabase por default, leitura E escrita juntas, com
+reversibilidade preservada via override explícito (`dataSource=local`,
+nunca uma migração forçada). Fase D fechou 7/7 casos verdes, com prova SQL
+do O12 (o achado que motivou a fatia inteira) e os 5 vermelhos
+encontrados ao longo da rodada — todos de classes já catalogadas
+(fóssil-de-flip, stale-state, gate-fóssil, payload-incompleto) — fechados
+antes do sign-off, não deixados como dívida.
+
+Este registro de sign-off é doc-only — segue o mesmo fluxo de commit →
+gates → **PARADO** → "vai" do revisor → merge de qualquer outra rodada
+deste pacote (§18).
