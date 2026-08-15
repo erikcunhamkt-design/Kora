@@ -34,16 +34,20 @@ interface EditableTask {
   dueDate: string;
 }
 
+// G49 — priority em português (alta/média/baixa), o vocabulário oficial de
+// public.tasks.priority (o que importTask/mapLocalTaskToSupabase já grava,
+// verbatim — ver tasksMapper.ts). Antes gravava "medium"/"high"/"low"
+// (inglês), um 2º dialeto pra mesma coluna, irmão do R1/G40 em status.
 const DEFAULT_TASKS = [
-  { title: "Kickoff com cliente", description: "Reunião de alinhamento inicial do projeto.", priority: "medium", offsetDays: 2 },
-  { title: "Coletar materiais", description: "Solicitar e agrupar assets e informações enviadas pelo cliente.", priority: "medium", offsetDays: 4 },
-  { title: "Revisar briefing", description: "Leitura minuciosa das respostas do briefing e validação das premissas.", priority: "medium", offsetDays: 6 },
-  { title: "Planejar entregas", description: "Definir marcos, cronograma preliminar e recursos internos.", priority: "medium", offsetDays: 8 },
-  { title: "Produzir primeira entrega", description: "Desenvolvimento do primeiro rascunho/mockup principal.", priority: "high", offsetDays: 15 },
-  { title: "Revisão interna", description: "Validação do material produzido com o time ou auto-revisão.", priority: "medium", offsetDays: 18 },
-  { title: "Enviar para aprovação", description: "Apresentar a primeira entrega ao cliente para feedback.", priority: "medium", offsetDays: 20 },
-  { title: "Ajustes finais", description: "Aplicar feedbacks solicitados pelo cliente.", priority: "medium", offsetDays: 25 },
-  { title: "Encerramento do projeto", description: "Entrega de arquivos finais e solicitação de depoimento.", priority: "low", offsetDays: 30 },
+  { title: "Kickoff com cliente", description: "Reunião de alinhamento inicial do projeto.", priority: "média", offsetDays: 2 },
+  { title: "Coletar materiais", description: "Solicitar e agrupar assets e informações enviadas pelo cliente.", priority: "média", offsetDays: 4 },
+  { title: "Revisar briefing", description: "Leitura minuciosa das respostas do briefing e validação das premissas.", priority: "média", offsetDays: 6 },
+  { title: "Planejar entregas", description: "Definir marcos, cronograma preliminar e recursos internos.", priority: "média", offsetDays: 8 },
+  { title: "Produzir primeira entrega", description: "Desenvolvimento do primeiro rascunho/mockup principal.", priority: "alta", offsetDays: 15 },
+  { title: "Revisão interna", description: "Validação do material produzido com o time ou auto-revisão.", priority: "média", offsetDays: 18 },
+  { title: "Enviar para aprovação", description: "Apresentar a primeira entrega ao cliente para feedback.", priority: "média", offsetDays: 20 },
+  { title: "Ajustes finais", description: "Aplicar feedbacks solicitados pelo cliente.", priority: "média", offsetDays: 25 },
+  { title: "Encerramento do projeto", description: "Entrega de arquivos finais e solicitação de depoimento.", priority: "baixa", offsetDays: 30 },
 ];
 
 export function CreateProjectBaseTasksDialog({
@@ -120,7 +124,9 @@ export function CreateProjectBaseTasksDialog({
         opportunity_id: opportunityId || null,
         title: t.title,
         description: t.description || null,
-        status: "todo",
+        // G49 — vocabulário local (a_fazer/em_andamento/revisao/concluido),
+        // o mesmo contrato que tasksMapper.ts documenta como oficial (R1/G40).
+        status: "a_fazer",
         priority: t.priority,
         due_date: t.dueDate || null,
         source: "project_template",
@@ -198,9 +204,9 @@ export function CreateProjectBaseTasksDialog({
                         <SelectValue placeholder="Prioridade" />
                       </SelectTrigger>
                       <SelectContent className="bg-card border-border">
-                        <SelectItem value="high" className="text-xs">Alta</SelectItem>
-                        <SelectItem value="medium" className="text-xs">Média</SelectItem>
-                        <SelectItem value="low" className="text-xs">Baixa</SelectItem>
+                        <SelectItem value="alta" className="text-xs">Alta</SelectItem>
+                        <SelectItem value="média" className="text-xs">Média</SelectItem>
+                        <SelectItem value="baixa" className="text-xs">Baixa</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
