@@ -107,3 +107,26 @@ describe("CreateReceivableDialog — G22 dual-write", () => {
     expect(secondCall[1]).toMatchObject({ quote_id: "quote-uuid-1" });
   });
 });
+
+// G41 — divergência de campo entre os 2 diálogos de "gerar recebível" (QuoteToReceivableDialog,
+// Vendas, grava quoteId no lançamento LOCAL; CreateReceivableDialog, CRM, recebe quoteId como
+// prop — usado só no espelho nuvem — e nunca grava no lançamento local). Mesmo tipo
+// (Transaction.quoteId: string), mesmo padrão de pass-through já usado no outro diálogo — sem
+// tradução de espaço de id envolvida (diferente de clientId/opportunityId, catalogados sem fix).
+describe("CreateReceivableDialog — G41 (quoteId ausente no lançamento local)", () => {
+  it("addTransaction (local) recebe quoteId, alinhado ao mesmo campo que QuoteToReceivableDialog já grava", async () => {
+    const addTransaction = vi.fn(() => ({ id: "tx-local-1" }));
+    vi.mocked(useFinance).mockReturnValue({ addTransaction } as never);
+    vi.mocked(financeRepository.createReceivableFromQuote).mockResolvedValue({ id: "ft-1" } as never);
+    const onSuccess = vi.fn();
+
+    render(<CreateReceivableDialog {...baseProps} onSuccess={onSuccess} />);
+    fireEvent.click(screen.getByText("Confirmar e Gerar"));
+
+    await waitFor(() => expect(onSuccess).toHaveBeenCalled());
+
+    expect(addTransaction).toHaveBeenCalledWith(
+      expect.objectContaining({ quoteId: "quote-uuid-1" }),
+    );
+  });
+});

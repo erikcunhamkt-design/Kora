@@ -94,6 +94,7 @@ export function CreateReceivableDialog({
         amount,
         category: "Serviços",
         quoteTitle,
+        quoteId,
         dueDate,
         status: "pending",
         paymentMethod: "pix",
