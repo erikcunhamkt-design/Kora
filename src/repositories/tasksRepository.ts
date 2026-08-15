@@ -62,19 +62,6 @@ export const tasksRepository = {
     return (data as SupabaseTask[]) || [];
   },
 
-  async softDeleteTask(workspaceId: string, taskId: string): Promise<SupabaseTask> {
-    const { data, error } = await supabase
-      .from("tasks")
-      .update({ deleted_at: new Date().toISOString() })
-      .eq("id", taskId)
-      .eq("workspace_id", workspaceId)
-      .select()
-      .single();
-
-    if (error) throw normalizeSupabaseError(error);
-    return data as SupabaseTask;
-  },
-
   // R1 (docs/qa/tarefas-r2-auditoria.md §2.2, src/services/tasks/tasksMapper.ts) —
   // vocabulário alinhado ao que importTask já grava (local, sem tradução):
   // os 4 valores locais, não mais só 3 em inglês sem "revisão".
