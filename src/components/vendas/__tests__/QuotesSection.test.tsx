@@ -12,6 +12,7 @@ import { QuotesSection } from "@/components/vendas/QuotesSection";
 import { useQuotes, type Quote } from "@/hooks/useQuotes";
 import { useSupabaseQuotes } from "@/hooks/useSupabaseQuotes";
 import { useClients } from "@/hooks/useClients";
+import { useClientsDataSource } from "@/hooks/useClientsDataSource";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { useLeads } from "@/hooks/useLeads";
 import { QUOTES_DATA_SOURCE_KEY } from "@/config/flags";
@@ -23,6 +24,12 @@ vi.mock("@/hooks/useQuotes", async () => {
 });
 vi.mock("@/hooks/useSupabaseQuotes", () => ({ useSupabaseQuotes: vi.fn() }));
 vi.mock("@/hooks/useClients", () => ({ useClients: vi.fn() }));
+// G44 — NewQuoteWizard passou a ler useClientsDataSource() (bifurcado, mesmo
+// hook já mockado em ProjectsSection.test.tsx) em vez de useClients() (só
+// local) pro seletor de cliente existente. Sem este mock, o hook real
+// dispara useSupabaseClients() -> useQuery() sem QueryClientProvider na
+// árvore de teste e quebra qualquer teste que abra o wizard.
+vi.mock("@/hooks/useClientsDataSource", () => ({ useClientsDataSource: vi.fn() }));
 vi.mock("@/hooks/useLeads", () => ({ useLeads: vi.fn() }));
 // Etapa 5 · Pacote do Flip (projects) — QuoteToProjectDialog (renderizado
 // como filho de QuotesSection) passou a chamar useCurrentWorkspace() pro
@@ -111,6 +118,7 @@ function makeSupabaseMappedQuote(overrides: Partial<Quote> = {}): Quote {
 
 function setupCommonMocks() {
   vi.mocked(useClients).mockReturnValue({ clients: [] } as never);
+  vi.mocked(useClientsDataSource).mockReturnValue({ clients: [], source: "local" } as never);
   vi.mocked(useLeads).mockReturnValue({ leads: [], updateLead: vi.fn() } as never);
   vi.mocked(useCurrentWorkspace).mockReturnValue({ workspace: { id: "ws1" } } as never);
 }
@@ -715,5 +723,85 @@ describe("QuotesSection · item 8 (Fatia 10) — status/criação sob o master f
     expect(localAddQuote).not.toHaveBeenCalled();
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Orçamento salvo"));
     expect(toast.error).not.toHaveBeenCalled();
+  });
+});
+
+// G44 — achado da Fase D de Projetos: NewQuoteWizard só aceitava nome livre
+// de cliente, nunca vinculava clientId a um cliente cadastrado — quote sem
+// clientId gerava projeto sem clientId (ficha do cliente cega, contornado só
+// por SQL na homologação; gap catalogado no G37/G41). Fix: useClients()
+// (sempre local) virou useClientsDataSource() (bifurcado, mesmo hook já
+// usado em Financeiro/CRM/Clientes/ProjectsSection) + um <Select> aditivo de
+// "cliente existente" ao lado do campo de texto livre já existente (que
+// segue 100% intacto, ver 2º teste abaixo).
+describe("QuotesSection · G44 — seletor de cliente existente no wizard", () => {
+  async function openWizardWithClient(client: { id: string; name: string; company?: string; email?: string; whatsapp?: string }) {
+    localStorage.setItem(QUOTES_DATA_SOURCE_KEY, "local");
+    const localAddQuote = vi.fn(() => ({ id: "q-new" }));
+    vi.mocked(useClientsDataSource).mockReturnValue({ clients: [client], source: "supabase" } as never);
+    vi.mocked(useQuotes).mockReturnValue({
+      quotes: [], addQuote: localAddQuote, updateStatus: vi.fn(), updateQuote: vi.fn(),
+      duplicateQuote: vi.fn(), deleteQuote: vi.fn(),
+    } as never);
+    vi.mocked(useSupabaseQuotes).mockReturnValue({ quotes: [], loading: false, error: null } as never);
+
+    renderSection();
+    fireEvent.click(screen.getByText("Novo orçamento"));
+    return localAddQuote;
+  }
+
+  function fillMinimalQuoteAndSave() {
+    fireEvent.change(screen.getByPlaceholderText("Ex: Rebranding 2026"), { target: { value: "Orçamento G44" } });
+    fireEvent.click(screen.getByText("Continuar")); // passo 1 -> 2
+
+    fireEvent.click(screen.getByText("+ Item manual"));
+    fireEvent.change(screen.getByPlaceholderText("Nome do item"), { target: { value: "Item X" } });
+    const spinbuttons = screen.getAllByRole("spinbutton");
+    fireEvent.change(spinbuttons[1], { target: { value: "100" } });
+    fireEvent.click(screen.getByText("Continuar")); // passo 2 -> 3
+
+    fireEvent.click(screen.getByText("Continuar")); // passo 3 -> 4
+    fireEvent.click(screen.getByText("Salvar orçamento"));
+  }
+
+  it("selecionar cliente existente no dropdown grava clientId real (uuid da nuvem), não um id inventado", async () => {
+    const localAddQuote = await openWizardWithClient({
+      id: "client-uuid-1", name: "Cliente Cadastrado", company: "Acme", email: "acme@x.com", whatsapp: "11999999999",
+    });
+
+    // O <Select> de cliente existente é o 1º combobox do passo 1 (renderizado
+    // antes do <input list> de nome livre, que também tem role="combobox"
+    // via mapeamento ARIA nativo de <input list>). Radix Select abre via
+    // pointerdown, não click puro — mesma sequência já usada em
+    // openQuoteMenu() acima pro DropdownMenu.
+    const clientTrigger = screen.getAllByRole("combobox")[0];
+    fireEvent.pointerDown(clientTrigger, { button: 0, pointerId: 1, isPrimary: true });
+    fireEvent.click(clientTrigger);
+    // Radix também renderiza um <select> nativo escondido (autofill/forms)
+    // com o mesmo texto em <option> — getAllByText pra descartar o nó
+    // OPTION e clicar só na opção customizada de verdade (role="option").
+    const options = await screen.findAllByText(/Cliente Cadastrado/);
+    const realOption = options.find((el) => el.tagName !== "OPTION") ?? options[0];
+    fireEvent.pointerUp(realOption, { button: 0, pointerId: 1, isPrimary: true });
+    fireEvent.click(realOption);
+
+    fillMinimalQuoteAndSave();
+
+    await waitFor(() => expect(localAddQuote).toHaveBeenCalledTimes(1));
+    expect(localAddQuote).toHaveBeenCalledWith(
+      expect.objectContaining({ clientId: "client-uuid-1", clientName: "Cliente Cadastrado", company: "Acme" }),
+    );
+  });
+
+  it("nome livre (nenhuma seleção no dropdown) continua salvando com clientId indefinido — regressão zero", async () => {
+    const localAddQuote = await openWizardWithClient({ id: "client-uuid-1", name: "Cliente Cadastrado" });
+
+    fireEvent.change(screen.getByPlaceholderText("Nome do cliente"), { target: { value: "Cliente Digitado Na Mão" } });
+    fillMinimalQuoteAndSave();
+
+    await waitFor(() => expect(localAddQuote).toHaveBeenCalledTimes(1));
+    expect(localAddQuote).toHaveBeenCalledWith(
+      expect.objectContaining({ clientId: undefined, clientName: "Cliente Digitado Na Mão" }),
+    );
   });
 });

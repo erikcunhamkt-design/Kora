@@ -104,3 +104,41 @@ describe("QuoteToProjectDialog · espelho best-effort (padrão G22, resolve R5)"
     ));
   });
 });
+
+// G44 — cascata do clientId: NewQuoteWizard.tsx (QuotesSection.tsx) passou a
+// gravar um clientId real (uuid da nuvem, quando selecionado do dropdown de
+// cliente existente — useClientsDataSource()) em vez de deixar sempre
+// undefined. Este teste prova que esse clientId sobrevive até o projeto —
+// a dor real da Fase D de Projetos (quote sem clientId -> projeto sem
+// clientId -> ficha do cliente cega). Nenhum código deste dialog mudou pra
+// isso: quote.clientId já era repassado cru (linha `clientId: quote.clientId`),
+// e resolveProjectFk/mapLocalProjectToSupabase (G37) já sabe passar um uuid
+// direto sem tradução — só faltava uma tela alimentando um clientId de
+// verdade. Este teste tranca esse contrato, não corrige um bug novo aqui.
+describe("QuoteToProjectDialog · G44 — clientId da quote sobrevive até o projeto", () => {
+  it("quote com clientId uuid (selecionado no wizard) -> addProject recebe o MESMO clientId", async () => {
+    localStorage.setItem(PROJECTS_SUPABASE_WRITE_FLAG_KEY, "false");
+    const addProject = vi.fn().mockReturnValue(makeCreatedProject({ clientId: "client-uuid-1" as never }));
+    vi.mocked(useProjects).mockReturnValue({ addProject } as never);
+
+    renderDialog(makeQuote({ clientId: "client-uuid-1" as never, clientName: "Cliente Cadastrado" }));
+    fireEvent.click(screen.getByRole("button", { name: "Gerar projeto" }));
+
+    await waitFor(() => expect(addProject).toHaveBeenCalledWith(
+      expect.objectContaining({ clientId: "client-uuid-1", clientName: "Cliente Cadastrado" }),
+    ));
+  });
+
+  it("quote sem clientId (nome livre, sem seleção) -> addProject recebe undefined, nunca um id inventado", async () => {
+    localStorage.setItem(PROJECTS_SUPABASE_WRITE_FLAG_KEY, "false");
+    const addProject = vi.fn().mockReturnValue(makeCreatedProject());
+    vi.mocked(useProjects).mockReturnValue({ addProject } as never);
+
+    renderDialog(makeQuote({ clientId: undefined, clientName: "Cliente Digitado Na Mão" }));
+    fireEvent.click(screen.getByRole("button", { name: "Gerar projeto" }));
+
+    await waitFor(() => expect(addProject).toHaveBeenCalledWith(
+      expect.objectContaining({ clientId: undefined, clientName: "Cliente Digitado Na Mão" }),
+    ));
+  });
+});

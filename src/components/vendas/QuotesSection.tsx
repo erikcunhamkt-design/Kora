@@ -15,11 +15,13 @@ import { getQuotesDataSource, setQuotesDataSource } from "@/config/flags";
 import { isSupabaseQuotesWriteEnabled } from "@/hooks/useSupabaseQuotesWriteFlag";
 import { useServices } from "@/hooks/useServices";
 import { useClients } from "@/hooks/useClients";
+import { useClientsDataSource } from "@/hooks/useClientsDataSource";
 import { useLeads } from "@/hooks/useLeads";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -745,6 +747,9 @@ export function QuotesSection() {
 
 type WizardData = Omit<Quote, "id" | "createdAt" | "subtotal" | "total" | "isDemo">;
 
+/** Sentinel do <Select> de cliente existente — nunca colide com um id real (local number ou uuid). */
+const NEW_CLIENT_OPTION = "__novo__";
+
 function NewQuoteWizard({
   initial,
   onClose,
@@ -755,7 +760,15 @@ function NewQuoteWizard({
   onSave: (data: WizardData) => void;
 }) {
   const { services } = useServices();
-  const { clients } = useClients();
+  // G44 — antes lia useClients() (sempre local). useClientsDataSource() é o
+  // mesmo hook bifurcado já usado em Financeiro.tsx/CRM.tsx/Clientes.tsx:
+  // devolve os clientes locais OU os da nuvem (mesmo formato Client, id uuid
+  // "smuggled" como number — useClientsDataSource.ts:9, precedente já usado
+  // por resolveProjectFk/G37), conforme o seletor de fonte de Clientes. Sem
+  // isso, um clientId selecionado aqui nunca seria um uuid real em modo
+  // Supabase — a cadeia de espelho (G37) já sabe resolver isso, só faltava
+  // esta tela alimentar um clientId de nuvem de verdade.
+  const { clients } = useClientsDataSource();
   const [step, setStep] = useState(1);
 
   const [clientName, setClientName] = useState(initial?.clientName ?? "");
@@ -865,6 +878,36 @@ function NewQuoteWizard({
 
       {step === 1 && (
         <form onSubmit={next} className="space-y-4">
+          <FieldLabel label="Cliente existente (opcional)">
+            <Select
+              value={clientId !== undefined ? String(clientId) : NEW_CLIENT_OPTION}
+              onValueChange={(v) => {
+                if (v === NEW_CLIENT_OPTION) {
+                  setClientId(undefined);
+                  return;
+                }
+                const c = clients.find((cl) => String(cl.id) === v);
+                if (!c) return;
+                setClientId(c.id);
+                setClientName(c.name);
+                setCompany(c.company || "");
+                setClientEmail(c.email || "");
+                setClientWhatsapp(c.whatsapp || c.phone || "");
+              }}
+            >
+              <SelectTrigger className="modal-input">
+                <SelectValue placeholder="Selecionar cliente cadastrado..." />
+              </SelectTrigger>
+              <SelectContent className="max-h-[280px]">
+                <SelectItem value={NEW_CLIENT_OPTION}>— Cliente novo (digitar abaixo) —</SelectItem>
+                {clients.map((c) => (
+                  <SelectItem key={c.id} value={String(c.id)}>
+                    {c.name}{c.company ? ` — ${c.company}` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FieldLabel>
           <FieldLabel label="Cliente*">
             <input
               list="quote-clients"

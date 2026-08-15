@@ -122,8 +122,14 @@ export function ProjectsSection() {
       const diff = (d.getTime() - today.getTime()) / 86400000;
       return diff <= 7 && diff >= -1;
     };
+    // Addendum G39 — sinalizado (fora de escopo) naquela rodada: "Todos
+    // status" já exclui arquivado da LISTA (mesmo padrão de
+    // QuotesSection.tsx:238, onde nenhuma KPI conta "arquivado" — todas são
+    // filtros de status específico que a exclui estruturalmente), mas o card
+    // "Total" ainda somava projects.length cru, incluindo arquivados — os
+    // dois lugares discordavam sobre o que "todos os projetos" significa.
     return {
-      total: projects.length,
+      total: projects.filter((p) => p.status !== "archived").length,
       inProgress: projects.filter((p) => p.status === "in_progress").length,
       review: projects.filter((p) => p.status === "review").length,
       delivered: projects.filter((p) => p.status === "delivered").length,

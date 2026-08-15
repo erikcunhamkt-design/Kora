@@ -384,3 +384,30 @@ describe("ProjectsSection · Fase D — \"Todos status\" não inclui projeto arq
     expect(screen.queryByText("Projeto Ativo")).not.toBeInTheDocument();
   });
 });
+
+// Addendum G39 — sinalizado como fora de escopo naquela rodada: a lista sob
+// "Todos status" já exclui arquivado (describe acima), mas o card KPI
+// "Total" somava projects.length cru, incluindo arquivados — discordava do
+// que a própria lista mostra sob o mesmo filtro "todos". Precedente: nenhuma
+// KPI de QuotesSection.tsx conta "arquivado" (todas são filtros de status
+// específico que o excluem estruturalmente).
+describe("ProjectsSection · addendum G39 — KPI \"Total\" não conta projeto arquivado", () => {
+  it("card Total reflete só os projetos não-arquivados, igual à lista sob \"Todos status\"", async () => {
+    localStorage.setItem(PROJECTS_DATA_SOURCE_KEY, "local");
+    vi.mocked(useProjects).mockReturnValue({
+      projects: [
+        makeLocalProject({ id: "pj-ativo", name: "Projeto Ativo", status: "in_progress" }),
+        makeLocalProject({ id: "pj-arquivado", name: "Projeto Arquivado", status: "archived" }),
+      ],
+      addProject: vi.fn(),
+    } as never);
+
+    renderSection();
+    await screen.findByText("Projeto Ativo");
+
+    const totalLabel = screen.getByText("Total");
+    const totalCard = totalLabel.closest("div")?.parentElement as HTMLElement;
+    expect(within(totalCard).getByText("1")).toBeInTheDocument();
+    expect(within(totalCard).queryByText("2")).not.toBeInTheDocument();
+  });
+});
