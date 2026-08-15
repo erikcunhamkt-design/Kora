@@ -1,4 +1,9 @@
-# Tarefas — Auditoria R2 (dado cloud já divergente) — SOMENTE LEITURA
+# Tarefas — Auditoria R2 (dado cloud já divergente) — SOMENTE LEITURA — FECHADO POR QUANTIFICAÇÃO (15/ago/2026)
+
+> **Status (15/ago/2026): R2 FECHADO POR QUANTIFICAÇÃO — ver §4.** O operador rodou as 8 SQLs
+> abaixo; `public.tasks` está vazia (0 linhas). O título e o corpo deste doc abaixo preservam a
+> redação original (o risco era plausível e corretamente cauteloso quando escrito) — §4 registra
+> o resultado real sem apagar essa história.
 
 > Aprofunda o risco **R2** catalogado em
 > [`etapa-5-flip-tarefas-fase-a.md` §4](../architecture/etapa-5-flip-tarefas-fase-a.md#4-riscos-nomeados-r1rn):
@@ -225,11 +230,69 @@ sem pelo menos (a), porque (a) não tem custo nem trade-off negativo.
 por política até a decisão do flip de Tarefas. Contenção **(b) condicionada ao volume da
 quantificação §1**, a rodar na abertura daquele ciclo.
 
+**Atualização (15/ago/2026):** quantificação rodada — ver §4. Resultado: 0 linhas em todas as 8
+queries. (a) permanece adotada, agora como higiene; (b) perde urgência (volume zero), mas segue
+proposta válida.
+
+---
+
+## 4. Resultado da quantificação (15/ago/2026) — R2 FECHADO POR QUANTIFICAÇÃO
+
+O operador rodou as 8 SQLs do §1 em 15/ago/2026 e reportou o resultado ao revisor.
+**`public.tasks` está VAZIA — 0 linhas, sem exceção, nas 8 consultas:**
+
+| Query | O que verificava | Resultado (15/ago/2026) |
+|---|---|---|
+| 1.1 | Total por `source`, ativas vs. soft-deletadas | Sem grupos — `GROUP BY source` não devolve nenhuma linha (tabela vazia) |
+| 1.2 | `source_local_id IS NULL` por `source` | 0 |
+| 1.3 | Por `workspace_id` | Vazio — nenhum workspace tem linha nenhuma |
+| 1.4 | Vocabulário de `status` em uso | Sem vocabulário em uso — nenhum valor de `status` a listar (tabela vazia, não há como um valor fora do vocabulário ter vazado) |
+| 1.5 | Idade do dado por `source` | `min`/`max`/`ultima_atualizacao` — nulls, não há linha nenhuma pra ter data |
+| 1.6 | Tarefas-base (`project_template`) por projeto | Vazio — zero tarefas-base geradas em qualquer projeto |
+| 1.7 | Volume já importado (`source_local_id IS NOT NULL`) | 0 |
+| 1.8 | Proxy de drift pós-criação (`updated_at > created_at`) | 0 — nenhuma linha, logo nenhuma linha "tocada depois de criada" |
+
+### Veredito: R2 → FECHADO POR QUANTIFICAÇÃO
+
+O risco descrito na Fase A (*"`public.tasks` e `useTasks()` local já divergem hoje,
+silenciosamente"*) **era plausível e corretamente cauteloso no momento em que foi escrito** — os
+2 caminhos de escrita cloud-nativos (`createProjectBaseTasks`, `updateTaskStatus`, §2 acima) de
+fato existem, de fato são alcançáveis mesmo com as flags OFF por padrão (bastava alguém ligar a
+flag experimental), e de fato não são reconciliáveis pelo import geral. A hipótese de divergência
+real não era infundada — era o motivo correto para pedir quantificação antes de desenhar a Fase B,
+em vez de assumir "provavelmente zero" sem checar.
+
+A quantificação de 15/ago mostra que, na prática, **nenhum dos dois caminhos foi exercitado em
+produção até hoje** — mesa vazia, nada a reconciliar. Isso não é uma correção do achado original
+(o mecanismo de risco continua existindo e continua descrito em §2, intocado por este resultado —
+qualquer clique futuro em "gerar tarefas base" ou qualquer transição de status pelo painel
+experimental ainda amplia a divergência exatamente como §2.1/§2.2 descrevem); é a confirmação de
+que o risco nunca se materializou **até agora**.
+
+### Contenção — o que muda e o que não muda
+
+- **Contenção (a) — permanece, agora como higiene, não como resposta a um problema
+  encontrado.** A ausência de dado divergente hoje não é motivo pra desligar a única mitigação
+  ativa: `supabaseOperationalDashboard`/`projectsSupabaseCreateBaseTasks`/
+  `tasksSupabaseStatusTransition` seguem OFF por política até a decisão de flip real definir
+  se/quando esses caminhos voltam a ficar acessíveis — ver a decisão de convivência fechada em
+  `etapa-5-flip-tarefas-pacote.md` §5.
+- **Contenção (b) (aviso na UI) — perde urgência, não é descartada.** O volume que a condicionava
+  é zero; não é mais um bloqueio pra prosseguir, mas continua sendo uma proposta válida caso as
+  flags sejam religadas antes do flip completo (ex.: alguém testar o painel experimental
+  deliberadamente entre agora e a Fase B).
+
+**Consequência direta para o plano de implementação**: `etapa-5-flip-tarefas-pacote.md` §2
+(reconciliação) e §5 (convivência) são atualizados neste mesmo commit — a fase de reconciliação
+sai do plano como etapa própria, e a decisão de convivência fecha como **(a) Fundir**. Ver aquele
+doc para o fechamento formal, sujeito a veto do operador.
+
 ---
 
 ## Referências
 
 - [`etapa-5-flip-tarefas-fase-a.md`](../architecture/etapa-5-flip-tarefas-fase-a.md) — inventário completo do domínio, R2 catalogado em §4
+- [`etapa-5-flip-tarefas-pacote.md`](etapa-5-flip-tarefas-pacote.md) §2/§5 — fechamento da fase de reconciliação e da decisão de convivência, consequência direta do resultado do §4 deste doc (15/ago/2026)
 - [`etapa-5-fatia-7-projects.md`](etapa-5-fatia-7-projects.md) — origem do schema de `tasks`, medição "nuvem = 0 tasks vivas" na época da Fase A daquela fatia (pré-`project_template`)
 - `supabase/migrations/20260601040000_create_tasks_schema.sql` — schema, sem CHECK em `status`/`priority`
 - `supabase/migrations/20260721000500_etapa5_fatia7_tasks_unique_source_local_id.sql` — arbiter de idempotência do import geral; documenta a corrida TOCTOU do gerador de tarefas-base como problema conhecido não resolvido
