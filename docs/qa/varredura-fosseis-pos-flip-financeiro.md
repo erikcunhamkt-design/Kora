@@ -186,9 +186,16 @@ encontrados por grep exaustivo) pode valer a pena numa rodada própria. Os outro
 | **Falso positivo / já resolvido** | 8 | Financeiro (2), QuotesSection/G33-G55 (já fechado), ProjectsSection (1), ClientTechnicalSheet (1), CRM código morto (2), Tarefas/Clientes (nada encontrado) |
 
 **Nenhum código foi alterado nesta rodada** — inventário puro, conforme instrução. Os 2 fósseis
-confirmados (§2.1/§2.2) são candidatos diretos a fix no mesmo molde de G33/G55 (parametrizar as
-2 chamadas com `isBasicEdit={true}`, mesmo padrão já usado em `:1228`/`:1358`) — proposto como
-próxima rodada, não implementado aqui.
+confirmados (§2.1/§2.2) foram candidatos a fix numa próxima rodada, não implementados nesta.
+
+**Addendum (rodada seguinte):** `CRM.tsx:640` (`handleConvertToClient`) foi corrigido junto com um
+achado maior (gravava só local, ver **G58** no catálogo mestre) — o gate fóssil bare-call que este
+doc apontou virou **G59**. `CRM.tsx:630` (`handleSavePipeline`, §2.1) foi corrigido numa rodada
+própria — **G60** (não parametrizado como `isBasicEdit={true}` como este doc havia sugerido; a
+investigação da rodada de fix achou que `Pipeline` é 100% local, sem NENHUM caminho Supabase, então
+o gate certo era removido por inteiro, não reparametrizado). O banner suspeito de §3 (`CRM.tsx:2045`)
+também foi atualizado no mesmo commit do G60. Ver G58/G59/G60 no catálogo mestre para os detalhes
+completos de cada fix.
 
 ---
 

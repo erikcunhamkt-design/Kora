@@ -633,8 +633,17 @@ const CRM = () => {
   };
 
   // --- Pipeline editor handlers ---
+  // G59 — blockWriteAction() (sem argumentos) bloqueava incondicionalmente em
+  // modo Supabase, mesmo com a master flag (supabaseWriteEnabled) ligada —
+  // mesma classe de fóssil do G33/G55/G58, achado na varredura sistêmica
+  // pós-flip Financeiro. Diferente do G58 (converter lead→cliente, que TEM
+  // um caminho Supabase real via clientsSource), pipeline (usePipelines()) é
+  // 100% local — sem repository, sem tabela, sem qualquer referência a
+  // Supabase (grep confirmou) — blockWriteAction() nunca protegeu nada real
+  // aqui. Gate removido inteiro, não reparametrizado: religar a um sub-flag
+  // (ex. isBasicEdit) continuaria acoplando uma escrita local a uma flag de
+  // nuvem irrelevante pra ela.
   const handleSavePipeline = (data: Omit<Pipeline, "id" | "createdAt" | "updatedAt" | "isDefault"> & { id?: string }) => {
-    if (blockWriteAction()) return;
     if (data.id) {
       updatePipeline(data.id, { name: data.name, stages: data.stages });
     } else {
@@ -2071,8 +2080,13 @@ const LeadDetailSheet = ({
             )}
           </div>
         ) : (
+          // G59 — texto antigo ("Permitida apenas edição básica...") não
+          // mencionava que mover de estágio já funciona (arrastar o card no
+          // quadro, isStageMoveEnabled === isBasicEditEnabled, mesma flag) —
+          // os atalhos rápidos abaixo (Avançar/Ganho/Perdido) é que não têm
+          // implementação própria pra modo Supabase, não a ação em si.
           <div className="mb-4 p-2 rounded-md bg-amber-500/10 border border-amber-500/25 text-amber-500 text-[11px]">
-            ⚠️ Modo Supabase experimental. {isBasicEditEnabled ? "Permitida apenas edição básica de campos cadastrais." : "Modo somente leitura. Volte para Local para editar."}
+            ⚠️ Modo Supabase experimental. Os atalhos rápidos de estágio (Avançar/Ganho/Perdido) não aparecem aqui — arraste o card no quadro para mudar de estágio. {isBasicEditEnabled ? "Edição de campos cadastrais liberada." : "Modo somente leitura. Volte para Local para editar."}
           </div>
         )}
 
