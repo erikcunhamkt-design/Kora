@@ -483,8 +483,6 @@ const CRM = () => {
         toast.error("Criação no CRM Supabase entra nesta etapa experimental. Ative em Configurações.");
         return;
       }
-    } else {
-      if (blockWriteAction()) return;
     }
     if (wouldExceed("maxLeads", realActiveLeads)) {
       showPaywall("leads");
@@ -607,7 +605,6 @@ const CRM = () => {
       return;
     }
 
-    if (blockWriteAction()) return;
     moveLeadToStage(leadId, stage.id, stage.type);
     runAutomations(leadId, stage);
     if (stage.type === "won") toast.success("Lead marcado como ganho 🎉");
