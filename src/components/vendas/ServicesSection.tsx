@@ -484,7 +484,7 @@ function ServiceModal({
             </select>
           </Field>
           <Field label="Preço (R$)*">
-            <input type="number" min={0} step={50} value={price} onChange={(e) => setPrice(e.target.value)} placeholder="1500" className="kora-input" />
+            <input type="number" min={0} step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="1500" className="kora-input" />
           </Field>
         </div>
         <Field label="Descrição">
@@ -735,10 +735,10 @@ function ProductModal({
         </div>
         <div className="grid gap-4 md:grid-cols-3">
           <Field label="Preço (R$)*">
-            <input type="number" min={0} step={10} value={price} onChange={(e) => setPrice(e.target.value)} className="kora-input" />
+            <input type="number" min={0} step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} className="kora-input" />
           </Field>
           <Field label="Custo (R$)">
-            <input type="number" min={0} step={10} value={cost} onChange={(e) => setCost(e.target.value)} className="kora-input" />
+            <input type="number" min={0} step="0.01" value={cost} onChange={(e) => setCost(e.target.value)} className="kora-input" />
           </Field>
           <Field label="Estoque">
             <input type="number" min={0} value={stock} onChange={(e) => setStock(e.target.value)} className="kora-input" />
@@ -929,7 +929,7 @@ function PlanModal({
         </Field>
         <div className="grid gap-4 md:grid-cols-3">
           <Field label="Preço (R$)*">
-            <input type="number" min={0} step={50} value={price} onChange={(e) => setPrice(e.target.value)} className="kora-input" />
+            <input type="number" min={0} step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} className="kora-input" />
           </Field>
           <Field label="Ciclo">
             <select value={billingCycle} onChange={(e) => setBillingCycle(e.target.value as BillingCycle)} className="kora-input">

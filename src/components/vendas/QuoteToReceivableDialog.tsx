@@ -224,7 +224,7 @@ export function QuoteToReceivableDialog({
                 id="qtr-amount"
                 type="number"
                 min={0}
-                step={50}
+                step="0.01"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
               />
