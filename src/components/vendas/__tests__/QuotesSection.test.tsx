@@ -781,6 +781,78 @@ describe("QuotesSection · item 8 (Fatia 10) — status/criação sob o master f
   });
 });
 
+// Achado catalogado na homologação de Financeiro (Fase D, Vendas): o campo
+// de valor do item no wizard de orçamento tinha `step={50}` — a validação
+// nativa do <input type="number"> rejeita qualquer valor que não seja
+// múltiplo de 50 a partir de `min` (R$80 recusado; workaround do operador
+// foi R$100). "Desconto (R$)" não tinha `step` nenhum — default implícito
+// do HTML é 1, mesmo vício (rejeita centavos, ex. R$79,90). Fix: os dois
+// passam a usar `step="0.01"`, mesmo idioma que TODOS os inputs monetários
+// de Financeiro.tsx já usam (`step="0.01"`, 4 ocorrências — QuickSaleDialog/
+// ExpenseDialog/SupplierDialog/CashAccountDialog).
+describe("QuotesSection · NewQuoteWizard — step de centavos nos campos monetários (achado de homologação, Vendas)", () => {
+  function openWizardToStep2() {
+    vi.mocked(useQuotes).mockReturnValue({
+      quotes: [], addQuote: vi.fn().mockReturnValue(makeSupabaseMappedQuote({ id: "q-new" })),
+      updateStatus: vi.fn(), updateQuote: vi.fn(), duplicateQuote: vi.fn(), deleteQuote: vi.fn(),
+    } as never);
+    vi.mocked(useSupabaseQuotes).mockReturnValue({ quotes: [], loading: false, error: null } as never);
+    renderSection();
+
+    fireEvent.click(screen.getByText("Novo orçamento"));
+    fireEvent.change(screen.getByPlaceholderText("Nome do cliente"), { target: { value: "Cliente Novo" } });
+    fireEvent.change(screen.getByPlaceholderText("Ex: Rebranding 2026"), { target: { value: "Orçamento Novo" } });
+    fireEvent.click(screen.getByText("Continuar")); // passo 1 -> 2
+
+    fireEvent.click(screen.getByText("+ Item manual"));
+    fireEvent.change(screen.getByPlaceholderText("Nome do item"), { target: { value: "Item X" } });
+    // Spinbuttons na ordem do JSX: [0] quantidade do item, [1] preço
+    // unitário do item, [2] desconto da página.
+    return screen.getAllByRole("spinbutton") as HTMLInputElement[];
+  }
+
+  it("preço do item aceita R$80 (não múltiplo de 50) — sem stepMismatch da validação nativa (falha pré-fix)", () => {
+    const spinbuttons = openWizardToStep2();
+    fireEvent.change(spinbuttons[1], { target: { value: "80" } });
+
+    expect(spinbuttons[1].validity.stepMismatch).toBe(false);
+    expect(spinbuttons[1].checkValidity()).toBe(true);
+  });
+
+  it("preço do item aceita centavos (R$79,90)", () => {
+    const spinbuttons = openWizardToStep2();
+    fireEvent.change(spinbuttons[1], { target: { value: "79.90" } });
+
+    expect(spinbuttons[1].validity.stepMismatch).toBe(false);
+    expect(spinbuttons[1].checkValidity()).toBe(true);
+  });
+
+  it("desconto aceita centavos (R$79,90) — mesmo vício do preço do item, sem step nenhum antes do fix", () => {
+    const spinbuttons = openWizardToStep2();
+    fireEvent.change(spinbuttons[2], { target: { value: "79.90" } });
+
+    expect(spinbuttons[2].validity.stepMismatch).toBe(false);
+    expect(spinbuttons[2].checkValidity()).toBe(true);
+  });
+
+  it("regressão: valores múltiplos de 50 que já funcionavam antes continuam válidos (100, 1500)", () => {
+    const spinbuttons = openWizardToStep2();
+    fireEvent.change(spinbuttons[1], { target: { value: "100" } });
+    expect(spinbuttons[1].checkValidity()).toBe(true);
+
+    fireEvent.change(spinbuttons[1], { target: { value: "1500" } });
+    expect(spinbuttons[1].checkValidity()).toBe(true);
+  });
+
+  it("valor negativo continua rejeitado (min={0} preservado, não regrediu junto com o fix de step)", () => {
+    const spinbuttons = openWizardToStep2();
+    fireEvent.change(spinbuttons[1], { target: { value: "-10" } });
+
+    expect(spinbuttons[1].validity.rangeUnderflow).toBe(true);
+    expect(spinbuttons[1].checkValidity()).toBe(false);
+  });
+});
+
 // G44 — achado da Fase D de Projetos: NewQuoteWizard só aceitava nome livre
 // de cliente, nunca vinculava clientId a um cliente cadastrado — quote sem
 // clientId gerava projeto sem clientId (ficha do cliente cega, contornado só
