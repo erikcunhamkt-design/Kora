@@ -391,13 +391,16 @@ sem carregar o comentário de origem, não sobre o campo em si.
 
 **Backlog restante — rodada 2b e rodada 3, ainda não iniciadas:**
 
-- **Rodada 2b (bloqueada até G59 da Lane B aterrissar em `main` — confirmar
-  no fetch antes de começar):** bifurcar os 3 consumidores restantes de §2.3
-  (`Financeiro.tsx` `ClientsTab`, `CRM.tsx` leitura de lista,
-  `ClientTechnicalSheet.tsx`) pra `useClientsDataSource()` — padrão já
-  provado, sem desenho novo necessário. Bloqueada porque toca `CRM.tsx`, o
-  mesmo arquivo que a Lane B está corrigindo (`handleSavePipeline`, o outro
-  fóssil do par G59) — evita colisão de merge entre lanes no mesmo arquivo.
+- **Rodada 2b (addendum, verificação de integridade 16/ago/2026 — DESBLOQUEADA):**
+  bifurcar os 3 consumidores restantes de §2.3 (`Financeiro.tsx`
+  `ClientsTab`, `CRM.tsx` leitura de lista, `ClientTechnicalSheet.tsx`) pra
+  `useClientsDataSource()` — padrão já provado, sem desenho novo necessário.
+  Era bloqueada porque tocava `CRM.tsx`, o mesmo arquivo que a Lane B estava
+  corrigindo (`handleSavePipeline`) — mas ambos os fósseis do par G59
+  (`handleConvertToClient`, este mesmo, E `handleSavePipeline`/**G62**) já
+  aterrissaram em `main` (`688efd1` e `91d9070`/`0feb815`, respectivamente) —
+  `CRM.tsx` está livre. Confirmar tip real no fetch antes de começar, como
+  sempre, mas a condição de bloqueio original já foi satisfeita.
 - **Rodada 3 (candidata, backlog do operador — pós-Fase D):** decisão sobre
   CHECK de vocabulário em `status`/`temperature` (§2.2) — **migration**,
   então gate reforçado do protocolo; correta pra propor só depois que uma

@@ -2,7 +2,9 @@
 
 > **Nada aplicado.** Este doc guarda os DRAFTS de migration da Rodada 3 do
 > Pacote do Flip de Clientes ([`etapa-5-flip-clientes-pacote.md`](etapa-5-flip-clientes-pacote.md)
-> §2.2/§4), preparados enquanto a Rodada 2b espera o G59 da Lane B aterrissar.
+> §2.2/§4), preparados enquanto a Rodada 2b esperava os 2 fósseis do par G59
+> aterrissarem (ambos já aterrissaram — ver addendum de §4 daquele pacote,
+> verificação de integridade 16/ago/2026 — Rodada 2b desbloqueada).
 > Escopo explícito desta rodada de preparação: **só `status`/`temperature`
 > de `public.clients`** — nenhum campo de `crm_opportunities` (que também
 > tem `stage`/`status`/`temperature`/`priority` sem CHECK) foi investigado
