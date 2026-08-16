@@ -94,29 +94,35 @@ describe("flags · booleanas opt-in", () => {
   });
 });
 
-describe("flags · ficha técnica · experimental (opt-OUT, default LIGADO)", () => {
-  it("default é true quando a chave não existe", () => {
-    expect(getTechnicalSheetExperimentalEnabled()).toBe(true);
+// G63 (16/ago/2026): as 2 describes abaixo testavam o comportamento opt-OUT
+// antigo (default LIGADO) — era exatamente essa semântica que fazia
+// Fichas Técnicas autosalvar accesses[].password na nuvem sem ação nenhuma
+// do operador. Reescritas pra opt-in (default DESLIGADO), mesmo formato de
+// storage ("true"/"false" na mesma chave — só a interpretação da AUSÊNCIA
+// mudou). Ver kora-hub-auditoria-e-plano.md (G63).
+describe("flags · ficha técnica · experimental (opt-in, default DESLIGADO — G63)", () => {
+  it("default é false quando a chave não existe", () => {
+    expect(getTechnicalSheetExperimentalEnabled()).toBe(false);
   });
 
-  it("só o literal \"false\" desliga; qualquer outro valor ⇒ true", () => {
-    localStorage.setItem(TECHNICAL_SHEETS_EXPERIMENTAL_KEY, "false");
-    expect(getTechnicalSheetExperimentalEnabled()).toBe(false);
+  it("só o literal \"true\" liga; qualquer outro valor ⇒ false", () => {
     localStorage.setItem(TECHNICAL_SHEETS_EXPERIMENTAL_KEY, "true");
     expect(getTechnicalSheetExperimentalEnabled()).toBe(true);
+    localStorage.setItem(TECHNICAL_SHEETS_EXPERIMENTAL_KEY, "false");
+    expect(getTechnicalSheetExperimentalEnabled()).toBe(false);
     localStorage.setItem(TECHNICAL_SHEETS_EXPERIMENTAL_KEY, "");
-    expect(getTechnicalSheetExperimentalEnabled()).toBe(true);
+    expect(getTechnicalSheetExperimentalEnabled()).toBe(false);
     localStorage.setItem(TECHNICAL_SHEETS_EXPERIMENTAL_KEY, "xpto");
-    expect(getTechnicalSheetExperimentalEnabled()).toBe(true);
+    expect(getTechnicalSheetExperimentalEnabled()).toBe(false);
   });
 
   it("grava \"true\"/\"false\" na chave certa (round-trip)", () => {
-    setTechnicalSheetExperimentalEnabled(false);
-    expect(localStorage.getItem(TECHNICAL_SHEETS_EXPERIMENTAL_KEY)).toBe("false");
-    expect(getTechnicalSheetExperimentalEnabled()).toBe(false);
     setTechnicalSheetExperimentalEnabled(true);
     expect(localStorage.getItem(TECHNICAL_SHEETS_EXPERIMENTAL_KEY)).toBe("true");
     expect(getTechnicalSheetExperimentalEnabled()).toBe(true);
+    setTechnicalSheetExperimentalEnabled(false);
+    expect(localStorage.getItem(TECHNICAL_SHEETS_EXPERIMENTAL_KEY)).toBe("false");
+    expect(getTechnicalSheetExperimentalEnabled()).toBe(false);
   });
 
   it("chaves catalogadas da ficha técnica batem com as strings reais", () => {
@@ -125,27 +131,27 @@ describe("flags · ficha técnica · experimental (opt-OUT, default LIGADO)", ()
   });
 });
 
-describe("flags · ficha técnica · autosave (opt-OUT, default LIGADO)", () => {
-  it("default é true quando a chave não existe", () => {
-    expect(getTechnicalSheetAutoSaveEnabled()).toBe(true);
+describe("flags · ficha técnica · autosave (opt-in, default DESLIGADO — G63)", () => {
+  it("default é false quando a chave não existe", () => {
+    expect(getTechnicalSheetAutoSaveEnabled()).toBe(false);
   });
 
-  it("só o literal \"false\" desliga; qualquer outro valor ⇒ true", () => {
-    localStorage.setItem(TECHNICAL_SHEETS_AUTOSAVE_KEY, "false");
-    expect(getTechnicalSheetAutoSaveEnabled()).toBe(false);
+  it("só o literal \"true\" liga; qualquer outro valor ⇒ false", () => {
     localStorage.setItem(TECHNICAL_SHEETS_AUTOSAVE_KEY, "true");
     expect(getTechnicalSheetAutoSaveEnabled()).toBe(true);
+    localStorage.setItem(TECHNICAL_SHEETS_AUTOSAVE_KEY, "false");
+    expect(getTechnicalSheetAutoSaveEnabled()).toBe(false);
     localStorage.setItem(TECHNICAL_SHEETS_AUTOSAVE_KEY, "xpto");
-    expect(getTechnicalSheetAutoSaveEnabled()).toBe(true);
+    expect(getTechnicalSheetAutoSaveEnabled()).toBe(false);
   });
 
   it("grava \"true\"/\"false\" na chave certa (round-trip)", () => {
-    setTechnicalSheetAutoSaveEnabled(false);
-    expect(localStorage.getItem(TECHNICAL_SHEETS_AUTOSAVE_KEY)).toBe("false");
-    expect(getTechnicalSheetAutoSaveEnabled()).toBe(false);
     setTechnicalSheetAutoSaveEnabled(true);
     expect(localStorage.getItem(TECHNICAL_SHEETS_AUTOSAVE_KEY)).toBe("true");
     expect(getTechnicalSheetAutoSaveEnabled()).toBe(true);
+    setTechnicalSheetAutoSaveEnabled(false);
+    expect(localStorage.getItem(TECHNICAL_SHEETS_AUTOSAVE_KEY)).toBe("false");
+    expect(getTechnicalSheetAutoSaveEnabled()).toBe(false);
   });
 });
 
@@ -329,23 +335,27 @@ describe("flags · seletor de fonte de financeiro (string plana, default SUPABAS
   });
 });
 
-describe("flags · seletor de fonte da ficha técnica (mapa JSON por cliente, default supabase)", () => {
-  it("default é \"supabase\" para qualquer cliente quando ausente", () => {
-    expect(getTechnicalSheetDataSource("c1")).toBe("supabase");
-    expect(getTechnicalSheetDataSource(42)).toBe("supabase");
-  });
-
-  it("resolve \"local\" só quando o mapa marca aquele cliente como \"local\"", () => {
-    localStorage.setItem(TECHNICAL_SHEETS_DATA_SOURCE_KEY, JSON.stringify({ c1: "local", c2: "supabase" }));
+// G63 (16/ago/2026): default invertido pra "local" — era "supabase" que,
+// somado às 2 flags booleanas acima também opt-OUT, fazia o autosave ligar
+// sozinho assim que o cliente tinha vínculo Supabase. Mesmo formato de
+// storage (mapa JSON por clientId), só a interpretação da AUSÊNCIA mudou.
+describe("flags · seletor de fonte da ficha técnica (mapa JSON por cliente, default LOCAL — G63)", () => {
+  it("default é \"local\" para qualquer cliente quando ausente", () => {
     expect(getTechnicalSheetDataSource("c1")).toBe("local");
-    expect(getTechnicalSheetDataSource("c2")).toBe("supabase");
-    // cliente ausente do mapa ⇒ default supabase, mesmo com outros em "local"
-    expect(getTechnicalSheetDataSource("c3")).toBe("supabase");
+    expect(getTechnicalSheetDataSource(42)).toBe("local");
   });
 
-  it("JSON malformado ⇒ default \"supabase\"", () => {
-    localStorage.setItem(TECHNICAL_SHEETS_DATA_SOURCE_KEY, "{not json");
+  it("resolve \"supabase\" só quando o mapa marca aquele cliente como \"supabase\"", () => {
+    localStorage.setItem(TECHNICAL_SHEETS_DATA_SOURCE_KEY, JSON.stringify({ c1: "supabase", c2: "local" }));
     expect(getTechnicalSheetDataSource("c1")).toBe("supabase");
+    expect(getTechnicalSheetDataSource("c2")).toBe("local");
+    // cliente ausente do mapa ⇒ default local, mesmo com outros em "supabase"
+    expect(getTechnicalSheetDataSource("c3")).toBe("local");
+  });
+
+  it("JSON malformado ⇒ default \"local\"", () => {
+    localStorage.setItem(TECHNICAL_SHEETS_DATA_SOURCE_KEY, "{not json");
+    expect(getTechnicalSheetDataSource("c1")).toBe("local");
   });
 
   it("grava por cliente PRESERVANDO os demais", () => {

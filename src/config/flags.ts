@@ -61,25 +61,36 @@ export type BooleanFlagName = keyof typeof BOOLEAN_FLAG_KEYS;
 // (ninguém lê) — sem impacto.
 
 /**
- * Flags booleanas da FICHA TÉCNICA — NÃO seguem o padrão opt-in default-OFF,
- * por isso ficam FORA de BOOLEAN_FLAG_KEYS/getBooleanFlag:
+ * Flags booleanas da FICHA TÉCNICA — NÃO seguem o padrão opt-in default-OFF
+ * do resto do módulo (chaves simples, `=== "true"`), por isso ficam FORA de
+ * BOOLEAN_FLAG_KEYS/getBooleanFlag — mas SÃO opt-in (default DESLIGADO)
+ * desde o fix do G63, mesmo formato de acesso (`safeGet(...) === "true"`).
  *
- *  - supabaseExperimental: opt-OUT (default LIGADO). Card (Configuracoes,
- *    `=== "false" ? false : true`) e consumidor (ClientTechnicalSheet,
- *    `!== "false"`) são CONSISTENTES. Centralizada abaixo com acessor opt-out.
- *
- *  - supabaseAutoSave: era INCONSISTENTE (card lia `=== "true"` / default OFF;
- *    consumidor lia `!== "false"` / default ON). Resolvido: unificado em opt-OUT
- *    (default LIGADO), alinhando o card ao consumidor — o autosave já ligava por
- *    padrão, agora o card reflete isso. Acessor opt-out abaixo.
+ *  - supabaseExperimental / supabaseAutoSave: eram opt-OUT (default LIGADO)
+ *    até 16/ago/2026 — G63 (`kora-hub-auditoria-e-plano.md`): com os 2
+ *    defaults ligados + `TECHNICAL_SHEETS_DATA_SOURCE_KEY` também
+ *    defaultando pra "supabase", qualquer edição de ficha técnica de um
+ *    cliente já vinculado ao Supabase autosalvava `accesses[].password`
+ *    (senha de plataforma do cliente) num JSONB sem sanitização, sem
+ *    confirmação do operador. Fix: as 3 flags deste domínio (as 2 booleanas
+ *    aqui + o seletor de fonte abaixo) viram opt-in — domínio volta a
+ *    "governado" (nada escreve na nuvem sem ação explícita) até passar por
+ *    um protocolo de flip formal, mesmo padrão que todo outro domínio deste
+ *    módulo já segue.
  */
 export const TECHNICAL_SHEETS_EXPERIMENTAL_KEY = "kora.technicalSheets.supabaseExperimental.enabled";
 export const TECHNICAL_SHEETS_AUTOSAVE_KEY = "kora.technicalSheets.supabaseAutoSave.enabled";
 
 /**
- * Seletores de fonte de dados. ATENÇÃO: o default de ambos é "supabase" —
- * só o valor literal "local" seleciona a fonte local; qualquer outro valor
- * (ausente, "supabase", malformado) resolve para "supabase".
+ * Seletores de fonte de dados.
+ *
+ * `CRM_DATA_SOURCE_KEY`: default "supabase" — só "local" explícito
+ * seleciona local (inalterado, fora do escopo do G63).
+ *
+ * `TECHNICAL_SHEETS_DATA_SOURCE_KEY`: default **"local"** desde o fix do
+ * G63 (16/ago/2026) — inverso do padrão antigo (que defaultava
+ * "supabase", mesmo comportamento perigoso descrito acima). Só "supabase"
+ * explícito, por cliente, seleciona a fonte nuvem.
  */
 export const CRM_DATA_SOURCE_KEY = "kora.crm.dataSource.v1";
 export const TECHNICAL_SHEETS_DATA_SOURCE_KEY = "kora.technicalSheets.dataSource.v1";
@@ -161,22 +172,22 @@ export function setBooleanFlag(name: BooleanFlagName, value: boolean): void {
   safeSet(BOOLEAN_FLAG_KEYS[name], String(value));
 }
 
-// ── ficha técnica · modo experimental (opt-OUT, default LIGADO) ─────────────
+// ── ficha técnica · modo experimental (opt-in, default DESLIGADO — G63) ─────
 
-/** Ausência ou qualquer valor ≠ "false" ⇒ true (ligado por padrão). */
+/** Só o literal "true" liga (opt-in, mesmo formato de BOOLEAN_FLAG_KEYS). */
 export function getTechnicalSheetExperimentalEnabled(): boolean {
-  return safeGet(TECHNICAL_SHEETS_EXPERIMENTAL_KEY) !== "false";
+  return safeGet(TECHNICAL_SHEETS_EXPERIMENTAL_KEY) === "true";
 }
 
 export function setTechnicalSheetExperimentalEnabled(value: boolean): void {
   safeSet(TECHNICAL_SHEETS_EXPERIMENTAL_KEY, String(value));
 }
 
-// ── ficha técnica · autosave (opt-OUT, default LIGADO) ──────────────────────
+// ── ficha técnica · autosave (opt-in, default DESLIGADO — G63) ──────────────
 
-/** Ausência ou qualquer valor ≠ "false" ⇒ true (ligado por padrão). */
+/** Só o literal "true" liga (opt-in, mesmo formato de BOOLEAN_FLAG_KEYS). */
 export function getTechnicalSheetAutoSaveEnabled(): boolean {
-  return safeGet(TECHNICAL_SHEETS_AUTOSAVE_KEY) !== "false";
+  return safeGet(TECHNICAL_SHEETS_AUTOSAVE_KEY) === "true";
 }
 
 export function setTechnicalSheetAutoSaveEnabled(value: boolean): void {
@@ -243,10 +254,15 @@ function readTechnicalSheetMap(): Record<string, DataSource> {
   }
 }
 
-/** Só "local" (para este clientId) seleciona local; qualquer outro ⇒ "supabase". */
+/**
+ * G63 (16/ago/2026): default invertido pra "local" — só "supabase" explícito
+ * (para este clientId) seleciona a fonte nuvem; qualquer outro valor
+ * (ausente, "local", malformado) ⇒ "local". Antes do fix, o default era
+ * "supabase" (ver histórico do arquivo/G63 em kora-hub-auditoria-e-plano.md).
+ */
 export function getTechnicalSheetDataSource(clientId: string | number): DataSource {
   const map = readTechnicalSheetMap();
-  return map[String(clientId)] === "local" ? "local" : "supabase";
+  return map[String(clientId)] === "supabase" ? "supabase" : "local";
 }
 
 /** Grava a fonte deste cliente, PRESERVANDO as entradas dos demais clientes. */

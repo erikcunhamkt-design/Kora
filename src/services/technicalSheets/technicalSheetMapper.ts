@@ -32,6 +32,18 @@ export function mapLocalToSupabaseSheet(localSheet: any): SupabaseTechnicalSheet
 
   // Sanitize raw_payload to remove any heavy dataUrl / base64 / blob
   const sanitizedRaw = JSON.parse(JSON.stringify(localSheet));
+
+  // G63 — accesses[] carrega ClientAccess.password (senha de plataforma do
+  // cliente, texto puro). raw_payload era um clone bruto do objeto local
+  // inteiro, sem excluir accesses — a senha ia junto sem sanitização
+  // nenhuma. supabaseTechnicalSheetToLocalMapper.ts (leitura) NUNCA
+  // reconstrói accesses de raw_payload (nem de nenhum outro campo) — não
+  // existe coluna dedicada, não existe consumidor. Excluir o campo inteiro
+  // (não só .password) é perda funcional zero, confirmada por essa
+  // ausência de leitura, e evita deixar login/plataforma/notas de acesso
+  // (ainda sensíveis, mesmo sem a senha) no catch-all.
+  delete sanitizedRaw.accesses;
+
   if (sanitizedRaw.assets && Array.isArray(sanitizedRaw.assets)) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     sanitizedRaw.assets = sanitizedRaw.assets.map((asset: any) => {
