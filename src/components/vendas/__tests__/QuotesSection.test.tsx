@@ -932,3 +932,65 @@ describe("QuotesSection · G44 — seletor de cliente existente no wizard", () =
     );
   });
 });
+
+function renderSectionAt(path: string) {
+  return render(
+    <MemoryRouter initialEntries={[path]}>
+      <QuotesSection />
+    </MemoryRouter>,
+  );
+}
+
+// G67 — o <Select> de cliente existente do wizard (G44, describe acima) já lê
+// a fonte certa (useClientsDataSource), mas o EFEITO DE DEEP LINK que ABRE o
+// wizard vindo de outra tela (?newQuote=1&clientId=X, disparado por
+// Clientes.tsx "Criar orçamento") ainda lia useClients() (sempre local) e
+// comparava o id via Number(). Em modo Supabase o id do cliente é um uuid
+// "contrabandeado" como number (useClientsDataSource.ts:9): Number(uuid) vira
+// NaN, o bloco de seed inteiro é pulado em silêncio e o wizard abre em
+// branco — o operador digita o nome na mão, sem clientId, e o gap trafega
+// orçamento -> projeto -> recebível (client_id nulo nos três).
+describe("QuotesSection · G67 — deep link ?newQuote=1&clientId=X preenche o wizard", () => {
+  beforeEach(() => {
+    vi.mocked(useQuotes).mockReturnValue({
+      quotes: [], addQuote: vi.fn(), updateStatus: vi.fn(), updateQuote: vi.fn(),
+      duplicateQuote: vi.fn(), deleteQuote: vi.fn(),
+    } as never);
+    vi.mocked(useSupabaseQuotes).mockReturnValue({ quotes: [], loading: false, error: null } as never);
+  });
+
+  it("clientId uuid (cliente só na fonte bifurcada, nunca em useClients local) preenche nome/clientId do wizard", async () => {
+    vi.mocked(useClientsDataSource).mockReturnValue({
+      clients: [{ id: "client-uuid-9", name: "Cliente Uuid Nuvem", company: "", email: "", whatsapp: "" }],
+      source: "supabase",
+    } as never);
+
+    renderSectionAt("/vendas?tab=orcamentos&newQuote=1&clientId=client-uuid-9");
+
+    const nameInput = (await screen.findByPlaceholderText("Nome do cliente")) as HTMLInputElement;
+    expect(nameInput.value).toBe("Cliente Uuid Nuvem");
+  });
+
+  it("regressão: clientId numérico local antigo continua vinculando (mesmo cliente nos dois hooks — cenário real de modo local, onde useClients() e useClientsDataSource() leem a mesma fonte)", async () => {
+    const localClient = { id: 42, name: "Cliente Local Antigo", company: "", email: "", whatsapp: "" };
+    vi.mocked(useClients).mockReturnValue({ clients: [localClient] } as never);
+    vi.mocked(useClientsDataSource).mockReturnValue({ clients: [localClient], source: "local" } as never);
+
+    renderSectionAt("/vendas?tab=orcamentos&newQuote=1&clientId=42");
+
+    const nameInput = (await screen.findByPlaceholderText("Nome do cliente")) as HTMLInputElement;
+    expect(nameInput.value).toBe("Cliente Local Antigo");
+  });
+
+  it("sem clientId na URL, wizard abre em branco — comportamento correto preservado", async () => {
+    vi.mocked(useClientsDataSource).mockReturnValue({
+      clients: [{ id: "client-uuid-9", name: "Cliente Uuid Nuvem", company: "", email: "", whatsapp: "" }],
+      source: "supabase",
+    } as never);
+
+    renderSectionAt("/vendas?tab=orcamentos&newQuote=1");
+
+    const nameInput = (await screen.findByPlaceholderText("Nome do cliente")) as HTMLInputElement;
+    expect(nameInput.value).toBe("");
+  });
+});

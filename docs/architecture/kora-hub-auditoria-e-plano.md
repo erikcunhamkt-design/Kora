@@ -890,6 +890,18 @@ Achado ao vivo durante a rodada de limpeza do G62 (`CRM.tsx:487`/`:610`, commit 
 
 ---
 
+**G67 — Deep link `?newQuote=1&clientId=X` (Vendas) usava `Number(id)` + hook pré-cutover — o cast quebra em silêncio com uuid e o wizard de orçamento abre cego; o gap de `client_id` trafega orçamento → projeto → recebível. [MÉDIO — confirmado e FECHADO, mesma classe do G44/G37]**
+Achado durante investigação de relato de homologação: "não consigo vincular clientes que já têm, somente criar um nome, nem vai pra aba de cliente" — ao clicar em "Criar orçamento" dentro do perfil de um cliente já cadastrado.
+
+- **Mecanismo raiz:** o próprio `NewQuoteWizard` já tinha (desde o G44) um `<Select>` de "cliente existente" lendo `useClientsDataSource()` — a fonte certa, bifurcada local/nuvem. O defeito estava um nível acima, no efeito que ABRE o wizard a partir de outra tela (`QuotesSection.tsx:149-186`, disparado por `Clientes.tsx:825` — `navigate(/vendas?...&clientId=${c.id})`): (1) lia `useClients()` (sempre local, nunca vê clientes da nuvem); (2) comparava `Number(searchParams.get("clientId"))` contra `c.id` — em modo Supabase (default pós-flip de Clientes) o `id` do cliente é um uuid "contrabandeado" como `number` (`useClientsDataSource.ts:9`), e `Number(uuid)` vira `NaN`. `if (cliId)` com `NaN` é falso — o bloco de seed inteiro era pulado em silêncio, sem erro, sem toast. Resultado: `initialData: null`, wizard 100% em branco, mesmo tendo sido aberto a partir do perfil de um cliente real.
+- **Impacto downstream confirmado por leitura de código:** `clientId` (ou sua ausência) atravessa sem tradução — `QuotesSection.handleSave` → `addQuote`/`createSupabaseQuoteWithItems` grava como veio do wizard; `QuoteToProjectDialog` (`addProject`) e `QuoteToReceivableDialog.tsx:99,164` (`client_id: resolveFinanceFk(quote.clientId, {})`) recebem o mesmo valor. Sem seed, orçamento, projeto E recebível nascem órfãos de `client_id` — e o link "Ver cliente" (`QuotesSection.tsx`) nunca aparece, porque depende de `quote.clientId`.
+- **Fix:** `QuotesSection.tsx` — `useClients()` → `useClientsDataSource()` (mesma fonte que o `<Select>` do próprio wizard já usava, G44); comparação de id trocada pra string (`String(c.id) === searchParams.get("clientId")`), sem `Number()`. Import morto de `useClients` removido.
+- **Testes** (`QuotesSection.test.tsx`, describe "G67"): (a) `clientId` uuid, cliente só na fonte bifurcada (nunca em `useClients()` local) → wizard preenche nome/clientId — falha contra o código anterior (confirmado por reprodução via `git diff > patch` → `git checkout` → teste falha → `git apply` → teste passa, método G65, sem stash); (b) regressão — `clientId` numérico local antigo (mesmo cliente presente nos dois hooks, cenário real de modo local) continua vinculando nos dois lados; (c) sem `clientId` na URL, wizard abre em branco — comportamento preservado.
+- **Achado irmão (mesma classe, fora de escopo desta rodada):** `CRM.tsx:399` tem o mesmíssimo `Number(searchParams.get("clientId"))` no deep link `?newOpportunity=1&clientId=X` (também disparado por `Clientes.tsx:821`). Não investigado a fundo nem tocado — roteado para o **G64** (Lane C, território de `CRM.tsx`).
+- **Referência:** `useClientsDataSource.ts:9` (cast uuid→number), G44 (`kora-hub-auditoria-e-plano.md:685`, seletor do wizard), G37 (precedente do padrão de comparação por string).
+
+---
+
 ## 3. Segurança / vulnerabilidades (verificar e endurecer)
 
 > Vários itens abaixo são **"confirmar no código"** — a arquitetura está certa, mas a implementação precisa ser auditada arquivo a arquivo pelo Code.
