@@ -205,4 +205,34 @@ describe("QuoteToReceivableDialog · espelho G22 (Fase B, §5.1) — gap real do
     expect(addTransaction).toHaveBeenCalled();
     expect(financeRepository.createReceivableFromQuote).not.toHaveBeenCalled();
   });
+
+  // Achado da homologação de Financeiro (mesma classe do fix do
+  // NewQuoteWizard, QuotesSection.tsx) — relevante pro Caso 4.3: este é o
+  // diálogo que a Fase D exercita, corrigir antes do reteste evita vermelho
+  // falso por validação nativa do <input type="number">.
+  it("campo 'Valor (R$)' aceita R$80 (não múltiplo de 50) e R$79,90 — sem stepMismatch (achado de homologação)", () => {
+    renderDialog(makeQuote());
+
+    const amount = screen.getByLabelText("Valor (R$)") as HTMLInputElement;
+
+    fireEvent.change(amount, { target: { value: "80" } });
+    expect(amount.validity.stepMismatch).toBe(false);
+    expect(amount.checkValidity()).toBe(true);
+
+    fireEvent.change(amount, { target: { value: "79.90" } });
+    expect(amount.validity.stepMismatch).toBe(false);
+    expect(amount.checkValidity()).toBe(true);
+  });
+
+  it("regressão: valores múltiplos de 50 continuam válidos, min={0} preservado", () => {
+    renderDialog(makeQuote());
+    const amount = screen.getByLabelText("Valor (R$)") as HTMLInputElement;
+
+    fireEvent.change(amount, { target: { value: "1500" } });
+    expect(amount.checkValidity()).toBe(true);
+
+    fireEvent.change(amount, { target: { value: "-10" } });
+    expect(amount.validity.rangeUnderflow).toBe(true);
+    expect(amount.checkValidity()).toBe(false);
+  });
 });
