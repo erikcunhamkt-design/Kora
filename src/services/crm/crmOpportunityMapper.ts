@@ -64,10 +64,25 @@ export function mapLocalLeadToSupabaseOpportunity(
     // truthy mesmo fora de "fechado" (nunca limpava), diferente do caminho
     // PRIMÁRIO de mudança de stage (crmOpportunitiesRepository.ts,
     // moveOpportunityStage), que zera won_at/lost_at/lost_reason nas 3
-    // direções. Fix: o `||` só entra DENTRO do ramo "fechado" — preserva um
-    // wonAt já existente (idempotência do import — não empurra o timestamp
-    // pra "agora" a cada reimportação), mas qualquer stage != "fechado"
-    // sempre limpa, igual ao caminho primário.
+    // direções. Fix: qualquer stage != "fechado" sempre limpa, igual ao
+    // caminho primário — essa parte é sólida.
+    //
+    // LIMITAÇÃO CONHECIDA (achado do revisor pós-fix, não resolvida aqui de
+    // propósito): o `lead.wonAt ||` dentro do ramo "fechado" SÓ preserva um
+    // valor pré-existente se `lead.wonAt` já vier preenchido no objeto Lead
+    // recebido — o que nunca acontece no fluxo real de reimport
+    // (`useLocalOpportunitiesImport.ts:180`, `raw: local` vem de
+    // `useLeads()`, que NUNCA escreve `Lead.wonAt` — confirmado por grep
+    // exaustivo). Ou seja: reimportar o MESMO lead "fechado" 2x GERA um
+    // `won_at` novo a cada vez, não preserva o gravado na 1ª vez — não há
+    // idempotência real aqui, só a aparência dela quando testado com um
+    // Lead sintético que já tem `wonAt`. Nenhuma guarda no ponto de upsert
+    // (`crmOpportunitiesRepository.upsertImportedOpportunity`, `.upsert()`
+    // cru, sem leitura prévia da linha existente) corrige isso. Registrado
+    // como limitação conhecida em `kora-hub-auditoria-e-plano.md` (G57) —
+    // corrigir exigiria buscar a linha existente por `source_local_id`
+    // antes do upsert (round-trip extra + reestrutura o ponto de escrita),
+    // avaliado como invasivo demais pra esta rodada.
     won_at: lead.stage === "fechado" ? (lead.wonAt || new Date().toISOString()) : null,
     lost_at: lead.stage === "perdido" ? new Date().toISOString() : null,
     lost_reason: lead.lostReason || null,

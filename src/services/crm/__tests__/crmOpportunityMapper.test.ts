@@ -4,7 +4,7 @@
 // resolve via import-maps: mapeado → UUID; não-mapeado/ausente → null; NUNCA id local cru.
 //
 // Ver docs/qa/etapa-5-fatia-2-opportunities.md (A1).
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 
 import type { Lead } from "@/hooks/useLeads";
 import type { SupabaseOpportunity } from "@/repositories/crmOpportunitiesRepository";
@@ -123,10 +123,48 @@ describe("mapLocalLeadToSupabaseOpportunity — G57 (won_at limpo ao sair de 'fe
     expect(typeof out.won_at).toBe("string");
   });
 
-  it("stage 'fechado' com wonAt já preenchido → preserva o valor original, não reseta pra agora (idempotência do import)", () => {
+  // Cenário HIPOTÉTICO — só ocorre se `lead.wonAt` já chegar preenchido no
+  // objeto Lead ANTES da chamada (ex.: um lead lido da nuvem, com wonAt já
+  // populado por mapSupabaseOpportunityToLocalLead, reimportado sem edição).
+  // NÃO é o caminho real de useLocalOpportunitiesImport.ts hoje — ver o
+  // teste seguinte para o comportamento real de reimport.
+  it("stage 'fechado' COM wonAt já preenchido no objeto Lead recebido → preserva esse valor, não reseta pra agora", () => {
     const original = "2026-05-15T10:00:00.000Z";
     const out = mapLocalLeadToSupabaseOpportunity(baseLead({ stage: "fechado", wonAt: original }));
     expect(out.won_at).toBe(original);
+  });
+
+  // G57 — achado do revisor (não coberto na 1ª rodada do fix): a "idempotência
+  // do import" só existe SE `lead.wonAt` já vier preenchido (teste acima) — mas
+  // `Lead.wonAt` NUNCA é escrito por nenhum caminho local (useLeads.ts/CRM.tsx,
+  // confirmado por grep exaustivo), só populado ao LER da nuvem
+  // (mapSupabaseOpportunityToLocalLead). No fluxo real de reimport
+  // (useLocalOpportunitiesImport.ts:180, `raw: local` vindo direto de
+  // `useLeads()`), `lead.wonAt` é sempre `undefined` — então reimportar o
+  // MESMO lead "fechado" 2x GERA um `won_at` NOVO a cada vez. Não há guarda
+  // em `crmOpportunitiesRepository.upsertImportedOpportunity` (:146-162, `
+  // .upsert()` cru, sem leitura prévia da linha existente) que preserve o
+  // valor já gravado na nuvem. Prova disso, não do contrário:
+  it("reimportar o MESMO lead fechado 2x (wonAt local sempre undefined, como no fluxo real) GERA um won_at novo a cada vez — sem guarda de idempotência", () => {
+    vi.useFakeTimers();
+    try {
+      // Mesmo objeto Lead nas duas chamadas — Lead.wonAt nunca é escrito
+      // localmente entre uma "importação" e a próxima (mesma limitação do
+      // fluxo real: useLeads() nunca popula esse campo).
+      const lead = baseLead({ stage: "fechado" });
+
+      vi.setSystemTime(new Date("2026-08-01T10:00:00.000Z"));
+      const firstImport = mapLocalLeadToSupabaseOpportunity(lead);
+
+      vi.setSystemTime(new Date("2026-08-02T10:00:00.000Z"));
+      const secondImport = mapLocalLeadToSupabaseOpportunity(lead);
+
+      expect(firstImport.won_at).toBe("2026-08-01T10:00:00.000Z");
+      expect(secondImport.won_at).toBe("2026-08-02T10:00:00.000Z");
+      expect(secondImport.won_at).not.toBe(firstImport.won_at);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
