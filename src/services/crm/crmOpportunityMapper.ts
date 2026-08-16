@@ -136,13 +136,22 @@ export function mapSupabaseOpportunityToLocalLead(opportunity: SupabaseOpportuni
     history: opportunity.history || [],
     tags: opportunity.tags && opportunity.tags.length > 0 ? opportunity.tags : undefined,
     isDemo: opportunity.is_demo || false,
-    clientId: opportunity.client_id ? Number(opportunity.client_id) || undefined : undefined,
+    // G67-ext (docs/architecture/kora-hub-auditoria-e-plano.md) — client_id/
+    // converted_client_id são uuid (string) na nuvem; Number(uuid) vira NaN e
+    // "NaN || undefined" sempre cai em undefined, perdendo a FK em silêncio
+    // (mesma classe do bug original do G67, agora na direção de LEITURA).
+    // Lead.clientId/convertedClientId são tipados `number` localmente — segue
+    // o mesmo padrão já usado no domínio pra "contrabandear" um uuid real por
+    // um campo local `number` (useClientsDataSource.ts:9): cast, não Number().
+    clientId: opportunity.client_id ? (opportunity.client_id as unknown as number) : undefined,
     temperature: (opportunity.temperature as LeadTemperature) || undefined,
     nextActionDate: opportunity.next_action_date || undefined,
     expectedCloseDate: opportunity.expected_close_date || undefined,
     wonAt: opportunity.won_at || undefined,
     lostReason: opportunity.lost_reason || undefined,
-    convertedClientId: opportunity.converted_client_id ? Number(opportunity.converted_client_id) || undefined : undefined,
+    convertedClientId: opportunity.converted_client_id
+      ? (opportunity.converted_client_id as unknown as number)
+      : undefined,
     createdAt: opportunity.created_at || undefined,
     updatedAt: opportunity.updated_at || undefined,
     quoteId: opportunity.quote_id || undefined,

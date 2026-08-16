@@ -152,17 +152,19 @@ arquivos de teste): uuid real nunca procurado no import-map (mesmo com
 entrada conflitante no map) + regressão (id local numérico continua
 resolvendo via map). Fail→fix→pass por patch (G65, sem `git stash`).
 
-**Achado adicional descoberto durante o fix, NÃO corrigido (fora do escopo
-autorizado da rodada G68)**: lendo `crmOpportunityMapper.ts` de novo pra
-aplicar o fix acima, `mapSupabaseOpportunityToLocalLead` (direção
-NUVEM→LOCAL, função diferente de `resolveUuid`) usa `Number(opportunity.client_id)`/
-`Number(opportunity.converted_client_id)` (linhas 128 e 134) — mesma classe
+**Achado adicional descoberto durante o fix G68, corrigido na rodada
+seguinte (G67-ext)**: lendo `crmOpportunityMapper.ts` de novo pra aplicar o
+fix acima, `mapSupabaseOpportunityToLocalLead` (direção NUVEM→LOCAL, função
+diferente de `resolveUuid`) usava `Number(opportunity.client_id)`/
+`Number(opportunity.converted_client_id)` (linhas 139 e 145) — mesma classe
 do **G67** (`Number(uuid)` vira `NaN`, `NaN || undefined` sempre cai em
 `undefined`). Um `Lead` lido da nuvem com essas 2 FKs preenchidas (uuid real)
-sempre perde os valores na leitura, silenciosamente. Catalogado em G68 no
-plano mestre como achado à parte, roteado pra quem estiver de plantão em
-`crmOpportunityMapper.ts`/território de CRM — não investigado a fundo, não
-corrigido.
+sempre perdia os valores na leitura, silenciosamente. Catalogado em G68 sem
+corrigir (fora do escopo daquela rodada) — fix aplicado logo em seguida,
+mesmo padrão de "uuid contrabandeado" já usado em `useClientsDataSource.ts:9`
+(cast em vez de `Number()`); catalogado como adendo G67-ext (mesmo incidente
+raiz do G67, direção de leitura) em `kora-hub-auditoria-e-plano.md`, não como
+entrada numerada nova.
 
 ---
 
