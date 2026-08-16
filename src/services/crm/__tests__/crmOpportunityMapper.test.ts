@@ -309,3 +309,45 @@ describe("mapSupabaseOpportunityToLocalLead — O1 (tags/history)", () => {
     expect(roundTripped.history).toEqual(original.history);
   });
 });
+
+// G67-ext (docs/architecture/kora-hub-auditoria-e-plano.md) — achado descoberto
+// durante o fix do G68: mapSupabaseOpportunityToLocalLead usava
+// `Number(opportunity.client_id) || undefined` — client_id/converted_client_id
+// são uuid (string) na coluna Supabase, então Number(uuid) sempre vira NaN e
+// "NaN || undefined" sempre cai em undefined, perdendo a FK em silêncio. Mesma
+// classe do bug original do G67 (QuotesSection.tsx, deep link), agora na
+// direção de LEITURA (nuvem→local) em vez de comparação de string.
+describe("mapSupabaseOpportunityToLocalLead — G67-ext (leitura, uuid nunca vira NaN)", () => {
+  it("client_id/converted_client_id uuid são preservados no Lead (nunca undefined por causa de Number(uuid) === NaN)", () => {
+    const clientUuid = "a1b2c3d4-e5f6-4789-a012-b3c4d5e6f789";
+    const convertedUuid = "c3d4e5f6-a7b8-4901-c234-d5e6f7890123";
+    const lead = mapSupabaseOpportunityToLocalLead(
+      baseSupabaseOpportunity({ client_id: clientUuid, converted_client_id: convertedUuid }),
+    );
+    // Lead.clientId/convertedClientId são tipados `number`, mas carregam o uuid
+    // "contrabandeado" (mesmo padrão de useClientsDataSource.ts:9) — o valor
+    // real por baixo é a string do uuid, não um number de verdade.
+    expect(String(lead.clientId)).toBe(clientUuid);
+    expect(String(lead.convertedClientId)).toBe(convertedUuid);
+    expect(Number.isNaN(lead.clientId)).toBe(false);
+    expect(Number.isNaN(lead.convertedClientId)).toBe(false);
+  });
+
+  it("regressão: client_id/converted_client_id ausentes (null) continuam virando undefined, não NaN nem string 'null'", () => {
+    const lead = mapSupabaseOpportunityToLocalLead(
+      baseSupabaseOpportunity({ client_id: null, converted_client_id: null }),
+    );
+    expect(lead.clientId).toBeUndefined();
+    expect(lead.convertedClientId).toBeUndefined();
+  });
+
+  it("round-trip completo: Lead com clientId uuid (local→nuvem→local) preserva o mesmo valor", () => {
+    const clientUuid = "a1b2c3d4-e5f6-4789-a012-b3c4d5e6f789";
+    const lead = baseLead({ clientId: clientUuid as unknown as number });
+    const payload = mapLocalLeadToSupabaseOpportunity(lead, { clients: {}, quotes: {} });
+    const roundTripped = mapSupabaseOpportunityToLocalLead(
+      baseSupabaseOpportunity({ client_id: payload.client_id }),
+    );
+    expect(String(roundTripped.clientId)).toBe(clientUuid);
+  });
+});
