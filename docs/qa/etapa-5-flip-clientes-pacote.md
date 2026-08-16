@@ -313,23 +313,40 @@ o cutover já consumado e o resto do app que ainda não o acompanhou:
 
 ---
 
-## 4. Candidatos a próxima rodada (listados, não desenhados nem priorizados)
+## 4. Candidatos a próxima rodada — status pós-rodada 1
 
-- Bifurcar os 3 consumidores de §2.3 pra `useClientsDataSource()` — padrão
-  já provado, sem desenho novo necessário.
-- Corrigir `handleConvertToClient` (§2.4) — bifurcar ou adicionar espelho
-  best-effort, decisão de design pra rodada própria.
-- Completar o payload de `totalRevenue` (e revisar `avatarUrl`/`isDemo`) nos
-  2 caminhos de escrita vivos (§2.1).
-- Decidir sobre CHECK de vocabulário em `status`/`temperature` (§2.2) —
-  requer decisão do revisor, não é óbvio que valha o custo de migration pra
-  um caso sem incidente conhecido.
+**Rodada 1 (concluída, este pacote):** `handleConvertToClient` (§2.4)
+bifurcado pra `useClientsDataSource()`, mesmo caminho de escrita que
+`Clientes.tsx` — cliente convertido pelo CRM agora aparece na tela principal
+de Clientes em modo Supabase. Catalogado como **G58** (mais **G59**, o gate
+fóssil `blockWriteAction()` que bloqueava a conversão incondicionalmente em
+modo Supabase — removido junto, sem ele o fix de G58 continuaria bloqueado
+na prática). Ver `docs/architecture/kora-hub-auditoria-e-plano.md` §G58/G59
+pro achado completo, causa raiz e testes (fail→fix→pass provado via
+`git stash`).
+
+**Backlog — rodadas 2/3, ainda não iniciadas:**
+
+- **Rodada 2 (candidata):** completar o payload de `totalRevenue` (e revisar
+  `avatarUrl`/`isDemo`) nos 2 caminhos de escrita vivos de `Clientes.tsx`
+  (§2.1); bifurcar os 3 consumidores restantes de §2.3
+  (`Financeiro.tsx` `ClientsTab`, `CRM.tsx` leitura de lista, `ClientTechnicalSheet.tsx`)
+  pra `useClientsDataSource()` — padrão já provado, sem desenho novo
+  necessário.
+- **Rodada 3 (candidata, backlog do operador — pós-Fase D):** decisão sobre
+  CHECK de vocabulário em `status`/`temperature` (§2.2) — **migration**,
+  então gate reforçado do protocolo; correta pra propor só depois que uma
+  Fase D de homologação real tiver rodado sobre o restante do domínio (não
+  faz sentido travar `status`/`temperature` por CHECK antes de saber se
+  algum caminho ainda escreve fora do vocabulário conhecido). Requer decisão
+  do revisor — não é óbvio que valha o custo de migration pra um caso sem
+  incidente conhecido hoje.
 - Instalar `source_local_id` + RPC atômica de import (já catalogado,
   `etapa-5-fatia-4-clients.md` §4.1/C1-C3) — só relevante se voltar a existir
-  cliente real só no local.
+  cliente real só no local. Sem rodada atribuída.
 
-Nenhum destes foi dimensionado em fases/estimativa nesta rodada — fica pra
-quando o revisor decidir qual (se algum) puxar primeiro.
+Nenhum item de rodada 2/3 foi dimensionado em fases/estimativa — fica pra
+quando o revisor decidir qual puxar depois desta rodada 1.
 
 ---
 
