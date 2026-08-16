@@ -119,13 +119,15 @@ ALTER TABLE public.clients
 
 ## 3. O que este draft NÃO cobre (registrado por escopo, não esquecido)
 
-- **`crm_opportunities`** tem os mesmos 4 campos de vocabulário
-  (`stage`/`status`/`source`/`temperature`/`priority`, nenhum com CHECK,
-  confirmado em `supabase/migrations/20260530050000_create_crm_opportunities.sql`)
-  — fora do escopo desta rodada (ver aviso de abertura). Não investigado se
-  o vocabulário de `stage`/`priority` ali é tão fechado quanto o de
-  `clients` (não confirmei os `<Select>` de `CRM.tsx` pra esses 2 campos
-  nesta rodada).
+- **`crm_opportunities`** — investigado na rodada seguinte, ver
+  [`etapa-5-flip-crm-rodada3-check-drafts.md`](etapa-5-flip-crm-rodada3-check-drafts.md).
+  Resultado: `status`/`temperature`/`priority` têm vocabulário fechado e
+  seguro pra CHECK (draft pronto); `stage` é genuinamente dinâmico
+  (customizável via "Gerenciar funis") e foi deliberadamente excluído — um
+  CHECK ali quebraria pipelines customizados. Vocabulário de `temperature`
+  dessa tabela é DIFERENTE do de `clients.temperature` (minúsculo, 4
+  valores vs. maiúsculo, 3 valores) — os 2 drafts não compartilham
+  constraint.
 - **Nenhuma outra coluna de `clients`** foi revisada pra CHECK — só
   `status`/`temperature`, por serem as 2 apontadas no achado original (§2.2
   do pacote). `type`/`source`/`city`/`state` etc. são texto genuinamente
