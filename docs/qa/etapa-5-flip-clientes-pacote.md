@@ -401,6 +401,14 @@ sem carregar o comentário de origem, não sobre o campo em si.
   aterrissaram em `main` (`688efd1` e `91d9070`/`0feb815`, respectivamente) —
   `CRM.tsx` está livre. Confirmar tip real no fetch antes de começar, como
   sempre, mas a condição de bloqueio original já foi satisfeita.
+  **Propriedade de arquivo (registrado 16/ago/2026):** com a Rodada 2b
+  desbloqueada, `CRM.tsx` tem 2 trabalhos concorrentes previstos — a
+  bifurcação de leitura desta rodada e o achado reservado como **G64**
+  (`NewLeadDialog`/derivação won-lost), ambos da **Lane C**. Dono único por
+  arquivo enquanto os dois estiverem em voo: **Lane C** — nenhuma outra
+  lane deve abrir uma branch tocando `CRM.tsx` até uma das duas rodadas
+  fechar, mesmo padrão de coordenação já usado no par G58/G59 vs. G62
+  (Lane B esperou o merge antes de tocar o mesmo arquivo).
 - **Rodada 3 (candidata, backlog do operador — pós-Fase D):** decisão sobre
   CHECK de vocabulário em `status`/`temperature` (§2.2) — **migration**,
   então gate reforçado do protocolo; correta pra propor só depois que uma
