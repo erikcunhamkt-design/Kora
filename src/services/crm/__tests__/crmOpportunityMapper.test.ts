@@ -95,6 +95,41 @@ describe("mapLocalLeadToSupabaseOpportunity — re-mapeamento de FKs (A1)", () =
   });
 });
 
+// G57 — mapLocalLeadToSupabaseOpportunity (caminho de IMPORT) tinha
+// `won_at: lead.wonAt || (...)`: preservava um `wonAt` local já truthy mesmo
+// quando o `stage` atual não é mais "fechado" — nunca limpava, ao contrário
+// de crmOpportunitiesRepository.moveOpportunityStage (o caminho PRIMÁRIO de
+// mudança de stage), que zera won_at/lost_at/lost_reason nas 3 direções.
+// Inofensivo até hoje porque nenhum caminho local grava Lead.wonAt (só a
+// leitura da nuvem o popula) — mas um caminho SECUNDÁRIO (import) não pode
+// depender de uma pré-condição implícita de outro módulo pra estar correto.
+describe("mapLocalLeadToSupabaseOpportunity — G57 (won_at limpo ao sair de 'fechado')", () => {
+  it("stage !== 'fechado' com wonAt local já preenchido (round-trip) → won_at sai null, nunca preserva o valor stale", () => {
+    const lead = baseLead({ stage: "perdido", wonAt: "2026-07-01T00:00:00.000Z" });
+    const out = mapLocalLeadToSupabaseOpportunity(lead);
+    expect(out.won_at).toBeNull();
+  });
+
+  it("stage 'lead'/'contato'/'proposta'/'negociacao' com wonAt stale → sempre null (mesma classe, todas as direções não-fechado)", () => {
+    for (const stage of ["lead", "contato", "proposta", "negociacao"] as const) {
+      const out = mapLocalLeadToSupabaseOpportunity(baseLead({ stage, wonAt: "2026-06-01T00:00:00.000Z" }));
+      expect(out.won_at).toBeNull();
+    }
+  });
+
+  it("stage 'fechado' sem wonAt prévio → seta timestamp novo (comportamento existente preservado)", () => {
+    const out = mapLocalLeadToSupabaseOpportunity(baseLead({ stage: "fechado" }));
+    expect(out.won_at).not.toBeNull();
+    expect(typeof out.won_at).toBe("string");
+  });
+
+  it("stage 'fechado' com wonAt já preenchido → preserva o valor original, não reseta pra agora (idempotência do import)", () => {
+    const original = "2026-05-15T10:00:00.000Z";
+    const out = mapLocalLeadToSupabaseOpportunity(baseLead({ stage: "fechado", wonAt: original }));
+    expect(out.won_at).toBe(original);
+  });
+});
+
 // Etapa 5 · Fatia 8 (cutover de escrita) — O1: tags/history (migration
 // 20260723000100) fazem o round-trip completo local↔nuvem, sem zerar em
 // nenhuma direção. Antes desta fatia, o sentido nuvem→local hardcodava

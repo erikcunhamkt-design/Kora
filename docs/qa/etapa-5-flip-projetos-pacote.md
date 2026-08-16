@@ -345,6 +345,42 @@ transparência, não investigado further (fora de escopo).
 
 ---
 
+## 7. Backlog pós-Fase B — gap de schema conhecido (`completedAt`)
+
+> Achado na auditoria classe G52 (`docs/qa/auditoria-g52-mutations-vocabulario.md` §2.3, Lane E,
+> 15/ago/2026) — registrado aqui como item de backlog, doc-only, sem código nesta rodada.
+
+**O que falta**: `Project.completedAt` (local, `useProjects.ts:48`) é setado condicionalmente —
+transição pra `status: "delivered"` grava a data, uma única vez (`useProjects.ts:117`,
+`if (patch.status === "delivered" && !p.completedAt) next.completedAt = ...`). **`SupabaseProject`
+não tem coluna equivalente** (`src/repositories/projectsRepository.ts:9-34` — só `start_date`/
+`due_date`, nenhum terceiro campo de data). Diferente do G52 (onde a coluna já existia e o código
+esquecia de escrevê-la), aqui a coluna **nunca existiu** — não é um bug de patch, é ausência de
+schema.
+
+**Por que importa**: quando `Tarefas.tsx`-equivalente (a tela `Projetos`) passar a ler
+`public.projects` como fonte (Fase C/flip real deste domínio), a data de conclusão de um projeto
+**não existe** na nuvem — perda estrutural de dado, silenciosa até alguém procurar por essa
+informação e não achar.
+
+**Proposta de migration (NÃO aplicada — gate do operador, protocolo §0/§6/§8-b)**:
+```sql
+ALTER TABLE public.projects
+  ADD COLUMN completed_at timestamptz NULL;
+```
+Sem CHECK necessário (é um timestamp livre, não um vocabulário fechado). Depois de aplicada,
+`mapLocalProjectToSupabase`/`translateLocalProjectStatusToCloud` (`projectsMapper.ts`) precisam
+ganhar a mesma lógica condicional que `useProjects.ts:117` já tem localmente (seta uma vez, nunca
+reescreve) — e `mapSupabaseProjectToLocal` (leitura) precisa passar a ler a coluna de volta, hoje
+inexistente. Mesma classe de trabalho que `category`/`payment_method` tiveram em Financeiro
+(`etapa-5-flip-financeiro-pacote.md` §1.1), não um redesenho.
+
+**Escopo**: pequeno (1 coluna + leitura/escrita em 1 mapper), mas não feito nesta rodada —
+doc-only por instrução explícita do "vai" que autorizou esta fatia de fix (G57 + doc, sem
+migration).
+
+---
+
 ## Referências
 
 - [`etapa-5-flip-quotes.md`](etapa-5-flip-quotes.md) — template completo do

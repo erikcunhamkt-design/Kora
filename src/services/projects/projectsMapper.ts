@@ -190,14 +190,18 @@ export const CLOUD_TO_LOCAL_PROJECT_STATUS: Readonly<Record<string, ProjectStatu
 /**
  * Traduz (status bruto, archived boolean) da nuvem pro `status` local.
  * `archived` (boolean) vence quando true — mesma regra de
- * translateCloudStatusToLocal (quoteMapper.ts, Q9). MAS, diferente de
- * quotes: o boolean `archived` de `projects` é campo morto na escrita atual
- * (mapLocalProjectToSupabase acima sempre grava `archived: false` —
- * nunca traduz status local "archived" pra esse boolean). Por isso o texto
- * `status === "archived"` TAMBÉM precisa vencer sozinho, sem depender do
- * boolean nunca virar true — é o único jeito real de "arquivado" chegar na
- * nuvem hoje (import geral, verbatim). O boolean fica coberto por segurança
- * (se um caminho de escrita futuro passar a setá-lo), não como caminho ativo.
+ * translateCloudStatusToLocal (quoteMapper.ts, Q9).
+ *
+ * Atualizado pós-O12: `mapLocalProjectToSupabase` (acima) já traduz
+ * corretamente `status: "archived"` local pro par `{status: "planning",
+ * archived: true}` via `translateLocalProjectStatusToCloud` — o boolean
+ * NÃO é mais campo morto na escrita, é o caminho ativo pra qualquer linha
+ * gravada depois do fix do O12. O texto `status === "archived"` continua
+ * vencendo sozinho aqui na LEITURA por retrocompatibilidade: dado legado
+ * gravado ANTES do O12 (import geral verbatim, era o único jeito de
+ * "arquivado" chegar na nuvem naquela época) tem `status: "archived"` como
+ * texto cru e `archived: false` — sem esse fallback de texto, essas linhas
+ * antigas deixariam de ser reconhecidas como arquivadas na leitura.
  *
  * Terceiro caso (status desconhecido, nem no mapa nem "archived"): fallback
  * seguro `"planning"` (estado mais neutro/inicial, mesmo espírito do
