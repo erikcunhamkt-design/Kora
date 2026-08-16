@@ -164,7 +164,17 @@ FKs de outras tabelas apontando pra `clients.id` (todas `SET NULL` exceto as
 
 ## 2. Assimetrias local↔nuvem
 
-### 2.1 Classe G37 — payload de escrita incompleto (achado novo desta leitura)
+### 2.1 Classe G37 — payload de escrita incompleto (correção pós-investigação — ver G61)
+
+> **Correção registrada por precisão** (protocolo, "corrigir o próprio
+> registro quando a evidência muda, não silenciar"): a primeira versão desta
+> seção classificou `totalRevenue` como "bug de payload incompleto" — o mesmo
+> tratamento de `avatarUrl`/`isDemo` abaixo. Investigação posterior
+> (rodada 2a, ver `kora-hub-auditoria-e-plano.md` §G61) achou o comentário de
+> origem do campo, perdido num refactor, que muda a leitura por completo —
+> texto corrigido abaixo, tabela mantida como estava (o gap factual —
+> "nunca escrito pelos 2 caminhos vivos" — continua verdadeiro, só a
+> INTERPRETAÇÃO mudou).
 
 G37 (Financeiro) e o precedente equivalente em Projetos/Quotes são sobre
 "todo campo que existe na coluna, existe no payload". Fazendo a mesma
@@ -172,32 +182,73 @@ comparação campo a campo pra `clients`:
 
 | Campo local | Coluna cloud | No `addClient` (`Clientes.tsx:162-183`) | No `updateClient` (`Clientes.tsx:200-220`) | No import (`useLocalClientsImport.ts:116-140`) |
 |---|---|---|---|---|
-| **`totalRevenue`** | `total_revenue` | ❌ **ausente** | ❌ **ausente** | ✅ (`local.totalRevenue \|\| 0`) |
+| **`totalRevenue`** | `total_revenue` | ❌ ausente (por design — ver abaixo) | ❌ ausente (por design — ver abaixo) | ✅ (`local.totalRevenue \|\| 0`, passthrough do legado) |
 | `avatarUrl` | `avatar_url` | ❌ ausente na criação | ✅ presente | n/a |
 | `isDemo` | `is_demo` | ❌ ausente (default `false` da coluna cobre por acidente) | n/a | ✅ (`is_demo: false`) |
 | todos os outros 15 campos mapeáveis | — | ✅ | ✅ | ✅ |
 | `lastProject`, `lastInteraction`, `projects`, `tasks` | *(nenhuma)* | — | — | — |
 
-**Achado principal:** `totalRevenue` existe na coluna (`total_revenue
-NUMERIC DEFAULT 0`), é lido de volta pelo mapper (`useClientsDataSource.ts:21`)
-e é exibido em `ClientProfileDrawer.tsx:388-389` — mas **nunca é escrito**
-pelos dois caminhos de escrita ativos em produção (criar e editar cliente na
-tela principal). Só o caminho de import legado o envia. Efeito prático: um
-cliente criado ou editado hoje via Supabase-first (o caso normal) nunca tem
-`total_revenue` atualizado por esses caminhos — fica congelado em `0` (ou no
-valor que o import trouxe, se veio de lá) até um caminho diferente (nenhum
-identificado nesta leitura) o atualizar. `etapa-5-fatia-4-clients.md` §"Precisão
-de campos monetários" (C4) já registrou uma lacuna adjacente
-(`potentialValue`/`totalRevenue` sem arredondamento **no import**), mas não
-cobriu esta ausência total nos 2 caminhos vivos — achado novo, candidato a
-numeração G própria na próxima rodada de catalogação.
+**`totalRevenue` NÃO é um G37 clássico — é um campo com intenção DERIVADA,
+nunca implementada, cujo comentário de origem se perdeu num refactor.**
+`git log -S"integra com Financeiro"` (confirmado por `git show` direto)
+encontra o commit de nascimento do campo, `16fd22e`
+(`src/hooks/useClients.ts`, antes de este repo ter Supabase):
+
+```ts
+/** Receita total já gerada (futuro: integra com Financeiro) */
+totalRevenue?: number;
+```
+
+Ou seja: o campo nunca foi desenhado como algo que o usuário digita (não tem,
+nunca teve, um `FormField` em `ClientFormPayload`/`ClientFormDialog`,
+confirmado por leitura direta de `Clientes.tsx:89-110` — contraste com
+`potentialValue`, que tem `FormField label="Valor potencial (R$)"` dedicado,
+linha ~1095) — era pra ser **calculado a partir do Financeiro**. Esse
+comentário foi perdido quando `Client` foi içado de `useClients.ts` pra
+`src/types/domain.ts` (commit `4b1a8f2`, o mesmo que criou a coluna
+`total_revenue` no Supabase) — o campo sobreviveu ao refactor, a explicação
+do porquê ele existe não.
+
+**A lógica de cálculo já existe no código — só nunca foi conectada a este
+campo.** `ClientProfileDrawer.tsx` (aba "Financeiro" do drawer, `FinanceTab`,
+linhas ~960-965) já soma `useBifurcatedFinance()` filtrado por
+`clientId`/`clientName` e `status === "paid"` — exatamente o cálculo que o
+comentário de 2026-05 previa. Mas esse número é só exibido ali ("Recebido"),
+**nunca escrito** em `client.totalRevenue`/`total_revenue` — os dois números
+(o "Receita gerada" da aba Resumo, `ClientProfileDrawer.tsx:387-389`, e o
+"Recebido" da aba Financeiro) já divergem hoje, silenciosamente, porque um é
+o valor congelado do import/seed e o outro é calculado ao vivo.
+
+**Decisão do revisor (esta rodada):** dois caminhos, não um.
+1. **Agora — vestigial/read-only, aceito como está.** Não escrever
+   `totalRevenue` em nenhum caminho de escrita novo (a ausência atual em
+   `addClient`/`updateClient` deixa de ser "bug a fechar" e vira
+   comportamento aceito). Segue lido e exibido como está (congelado no que o
+   import trouxe ou `0`) até a feature futura existir — não pior que hoje,
+   só documentado corretamente.
+2. **Futuro — feature própria, pós-homologação do Financeiro.** Conectar de
+   verdade o cálculo que já existe em `FinanceTab` (`ClientProfileDrawer.tsx:960-965`)
+   como a fonte de `total_revenue` — decisão de arquitetura própria (grava
+   em toda leitura? RPC agregada? trigger no banco quando uma transação muda
+   de status?), fora do escopo deste pacote, depende do Financeiro já estar
+   homologado e estável (não faz sentido construir uma agregação em cima de
+   um domínio que ainda está fechando os próprios achados, G52-G56 e o
+   runbook de Caso 4.3).
+
+**Caminho descartado, registrado por transparência:** completar o payload
+como campo simples (mesmo tratamento de `avatarUrl`/`isDemo`) foi cogitado
+na primeira versão deste doc e **rejeitado** pelo revisor — isso tornaria o
+campo "editável por acidente" (grava o que estava lá na hora da
+criação/edição, nunca mais sincroniza com Financeiro), formalizando uma
+semântica que ninguém decidiu conscientemente que era essa.
 
 `lastProject`/`lastInteraction`/`projects`/`tasks` são artefato do formato
 achatado antigo (pré-FK), sem coluna equivalente — substituídos
 estruturalmente por `projects`/`quotes`/`crm_opportunities`/`tasks` com
 `client_id` FK. Não é um gap a fechar, é o modelo antigo ficando obsoleto por
 design — mapper de leitura já devolve `[]`/`"—"` fixo pra esses campos
-(`useClientsDataSource.ts:22-26`), consistente.
+(`useClientsDataSource.ts:22-26`), consistente. (Esse achado, ao contrário
+de `totalRevenue`, não teve reclassificação — segue igual à 1ª versão.)
 
 ### 2.2 Classe G40/G49 — vocabulário nuvem = local literal
 
@@ -325,14 +376,28 @@ na prática). Ver `docs/architecture/kora-hub-auditoria-e-plano.md` §G58/G59
 pro achado completo, causa raiz e testes (fail→fix→pass provado via
 `git stash`).
 
-**Backlog — rodadas 2/3, ainda não iniciadas:**
+**Rodada 2a (concluída, decisão registrada — sem código):**
+`totalRevenue` (§2.1) investigado antes de codar, achado genuinamente
+ambíguo entre 2 fontes de intenção — reportado ao revisor sem escrever
+código (protocolo, "se ambíguo, não presumir"). **Decisão do revisor:**
+vestigial/read-only agora (não escrever em nenhum caminho novo); integração
+real com Financeiro vira feature própria, só depois do Financeiro estar
+homologado — a lógica de cálculo já existe, solta, em `FinanceTab`
+(`ClientProfileDrawer.tsx:960-965`), só nunca foi conectada ao campo.
+Caminho de "só completar o payload como campo simples" **rejeitado**
+explicitamente. Catalogado como **G61**
+(`kora-hub-auditoria-e-plano.md` §G61) — a lição é sobre içar uma interface
+sem carregar o comentário de origem, não sobre o campo em si.
 
-- **Rodada 2 (candidata):** completar o payload de `totalRevenue` (e revisar
-  `avatarUrl`/`isDemo`) nos 2 caminhos de escrita vivos de `Clientes.tsx`
-  (§2.1); bifurcar os 3 consumidores restantes de §2.3
-  (`Financeiro.tsx` `ClientsTab`, `CRM.tsx` leitura de lista, `ClientTechnicalSheet.tsx`)
-  pra `useClientsDataSource()` — padrão já provado, sem desenho novo
-  necessário.
+**Backlog restante — rodada 2b e rodada 3, ainda não iniciadas:**
+
+- **Rodada 2b (bloqueada até G59 da Lane B aterrissar em `main` — confirmar
+  no fetch antes de começar):** bifurcar os 3 consumidores restantes de §2.3
+  (`Financeiro.tsx` `ClientsTab`, `CRM.tsx` leitura de lista,
+  `ClientTechnicalSheet.tsx`) pra `useClientsDataSource()` — padrão já
+  provado, sem desenho novo necessário. Bloqueada porque toca `CRM.tsx`, o
+  mesmo arquivo que a Lane B está corrigindo (`handleSavePipeline`, o outro
+  fóssil do par G59) — evita colisão de merge entre lanes no mesmo arquivo.
 - **Rodada 3 (candidata, backlog do operador — pós-Fase D):** decisão sobre
   CHECK de vocabulário em `status`/`temperature` (§2.2) — **migration**,
   então gate reforçado do protocolo; correta pra propor só depois que uma
@@ -341,12 +406,15 @@ pro achado completo, causa raiz e testes (fail→fix→pass provado via
   algum caminho ainda escreve fora do vocabulário conhecido). Requer decisão
   do revisor — não é óbvio que valha o custo de migration pra um caso sem
   incidente conhecido hoje.
+- **Futura, sem rodada atribuída (§2.1):** integração real de `totalRevenue`
+  com Financeiro (caminho 1 da decisão do revisor) — depende do Financeiro
+  estar homologado primeiro.
 - Instalar `source_local_id` + RPC atômica de import (já catalogado,
   `etapa-5-fatia-4-clients.md` §4.1/C1-C3) — só relevante se voltar a existir
   cliente real só no local. Sem rodada atribuída.
 
-Nenhum item de rodada 2/3 foi dimensionado em fases/estimativa — fica pra
-quando o revisor decidir qual puxar depois desta rodada 1.
+Nenhum item restante foi dimensionado em fases/estimativa — fica pra quando
+o revisor decidir qual puxar depois.
 
 ---
 
