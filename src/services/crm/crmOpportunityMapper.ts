@@ -60,7 +60,15 @@ export function mapLocalLeadToSupabaseOpportunity(
     quote_id: resolveUuid(lead.quoteId, maps.quotes),
     quote_title: lead.quoteTitle || null,
     converted_client_id: resolveUuid(lead.convertedClientId, maps.clients),
-    won_at: lead.wonAt || (lead.stage === "fechado" ? new Date().toISOString() : null),
+    // G57 — antes, `lead.wonAt || (...)` preservava um wonAt local já
+    // truthy mesmo fora de "fechado" (nunca limpava), diferente do caminho
+    // PRIMÁRIO de mudança de stage (crmOpportunitiesRepository.ts,
+    // moveOpportunityStage), que zera won_at/lost_at/lost_reason nas 3
+    // direções. Fix: o `||` só entra DENTRO do ramo "fechado" — preserva um
+    // wonAt já existente (idempotência do import — não empurra o timestamp
+    // pra "agora" a cada reimportação), mas qualquer stage != "fechado"
+    // sempre limpa, igual ao caminho primário.
+    won_at: lead.stage === "fechado" ? (lead.wonAt || new Date().toISOString()) : null,
     lost_at: lead.stage === "perdido" ? new Date().toISOString() : null,
     lost_reason: lead.lostReason || null,
     is_demo: lead.isDemo || false,
