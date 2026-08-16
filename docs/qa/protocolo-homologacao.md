@@ -307,7 +307,16 @@ Regra dura, sem exceção — vale inclusive para QA:
    a versão que reflete o estado mais avançado (ex.: "corrigido" prevalece sobre "pendente"),
    preservando qualquer fato exclusivo da versão descartada (ex.: proveniência) em 1-2 linhas —
    mesmo critério já usado na resolução do conflito G9 desta fatia.
-4. **Demais gates permanentes (seções 0–13) inalterados.**
+4. Se duas lanes catalogarem achados **diferentes** em paralelo, sem duplicação de conteúdo, mas
+   colidindo no mesmo ponto de inserção do arquivo (fim da lista de entradas G) — resolução
+   **pré-autorizada**, sem precisar de "vai" ad-hoc a cada ocorrência: ordenar as entradas por
+   número (G-menor antes de G-maior), conteúdo integral dos dois lados preservado, sem cortar
+   nem resumir nenhum. Conflito em qualquer OUTRO arquivo do repo continua exigindo §18 pleno
+   (parar e reportar antes de resolver) — esta pré-autorização vale só para o arquivo do plano
+   mestre e só para esse padrão específico de colisão (inserção no mesmo ponto, sem duplicar
+   achado). Precedente: Etapa 5, 16/ago/2026 — G57/G58-G59/G60/G61 aterrissando em sequência
+   rápida durante o mesmo rebase, resolvidos nessa ordem sem parar o merge a cada um.
+5. **Demais gates permanentes (seções 0–13) inalterados.**
 
 ---
 
