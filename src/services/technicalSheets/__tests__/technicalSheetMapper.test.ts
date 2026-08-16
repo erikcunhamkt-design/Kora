@@ -99,6 +99,58 @@ describe("mapLocalToSupabaseSheet — sanitização de binário (data:/blob: nã
   });
 });
 
+// G63 — raw_payload era um clone bruto do objeto local inteiro, sem excluir
+// accesses[] (ClientAccess.password, senha de plataforma do cliente, texto
+// puro). mapSupabaseToLocalSheet nunca lê accesses de volta (confirmado
+// abaixo) — excluir o campo inteiro do payload de escrita é perda funcional
+// zero, não uma redação parcial que ainda deixaria login/plataforma expostos.
+describe("mapLocalToSupabaseSheet — G63 (accesses nunca chega em raw_payload)", () => {
+  it("accesses[] com password NÃO aparece em raw_payload — nem o array, nem o campo password isolado", () => {
+    const local = {
+      ...fullLocalSheet(),
+      accesses: [
+        { id: "ac1", platform: "Instagram", login: "cliente@x.com", password: "SENHA-SUPER-SECRETA-123", notes: "" },
+      ],
+    };
+
+    const out = mapLocalToSupabaseSheet(local);
+
+    const raw = out.raw_payload as Record<string, unknown>;
+    expect(raw).not.toHaveProperty("accesses");
+    expect(JSON.stringify(raw)).not.toContain("SENHA-SUPER-SECRETA-123");
+  });
+
+  it("sem accesses no local: raw_payload continua correto (guarda de regressão, não quebra por ausência)", () => {
+    const out = mapLocalToSupabaseSheet(fullLocalSheet());
+    const raw = out.raw_payload as Record<string, unknown>;
+    expect(raw).not.toHaveProperty("accesses");
+  });
+
+  it("competitors[] (sem dado sensível conhecido) continua passando por raw_payload — só accesses foi excluído", () => {
+    const local = {
+      ...fullLocalSheet(),
+      competitors: [{ id: "c1", name: "Concorrente X", url: "https://x.com" }],
+    };
+    const out = mapLocalToSupabaseSheet(local);
+    const raw = out.raw_payload as Record<string, unknown>;
+    expect(raw).toHaveProperty("competitors");
+  });
+});
+
+describe("mapSupabaseToLocalSheet — G63 (leitura nunca reconstrói accesses, confirma perda funcional zero)", () => {
+  it("raw_payload.accesses presente (linha legada pré-fix) não é lido de volta — mapSupabaseToLocalSheet nunca produz .accesses", () => {
+    const back = mapSupabaseToLocalSheet({
+      branding: {},
+      raw_payload: {
+        assets: [],
+        // Simula uma linha gravada ANTES do fix (accesses ainda em raw_payload).
+        accesses: [{ id: "ac1", platform: "Instagram", password: "senha-legada" }],
+      },
+    });
+    expect(back).not.toHaveProperty("accesses");
+  });
+});
+
 describe("mapSupabaseToLocalSheet — volta ao formato local + defesa contra binário", () => {
   it("renomeia editorial->editorialLine e social_links->socialLinks", () => {
     const back = mapSupabaseToLocalSheet({

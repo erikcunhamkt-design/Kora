@@ -248,7 +248,11 @@ export default function ClientTechnicalSheetPage() {
 
   const { workspace } = useCurrentWorkspace();
   const [savingToSupabase, setSavingToSupabase] = useState(false);
-  const [autosaveEnabled, setAutosaveEnabled] = useState(true);
+  // G63 (16/ago/2026): lazy-init lendo o flag real (era `useState(true)` fixo
+  // — com o default antigo isso não importava, mas com o default agora
+  // DESLIGADO, um `true` hardcoded piscaria "autosave ligado" por 1 render
+  // antes do useEffect abaixo corrigir).
+  const [autosaveEnabled, setAutosaveEnabled] = useState(() => getTechnicalSheetAutoSaveEnabled());
   const [syncStatus, setSyncStatus] = useState<"idle" | "saving" | "synced" | "error">("idle");
 
   // Sync feature flag state on mount & Storage changes
@@ -331,13 +335,12 @@ export default function ClientTechnicalSheetPage() {
 
   const activeDataSource = isExperimentalEnabled ? dataSource : "local";
 
-  // Auto-promote to supabase when client has a linked supabase ID
-  useEffect(() => {
-    if (supabaseClientId && dataSource === "local" && getTechnicalSheetDataSource(String(clientId)) === "supabase") {
-      setDataSource("supabase");
-    }
-  }, [supabaseClientId, dataSource, clientId]);
-
+  // G63 (16/ago/2026): o auto-promote pra "supabase" assim que o cliente
+  // tinha supabaseClientId foi REMOVIDO — era exatamente o mecanismo que
+  // fazia a escrita cloud ligar sem ação explícita do operador (default de
+  // getTechnicalSheetDataSource já governa isso sozinho agora, default
+  // "local" — ver flags.ts). A fonte só muda quando o operador clica
+  // explicitamente no seletor abaixo (handleSourceChange).
 
   const handleSourceChange = (newSource: "local" | "supabase") => {
     if (!isExperimentalEnabled) return;
@@ -499,14 +502,27 @@ export default function ClientTechnicalSheetPage() {
         )}
 
         {/* Banner de Aviso do Modo Supabase Experimental */}
+        {/* G63 (16/ago/2026): texto agora bifurca por autosaveEnabled — antes
+            dizia sempre "temporárias, não salvas automaticamente", mesmo
+            quando autosave estava ligado (era o default antigo) e a edição
+            ia direto pra nuvem sem confirmação nenhuma (o achado do G63). */}
         {isExperimentalEnabled && activeDataSource === "supabase" && !supabaseError && (
           <div className="flex items-start gap-2.5 p-3 rounded-lg border border-primary/20 bg-primary/5 text-xs text-foreground mt-2">
             <Info className="h-4 w-4 text-primary shrink-0 mt-0.5" />
             <div>
               <span className="font-semibold block">Modo Supabase experimental ativo</span>
               <p className="text-muted-foreground mt-0.5 leading-normal">
-                Você está visualizando a versão Supabase desta Ficha Técnica. Use com cuidado; o modo local continua disponível.
-                As edições feitas aqui são temporárias e não serão salvas automaticamente. Para gravá-las permanentemente no Supabase, clique no botão <strong>"Salvar no Supabase"</strong> abaixo.
+                {autosaveEnabled ? (
+                  <>
+                    Você está visualizando a versão Supabase desta Ficha Técnica. Use com cuidado; o modo local continua disponível.
+                    Autosave está <strong>ativado</strong> — as edições feitas aqui são gravadas automaticamente no Supabase a cada alteração.
+                  </>
+                ) : (
+                  <>
+                    Você está visualizando a versão Supabase desta Ficha Técnica. Use com cuidado; o modo local continua disponível.
+                    As edições feitas aqui são temporárias e não serão salvas automaticamente. Para gravá-las permanentemente no Supabase, clique no botão <strong>"Salvar no Supabase"</strong> abaixo.
+                  </>
+                )}
               </p>
             </div>
           </div>
