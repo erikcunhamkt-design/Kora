@@ -364,6 +364,40 @@ Regra dura, sem exceção — vale inclusive para QA:
 
 ---
 
+## 14-B. Emenda 2026-08-16 — `orbit-designer-hub` (raiz) é EXCLUSIVA pra merges ff com árvore limpa
+
+> **Motivada por:** mesmo par de incidentes do §14-A —
+> `docs/architecture/kora-hub-auditoria-e-plano.md` G65 (Lane B) e G66 (Lane C), colisão de
+> `refs/stash` entre worktrees na MESMA janela de tempo, cada lado perdendo temporariamente o fix
+> da própria rodada. §14-A corrige o MECANISMO (proíbe `git stash` pra fail→fix→pass). Esta emenda
+> corrige a CONDIÇÃO que tornou a colisão possível: as duas lanes tinham WIP não-commitado
+> simultaneamente na pasta raiz compartilhada (`orbit-designer-hub`), em vez de cada uma
+> trabalhando isolada na própria worktree (`Kora-laneA`/`Kora-laneD`/`Kora-laneE`/etc.) — sem esse
+> WIP concorrente na mesma pasta, não haveria nada pra colidir, `git stash` proibido ou não.
+
+1. **`orbit-designer-hub` (a pasta raiz do `.git` principal, distinta de toda worktree linkada) é
+   EXCLUSIVA pra operações de sincronização com árvore limpa** — `git fetch`, `git rebase`
+   (contra `origin/main`), `npm run gates`, `git push` de um branch já commitado. **Nunca** um
+   local de trabalho com edição em andamento.
+2. **Zero WIP (working-in-progress) na raiz** — qualquer lane que precise editar código, mesmo que
+   brevemente (um fix de 1 linha, uma investigação que vire patch), faz isso na própria worktree
+   dedicada, nunca direto na raiz. Se uma lane se encontrar com mudanças não-commitadas na raiz por
+   qualquer motivo, o próximo passo é commitar (mesmo que provisório, numa branch própria) ou
+   descartar — nunca deixar sentado enquanto outra lane pode rodar `git fetch`/`rebase`/`stash` na
+   mesma pasta.
+3. **Trabalho de código pertence à worktree própria de cada lane.** `git worktree add` cria uma
+   worktree cujo índice e diretório de trabalho são isolados (embora `refs/stash` e a maior parte
+   dos objects/refs continuem compartilhados com o `.git` principal — ver §14-A, isso não muda) —
+   editar arquivos, rodar testes, iterar numa mudança: sempre na worktree, nunca na raiz.
+4. **Já em vigor de fato, formalizado aqui:** o padrão observado nesta sessão (cada lane com sua
+   própria worktree nomeada) já seguia esse princípio na maior parte do tempo — os dois incidentes
+   (G65/G66) aconteceram numa exceção a essa disciplina, não porque o padrão normal fosse usar a
+   raiz pra trabalhar. Esta emenda torna a exceção explicitamente proibida, não introduz um
+   processo novo.
+5. **Demais gates permanentes (seções 0–14-A) inalterados.**
+
+---
+
 ## 15. Emenda 2026-07-23 — Enquadramento de print em sessão de DDL: credencial nunca aparece
 
 > **Motivada por:** Etapa 5 · Fatia 8 (cutover de escrita de `opportunities`) — durante a
