@@ -542,3 +542,45 @@ describe("CRM · G58/G59 (converter lead em cliente) — mesmo caminho de escrit
     expect(markConverted).toHaveBeenCalledWith(42);
   });
 });
+
+// G60 (varredura sistêmica pós-flip Financeiro) — handleSavePipeline chamava
+// blockWriteAction() sem argumentos, mesmo gate fóssil bare-call do G59
+// (handleConvertToClient), mas protegendo um domínio que nunca teve caminho
+// Supabase nenhum: usePipelines() é 100% local (grep confirmou — zero
+// referência a Supabase no hook). O gate bloqueava incondicionalmente em
+// modo Supabase, mesmo com o master flag desligado sendo irrelevante pra
+// uma escrita que sempre foi local.
+describe("CRM · G60 (salvar pipeline) — gate fóssil bare-call removido, escrita sempre local", () => {
+  it("modo Supabase + master flag OFF: salvar pipeline NÃO é mais bloqueado (antes: blockWriteAction() sem args travava sempre)", async () => {
+    const updatePipeline = vi.fn();
+    vi.mocked(usePipelines).mockReturnValue({
+      pipelines: [PIPELINE],
+      activePipeline: PIPELINE,
+      activePipelineId: "default",
+      setActivePipelineId: vi.fn(),
+      addPipeline: vi.fn(),
+      updatePipeline,
+      deletePipeline: vi.fn(),
+    } as never);
+    // Master flag OFF — antes, isso não importava pra salvar pipeline porque
+    // o gate bloqueava incondicionalmente em modo Supabase de qualquer jeito.
+    vi.mocked(useSupabaseCrmWriteFlag).mockReturnValue({ enabled: false, setEnabled: vi.fn(), toggle: vi.fn() });
+    vi.mocked(useLeads).mockReturnValue({
+      leads: [], addLead: vi.fn(), moveLead: vi.fn(), moveLeadToStage: vi.fn(),
+      moveLeadToPipeline: vi.fn(), updateLead: vi.fn(), archiveLead: vi.fn(),
+      deleteLead: vi.fn(), setLeadTags: vi.fn(), markConverted: vi.fn(),
+    } as never);
+    vi.mocked(useSupabaseOpportunities).mockReturnValue({
+      opportunities: [], loading: false, error: null, refresh: vi.fn(),
+    } as never);
+    localStorage.setItem(CRM_DATA_SOURCE_KEY, "supabase");
+
+    renderCRM();
+    fireEvent.click(await screen.findByText("Gerenciar funis"));
+    fireEvent.click(await screen.findByText("Salvar"));
+
+    await waitFor(() => expect(updatePipeline).toHaveBeenCalledTimes(1));
+    expect(updatePipeline).toHaveBeenCalledWith("default", expect.objectContaining({ name: "Pipeline Principal" }));
+    expect(toast.error).not.toHaveBeenCalledWith(expect.stringContaining("próxima etapa"));
+  });
+});
