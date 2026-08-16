@@ -237,7 +237,7 @@ export function useLocalOpportunitiesImport() {
       persist(); // garante o estado final persistido
       setImporting(false);
     }
-  }, [workspace, candidates, importMetadata, clientImportMap, quoteImportMap, refreshOpportunities]);
+  }, [workspace, candidates, importMetadata, clientImportMap, quoteImportMap, refreshOpportunities, supabaseOpportunities]);
 
   return {
     candidates,
