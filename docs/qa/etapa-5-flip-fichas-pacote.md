@@ -13,6 +13,12 @@
   classificou o banner "somente leitura" de `ClientTechnicalSheet.tsx:551` como **falso positivo
   preciso**, concluindo que o domínio "nunca teve cutover de escrita". **Este inventário
   contradiz essa conclusão — ver §5.**
+- **Atualização (16/ago/2026)**: achado catalogado como **G63**
+  (`docs/architecture/kora-hub-auditoria-e-plano.md`), com pacote de remediação de 5 itens.
+  Operador rodou a verificação de exposição em produção — **0 linhas com `password` em
+  `raw_payload`** — severidade ajustada de "vazamento ativo" pra "janela de vazamento sem dado
+  exposto". Item 5 (limpeza de dado) cancelado por não ter objeto; itens 1-3 (fechar o código)
+  seguem pendentes e com prioridade. Query de verificação e detalhe completo no G63.
 
 ---
 
@@ -55,6 +61,11 @@ cutover do G58 (`Clientes.tsx:159-194`, Supabase-first) não passam por esse map
 
 **Não corrigido aqui — Fase A é inventário, protocolo §0/§4 (Code não aplica mudança de
 comportamento sem "vai" explícito).** Ver §8 (riscos) e §9 (recomendação).
+
+**Atualização (16/ago/2026)**: catalogado como **G63**, verificação de exposição em produção
+rodada — **0 linhas com `password` exposto**. Janela de vazamento existe no código (defeito de
+desenho continua), mas nenhum dado real foi vazado até hoje. Ver adendo completo em
+`kora-hub-auditoria-e-plano.md` (G63).
 
 ---
 
@@ -254,13 +265,18 @@ varredura anterior concluiu**. A combinação dos 2 fatos muda a recomendação 
   qualquer escrita existir), aqui a escrita já está acontecendo em produção, hoje, pra quem já
   tem clientes vinculados ao Supabase. Isso não é "planejar um flip" — é "auditar um flip que já
   aconteceu sem journaling formal".
-- **Sugestão de sequência pro revisor decidir** (não decidida aqui): (1) confirmar R1/R2 com o
-  operador — checar se há dado de `accesses`/`password` real já em `raw_payload` em produção
-  (SQL de verificação, mesmo padrão de `tarefas-r2-auditoria.md`, fora do escopo desta rodada
-  porque Code não acessa banco); (2) se houver, tratar como incidente de dado sensível, não como
-  item de backlog normal; (3) só depois disso faz sentido desenhar uma Fase B "de verdade"
-  (fechar os gaps de `accesses`/`competitors` com colunas próprias, ou decidir deliberadamente
-  não migrar esses 2 sub-objetos, mesmo padrão de "pós-flip com aviso" que outros domínios usam).
+- **Sugestão de sequência pro revisor decidir (texto original, 14/ago→16/ago/2026)**: *"(1)
+  confirmar R1/R2 com o operador — checar se há dado de `accesses`/`password` real já em
+  `raw_payload` em produção (SQL de verificação...); (2) se houver, tratar como incidente de dado
+  sensível, não como item de backlog normal; (3) só depois disso faz sentido desenhar uma Fase B
+  'de verdade'..."*
+- **Passo (1) cumprido (16/ago/2026, G63)**: verificação rodada, **0 linhas expostas** — passo
+  (2) não se aplica (nada a tratar como incidente de dado). Passo (3) fica mais simples do que
+  o texto original antecipava: não há dado real a migrar/reconciliar, só o defeito de desenho a
+  fechar — o pacote de remediação do G63 (4 itens pendentes: sanitizar `raw_payload`, fechar
+  autosave por padrão, corrigir o banner, e já feito, a verificação) já cobre isso sem precisar
+  de uma Fase B tradicional de flip (sem backfill, sem decisão de convivência — mesma economia
+  que a mesa vazia deu pra Tarefas em `tarefas-r2-auditoria.md`).
 
 ---
 
@@ -272,7 +288,8 @@ varredura anterior concluiu**. A combinação dos 2 fatos muda a recomendação 
   `kora.clients.supabaseImport.v1`, cutover não-governado de Clientes (G58)
 - `docs/architecture/kora-hub-auditoria-e-plano.md` — G29 (banner desatualizado), G30 (cache de
   mutação), G37 (payload incompleto), G52 (campo condicional), G56 (idempotência) — classes
-  usadas como checklist no §7
+  usadas como checklist no §7; **G63** — catalogação formal deste achado, pacote de remediação
+  de 5 itens (1 cancelado, 4 mantêm prioridade) e adendo de verificação (16/ago/2026)
 - `src/types/domain.ts:31-108` — shape completo local de `ClientTechnicalSheet` e sub-tipos
 - `supabase/migrations/20260530020000_create_client_technical_sheets.sql` — schema, RLS, trigger
 
