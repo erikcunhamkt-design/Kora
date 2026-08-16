@@ -543,14 +543,14 @@ describe("CRM · G58/G59 (converter lead em cliente) — mesmo caminho de escrit
   });
 });
 
-// G60 (varredura sistêmica pós-flip Financeiro) — handleSavePipeline chamava
-// blockWriteAction() sem argumentos, mesmo gate fóssil bare-call do G59
+// G62 (varredura sistêmica pós-flip Financeiro) — handleSavePipeline chamava
+// blockWriteAction() sem argumentos, mesmo gate fóssil bare-call do G58/G59
 // (handleConvertToClient), mas protegendo um domínio que nunca teve caminho
 // Supabase nenhum: usePipelines() é 100% local (grep confirmou — zero
 // referência a Supabase no hook). O gate bloqueava incondicionalmente em
 // modo Supabase, mesmo com o master flag desligado sendo irrelevante pra
 // uma escrita que sempre foi local.
-describe("CRM · G60 (salvar pipeline) — gate fóssil bare-call removido, escrita sempre local", () => {
+describe("CRM · G62 (salvar pipeline) — gate fóssil bare-call removido, escrita sempre local", () => {
   it("modo Supabase + master flag OFF: salvar pipeline NÃO é mais bloqueado (antes: blockWriteAction() sem args travava sempre)", async () => {
     const updatePipeline = vi.fn();
     vi.mocked(usePipelines).mockReturnValue({
