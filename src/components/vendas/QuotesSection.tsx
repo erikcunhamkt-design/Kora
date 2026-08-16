@@ -14,7 +14,6 @@ import { useSupabaseQuotes } from "@/hooks/useSupabaseQuotes";
 import { getQuotesDataSource, setQuotesDataSource } from "@/config/flags";
 import { isSupabaseQuotesWriteEnabled } from "@/hooks/useSupabaseQuotesWriteFlag";
 import { useServices } from "@/hooks/useServices";
-import { useClients } from "@/hooks/useClients";
 import { useClientsDataSource } from "@/hooks/useClientsDataSource";
 import { useLeads } from "@/hooks/useLeads";
 import { Badge } from "@/components/ui/badge";
@@ -94,7 +93,11 @@ export function QuotesSection() {
     createQuoteWithItems: createSupabaseQuoteWithItems,
     updateStatus: updateSupabaseQuoteStatus,
   } = useSupabaseQuotes();
-  const { clients } = useClients();
+  // G67 — antes lia useClients() (sempre local); em modo Supabase o id do
+  // cliente é um uuid "contrabandeado" como number (useClientsDataSource.ts:9)
+  // e nunca batia aqui. useClientsDataSource() é a mesma fonte bifurcada já
+  // usada pelo Select de cliente do wizard (linha ~762, G44).
+  const { clients } = useClientsDataSource();
   const { leads, updateLead } = useLeads();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -150,7 +153,10 @@ export function QuotesSection() {
   useEffect(() => {
     if (searchParams.get("newQuote") !== "1") return;
     const oppId = Number(searchParams.get("opportunityId"));
-    const cliId = Number(searchParams.get("clientId"));
+    // G67 — id de cliente compara por string, não Number(): em modo Supabase
+    // o id é um uuid "contrabandeado" como number (useClientsDataSource.ts:9)
+    // e Number(uuid) vira NaN, pulando o bloco de seed inteiro em silêncio.
+    const cliIdParam = searchParams.get("clientId");
     const seed: Partial<Quote> = {};
     if (oppId) {
       const opp = leads.find((l) => l.id === oppId);
@@ -167,8 +173,8 @@ export function QuotesSection() {
         seed.notes = opp.description || opp.notes;
       }
     }
-    if (!seed.clientId && cliId) {
-      const cli = clients.find((c) => c.id === cliId);
+    if (!seed.clientId && cliIdParam) {
+      const cli = clients.find((c) => String(c.id) === cliIdParam);
       if (cli) {
         seed.source = seed.source || "cliente";
         seed.clientId = cli.id;
