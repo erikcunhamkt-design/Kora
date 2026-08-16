@@ -829,6 +829,49 @@ Achado durante a varredura sistêmica pós-flip Financeiro (`docs/qa/varredura-f
 
 ---
 
+**G63 — Fichas Técnicas: 2 caminhos de escrita nativos LIGADOS POR PADRÃO gravam `accesses[].password` (senha de plataforma do cliente, texto puro) dentro de `raw_payload` em `public.client_technical_sheets`, sem sanitização, sem confirmação do operador — e um banner da própria página descreve o oposto do comportamento real. [ALTO — confirmado; ver adendo de verificação (16/ago/2026) para o ajuste de severidade]**
+Achado pela Lane E na Fase A do flip de Fichas Técnicas (`docs/qa/etapa-5-flip-fichas-pacote.md`, achado crítico no topo do doc) — contradiz a conclusão da varredura de fósseis da Lane B (`docs/qa/varredura-fosseis-pos-flip-financeiro.md` §1.1/§2.8), que classificou o domínio como "sem cutover de escrita".
+
+- **Caminho exato do gap:** `getTechnicalSheetExperimentalEnabled`/`getTechnicalSheetAutoSaveEnabled` (`src/config/flags.ts:167-168,178-179`) são opt-OUT (default `true`); `getTechnicalSheetDataSource(clientId)` (`flags.ts:247-249`) tem default `"supabase"` por cliente, reforçado por um `useEffect` de auto-promote (`ClientTechnicalSheet.tsx:334-339`) assim que o cliente tem `supabaseClientId`. Com os 3 defaults intocados, qualquer edição na ficha técnica de um cliente já vinculado ao Supabase autosalva (`persist()`, `ClientTechnicalSheet.tsx:290-321`) via `clientTechnicalSheetsRepository.upsertTechnicalSheet`.
+- **O vazamento em si:** `mapLocalToSupabaseSheet` (`technicalSheetMapper.ts:34,59-68`) grava `raw_payload` como clone integral (`JSON.parse(JSON.stringify(localSheet))`) do objeto local, sanitizando só `assets`/`branding` (remove dataURL/blob) — `accesses[]` (com `ClientAccess.password`, `types/domain.ts:76-84`) e `competitors[]` passam direto, sem redação. `mapSupabaseToLocalSheet` (leitura) nunca reconstrói `accesses`/`competitors` de volta — o dado escrito não serve a nenhum propósito funcional, é puramente efeito colateral do `raw_payload` ser um clone bruto.
+- **Banner desatualizado (classe G29, achado irmão):** `ClientTechnicalSheet.tsx:506-509` ("Modo Supabase experimental ativo... As edições feitas aqui são temporárias e não serão salvas automaticamente") descreve o oposto do default real. Um segundo banner na mesma página (`:543-552`, painel de pré-visualização read-only) é preciso — a varredura da Lane B checou esse, não o primeiro.
+- **RLS não é o problema:** `client_technical_sheets` usa `is_workspace_member(workspace_id)` nas 4 policies (`20260530020000_create_client_technical_sheets.sql`), padrão idêntico ao resto da casa — a exposição é "qualquer membro do workspace", não "qualquer pessoa". O problema é gravar segredo em texto puro num JSONB sem necessidade funcional, não uma RLS mal configurada.
+
+**Pacote de remediação (hotfix, nenhum item aplicado nesta rodada — doc-only):**
+
+1. Sanitizar `accesses` (remover ou redigir só `password`) do clone que `mapLocalToSupabaseSheet` monta antes de gravar `raw_payload` — mesmo padrão de sanitização que `assets`/`branding` já recebem.
+2. Fechar a escrita automática por padrão — flipar `getTechnicalSheetAutoSaveEnabled`/`getTechnicalSheetExperimentalEnabled`/`getTechnicalSheetDataSource` pra opt-in (ou, alternativa mais cirúrgica, exigir confirmação explícita antes do primeiro autosave de uma sessão em modo Supabase).
+3. Corrigir o banner desatualizado (`ClientTechnicalSheet.tsx:506-509`) pra refletir o comportamento real, qualquer que seja a decisão do item 2.
+4. Rodar a verificação de exposição em produção (SELECT abaixo) — **feito, ver adendo**.
+5. ~~Limpar dado já exposto em produção, se o item 4 encontrar linhas com `password` em `raw_payload`.~~ **CANCELADO (16/ago/2026)** — ver adendo, 0 linhas encontradas.
+
+**Itens 1-3 permanecem pendentes e mantêm prioridade** — não foram aplicados nesta rodada (protocolo: Code não muda comportamento sem "vai" explícito; achado catalogado pra decisão do revisor).
+
+### Adendo — verificação em produção (16/ago/2026)
+
+O operador rodou a query de exposição contra `public.client_technical_sheets`:
+
+```sql
+-- Verifica se alguma linha já tem senha de acesso (accesses[].password)
+-- gravada dentro de raw_payload — o vetor de vazamento do G63.
+SELECT id, client_id, workspace_id
+FROM public.client_technical_sheets
+WHERE jsonb_typeof(raw_payload -> 'accesses') = 'array'
+  AND EXISTS (
+    SELECT 1
+    FROM jsonb_array_elements(raw_payload -> 'accesses') AS acc
+    WHERE COALESCE(acc ->> 'password', '') <> ''
+  );
+```
+
+**Resultado: 0 linhas.** Nenhuma senha de acesso está hoje exposta em `raw_payload` em produção — a janela de vazamento existe no código (qualquer autosave futuro, com os defaults atuais, voltaria a gravar o dado), mas **nenhum vazamento foi consumado até 16/ago/2026**.
+
+**Severidade ajustada**: de "vazamento ativo" (avaliação inicial, sem verificação) para **"janela de vazamento sem dado exposto"** — o código continua com o defeito de desenho (grava segredo sem necessidade, sem sanitização, com default ligado), mas não há incidente de dado real a tratar. Item 5 do pacote de remediação (limpeza de dado) cancelado por não ter objeto. Itens 1-3 (fechar o código) continuam com prioridade — a ausência de dado exposto hoje não é garantia de que continuará assim enquanto o defeito não for corrigido.
+
+- **Referência:** `docs/qa/etapa-5-flip-fichas-pacote.md` (achado original, inventário completo), `docs/qa/varredura-fosseis-pos-flip-financeiro.md` §1.1/§2.8 (conclusão revisada por este achado).
+
+---
+
 ## 3. Segurança / vulnerabilidades (verificar e endurecer)
 
 > Vários itens abaixo são **"confirmar no código"** — a arquitetura está certa, mas a implementação precisa ser auditada arquivo a arquivo pelo Code.
