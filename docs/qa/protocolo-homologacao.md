@@ -320,6 +320,50 @@ Regra dura, sem exceção — vale inclusive para QA:
 
 ---
 
+## 14-A. Emenda 2026-08-16 — `git stash` PROIBIDO pra provas fail→fix→pass (worktrees compartilham `refs/stash`)
+
+> **Motivada por:** Etapa 5 · rodada de limpeza do G62 (`CRM.tsx:487`/`:610`, commit `0feb815`,
+> ver `kora-hub-auditoria-e-plano.md` G65) — um `git stash push`/`pop` rodado nesta lane pra provar
+> zero mudança de comportamento colidiu com uma stash concorrente da LANE C (mesma janela de
+> tempo, `Financeiro.tsx`). O `pop` restaurou o arquivo ERRADO — o fix desta rodada sumiu do
+> working tree, sem erro nem aviso; `git stash list` ficou vazio logo depois. Recuperado sem
+> perda de dado dos dois lados via `git fsck --unreachable` (detalhe completo no G65), mas o
+> padrão que causou o incidente (stash pra prova fail→fix→pass) foi usado dezenas de vezes por
+> todas as lanes nesta sessão — qualquer uma dessas rodadas tinha a mesma exposição.
+
+1. **Causa raiz:** `git rev-parse --git-common-dir` em qualquer worktree desta sessão aponta pro
+   MESMO `.git` real (`orbit-designer-hub/.git`) — worktrees linkados compartilham a maior parte
+   do estado do repositório, incluindo `refs/stash`, que **não é por-worktree** (diferente de
+   `HEAD`/índice). Duas lanes rodando `git stash` na mesma janela de tempo empilham/desempilham
+   na MESMA pilha.
+2. **`git stash` (push, pop, apply sem hash explícito, list como fonte de verdade) é PROIBIDO
+   como parte de qualquer prova fail→fix→pass, characterization test, ou qualquer fluxo de
+   "reverter temporariamente pra comparar antes/depois"** — em qualquer lane, em qualquer
+   worktree desta sessão, sem exceção.
+3. **Método oficial pra prova fail→fix→pass (substitui `git stash` em todo o protocolo):**
+   ```
+   git diff -- <arquivo(s)> > /caminho/scratchpad/prova.patch   # captura o fix
+   git checkout -- <arquivo(s)>                                  # volta pro estado SEM o fix
+   npm run <teste relevante>                                     # prova "falha"
+   git apply /caminho/scratchpad/prova.patch                     # reaplica o fix
+   npm run <teste relevante>                                     # prova "passa"
+   ```
+   Nenhum desses comandos toca `refs/stash` nem qualquer outra ref compartilhada entre worktrees
+   — `git diff`/`git checkout -- <file>`/`git apply` operam só no working tree e no índice desta
+   sessão, sem interação com outro worktree. Usar o scratchpad da sessão (nunca `/tmp` do host)
+   pro arquivo `.patch` temporário.
+4. **Se `git stash` já foi usado antes desta emenda e algo parece ter sumido:** `git fsck
+   --unreachable --no-reflogs` lista os commits dangling ainda vivos (stash commits soltos
+   continuam sendo objetos válidos até o garbage collector rodar) — cada um tem mensagem `WIP on
+   <branch>: <hash-base> <título>`, suficiente pra identificar de qual branch/lane veio. `git show
+   --stat <hash>` confirma o conteúdo antes de `git stash apply <hash>` recuperar. Se o conteúdo
+   recuperado pertencer a OUTRA lane (não a sua), preservar com um stash novo, claramente
+   rotulado (ex.: `"RECOVERED-LANE-X-WIP: ... NAO DESCARTAR"`) — nunca descartar, nunca aplicar
+   por cima do próprio trabalho.
+5. **Demais gates permanentes (seções 0–14) inalterados.**
+
+---
+
 ## 15. Emenda 2026-07-23 — Enquadramento de print em sessão de DDL: credencial nunca aparece
 
 > **Motivada por:** Etapa 5 · Fatia 8 (cutover de escrita de `opportunities`) — durante a
