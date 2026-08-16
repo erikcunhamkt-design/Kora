@@ -39,9 +39,10 @@ function wrapper({ children }: { children: ReactNode }) {
 // dispara `refresh()` sempre que `opportunityId`/`refresh` mudam.
 function useConsumerWithRefreshInDeps(opportunityId?: string) {
   const hook = useSupabaseOpportunityQuotes(opportunityId);
+  const { refresh } = hook;
   useEffect(() => {
-    if (opportunityId) hook.refresh();
-  }, [opportunityId, hook.refresh]);
+    if (opportunityId) refresh();
+  }, [opportunityId, refresh]);
   return hook;
 }
 

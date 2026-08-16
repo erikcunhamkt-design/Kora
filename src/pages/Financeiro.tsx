@@ -971,8 +971,16 @@ const SupplierDialog = ({ open, onOpenChange, fin, editing }: {
   });
   const expCats = fin.categories.filter((c) => c.type === "expense");
 
-  // sync when editing changes
+  // sync when editing changes. Guarda `if (!open) return` (em vez de só cortar
+  // `open` das deps) porque `editing` só muda de referência quando é um
+  // registro DIFERENTE — reabrir a MESMA edição depois de cancelar (mesma
+  // referência de `editing`, só `open` muda) precisa continuar re-sincronizando
+  // o form a partir de `editing`, senão sobra rascunho não salvo da sessão
+  // anterior. A guarda deixa `open` genuinamente lido no corpo (satisfaz o
+  // lint) sem mudar QUANDO o form é sincronizado ao reabrir — só evita o
+  // set redundante ao FECHAR, que já era invisível (diálogo escondido).
   useMemo(() => {
+    if (!open) return;
     if (editing) setForm({
       name: editing.name, document: editing.document || "", email: editing.email || "",
       phone: editing.phone || "", defaultCategory: editing.defaultCategory || "",
