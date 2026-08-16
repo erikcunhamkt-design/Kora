@@ -412,3 +412,57 @@ describe("Financeiro · escrita real com a flag ligada (Fase B, §2 do desenho)"
     await waitFor(() => expect(screen.queryByText("Recebível Nuvem X")).not.toBeInTheDocument());
   });
 });
+
+// Etapa 5 · Rodada 2b-parcial (etapa-5-flip-clientes-pacote.md §2.3,
+// consumidor 1/3) — a aba "Clientes" resolvia a empresa exibida via
+// useClients() (sempre local), então um cliente que só existe na nuvem
+// aparecia sem empresa (ou nem aparecia na busca) mesmo com a linha do
+// recebível local batendo por nome. Fix: a aba passa a receber a lista de
+// useClientsDataSource() (bifurcada) — QuickSaleDialog (seletor de cliente
+// pra nova venda) NÃO foi tocado, continua com useClients() local, fora do
+// escopo desta rodada.
+describe("Financeiro · G66 (rodada 2b-parcial) — aba Clientes usa useClientsDataSource(), não useClients() local", () => {
+  it("recebível local casando por nome com um cliente só-nuvem mostra a empresa vinda de useClientsDataSource()", async () => {
+    localStorage.setItem("orbyt.finance.v1", JSON.stringify([{
+      id: "tx-1", type: "income", title: "Recebível X", amount: 1000,
+      category: "Sem categoria", dueDate: "2026-08-01", status: "paid", paidDate: "2026-08-01",
+      paymentMethod: "pix", recurrence: "none", source: "manual", createdAt: "2026-07-01",
+      isDemo: false, clientName: "Cliente Só Nuvem",
+    }]));
+    vi.mocked(useClientsDataSource).mockReturnValue({
+      clients: [{
+        id: 1, name: "Cliente Só Nuvem", company: "Empresa Só Nuvem", email: "", phone: "",
+        whatsapp: "", instagram: "", site: "", serviceType: "", status: "Ativo",
+        potentialValue: 0, lastProject: "", lastInteraction: "", observations: "",
+        projects: [], tasks: [],
+      }],
+    } as never);
+
+    renderPage();
+    const tab = screen.getByRole("tab", { name: "Clientes" });
+    fireEvent.mouseDown(tab, { button: 0 });
+    fireEvent.mouseUp(tab, { button: 0 });
+    fireEvent.click(tab);
+
+    expect(await screen.findByText("Cliente Só Nuvem")).toBeInTheDocument();
+    expect(screen.getByText("Empresa Só Nuvem")).toBeInTheDocument();
+  });
+
+  it("sem correspondência em useClientsDataSource(): linha aparece sem empresa (não quebra, só sem o dado extra)", async () => {
+    localStorage.setItem("orbyt.finance.v1", JSON.stringify([{
+      id: "tx-2", type: "income", title: "Recebível Y", amount: 500,
+      category: "Sem categoria", dueDate: "2026-08-01", status: "paid", paidDate: "2026-08-01",
+      paymentMethod: "pix", recurrence: "none", source: "manual", createdAt: "2026-07-01",
+      isDemo: false, clientName: "Cliente Sem Match",
+    }]));
+    vi.mocked(useClientsDataSource).mockReturnValue({ clients: [] } as never);
+
+    renderPage();
+    const tab = screen.getByRole("tab", { name: "Clientes" });
+    fireEvent.mouseDown(tab, { button: 0 });
+    fireEvent.mouseUp(tab, { button: 0 });
+    fireEvent.click(tab);
+
+    expect(await screen.findByText("Cliente Sem Match")).toBeInTheDocument();
+  });
+});

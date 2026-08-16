@@ -31,6 +31,7 @@ import {
 } from "@/hooks/useFinance";
 import { useFormat } from "@/hooks/useFormat";
 import { useClients } from "@/hooks/useClients";
+import { useClientsDataSource } from "@/hooks/useClientsDataSource";
 import { useSupabaseFinanceTransactions } from "@/hooks/useSupabaseFinanceTransactions";
 import type { SupabaseFinancialTransaction } from "@/repositories/financeRepository";
 import { getFinanceDataSource, setFinanceDataSource, type DataSource } from "@/config/flags";
@@ -139,6 +140,11 @@ const TAB_DEFS: { key: TabKey; label: string; icon: LucideIcon }[] = [
 const Financeiro = () => {
   const fin = useFinance();
   const { clients } = useClients();
+  // Rodada 2b-parcial (etapa-5-flip-clientes-pacote.md §2.3, consumidor
+  // 1/3) — só a aba "Clientes" bifurca. `clients` acima (useClients(),
+  // sempre local) segue intocado pro seletor de cliente do QuickSaleDialog
+  // — fora do escopo desta rodada, ver o pacote.
+  const { clients: clientsForTab } = useClientsDataSource();
   const metrics = useFinanceMetrics(fin.transactions);
   const chartData = useMonthlySeries(fin.transactions);
 
@@ -350,7 +356,7 @@ const Financeiro = () => {
           <TransactionsTab fin={fin} type="expense" onCreate={() => setOpenExpense(true)} />
         </TabsContent>
         <TabsContent value="clients" className="space-y-4">
-          <ClientsTab fin={fin} clients={clients} />
+          <ClientsTab fin={fin} clients={clientsForTab} />
         </TabsContent>
         <TabsContent value="suppliers" className="space-y-4">
           <SuppliersTab fin={fin} />
