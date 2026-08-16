@@ -266,13 +266,26 @@ export const crmOpportunitiesRepository = {
     return data;
   },
 
+  /**
+   * Etapa 5 · Preparação G30 (`useSupabaseOpportunities` R2) — ganhou
+   * `.select().single()` (antes era `void`): a migração pra `useMutation`
+   * precisa da linha apagada pra remover a entrada certa do cache via
+   * `setQueryData` (resposta da própria mutation, nunca só
+   * `invalidateQueries`) — sem isso, o hook não tem como saber qual item
+   * tirar da lista sem inventar o shape. Único chamador é
+   * `useSupabaseOpportunities.ts` (`CRM.tsx` nunca chama `deleteOpportunity`,
+   * só os outros métodos deste repository) — mudança de contrato segura.
+   */
   async deleteOpportunity(workspaceId: string, opportunityId: string) {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("crm_opportunities")
       .delete()
       .eq("id", opportunityId)
-      .eq("workspace_id", workspaceId);
+      .eq("workspace_id", workspaceId)
+      .select()
+      .single();
 
     if (error) throw normalizeSupabaseError(error);
+    return data;
   },
 };

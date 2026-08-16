@@ -1,29 +1,40 @@
 // Etapa 5 · Preparação da migração de useSupabaseOpportunities pra useMutation
 // (decisão de revisor, auditoria da Lane D — G30/G32: é o único hook do
-// domínio Supabase com mutations sem useMutation). RODADA 1 — characterization
-// tests, ZERO mudança de produção: congela o comportamento ATUAL das 8
-// funções async (sucesso, erro, guarda de workspace, efeito no cache/estado)
-// pra servir de rede de segurança na rodada 2 (a migração em si).
+// domínio Supabase com mutations sem useMutation).
+//
+// RODADA 1 — characterization tests, ZERO mudança de produção: congelou o
+// comportamento ANTIGO das 8 funções async (sucesso, erro, guarda de
+// workspace, efeito no cache/estado) pra servir de rede de segurança.
+//
+// RODADA 2 — migração pra useMutation aplicada (molde
+// useSupabaseFinanceTransactions.ts, G30). Duas divergências intencionais,
+// cada uma marcada inline nos testes que mudaram:
+// - #1: `invalidate()` (prefixo, refaz fetch de TODAS as variantes
+//   includeArchived/onlyDeleted) virou `setQueryData` só na instância atual
+//   (a resposta da própria mutation, sem refetch) — outras instâncias
+//   deste hook montadas em paralelo só atualizam no próprio refetch delas.
+// - #2: guarda de "sem workspace" de `deleteOpportunity` (a única
+//   assimetria real que a R1 capturou — devolvia `undefined`, as outras 7
+//   devolvem `null`) foi alinhada — agora devolve `null` também.
 //
 // Escopo deliberadamente restrito a este hook: CRM.tsx (Lane C),
 // useSupabaseQuotes/useSupabaseProjects (Lane D) e
 // useSupabaseClients/ClientContacts (ciclo Clientes) NÃO são tocados nem
 // lidos aqui.
 //
-// Comportamento atual capturado (a congelar, não a corrigir nesta rodada):
-// - Cada mutation faz try/catch manual + `await invalidate()`
-//   (`queryClient.invalidateQueries`) só no caminho de sucesso — nunca
-//   `setQueryData` com a resposta da própria mutation (diferente do padrão
-//   G30 que `useSupabaseFinanceTransactions.ts`/`useSupabaseProjects.ts` já
-//   adotaram). A rodada 2 é justamente migrar isso pra useMutation com G30.
-// - Guarda de "sem workspace": 7 das 8 funções devolvem `null`;
-//   `deleteOpportunity` devolve `undefined` (return bare) — assimetria real
-//   do código atual, capturada como está.
-// - Toda mutation RE-LANÇA o erro (`throw err`) depois do toast — quem
-//   chama precisa lidar com a rejeição também, não só com o toast.
-// - `restoreDeletedOpportunity` tem um efeito colateral extra: grava um log
+// Comportamento preservado sem mudança (não listado como divergência):
+// - Toda mutation RE-LANÇA o erro (agora via rejeição do próprio
+//   `mutateAsync`) depois do toast — quem chama precisa lidar com a
+//   rejeição também, não só com o toast.
+// - `restoreDeletedOpportunity` continua com o efeito colateral extra: log
 //   em `localStorage["kora.crm.supabaseRestoreDeletes.v1"]`, com catch
-//   silencioso próprio (erro de quota nunca propaga).
+//   silencioso próprio (erro de quota nunca propaga), nunca gravado no
+//   caminho de erro.
+// - `deleteOpportunity` continua devolvendo `undefined` no SUCESSO pro
+//   chamador (só a guarda de workspace mudou, divergência #2) — o
+//   repository por baixo passou a devolver a linha apagada (adaptado, não
+//   inventado — precisa dela pra saber o que tirar do cache via G30), mas
+//   isso é implementação interna, não muda o contrato público do wrapper.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -139,13 +150,19 @@ describe("useSupabaseOpportunities · leitura (comportamento atual, não escopo 
 
 // Molde repetido pras 8 mutations: sucesso (repository chamado com os args
 // certos, toast.success com a mensagem exata, retorno = o que o repository
-// devolveu, invalidate dispara um refetch de listOpportunities), erro
-// (toast.error com a mensagem exata, console.error chamado, a promise
-// REJEITA — throw err —, e invalidate NUNCA dispara porque o catch está
-// depois do await que falhou), guarda de workspace (toast de erro genérico,
-// repository NUNCA chamado, retorno null/undefined conforme o código atual).
+// devolveu), erro (toast.error com a mensagem exata, console.error chamado,
+// a promise REJEITA — throw err/rejeição do useMutation), guarda de
+// workspace (toast de erro genérico, repository NUNCA chamado, retorno
+// null/undefined conforme o código atual).
+//
+// RODADA 2 (migração pra useMutation, G30) — DIVERGÊNCIA INTENCIONAL #1:
+// os asserts de "invalida a leitura (refetch de listOpportunities)" da R1
+// viraram "listOpportunities NÃO é chamado de novo — a resposta da própria
+// mutation já foi escrita no cache via setQueryData" (G30, molde
+// useSupabaseFinanceTransactions.ts). Resto de cada teste (args do
+// repository, toast, retorno, erro, guarda) não mudou.
 describe("useSupabaseOpportunities · createOpportunity (comportamento atual)", () => {
-  it("sucesso: chama o repository, toast de sucesso, invalida a leitura (refetch), devolve a oportunidade criada", async () => {
+  it("sucesso: chama o repository, toast de sucesso, atualiza o cache com a resposta da própria mutation (G30), devolve a oportunidade criada", async () => {
     const created = makeOpportunity({ id: "opp-new", title: "Novo" });
     vi.mocked(crmOpportunitiesRepository.createOpportunity).mockResolvedValue(created as never);
     const { result } = renderHook(() => useSupabaseOpportunities(), { wrapper });
@@ -158,10 +175,13 @@ describe("useSupabaseOpportunities · createOpportunity (comportamento atual)", 
     expect(crmOpportunitiesRepository.createOpportunity).toHaveBeenCalledWith("ws1", { title: "Novo" });
     expect(toast.success).toHaveBeenCalledWith("Oportunidade criada no Supabase com sucesso!");
     expect(returned).toEqual(created);
-    await waitFor(() => expect(crmOpportunitiesRepository.listOpportunities).toHaveBeenCalledTimes(1));
+    // DIVERGÊNCIA #1 (R2, G30): a resposta da própria mutation já entra no
+    // cache — nenhum refetch de listOpportunities é disparado.
+    await waitFor(() => expect(result.current.opportunities.some((o) => o.id === "opp-new")).toBe(true));
+    expect(crmOpportunitiesRepository.listOpportunities).not.toHaveBeenCalled();
   });
 
-  it("erro: toast de erro, console.error, a promise REJEITA (throw), invalidate nunca dispara", async () => {
+  it("erro: toast de erro, console.error, a promise REJEITA, nenhum refetch/escrita de cache dispara", async () => {
     const err = new Error("insert failed");
     vi.mocked(crmOpportunitiesRepository.createOpportunity).mockRejectedValue(err);
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -190,7 +210,8 @@ describe("useSupabaseOpportunities · createOpportunity (comportamento atual)", 
 });
 
 describe("useSupabaseOpportunities · updateOpportunity (comportamento atual)", () => {
-  it("sucesso: chama o repository com o patch, toast de sucesso, invalida a leitura", async () => {
+  it("sucesso: chama o repository com o patch, toast de sucesso, atualiza o cache com a resposta da própria mutation (G30)", async () => {
+    vi.mocked(crmOpportunitiesRepository.listOpportunities).mockResolvedValue([makeOpportunity({ id: "opp-1", title: "Original" })] as never);
     const updated = makeOpportunity({ id: "opp-1", title: "Editado" });
     vi.mocked(crmOpportunitiesRepository.updateOpportunity).mockResolvedValue(updated as never);
     const { result } = renderHook(() => useSupabaseOpportunities(), { wrapper });
@@ -203,7 +224,9 @@ describe("useSupabaseOpportunities · updateOpportunity (comportamento atual)", 
     expect(crmOpportunitiesRepository.updateOpportunity).toHaveBeenCalledWith("ws1", "opp-1", { title: "Editado" });
     expect(toast.success).toHaveBeenCalledWith("Oportunidade atualizada no Supabase!");
     expect(returned).toEqual(updated);
-    await waitFor(() => expect(crmOpportunitiesRepository.listOpportunities).toHaveBeenCalledTimes(1));
+    // DIVERGÊNCIA #1 (R2, G30): sem refetch — o cache já reflete "Editado".
+    await waitFor(() => expect(result.current.opportunities[0].title).toBe("Editado"));
+    expect(crmOpportunitiesRepository.listOpportunities).not.toHaveBeenCalled();
   });
 
   it("erro: toast de erro, console.error, a promise rejeita", async () => {
@@ -232,7 +255,8 @@ describe("useSupabaseOpportunities · updateOpportunity (comportamento atual)", 
 });
 
 describe("useSupabaseOpportunities · moveOpportunityStage (comportamento atual)", () => {
-  it("sucesso: chama o repository com o stage, toast com o stage interpolado, invalida a leitura", async () => {
+  it("sucesso: chama o repository com o stage, toast com o stage interpolado, atualiza o cache com a resposta da própria mutation (G30)", async () => {
+    vi.mocked(crmOpportunitiesRepository.listOpportunities).mockResolvedValue([makeOpportunity({ id: "opp-1", stage: "contato" })] as never);
     const moved = makeOpportunity({ id: "opp-1", stage: "proposta" });
     vi.mocked(crmOpportunitiesRepository.moveOpportunityStage).mockResolvedValue(moved as never);
     const { result } = renderHook(() => useSupabaseOpportunities(), { wrapper });
@@ -245,7 +269,9 @@ describe("useSupabaseOpportunities · moveOpportunityStage (comportamento atual)
     expect(crmOpportunitiesRepository.moveOpportunityStage).toHaveBeenCalledWith("ws1", "opp-1", "proposta");
     expect(toast.success).toHaveBeenCalledWith('Estágio alterado para "proposta"!');
     expect(returned).toEqual(moved);
-    await waitFor(() => expect(crmOpportunitiesRepository.listOpportunities).toHaveBeenCalledTimes(1));
+    // DIVERGÊNCIA #1 (R2, G30): sem refetch — o cache já reflete "proposta".
+    await waitFor(() => expect(result.current.opportunities[0].stage).toBe("proposta"));
+    expect(crmOpportunitiesRepository.listOpportunities).not.toHaveBeenCalled();
   });
 
   it("erro: toast de erro, console.error, a promise rejeita", async () => {
@@ -274,7 +300,8 @@ describe("useSupabaseOpportunities · moveOpportunityStage (comportamento atual)
 });
 
 describe("useSupabaseOpportunities · markWon (comportamento atual)", () => {
-  it("sucesso: chama markOpportunityWon, toast com emoji, invalida a leitura", async () => {
+  it("sucesso: chama markOpportunityWon, toast com emoji, atualiza o cache com a resposta da própria mutation (G30)", async () => {
+    vi.mocked(crmOpportunitiesRepository.listOpportunities).mockResolvedValue([makeOpportunity({ id: "opp-1", stage: "contato", status: "open" })] as never);
     const won = makeOpportunity({ id: "opp-1", stage: "fechado", status: "won" });
     vi.mocked(crmOpportunitiesRepository.markOpportunityWon).mockResolvedValue(won as never);
     const { result } = renderHook(() => useSupabaseOpportunities(), { wrapper });
@@ -287,7 +314,9 @@ describe("useSupabaseOpportunities · markWon (comportamento atual)", () => {
     expect(crmOpportunitiesRepository.markOpportunityWon).toHaveBeenCalledWith("ws1", "opp-1");
     expect(toast.success).toHaveBeenCalledWith("Oportunidade marcada como ganha 🎉");
     expect(returned).toEqual(won);
-    await waitFor(() => expect(crmOpportunitiesRepository.listOpportunities).toHaveBeenCalledTimes(1));
+    // DIVERGÊNCIA #1 (R2, G30): sem refetch — o cache já reflete "won".
+    await waitFor(() => expect(result.current.opportunities[0].status).toBe("won"));
+    expect(crmOpportunitiesRepository.listOpportunities).not.toHaveBeenCalled();
   });
 
   it("erro: toast de erro, console.error, a promise rejeita", async () => {
@@ -316,7 +345,8 @@ describe("useSupabaseOpportunities · markWon (comportamento atual)", () => {
 });
 
 describe("useSupabaseOpportunities · markLost (comportamento atual)", () => {
-  it("sucesso: chama markOpportunityLost com o reason opcional, toast fixo, invalida a leitura", async () => {
+  it("sucesso: chama markOpportunityLost com o reason opcional, toast fixo, atualiza o cache com a resposta da própria mutation (G30)", async () => {
+    vi.mocked(crmOpportunitiesRepository.listOpportunities).mockResolvedValue([makeOpportunity({ id: "opp-1", stage: "contato", status: "open" })] as never);
     const lost = makeOpportunity({ id: "opp-1", stage: "perdido", status: "lost", lost_reason: "Preço" });
     vi.mocked(crmOpportunitiesRepository.markOpportunityLost).mockResolvedValue(lost as never);
     const { result } = renderHook(() => useSupabaseOpportunities(), { wrapper });
@@ -329,7 +359,9 @@ describe("useSupabaseOpportunities · markLost (comportamento atual)", () => {
     expect(crmOpportunitiesRepository.markOpportunityLost).toHaveBeenCalledWith("ws1", "opp-1", "Preço");
     expect(toast.success).toHaveBeenCalledWith("Oportunidade marcada como perdida.");
     expect(returned).toEqual(lost);
-    await waitFor(() => expect(crmOpportunitiesRepository.listOpportunities).toHaveBeenCalledTimes(1));
+    // DIVERGÊNCIA #1 (R2, G30): sem refetch — o cache já reflete "lost".
+    await waitFor(() => expect(result.current.opportunities[0].status).toBe("lost"));
+    expect(crmOpportunitiesRepository.listOpportunities).not.toHaveBeenCalled();
   });
 
   it("reason omitido: repository recebe undefined (não força string vazia)", async () => {
@@ -368,7 +400,8 @@ describe("useSupabaseOpportunities · markLost (comportamento atual)", () => {
 });
 
 describe("useSupabaseOpportunities · archiveOpportunity (comportamento atual)", () => {
-  it("sucesso (archived=true, default): toast de arquivada, invalida a leitura", async () => {
+  it("sucesso (archived=true, default): toast de arquivada, atualiza o cache com a resposta da própria mutation (G30)", async () => {
+    vi.mocked(crmOpportunitiesRepository.listOpportunities).mockResolvedValue([makeOpportunity({ id: "opp-1", archived: false })] as never);
     const archived = makeOpportunity({ id: "opp-1", archived: true });
     vi.mocked(crmOpportunitiesRepository.archiveOpportunity).mockResolvedValue(archived as never);
     const { result } = renderHook(() => useSupabaseOpportunities(), { wrapper });
@@ -381,7 +414,9 @@ describe("useSupabaseOpportunities · archiveOpportunity (comportamento atual)",
     expect(crmOpportunitiesRepository.archiveOpportunity).toHaveBeenCalledWith("ws1", "opp-1", true);
     expect(toast.success).toHaveBeenCalledWith("Oportunidade arquivada!");
     expect(returned).toEqual(archived);
-    await waitFor(() => expect(crmOpportunitiesRepository.listOpportunities).toHaveBeenCalledTimes(1));
+    // DIVERGÊNCIA #1 (R2, G30): sem refetch — o cache já reflete archived=true.
+    await waitFor(() => expect(result.current.opportunities[0].archived).toBe(true));
+    expect(crmOpportunitiesRepository.listOpportunities).not.toHaveBeenCalled();
   });
 
   it("sucesso (archived=false, explícito): toast de restaurada", async () => {
@@ -420,9 +455,16 @@ describe("useSupabaseOpportunities · archiveOpportunity (comportamento atual)",
   });
 });
 
-describe("useSupabaseOpportunities · deleteOpportunity (comportamento atual — assimetria de retorno)", () => {
-  it("sucesso: chama o repository, toast de sucesso, invalida a leitura, devolve undefined (função void)", async () => {
-    vi.mocked(crmOpportunitiesRepository.deleteOpportunity).mockResolvedValue(undefined as never);
+describe("useSupabaseOpportunities · deleteOpportunity (R1: assimetria de retorno congelada; R2: alinhada — DIVERGÊNCIA #2)", () => {
+  // RODADA 2 — o mock passa a resolver a linha apagada (não mais `undefined`):
+  // crmOpportunitiesRepository.deleteOpportunity ganhou `.select().single()`
+  // nesta rodada (repository adaptado pra devolver a linha, não um shape
+  // inventado — instrução explícita da tarefa), porque o G30 precisa saber
+  // QUAL id tirar do cache. O contrato PÚBLICO do wrapper não muda: o
+  // sucesso continua devolvendo `undefined` pro chamador (ver abaixo).
+  it("sucesso: chama o repository, toast de sucesso, atualiza o cache com a resposta da própria mutation (G30), devolve undefined (função void)", async () => {
+    vi.mocked(crmOpportunitiesRepository.listOpportunities).mockResolvedValue([makeOpportunity({ id: "opp-1" }), makeOpportunity({ id: "opp-2" })] as never);
+    vi.mocked(crmOpportunitiesRepository.deleteOpportunity).mockResolvedValue(makeOpportunity({ id: "opp-1" }) as never);
     const { result } = renderHook(() => useSupabaseOpportunities(), { wrapper });
     await waitFor(() => expect(result.current.loading).toBe(false));
     vi.mocked(crmOpportunitiesRepository.listOpportunities).mockClear();
@@ -432,8 +474,12 @@ describe("useSupabaseOpportunities · deleteOpportunity (comportamento atual —
 
     expect(crmOpportunitiesRepository.deleteOpportunity).toHaveBeenCalledWith("ws1", "opp-1");
     expect(toast.success).toHaveBeenCalledWith("Oportunidade removida do Supabase.");
+    // Contrato público inalterado: o wrapper continua devolvendo undefined
+    // no sucesso, mesmo a mutation resolvendo com a linha internamente.
     expect(returned).toBeUndefined();
-    await waitFor(() => expect(crmOpportunitiesRepository.listOpportunities).toHaveBeenCalledTimes(1));
+    // DIVERGÊNCIA #1 (R2, G30): sem refetch — "opp-1" já sai do cache.
+    await waitFor(() => expect(result.current.opportunities.map((o) => o.id)).toEqual(["opp-2"]));
+    expect(crmOpportunitiesRepository.listOpportunities).not.toHaveBeenCalled();
   });
 
   it("erro: toast de erro, console.error, a promise rejeita", async () => {
@@ -450,22 +496,25 @@ describe("useSupabaseOpportunities · deleteOpportunity (comportamento atual —
     consoleSpy.mockRestore();
   });
 
-  // Assimetria real do código atual: as outras 7 funções devolvem `null` na
-  // guarda de workspace; esta devolve `undefined` (return bare) — congelado
-  // como está, não corrigido nesta rodada (característica, não bug do R1).
-  it("sem workspace: devolve undefined (não null, diferente das outras 7), repository nunca chamado", async () => {
+  // DIVERGÊNCIA INTENCIONAL #2 (R2): a assimetria real que o R1 congelou
+  // (guarda de workspace devolvia `undefined`, diferente das outras 7 que
+  // devolvem `null`) foi alinhada de propósito nesta rodada — agora devolve
+  // `null` como as outras 7. O sucesso continua devolvendo `undefined`
+  // (função efetivamente void pro chamador) — só a guarda mudou.
+  it("sem workspace: devolve null (alinhado com as outras 7 — R2), repository nunca chamado", async () => {
     vi.mocked(useCurrentWorkspace).mockReturnValue({ workspace: null, membership: null, loading: false, error: null } as never);
     const { result } = renderHook(() => useSupabaseOpportunities(), { wrapper });
 
     const returned = await result.current.deleteOpportunity("opp-1");
 
-    expect(returned).toBeUndefined();
+    expect(returned).toBeNull();
     expect(crmOpportunitiesRepository.deleteOpportunity).not.toHaveBeenCalled();
   });
 });
 
 describe("useSupabaseOpportunities · restoreDeletedOpportunity (comportamento atual — efeito colateral extra)", () => {
-  it("sucesso: chama restoreSoftDeletedOpportunity, toast de sucesso, invalida a leitura, devolve a oportunidade restaurada", async () => {
+  it("sucesso: chama restoreSoftDeletedOpportunity, toast de sucesso, atualiza o cache com a resposta da própria mutation (G30), devolve a oportunidade restaurada", async () => {
+    vi.mocked(crmOpportunitiesRepository.listOpportunities).mockResolvedValue([makeOpportunity({ id: "opp-1", title: "Antes de restaurar" })] as never);
     const restored = makeOpportunity({ id: "opp-1", title: "Restaurada", updated_at: "2026-08-15T00:00:00Z" });
     vi.mocked(crmOpportunitiesRepository.restoreSoftDeletedOpportunity).mockResolvedValue(restored as never);
     const { result } = renderHook(() => useSupabaseOpportunities(), { wrapper });
@@ -478,7 +527,9 @@ describe("useSupabaseOpportunities · restoreDeletedOpportunity (comportamento a
     expect(crmOpportunitiesRepository.restoreSoftDeletedOpportunity).toHaveBeenCalledWith("ws1", "opp-1");
     expect(toast.success).toHaveBeenCalledWith("Oportunidade restaurada com sucesso!");
     expect(returned).toEqual(restored);
-    await waitFor(() => expect(crmOpportunitiesRepository.listOpportunities).toHaveBeenCalledTimes(1));
+    // DIVERGÊNCIA #1 (R2, G30): sem refetch — o cache já reflete "Restaurada".
+    await waitFor(() => expect(result.current.opportunities[0].title).toBe("Restaurada"));
+    expect(crmOpportunitiesRepository.listOpportunities).not.toHaveBeenCalled();
   });
 
   it("efeito colateral: grava um log em localStorage['kora.crm.supabaseRestoreDeletes.v1'] com opportunityId/title/restoredAt", async () => {
