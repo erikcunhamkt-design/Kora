@@ -168,6 +168,49 @@ describe("mapLocalLeadToSupabaseOpportunity — G57 (won_at limpo ao sair de 'fe
   });
 });
 
+// G68 (docs/architecture/kora-hub-auditoria-e-plano.md, `etapa-5-auditoria-g37-espelhos.md`
+// §2) — resolveUuid (privada, testada aqui via as 3 FKs que ela resolve) não
+// tinha o passthrough de UUID que resolveProjectFk/resolveFinanceFk/
+// resolveTaskFk/resolveQuoteFk já têm pós-G37.
+describe("mapLocalLeadToSupabaseOpportunity — G68 (passthrough de UUID em resolveUuid)", () => {
+  it("clientId/quoteId/convertedClientId já-uuid atravessam direto, mesmo com maps vazios/sem entrada", () => {
+    const clientUuid = "a1b2c3d4-e5f6-4789-a012-b3c4d5e6f789";
+    const quoteUuid = "b2c3d4e5-f6a7-4890-b123-c4d5e6f78901";
+    const convertedUuid = "c3d4e5f6-a7b8-4901-c234-d5e6f7890123";
+    const lead = baseLead({
+      clientId: clientUuid as unknown as number,
+      quoteId: quoteUuid,
+      convertedClientId: convertedUuid as unknown as number,
+    });
+
+    const out = mapLocalLeadToSupabaseOpportunity(lead, { clients: {}, quotes: {} });
+
+    expect(out.client_id).toBe(clientUuid);
+    expect(out.quote_id).toBe(quoteUuid);
+    expect(out.converted_client_id).toBe(convertedUuid);
+  });
+
+  it("um uuid real nunca é procurado no import-map, mesmo que o map tenha uma entrada pra ele", () => {
+    const uuid = "a1b2c3d4-e5f6-4789-a012-b3c4d5e6f789";
+    const lead = baseLead({ clientId: uuid as unknown as number });
+
+    const out = mapLocalLeadToSupabaseOpportunity(lead, {
+      clients: { [uuid]: "outro-uuid-que-nunca-deveria-ganhar" },
+      quotes: {},
+    });
+
+    expect(out.client_id).toBe(uuid);
+  });
+
+  it("id local numérico continua tratado como id local (comportamento inalterado, regressão do import geral)", () => {
+    const out = mapLocalLeadToSupabaseOpportunity(baseLead({ clientId: 5 }), {
+      clients: { "5": "uuid-client-5" },
+      quotes: {},
+    });
+    expect(out.client_id).toBe("uuid-client-5");
+  });
+});
+
 // Etapa 5 · Fatia 8 (cutover de escrita) — O1: tags/history (migration
 // 20260723000100) fazem o round-trip completo local↔nuvem, sem zerar em
 // nenhuma direção. Antes desta fatia, o sentido nuvem→local hardcodava

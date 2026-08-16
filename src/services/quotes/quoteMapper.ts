@@ -22,16 +22,28 @@ export interface QuoteImportMaps {
 
 export const EMPTY_QUOTE_IMPORT_MAPS: QuoteImportMaps = { clients: {}, opportunities: {} };
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
  * Resolve um id LOCAL para o UUID Supabase via import-map.
  * Regra de segurança (Q4): mapeado → UUID; ausente/não-mapeado → null. NUNCA id local cru.
+ *
+ * G68 (docs/architecture/kora-hub-auditoria-e-plano.md, `etapa-5-auditoria-g37-espelhos.md`
+ * §2) — mesmo molde literal de `resolveProjectFk`/`resolveFinanceFk`/`resolveTaskFk` pós-G37:
+ * nem todo `localId` que chega aqui é de fato um id LOCAL precisando de tradução via
+ * import-map — se já chegar como um uuid real (ex.: `clientId`/`opportunityId` vindo de um
+ * cliente/oportunidade já lidos da nuvem, não de import — mesmo cenário G37 original de
+ * `projectsMapper.ts`), passa direto — nunca procura no import-map, que só mapeia id LOCAL
+ * → uuid e nunca teria essa entrada.
  */
 export function resolveQuoteFk(
   localId: string | number | null | undefined,
   map: Record<string, string>,
 ): string | null {
   if (localId === null || localId === undefined || localId === "") return null;
-  return map[String(localId)] ?? null;
+  const key = String(localId);
+  if (UUID_RE.test(key)) return key;
+  return map[key] ?? null;
 }
 
 /** Orçamento local aceito na migração (inclui `leadId`, usado como id da oportunidade). */
@@ -141,6 +153,13 @@ export function mapLocalQuoteToSupabaseQuote(
     status,
     // created_at / updated_at são geridos por defaults do banco.
     archived,
+    // G68 (docs/architecture/kora-hub-auditoria-e-plano.md, `etapa-5-auditoria-g37-espelhos.md`
+    // §1.5) — approved_at/rejected_at têm coluna real (SupabaseQuote) e o campo local é
+    // genuinamente populado na transição de status local (useQuotes.ts:226-227) — sem isso,
+    // um orçamento já aprovado/recusado localmente perdia o carimbo de tempo ao ser
+    // importado/criado nativamente na nuvem (status ia traduzido, a data não).
+    approved_at: quote.approvedAt || null,
+    rejected_at: quote.rejectedAt || null,
     // Q4: FKs remapeadas para UUID (ou null); NUNCA id local cru em coluna uuid.
     client_id: resolveQuoteFk(quote.clientId, maps.clients),
     opportunity_id: resolveQuoteFk(quote.leadId ?? quote.opportunityId, maps.opportunities),

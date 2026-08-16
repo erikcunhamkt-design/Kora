@@ -11,6 +11,7 @@ import {
   mapLocalQuoteToSupabaseQuote,
   mapSupabaseQuoteItemToLocalItem,
   mapSupabaseQuoteToLocalQuote,
+  resolveQuoteFk,
   translateCloudStatusToLocal,
   translateLocalStatusToCloud,
 } from "@/services/quotes/quoteMapper";
@@ -494,5 +495,58 @@ describe("quoteMapper — Q9 (tradução de status PT<->EN)", () => {
       expect(back.status).toBe(status);
       expect(back.cloudStatusRaw).toBeUndefined();
     }
+  });
+});
+
+// G68 (docs/architecture/kora-hub-auditoria-e-plano.md, `etapa-5-auditoria-g37-espelhos.md`
+// §2) — mesmo molde literal de resolveProjectFk/resolveFinanceFk/resolveTaskFk pós-G37:
+// resolveQuoteFk não tinha o passthrough de UUID antes deste fix.
+describe("quoteMapper — resolveQuoteFk (G68, passthrough de UUID)", () => {
+  it("já sendo um uuid válido, passa direto — nunca procura no import-map", () => {
+    const uuid = "a1b2c3d4-e5f6-4789-a012-b3c4d5e6f789";
+    expect(resolveQuoteFk(uuid, {})).toBe(uuid);
+    expect(resolveQuoteFk(uuid, { [uuid]: "outro-uuid-que-nunca-deveria-ganhar" })).toBe(uuid);
+  });
+
+  it("uma string que não é uuid continua tratada como id local (comportamento inalterado)", () => {
+    expect(resolveQuoteFk("q-local-1", { "q-local-1": "uuid-real-1" })).toBe("uuid-real-1");
+    expect(resolveQuoteFk("q-local-nao-mapeada", {})).toBeNull();
+  });
+
+  it("clientId/opportunityId já-uuid atravessam mapLocalQuoteToSupabaseQuote inteiro, mesmo com maps vazios", () => {
+    const uuid1 = "a1b2c3d4-e5f6-4789-a012-b3c4d5e6f789";
+    const uuid2 = "b2c3d4e5-f6a7-4890-b123-c4d5e6f78901";
+    const out = mapLocalQuoteToSupabaseQuote(
+      { ...baseQuote({ clientId: uuid1 as unknown as number }), opportunityId: uuid2 as unknown as number },
+      EMPTY_QUOTE_IMPORT_MAPS,
+    );
+    expect(out.client_id).toBe(uuid1);
+    expect(out.opportunity_id).toBe(uuid2);
+  });
+});
+
+// G68 — approved_at/rejected_at tinham coluna real e campo local genuinamente
+// populado (useQuotes.ts:226-227), mas o mapper de import/criação nativa nunca
+// enviava — um orçamento já aprovado localmente perdia a data ao ser
+// importado/criado na nuvem.
+describe("quoteMapper — approved_at/rejected_at (G68)", () => {
+  it("envia approved_at quando o orçamento local já foi aprovado", () => {
+    const approvedAt = "2026-07-15T10:00:00.000Z";
+    const out = mapLocalQuoteToSupabaseQuote(baseQuote({ status: "aprovado", approvedAt }));
+    expect(out.approved_at).toBe(approvedAt);
+    expect(out.rejected_at).toBeNull();
+  });
+
+  it("envia rejected_at quando o orçamento local já foi recusado", () => {
+    const rejectedAt = "2026-07-16T10:00:00.000Z";
+    const out = mapLocalQuoteToSupabaseQuote(baseQuote({ status: "recusado", rejectedAt }));
+    expect(out.rejected_at).toBe(rejectedAt);
+    expect(out.approved_at).toBeNull();
+  });
+
+  it("orçamento nunca aprovado/recusado -> os 2 campos saem null, nunca undefined", () => {
+    const out = mapLocalQuoteToSupabaseQuote(baseQuote({ status: "rascunho" }));
+    expect(out.approved_at).toBeNull();
+    expect(out.rejected_at).toBeNull();
   });
 });

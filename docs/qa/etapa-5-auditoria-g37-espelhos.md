@@ -1,9 +1,11 @@
-# Auditoria G37 — completude de espelhos/mappers local→nuvem — SOMENTE LEITURA
+# Auditoria G37 — completude de espelhos/mappers local→nuvem
 
-> Inventário puro, doc-only. Nenhum código tocado, nenhum arquivo em voo de
-> outra lane editado (só lido, quando necessário pro inventário). Achados
-> classificados **conforme / violação / decidido-fora**; fixes ficam para
-> rodada própria, com "vai" explícito.
+> Inventário original 100% leitura (branch/hash abaixo). **Atualização
+> 16/ago/2026 (fix G68, branch `etapa-5-g68-fix-uuid-quote-crm`)**: os 2
+> achados de `resolve*Fk` (§2) e o achado de `approved_at`/`rejected_at`
+> (§1.5) foram corrigidos. Tabelas/seções atualizadas in-place; texto
+> original preservado com nota do que mudou, não apagado. Nenhum arquivo em
+> voo de outra lane tocado em nenhuma das duas rodadas.
 
 Branch: `etapa-5-auditoria-g37-espelhos`, a partir do tip real de `origin/main`
 em `6f773b0` (`fix(hooks): G30 - useSupabaseClients (4) + useSupabaseClientContacts (3)`).
@@ -63,7 +65,7 @@ correspondente está no payload (`client_id`, `title`, `company`,
 (confirmado lendo a interface inteira, linhas 14-51) — ausência estrutural,
 não omissão. **Achado real deste mapper está em UUID passthrough, §2.**
 
-### 1.5 `quoteMapper.mapLocalQuoteToSupabaseQuote` — 🔴 **VIOLAÇÃO NOVA**
+### 1.5 `quoteMapper.mapLocalQuoteToSupabaseQuote` — ✅ CONFORME (G68, corrigido 16/ago)
 
 `approved_at`/`rejected_at` **têm coluna real** em `SupabaseQuote`
 (`quotesRepository.ts:38-39`) e o campo local `Quote.approvedAt`/`rejectedAt`
@@ -90,6 +92,9 @@ mas o carimbo de tempo da aprovação/rejeição não viaja junto.
   campos ausentes `approved_at`/`rejected_at`; contraparte local em
   `src/hooks/useQuotes.ts:61-62,226-227`; coluna cloud em
   `src/repositories/quotesRepository.ts:38-39`.
+- **Fix (G68)**: `approved_at: quote.approvedAt || null, rejected_at: quote.rejectedAt || null`
+  adicionados ao payload. Testados (describe "G68" em `quoteMapper.test.ts`):
+  envia quando populado, `null` (nunca `undefined`) quando não.
 
 ### 1.6 `technicalSheetMapper.mapLocalToSupabaseSheet` — REFERENCIADO, NÃO AUDITADO
 
@@ -106,15 +111,16 @@ não sei, não olhei o resto do arquivo).
 
 ## 2. Passthrough de UUID em `resolve*Fk` — G37, metade 2
 
-**3 de 5 mappers conformes; 2 violações novas.**
+**Estado original (16/ago, manhã): 3 de 5 mappers conformes; 2 violações novas.**
+**Estado atual (pós G68, 16/ago): 5 de 5 mappers conformes — nenhuma violação remanescente.**
 
 | Mapper | Função | Status | Arquivo:linha |
 |---|---|---|---|
 | `projectsMapper.ts` | `resolveProjectFk` | ✅ conforme | `projectsMapper.ts:56-73` — origem do fix original de G37 |
 | `financeMapper.ts` | `resolveFinanceFk` | ✅ conforme | `financeMapper.ts:38-59` — G37 por desenho, aplicado antes de qualquer incidente |
 | `tasksMapper.ts` | `resolveTaskFk` | ✅ conforme | `tasksMapper.ts` — fix aplicado nesta etapa (Lane D, G53) |
-| `crmOpportunityMapper.ts` | `resolveUuid` | 🔴 **violação nova** | `crmOpportunityMapper.ts:31-34` — `if (localId===null\|\|undefined\|\|"") return null; return map[String(localId)] ?? null;` — sem `UUID_RE.test()`, mesmo padrão pré-G37 |
-| `quoteMapper.ts` | `resolveQuoteFk` | 🔴 **violação nova** | `quoteMapper.ts:29-35` — mesmo padrão, sem guard |
+| `crmOpportunityMapper.ts` | `resolveUuid` | ✅ conforme **(G68, corrigido 16/ago)** | `crmOpportunityMapper.ts:31-40` — `UUID_RE.test()` adicionado, mesmo molde |
+| `quoteMapper.ts` | `resolveQuoteFk` | ✅ conforme **(G68, corrigido 16/ago)** | `quoteMapper.ts:29-45` — idem |
 
 **Por que isso é um risco real, não só teórico** — evidência concreta, não
 suposição:
@@ -140,8 +146,23 @@ suposição:
   uuid real (cliente já 100% Supabase desde 2026-06-15, `quote.id` de uma
   quote nativa) — `resolveUuid` não distingue, sempre tenta o import-map.
 
-**Não corrigido nesta rodada** (inventário puro, protocolo do pedido) — fica
-catalogado pra uma rodada de fix própria, com "vai" explícito.
+**Corrigido em G68** (16/ago, branch `etapa-5-g68-fix-uuid-quote-crm`) — mesmo
+molde `UUID_RE` aplicado aos 2 mappers. Testes novos (describe "G68" nos 2
+arquivos de teste): uuid real nunca procurado no import-map (mesmo com
+entrada conflitante no map) + regressão (id local numérico continua
+resolvendo via map). Fail→fix→pass por patch (G65, sem `git stash`).
+
+**Achado adicional descoberto durante o fix, NÃO corrigido (fora do escopo
+autorizado da rodada G68)**: lendo `crmOpportunityMapper.ts` de novo pra
+aplicar o fix acima, `mapSupabaseOpportunityToLocalLead` (direção
+NUVEM→LOCAL, função diferente de `resolveUuid`) usa `Number(opportunity.client_id)`/
+`Number(opportunity.converted_client_id)` (linhas 128 e 134) — mesma classe
+do **G67** (`Number(uuid)` vira `NaN`, `NaN || undefined` sempre cai em
+`undefined`). Um `Lead` lido da nuvem com essas 2 FKs preenchidas (uuid real)
+sempre perde os valores na leitura, silenciosamente. Catalogado em G68 no
+plano mestre como achado à parte, roteado pra quem estiver de plantão em
+`crmOpportunityMapper.ts`/território de CRM — não investigado a fundo, não
+corrigido.
 
 ---
 
@@ -189,20 +210,23 @@ da Lane A), não a G37 — nada a inventariar aqui.
 
 ---
 
-## Fechamento — não corrigido, só inventariado
+## Fechamento
 
-**2 achados novos, ambos em `resolve*Fk` (§2)** — `crmOpportunityMapper.resolveUuid`
-e `quoteMapper.resolveQuoteFk` sem passthrough de UUID. **1 achado novo de
-completude de payload (§1.5)** — `quoteMapper.mapLocalQuoteToSupabaseQuote`
-omite `approved_at`/`rejected_at`, campos com coluna real e dado local real.
-Nenhuma linha de código alterada nesta rodada.
+**Rodada original (16/ago, manhã)**: nenhuma linha de código alterada, só
+inventário — 2 achados de `resolve*Fk` (§2) + 1 de completude de payload
+(§1.5), catalogados sem corrigir.
 
-**Ordem de risco sugerida** (não decidida aqui): `quoteMapper.resolveQuoteFk`
-primeiro — Quotes é o domínio com mais caminhos de criação nativa já vivos
-(`CreateCrmSupabaseQuoteDialog.tsx`, criação direta em `QuotesSection.tsx`)
-e o `approved_at`/`rejected_at` do mesmo arquivo pode ser corrigido na mesma
-rodada (mesmo mapper, mesmo tipo de mudança) → `crmOpportunityMapper.resolveUuid`
-depois (mesmo padrão, arquivo separado, sem dependência entre os dois).
+**Rodada de fix G68 (16/ago, branch `etapa-5-g68-fix-uuid-quote-crm`)**: os 3
+achados corrigidos — passthrough de UUID nos 2 mappers + `approved_at`/
+`rejected_at` no payload de `quoteMapper`. Testes fail→fix→pass por patch
+(método G65). Achado adicional (leitura, `mapSupabaseOpportunityToLocalLead`,
+mesma classe do G67) descoberto durante o fix e catalogado, não corrigido —
+fora do escopo autorizado.
+
+**Estado final: 5/5 mappers conformes em passthrough de UUID, payload de
+`quoteMapper` completo nos 2 campos identificados.** Nenhum arquivo em voo
+de outra lane (`CRM.tsx`, `ClientTechnicalSheet.tsx`/`technicalSheet*`,
+`QuotesSection.tsx`) tocado em nenhuma das duas rodadas.
 
 ## Referências
 

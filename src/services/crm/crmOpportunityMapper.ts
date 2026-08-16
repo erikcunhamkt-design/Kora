@@ -22,15 +22,26 @@ export interface OpportunityImportMaps {
 
 const EMPTY_IMPORT_MAPS: OpportunityImportMaps = { clients: {}, quotes: {} };
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
  * Resolve um id LOCAL para o UUID Supabase via import-map (A1).
  * Regra de segurança: mapeado → UUID; ausente/não-mapeado → `null`.
  * NUNCA devolve o id local cru — evita `invalid input syntax for type uuid`
  * ao inserir em colunas `uuid` (client_id / quote_id / converted_client_id).
+ *
+ * G68 (docs/architecture/kora-hub-auditoria-e-plano.md, `etapa-5-auditoria-g37-espelhos.md`
+ * §2) — mesmo molde literal de `resolveProjectFk`/`resolveFinanceFk`/`resolveTaskFk`/
+ * `resolveQuoteFk` pós-G37: nem todo `localId` é de fato um id LOCAL a traduzir — se
+ * `lead.clientId`/`lead.quoteId`/`lead.convertedClientId` já chegar como um uuid real
+ * (cliente/quote já lidos da nuvem, não de import), passa direto — nunca procura no
+ * import-map, que só mapeia id LOCAL → uuid e nunca teria essa entrada.
  */
 function resolveUuid(localId: string | number | null | undefined, map: Record<string, string>): string | null {
   if (localId === null || localId === undefined || localId === "") return null;
-  return map[String(localId)] ?? null;
+  const key = String(localId);
+  if (UUID_RE.test(key)) return key;
+  return map[key] ?? null;
 }
 
 export function mapLocalLeadToSupabaseOpportunity(
