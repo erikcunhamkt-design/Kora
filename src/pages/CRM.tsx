@@ -633,10 +633,10 @@ const CRM = () => {
   };
 
   // --- Pipeline editor handlers ---
-  // G59 — blockWriteAction() (sem argumentos) bloqueava incondicionalmente em
+  // G62 — blockWriteAction() (sem argumentos) bloqueava incondicionalmente em
   // modo Supabase, mesmo com a master flag (supabaseWriteEnabled) ligada —
-  // mesma classe de fóssil do G33/G55/G58, achado na varredura sistêmica
-  // pós-flip Financeiro. Diferente do G58 (converter lead→cliente, que TEM
+  // mesma classe de fóssil do G33/G55/G58-G59, achado na varredura sistêmica
+  // pós-flip Financeiro. Diferente do G58/G59 (converter lead→cliente, que TEM
   // um caminho Supabase real via clientsSource), pipeline (usePipelines()) é
   // 100% local — sem repository, sem tabela, sem qualquer referência a
   // Supabase (grep confirmou) — blockWriteAction() nunca protegeu nada real
@@ -2080,7 +2080,7 @@ const LeadDetailSheet = ({
             )}
           </div>
         ) : (
-          // G59 — texto antigo ("Permitida apenas edição básica...") não
+          // G62 — texto antigo ("Permitida apenas edição básica...") não
           // mencionava que mover de estágio já funciona (arrastar o card no
           // quadro, isStageMoveEnabled === isBasicEditEnabled, mesma flag) —
           // os atalhos rápidos abaixo (Avançar/Ganho/Perdido) é que não têm

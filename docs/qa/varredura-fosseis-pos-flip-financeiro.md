@@ -191,10 +191,11 @@ confirmados (§2.1/§2.2) foram candidatos a fix numa próxima rodada, não impl
 **Addendum (rodada seguinte):** `CRM.tsx:640` (`handleConvertToClient`) foi corrigido junto com um
 achado maior (gravava só local, ver **G58** no catálogo mestre) — o gate fóssil bare-call que este
 doc apontou virou **G59**. `CRM.tsx:630` (`handleSavePipeline`, §2.1) foi corrigido numa rodada
-própria — **G60** (não parametrizado como `isBasicEdit={true}` como este doc havia sugerido; a
+própria — **G62** (não G60: número reservado em paralelo pela LANE D pra um achado dela, não
+relacionado a este doc; não parametrizado como `isBasicEdit={true}` como este doc havia sugerido; a
 investigação da rodada de fix achou que `Pipeline` é 100% local, sem NENHUM caminho Supabase, então
 o gate certo era removido por inteiro, não reparametrizado). O banner suspeito de §3 (`CRM.tsx:2045`)
-também foi atualizado no mesmo commit do G60. Ver G58/G59/G60 no catálogo mestre para os detalhes
+também foi atualizado no mesmo commit do G62. Ver G58/G59/G62 no catálogo mestre para os detalhes
 completos de cada fix.
 
 ---
