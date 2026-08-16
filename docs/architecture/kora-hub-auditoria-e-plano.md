@@ -829,7 +829,7 @@ Achado durante a varredura sistêmica pós-flip Financeiro (`docs/qa/varredura-f
 
 ---
 
-**G63 — Fichas Técnicas: 2 caminhos de escrita nativos LIGADOS POR PADRÃO gravam `accesses[].password` (senha de plataforma do cliente, texto puro) dentro de `raw_payload` em `public.client_technical_sheets`, sem sanitização, sem confirmação do operador — e um banner da própria página descreve o oposto do comportamento real. [ALTO — confirmado; ver adendo de verificação (16/ago/2026) para o ajuste de severidade]**
+**G63 — Fichas Técnicas: 2 caminhos de escrita nativos LIGADOS POR PADRÃO gravam `accesses[].password` (senha de plataforma do cliente, texto puro) dentro de `raw_payload` em `public.client_technical_sheets`, sem sanitização, sem confirmação do operador — e um banner da própria página descreve o oposto do comportamento real. [ALTO → BAIXO após verificação — confirmado e FECHADO (itens 1-3 do hotfix), ver adendos abaixo]**
 Achado pela Lane E na Fase A do flip de Fichas Técnicas (`docs/qa/etapa-5-flip-fichas-pacote.md`, achado crítico no topo do doc) — contradiz a conclusão da varredura de fósseis da Lane B (`docs/qa/varredura-fosseis-pos-flip-financeiro.md` §1.1/§2.8), que classificou o domínio como "sem cutover de escrita".
 
 - **Caminho exato do gap:** `getTechnicalSheetExperimentalEnabled`/`getTechnicalSheetAutoSaveEnabled` (`src/config/flags.ts:167-168,178-179`) são opt-OUT (default `true`); `getTechnicalSheetDataSource(clientId)` (`flags.ts:247-249`) tem default `"supabase"` por cliente, reforçado por um `useEffect` de auto-promote (`ClientTechnicalSheet.tsx:334-339`) assim que o cliente tem `supabaseClientId`. Com os 3 defaults intocados, qualquer edição na ficha técnica de um cliente já vinculado ao Supabase autosalva (`persist()`, `ClientTechnicalSheet.tsx:290-321`) via `clientTechnicalSheetsRepository.upsertTechnicalSheet`.
@@ -837,17 +837,17 @@ Achado pela Lane E na Fase A do flip de Fichas Técnicas (`docs/qa/etapa-5-flip-
 - **Banner desatualizado (classe G29, achado irmão):** `ClientTechnicalSheet.tsx:506-509` ("Modo Supabase experimental ativo... As edições feitas aqui são temporárias e não serão salvas automaticamente") descreve o oposto do default real. Um segundo banner na mesma página (`:543-552`, painel de pré-visualização read-only) é preciso — a varredura da Lane B checou esse, não o primeiro.
 - **RLS não é o problema:** `client_technical_sheets` usa `is_workspace_member(workspace_id)` nas 4 policies (`20260530020000_create_client_technical_sheets.sql`), padrão idêntico ao resto da casa — a exposição é "qualquer membro do workspace", não "qualquer pessoa". O problema é gravar segredo em texto puro num JSONB sem necessidade funcional, não uma RLS mal configurada.
 
-**Pacote de remediação (hotfix, nenhum item aplicado nesta rodada — doc-only):**
+**Pacote de remediação (hotfix) — status final:**
 
-1. Sanitizar `accesses` (remover ou redigir só `password`) do clone que `mapLocalToSupabaseSheet` monta antes de gravar `raw_payload` — mesmo padrão de sanitização que `assets`/`branding` já recebem.
-2. Fechar a escrita automática por padrão — flipar `getTechnicalSheetAutoSaveEnabled`/`getTechnicalSheetExperimentalEnabled`/`getTechnicalSheetDataSource` pra opt-in (ou, alternativa mais cirúrgica, exigir confirmação explícita antes do primeiro autosave de uma sessão em modo Supabase).
-3. Corrigir o banner desatualizado (`ClientTechnicalSheet.tsx:506-509`) pra refletir o comportamento real, qualquer que seja a decisão do item 2.
-4. Rodar a verificação de exposição em produção (SELECT abaixo) — **feito, ver adendo**.
+1. ~~Sanitizar `accesses` (remover ou redigir só `password`) do clone que `mapLocalToSupabaseSheet` monta antes de gravar `raw_payload` — mesmo padrão de sanitização que `assets`/`branding` já recebem.~~ **FECHADO (`cf6d52f`)**.
+2. ~~Fechar a escrita automática por padrão — flipar `getTechnicalSheetAutoSaveEnabled`/`getTechnicalSheetExperimentalEnabled`/`getTechnicalSheetDataSource` pra opt-in.~~ **FECHADO (`cf6d52f`)**.
+3. ~~Corrigir o banner desatualizado (`ClientTechnicalSheet.tsx:506-509`) pra refletir o comportamento real.~~ **FECHADO (`cf6d52f`)**.
+4. Rodar a verificação de exposição em produção (SELECT abaixo) — **feito, ver adendo de 16/ago/2026**.
 5. ~~Limpar dado já exposto em produção, se o item 4 encontrar linhas com `password` em `raw_payload`.~~ **CANCELADO (16/ago/2026)** — ver adendo, 0 linhas encontradas.
 
-**Itens 1-3 permanecem pendentes e mantêm prioridade** — não foram aplicados nesta rodada (protocolo: Code não muda comportamento sem "vai" explícito; achado catalogado pra decisão do revisor).
+**Os 5 itens do pacote estão fechados.** Domínio de Fichas Técnicas voltou a ser governado (opt-in, default OFF) — qualquer novo caminho de escrita cloud exige o mesmo protocolo de flip formal que os demais domínios já seguem.
 
-### Adendo — verificação em produção (16/ago/2026)
+### Adendo 1 — verificação em produção (16/ago/2026)
 
 O operador rodou a query de exposição contra `public.client_technical_sheets`:
 
@@ -866,9 +866,45 @@ WHERE jsonb_typeof(raw_payload -> 'accesses') = 'array'
 
 **Resultado: 0 linhas.** Nenhuma senha de acesso está hoje exposta em `raw_payload` em produção — a janela de vazamento existe no código (qualquer autosave futuro, com os defaults atuais, voltaria a gravar o dado), mas **nenhum vazamento foi consumado até 16/ago/2026**.
 
-**Severidade ajustada**: de "vazamento ativo" (avaliação inicial, sem verificação) para **"janela de vazamento sem dado exposto"** — o código continua com o defeito de desenho (grava segredo sem necessidade, sem sanitização, com default ligado), mas não há incidente de dado real a tratar. Item 5 do pacote de remediação (limpeza de dado) cancelado por não ter objeto. Itens 1-3 (fechar o código) continuam com prioridade — a ausência de dado exposto hoje não é garantia de que continuará assim enquanto o defeito não for corrigido.
+**Severidade ajustada**: de "vazamento ativo" (avaliação inicial, sem verificação) para **"janela de vazamento sem dado exposto"** — o código continua com o defeito de desenho (grava segredo sem necessidade, sem sanitização, com default ligado), mas não há incidente de dado real a tratar. Item 5 do pacote de remediação (limpeza de dado) cancelado por não ter objeto. Itens 1-3 (fechar o código) mantiveram prioridade — fechados no Adendo 2 abaixo, mesmo dia.
 
 - **Referência:** `docs/qa/etapa-5-flip-fichas-pacote.md` (achado original, inventário completo), `docs/qa/varredura-fosseis-pos-flip-financeiro.md` §1.1/§2.8 (conclusão revisada por este achado).
+
+### Adendo 2 — hotfix aplicado (16/ago/2026, `cf6d52f`)
+
+Fix autorizado pelo revisor após o adendo de verificação (0 linhas expostas). Branch
+`g63-fichas-tecnicas-hotfix`, a partir do `main` pós-merge do achado original.
+
+- **Item 1 — `technicalSheetMapper.ts`**: `delete sanitizedRaw.accesses` antes de montar
+  `raw_payload` em `mapLocalToSupabaseSheet`. Confirmado por leitura direta que
+  `supabaseTechnicalSheetToLocalMapper.ts` nunca lê `accesses` de volta (zero referência no
+  arquivo) — a exclusão é perda funcional zero. `competitors[]` (sem dado sensível conhecido)
+  continua passando por `raw_payload`, só `accesses` foi excluído.
+- **Item 2 — `flags.ts`**: `getTechnicalSheetExperimentalEnabled`/`getTechnicalSheetAutoSaveEnabled`
+  viram `=== "true"` (opt-in, era `!== "false"`); `getTechnicalSheetDataSource(clientId)` vira
+  `map[id] === "supabase" ? "supabase" : "local"` (era o inverso). Mesmo formato de storage
+  (chave/valores "true"/"false"/"local"/"supabase" inalterados) — só a interpretação da
+  AUSÊNCIA mudou, decisão consciente de quebrar o "contrato de preservação de comportamento"
+  do módulo (documentado no próprio `flags.ts`) porque o comportamento antigo era o bug. O
+  `useEffect` de "auto-promote" (`ClientTechnicalSheet.tsx:334-339`, forçava `dataSource` pra
+  `"supabase"` assim que o cliente tinha vínculo) foi **removido inteiro** — virou código
+  estruturalmente morto com o novo default (a condição que ele checava nunca mais diverge do
+  `useState` inicial, que já lê a mesma função) e era o mecanismo central do vazamento.
+- **Item 3 — banner**: `ClientTechnicalSheet.tsx:506-509` bifurca por `autosaveEnabled` — com
+  autosave ligado (opt-in), avisa que edições SÃO salvas automaticamente; desligado (default),
+  mantém "temporárias, clique em Salvar no Supabase". O 2º banner ("Somente Leitura", painel de
+  pré-visualização) foi reconferido e **não precisou de mudança** — já estava preciso, confirma
+  o achado original de que só 1 dos 2 banners estava desatualizado.
+- **Testes, fail→fix→pass via `git stash` em 2 rodadas:** `technicalSheetMapper.test.ts` (item 1
+  isolado) — 1/12 falha sem o fix (senha aparecia em `raw_payload`), 12/12 com o fix.
+  `ClientTechnicalSheet.test.tsx` (novo arquivo, itens 2+3 integrados) — 4/4 falham sem os fixes
+  (botão "Salvar no Supabase" e seletor de fonte cloud aparecem/funcionam mesmo com todas as
+  flags intocadas), 4/4 passam restaurados. `flags.test.ts` — os 2 describes que testavam o
+  opt-OUT antigo foram reescritos pro opt-in novo (mesmo formato, default invertido).
+- **Gates:** `npm run gates` → tsc 0 erros, lint 0 erros/0 warnings, vitest 678 testes/69
+  arquivos, todos passando.
+- **Não tocado:** `CRM.tsx`, `Financeiro.tsx`, arquivos de outras lanes — escopo estritamente
+  Fichas Técnicas.
 
 ---
 

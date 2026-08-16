@@ -17,8 +17,12 @@
   (`docs/architecture/kora-hub-auditoria-e-plano.md`), com pacote de remediação de 5 itens.
   Operador rodou a verificação de exposição em produção — **0 linhas com `password` em
   `raw_payload`** — severidade ajustada de "vazamento ativo" pra "janela de vazamento sem dado
-  exposto". Item 5 (limpeza de dado) cancelado por não ter objeto; itens 1-3 (fechar o código)
-  seguem pendentes e com prioridade. Query de verificação e detalhe completo no G63.
+  exposto". Item 5 (limpeza de dado) cancelado por não ter objeto.
+- **Atualização 2 (16/ago/2026, `cf6d52f`)**: itens 1-3 do hotfix **FECHADOS** —
+  `raw_payload` não inclui mais `accesses`, as 3 flags do domínio viraram opt-in (default OFF,
+  incluindo o `useEffect` de auto-promote removido), banner corrigido. Domínio de Fichas
+  Técnicas volta a ser governado. Detalhe completo (diff, testes fail→fix→pass, gates) no
+  Adendo 2 do G63.
 
 ---
 
@@ -63,9 +67,10 @@ cutover do G58 (`Clientes.tsx:159-194`, Supabase-first) não passam por esse map
 comportamento sem "vai" explícito).** Ver §8 (riscos) e §9 (recomendação).
 
 **Atualização (16/ago/2026)**: catalogado como **G63**, verificação de exposição em produção
-rodada — **0 linhas com `password` exposto**. Janela de vazamento existe no código (defeito de
-desenho continua), mas nenhum dado real foi vazado até hoje. Ver adendo completo em
-`kora-hub-auditoria-e-plano.md` (G63).
+rodada — **0 linhas com `password` exposto**. Janela de vazamento existia no código (defeito de
+desenho), mas nenhum dado real foi vazado. **Fechado (`cf6d52f`)**: `raw_payload` não inclui
+mais `accesses`, as 3 flags do domínio viraram opt-in (default OFF), banner corrigido. Ver
+adendos completos em `kora-hub-auditoria-e-plano.md` (G63).
 
 ---
 
