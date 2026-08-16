@@ -405,7 +405,15 @@ sem carregar o comentário de origem, não sobre o campo em si.
   faz sentido travar `status`/`temperature` por CHECK antes de saber se
   algum caminho ainda escreve fora do vocabulário conhecido). Requer decisão
   do revisor — não é óbvio que valha o custo de migration pra um caso sem
-  incidente conhecido hoje.
+  incidente conhecido hoje. **Draft da migration já preparado** (enquanto a
+  Rodada 2b espera o G59 da Lane B) em
+  [`etapa-5-flip-clientes-rodada3-check-drafts.md`](etapa-5-flip-clientes-rodada3-check-drafts.md)
+  — vocabulário confirmado por grep (5 valores de `status`, 3 de
+  `temperature`, sem drift entre tipo/form/write paths), CHECK preventivo
+  nos moldes do precedente de Financeiro (`20260815000200_...sql`), com os
+  2 SELECTs de verificação prévia que o operador roda antes de aplicar. Nada
+  em `supabase/migrations/` ainda — só o draft, gate de aplicação continua
+  sendo pós-Fase D.
 - **Futura, sem rodada atribuída (§2.1):** integração real de `totalRevenue`
   com Financeiro (caminho 1 da decisão do revisor) — depende do Financeiro
   estar homologado primeiro.
