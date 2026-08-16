@@ -182,11 +182,32 @@ export function useLocalOpportunitiesImport() {
             quotes: quoteImportMap,
           });
 
+          const sourceLocalId = buildSourceLocalId(installId, item.id);
+
+          // G57 (Design C, revisor aprovado) — o mapper recalcula won_at/lost_at
+          // do zero a cada chamada (new Date().toISOString() sempre que o
+          // stage bate), então reimportar o MESMO lead sem o stage ter mudado
+          // gera um timestamp novo a cada vez — sem idempotência real (achado
+          // do revisor na revisão do G57, kora-hub-auditoria-e-plano.md).
+          // Guarda: acha a linha existente por source_local_id na lista JÁ EM
+          // MEMÓRIA (supabaseOpportunities, buscada pelo próprio hook pra
+          // montar `candidates` — zero round-trip novo, sem SELECT extra nem
+          // corrida SELECT/UPSERT). Se o stage não mudou desde a última
+          // importação, reusa won_at/lost_at já gravados em vez de deixar o
+          // mapper recalcular; se mudou (ex.: fechado→perdido), o
+          // recálculo do mapper está certo e fica como está — mesmo
+          // comportamento do caminho PRIMÁRIO (moveOpportunityStage).
+          const existing = supabaseOpportunities.find((o) => o.source_local_id === sourceLocalId);
+          if (existing && existing.stage === opportunityInput.stage) {
+            opportunityInput.won_at = existing.won_at;
+            opportunityInput.lost_at = existing.lost_at;
+          }
+
           // A3: upsert idempotente por (workspace_id, source_local_id namespacado).
           const result = await crmOpportunitiesRepository.upsertImportedOpportunity(
             workspace.id,
             opportunityInput,
-            buildSourceLocalId(installId, item.id),
+            sourceLocalId,
           );
 
           successIds.push(item.id);
