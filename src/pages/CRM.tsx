@@ -50,6 +50,7 @@ import { ScheduleMeetingDialog } from "@/components/crm/ScheduleMeetingDialog";
 import { EditTagsDialog } from "@/components/crm/EditTagsDialog";
 import { MoveToPipelineDialog } from "@/components/crm/MoveToPipelineDialog";
 import { useClients, type Client } from "@/hooks/useClients";
+import { useClientsDataSource } from "@/hooks/useClientsDataSource";
 import { useClientTypes } from "@/hooks/useClientTypes";
 import { NewClientTypeDialog } from "@/components/clientes/NewClientTypeDialog";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -145,6 +146,12 @@ const CRM = () => {
   } = usePipelines();
   const { getRulesForPipeline } = usePipelineAutomations();
   const { addClient, clients } = useClients();
+  // G58 — mesmo caminho de escrita que Clientes.tsx usa (Supabase-first
+  // quando há workspace, fallback local idêntico ao de sempre) — antes,
+  // handleConvertToClient gravava só local incondicional, então um cliente
+  // convertido pelo CRM não aparecia na tela principal de Clientes (que já
+  // é Supabase-first desde a Fatia 4).
+  const { source: clientsSource, addClient: addSupabaseClient } = useClientsDataSource();
   const { activeTypes } = useClientTypes();
   const { wouldExceed, showPaywall, setUsage } = usePlan();
   const navigate = useNavigate();
@@ -636,23 +643,46 @@ const CRM = () => {
     }
   };
 
-  const handleConvertToClient = (lead: Lead) => {
-    if (blockWriteAction()) return;
+  const handleConvertToClient = async (lead: Lead) => {
+    // G58/G59 — o gate `blockWriteAction()` (sem argumentos) bloqueava
+    // incondicionalmente em modo Supabase, mesmo com a master flag
+    // (`supabaseWriteEnabled`) ligada — fóssil da época em que toda
+    // escrita do CRM em modo Supabase estava desabilitada por padrão.
+    // Não se aplica aqui: converter lead→cliente escreve no domínio
+    // CLIENTS (`useClientsDataSource()`, cutover próprio, ver G58), não no
+    // domínio CRM/leads que `blockWriteAction` protege.
     try {
-      addClient({
-        name: lead.name,
-        company: lead.company,
-        email: lead.email,
-        phone: lead.phone,
-        whatsapp: lead.phone,
-        instagram: "",
-        site: "",
-        serviceType: lead.serviceType,
-        origin: lead.origin,
-        status: "Ativo",
-        potentialValue: lead.estimatedValue,
-        observations: lead.notes || lead.description,
-      });
+      if (clientsSource === "supabase") {
+        await addSupabaseClient({
+          name: lead.name,
+          company: lead.company || null,
+          email: lead.email || null,
+          phone: lead.phone || null,
+          whatsapp: lead.phone || null,
+          instagram: null,
+          website: null,
+          type: lead.serviceType || null,
+          source: lead.origin || null,
+          status: "Ativo",
+          potential_value: lead.estimatedValue || 0,
+          notes: lead.notes || lead.description || null,
+        });
+      } else {
+        addClient({
+          name: lead.name,
+          company: lead.company,
+          email: lead.email,
+          phone: lead.phone,
+          whatsapp: lead.phone,
+          instagram: "",
+          site: "",
+          serviceType: lead.serviceType,
+          origin: lead.origin,
+          status: "Ativo",
+          potentialValue: lead.estimatedValue,
+          observations: lead.notes || lead.description,
+        });
+      }
       markConverted(lead.id);
       toast.success("Cliente criado a partir do lead");
     } catch {

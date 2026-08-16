@@ -20,6 +20,7 @@ import { useLeads, type Lead } from "@/hooks/useLeads";
 import { usePipelines } from "@/hooks/usePipelines";
 import { usePipelineAutomations } from "@/hooks/usePipelineAutomations";
 import { useClients } from "@/hooks/useClients";
+import { useClientsDataSource } from "@/hooks/useClientsDataSource";
 import { useClientTypes } from "@/hooks/useClientTypes";
 import { usePlan } from "@/contexts/plan-context-value";
 import { useTranslation } from "@/contexts/language-context-value";
@@ -36,6 +37,7 @@ vi.mock("@/hooks/useLeads", async () => {
 vi.mock("@/hooks/usePipelines", () => ({ usePipelines: vi.fn(), DEFAULT_PIPELINE_ID: "default" }));
 vi.mock("@/hooks/usePipelineAutomations", () => ({ usePipelineAutomations: vi.fn() }));
 vi.mock("@/hooks/useClients", () => ({ useClients: vi.fn() }));
+vi.mock("@/hooks/useClientsDataSource", () => ({ useClientsDataSource: vi.fn() }));
 vi.mock("@/hooks/useClientTypes", () => ({ useClientTypes: vi.fn() }));
 vi.mock("@/contexts/plan-context-value", () => ({ usePlan: vi.fn() }));
 vi.mock("@/contexts/language-context-value", () => ({ useTranslation: vi.fn() }));
@@ -172,6 +174,7 @@ function setupCommonMocks() {
     getRulesForPipeline: () => [],
   } as never);
   vi.mocked(useClients).mockReturnValue({ addClient: vi.fn(), clients: [] } as never);
+  vi.mocked(useClientsDataSource).mockReturnValue({ source: "local", addClient: vi.fn(), clients: [] } as never);
   vi.mocked(useClientTypes).mockReturnValue({ activeTypes: [] } as never);
   vi.mocked(usePlan).mockReturnValue({
     isPro: true, // bypassa UsageBadge (early return), sem precisar mockar usage/limits em detalhe
@@ -449,5 +452,93 @@ describe("CRM · O4 (editar tags) — persistTagsSupabase sob flag, nunca setLea
     expect(crmOpportunitiesRepository.updateOpportunity).not.toHaveBeenCalled();
     expect(toast.success).not.toHaveBeenCalled();
     expect(toast.error).toHaveBeenCalled();
+  });
+});
+
+describe("CRM · G58/G59 (converter lead em cliente) — mesmo caminho de escrita de Clientes.tsx, gate fóssil removido", () => {
+  it("G59 — modo Supabase + master flag OFF: conversão NÃO é mais bloqueada (antes: blockWriteAction() sem args travava sempre)", async () => {
+    const supabaseAddClient = vi.fn().mockResolvedValue({ id: "new-uuid" });
+    vi.mocked(useClientsDataSource).mockReturnValue({
+      source: "supabase", addClient: supabaseAddClient, clients: [],
+    } as never);
+    const markConverted = vi.fn();
+    vi.mocked(useLeads).mockReturnValue({
+      leads: [], addLead: vi.fn(), moveLead: vi.fn(), moveLeadToStage: vi.fn(),
+      moveLeadToPipeline: vi.fn(), updateLead: vi.fn(), archiveLead: vi.fn(),
+      deleteLead: vi.fn(), setLeadTags: vi.fn(), markConverted,
+    } as never);
+    // Master flag OFF — antes, isso não importava pra conversão porque o
+    // gate bloqueava incondicionalmente em modo Supabase de qualquer jeito.
+    vi.mocked(useSupabaseCrmWriteFlag).mockReturnValue({ enabled: false, setEnabled: vi.fn(), toggle: vi.fn() });
+    vi.mocked(useSupabaseOpportunities).mockReturnValue({
+      opportunities: [makeSupabaseOpportunity()], loading: false, error: null, refresh: vi.fn(),
+    } as never);
+    localStorage.setItem(CRM_DATA_SOURCE_KEY, "supabase");
+
+    renderCRM();
+    await openLeadMenu("Lead Nuvem");
+    fireEvent.click(screen.getByText("Converter em cliente"));
+
+    await waitFor(() => expect(supabaseAddClient).toHaveBeenCalledTimes(1));
+    expect(toast.success).toHaveBeenCalledWith("Cliente criado a partir do lead");
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("G58 — modo Supabase: chama addClient de useClientsDataSource (nuvem), nunca o addClient local", async () => {
+    const localAddClient = vi.fn();
+    const supabaseAddClient = vi.fn().mockResolvedValue({ id: "new-uuid" });
+    vi.mocked(useClients).mockReturnValue({ addClient: localAddClient, clients: [] } as never);
+    vi.mocked(useClientsDataSource).mockReturnValue({
+      source: "supabase", addClient: supabaseAddClient, clients: [],
+    } as never);
+    const markConverted = vi.fn();
+    vi.mocked(useLeads).mockReturnValue({
+      leads: [], addLead: vi.fn(), moveLead: vi.fn(), moveLeadToStage: vi.fn(),
+      moveLeadToPipeline: vi.fn(), updateLead: vi.fn(), archiveLead: vi.fn(),
+      deleteLead: vi.fn(), setLeadTags: vi.fn(), markConverted,
+    } as never);
+    vi.mocked(useSupabaseCrmWriteFlag).mockReturnValue({ enabled: true, setEnabled: vi.fn(), toggle: vi.fn() });
+    vi.mocked(useSupabaseOpportunities).mockReturnValue({
+      opportunities: [makeSupabaseOpportunity()], loading: false, error: null, refresh: vi.fn(),
+    } as never);
+    localStorage.setItem(CRM_DATA_SOURCE_KEY, "supabase");
+
+    renderCRM();
+    await openLeadMenu("Lead Nuvem");
+    fireEvent.click(screen.getByText("Converter em cliente"));
+
+    await waitFor(() => expect(supabaseAddClient).toHaveBeenCalledTimes(1));
+    expect(supabaseAddClient).toHaveBeenCalledWith(expect.objectContaining({ name: "Lead Nuvem" }));
+    expect(localAddClient).not.toHaveBeenCalled();
+    await waitFor(() => expect(markConverted).toHaveBeenCalled());
+    expect(toast.success).toHaveBeenCalledWith("Cliente criado a partir do lead");
+  });
+
+  it("modo Local (useClientsDataSource source=local): preserva o comportamento de sempre — addClient local, nunca o de Supabase", async () => {
+    const localAddClient = vi.fn();
+    const supabaseAddClient = vi.fn();
+    vi.mocked(useClients).mockReturnValue({ addClient: localAddClient, clients: [] } as never);
+    vi.mocked(useClientsDataSource).mockReturnValue({
+      source: "local", addClient: supabaseAddClient, clients: [],
+    } as never);
+    const markConverted = vi.fn();
+    vi.mocked(useLeads).mockReturnValue({
+      leads: [makeLocalLead()], addLead: vi.fn(), moveLead: vi.fn(), moveLeadToStage: vi.fn(),
+      moveLeadToPipeline: vi.fn(), updateLead: vi.fn(), archiveLead: vi.fn(),
+      deleteLead: vi.fn(), setLeadTags: vi.fn(), markConverted,
+    } as never);
+    vi.mocked(useSupabaseOpportunities).mockReturnValue({
+      opportunities: [], loading: false, error: null, refresh: vi.fn(),
+    } as never);
+    localStorage.setItem(CRM_DATA_SOURCE_KEY, "local");
+
+    renderCRM();
+    await openLeadMenu("Lead Local");
+    fireEvent.click(screen.getByText("Converter em cliente"));
+
+    await waitFor(() => expect(localAddClient).toHaveBeenCalledTimes(1));
+    expect(localAddClient).toHaveBeenCalledWith(expect.objectContaining({ name: "Lead Local" }));
+    expect(supabaseAddClient).not.toHaveBeenCalled();
+    expect(markConverted).toHaveBeenCalledWith(42);
   });
 });
