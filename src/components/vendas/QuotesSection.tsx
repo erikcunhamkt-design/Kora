@@ -999,7 +999,7 @@ function NewQuoteWizard({
                   <input
                     type="number"
                     min={0}
-                    step={50}
+                    step="0.01"
                     value={it.unitPrice}
                     onChange={(e) => updateItem(it.id, { unitPrice: Number(e.target.value) || 0 })}
                     className="modal-input"
@@ -1017,7 +1017,7 @@ function NewQuoteWizard({
               <div className="modal-input flex items-center">{BRL(subtotal)}</div>
             </FieldLabel>
             <FieldLabel label="Desconto (R$)">
-              <input type="number" min={0} value={discount} onChange={(e) => setDiscount(e.target.value)} className="modal-input" />
+              <input type="number" min={0} step="0.01" value={discount} onChange={(e) => setDiscount(e.target.value)} className="modal-input" />
             </FieldLabel>
             <FieldLabel label="Total">
               <div className="modal-input flex items-center font-black text-primary">{BRL(total)}</div>
