@@ -89,3 +89,50 @@ describe("useSupabaseProjects · G30 — updateProject escreve o cache com a res
     expect(result.current.projects.find((p) => p.id === "sp-2")?.status).toBe("planning");
   });
 });
+
+// G60 (docs/architecture/kora-hub-auditoria-e-plano.md) — o fix original de
+// G30 (Fase D, Caso 2) só corrigiu updateMutation; createMutation, no mesmo
+// arquivo, manteve o padrão invalidate-only. Mesmo sintoma da classe G30
+// (cache preso na leitura antiga até o próximo refetch), agora em "criar"
+// em vez de "editar".
+describe("useSupabaseProjects · G30 (G60) — createProject escreve o cache com a resposta do próprio INSERT", () => {
+  const newProjectInput = {
+    name: "Projeto Novo", clientName: "Cliente X", status: "planning" as const,
+    priority: "medium" as const, progress: 0, tags: [],
+  };
+
+  it("projects reflete o projeto criado mesmo sem nenhum refetch subsequente", async () => {
+    vi.mocked(projectsRepository.listProjects).mockResolvedValue([baseRow({ id: "sp-1" })]);
+    vi.mocked(projectsRepository.importProject).mockResolvedValue(
+      baseRow({ id: "sp-2", title: "Projeto Novo" }),
+    );
+
+    const { result } = renderHook(() => useSupabaseProjects(), { wrapper });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.projects).toHaveLength(1);
+
+    await act(async () => {
+      await result.current.createProject(newProjectInput);
+    });
+
+    // listProjects nunca foi re-chamado pra confirmar a criação — a UI usa a
+    // resposta do próprio INSERT, não um refetch.
+    expect(projectsRepository.listProjects).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(result.current.projects.map((p) => p.id)).toContain("sp-2"));
+    expect(result.current.projects).toHaveLength(2);
+  });
+
+  it("projeto criado aparece primeiro na lista (mais recente primeiro, mesmo molde de useSupabaseFinanceTransactions)", async () => {
+    vi.mocked(projectsRepository.listProjects).mockResolvedValue([baseRow({ id: "sp-1" })]);
+    vi.mocked(projectsRepository.importProject).mockResolvedValue(baseRow({ id: "sp-2" }));
+
+    const { result } = renderHook(() => useSupabaseProjects(), { wrapper });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.createProject(newProjectInput);
+    });
+
+    await waitFor(() => expect(result.current.projects[0]?.id).toBe("sp-2"));
+  });
+});
