@@ -13,9 +13,11 @@
 > **Mesmo gate duplo do draft de Clientes:** Code não roda DDL contra
 > produção (protocolo §0/§6/§8-b) — aplicação é do operador; e só depois de
 > uma Fase D de homologação real ter rodado sobre o domínio (CRM/Fatia 2
-> tem achados recentes ainda em fila — G57, G58/G59 tangencial via
-> `handleConvertToClient`, R1/R2 de `useSupabaseOpportunities` migrando pra
-> `useMutation` — não faz sentido travar vocabulário num domínio com essa
+> teve achados recentes aterrissados em sequência rápida — G57, G58/G59
+> tangencial via `handleConvertToClient`, R1/R2 de `useSupabaseOpportunities`
+> migrando pra `useMutation` — todos já em `main` na verificação de
+> integridade de 16/ago/2026, mas a razão de fundo permanece: domínio com
+> essa
 > volatilidade de código recente).
 
 ---
