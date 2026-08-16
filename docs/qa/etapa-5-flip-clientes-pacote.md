@@ -74,8 +74,8 @@ pré-flip, aqui já existe **CRUD completo dos dois lados**:
   `refreshClients`.
 - `src/hooks/useSupabaseClientContacts.ts` — hook React Query dedicado por
   contato (entregue na Fatia 4, C8) — `listClientContacts` +
-  `create/update/deleteClientContact`, cada mutação invalidando a query
-  própria.
+  `create/update/deleteClientContact`.
+- **G30 (docs/architecture/kora-hub-auditoria-e-plano.md, `docs/qa/etapa-5-auditoria-hooks-g30-g32.md`) — FECHADO nos 2 hooks acima, 16/ago/2026, Lane D**: as 7 mutations (4 de `useSupabaseClients` + 3 de `useSupabaseClientContacts`) foram devolvidas pro escopo da Lane D pelo revisor (este pacote seguiu doc-only e nunca tocou esses arquivos) — já não invalidam mais a query própria, gravam a resposta da mutation direto no cache via `setQueryData`. Nada pendente de G30 aqui; não retrabalhar.
 - `src/hooks/useClientsDataSource.ts` — o hook bifurcado que decide a fonte
   e expõe `mapSupabaseClientToLocalClient` (ver §1.3).
 

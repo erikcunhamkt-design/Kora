@@ -1,12 +1,14 @@
 # Auditoria de hooks `useSupabase*` — classes G30 e G32
 
 > Inventário original 100% leitura (branch/hash abaixo). **Atualização
-> 16/ago/2026**: rodada de fix aplicada (G60, branch
-> `etapa-5-g30-fix-projects-quotes`) para 2 dos 5 hooks violadores —
-> `useSupabaseProjects.createMutation` e as 6 mutations de
-> `useSupabaseQuotes`. Tabelas abaixo atualizadas in-place; texto original
+> 16/ago/2026 (rodada 1, G60)**: fix aplicado em `useSupabaseProjects.createMutation`
+> e as 6 mutations de `useSupabaseQuotes`. **Atualização 16/ago/2026 (rodada 2, G60
+> continuação)**: `useSupabaseClients` (4 mutations) + `useSupabaseClientContacts`
+> (3 mutations) — devolvidos pra Lane D pelo revisor porque o pacote Clientes da
+> Lane C é doc-only e não toca esses arquivos; a transferência registrada na rodada
+> 1 (§1) não se concretizou. Tabelas abaixo atualizadas in-place; texto original
 > preservado com nota de o que mudou, não apagado. Nenhum arquivo da Lane A
-> (Financeiro) foi tocado em nenhuma das duas rodadas.
+> (Financeiro) foi tocado em nenhuma das rodadas.
 
 Branch original: `etapa-5-auditoria-hooks-g30-g32`, a partir do tip real de
 `origin/main` em `a7b110d` (`fix(vendas): G55 - gate fossil de blockWrite()
@@ -36,10 +38,18 @@ equivalente — nenhum caso encontrado (ver §2).
 ## 1. G30 — resultado por hook
 
 **Estado original (15/ago): 22 violações / 5 conformes, em 7 hooks com mutation (27 mutations auditadas no total, §4).**
-**Estado atual (pós G60, 16/ago): 15 violações / 12 conformes.** G60 corrigiu 7 mutations
-(`useSupabaseProjects.createMutation` + as 6 de `useSupabaseQuotes`) — 22 − 7 = 15 violações
-remanescentes, todas em `useSupabaseOpportunities` (8) e `useSupabaseClients`/`useSupabaseClientContacts`
-(4 + 3 = 7); 5 + 7 = 12 conformes. 12 + 15 = 27, bate com o total auditado.
+**Estado pós rodada 1 de G60 (16/ago): 15 violações / 12 conformes.** Corrigiu 7 mutations
+(`useSupabaseProjects.createMutation` + as 6 de `useSupabaseQuotes`).
+**Entre as rodadas — achado ao atualizar este doc, não uma correção desta lane**:
+`useSupabaseOpportunities` (8 mutations) já tinha sido migrado pra `useMutation` + `setQueryData`
+por outra rodada (comentário de topo do arquivo: "Etapa 5 · Preparação G30/G32, rodada 2,
+useMutation"), mesclado em `main` e incorporado por rebase durante a rodada 1 de G60 — a nota
+"pendente de rodada própria" que a rodada 1 registrou ficou desatualizada assim que esse merge
+aconteceu, sem que esta auditoria tivesse sido revisitada até agora.
+**Estado pós rodada 2 de G60 (16/ago): 0 violações / 27 conformes.** Rodada 2 corrigiu as 7
+mutations de `useSupabaseClients`+`useSupabaseClientContacts`; somado à migração independente de
+`useSupabaseOpportunities` (8) já mesclada — **todos os 27 hooks/mutations auditados estão
+conformes**. Nenhuma violação de G30 remanescente nos 15 hooks `useSupabase*` do repo.
 
 | Hook | Mutation | Status | Arquivo:linha |
 |---|---|---|---|
@@ -55,27 +65,27 @@ remanescentes, todas em `useSupabaseOpportunities` (8) e `useSupabaseClients`/`u
 | `useSupabaseQuotes` | `archiveMutation` | ✅ conforme **(G60)** | `useSupabaseQuotes.ts:146-150` — via `mergeQuotePatch` |
 | `useSupabaseQuotes` | `softDeleteMutation` | ✅ conforme **(G60)** | `useSupabaseQuotes.ts:156-165` — `setQueryData` com `.filter()` (remove da lista, não atualiza — `listQuotes` já exclui `deleted_at`) |
 | `useSupabaseQuotes` | `replaceItemsMutation` | ✅ conforme **(G60)** | `useSupabaseQuotes.ts:170-180` — substitui só `.items` da quote correspondente, preserva os demais campos |
-| `useSupabaseClients` | `addMutation` | 🔴 violação | `useSupabaseClients.ts:31-37` — **transferido pro pacote Clientes (Lane C), não corrigido aqui** |
-| `useSupabaseClients` | `updateMutation` | 🔴 violação | `useSupabaseClients.ts:39-45` — idem |
-| `useSupabaseClients` | `archiveMutation` | 🔴 violação | `useSupabaseClients.ts:47-53` — idem |
-| `useSupabaseClients` | `deleteMutation` | 🔴 violação | `useSupabaseClients.ts:55-61` — idem |
-| `useSupabaseClientContacts` | `createMutation` | 🔴 violação | `useSupabaseClientContacts.ts:69-75` — idem |
-| `useSupabaseClientContacts` | `updateMutation` | 🔴 violação | `useSupabaseClientContacts.ts:77-83` — idem |
-| `useSupabaseClientContacts` | `deleteMutation` | 🔴 violação | `useSupabaseClientContacts.ts:85-91` — idem |
-| `useSupabaseOpportunities` | `createOpportunity` | 🔴 violação | `useSupabaseOpportunities.ts:44-59` (nem usa `useMutation` — função async simples + `await invalidate()`) — **pendente de rodada própria (decisão de migração, ver nota)** |
-| `useSupabaseOpportunities` | `updateOpportunity` | 🔴 violação | `useSupabaseOpportunities.ts:61-76` (idem) |
-| `useSupabaseOpportunities` | `moveOpportunityStage` | 🔴 violação | `useSupabaseOpportunities.ts:78-93` (idem) |
-| `useSupabaseOpportunities` | `markWon` | 🔴 violação | `useSupabaseOpportunities.ts:95-110` (idem) |
-| `useSupabaseOpportunities` | `markLost` | 🔴 violação | `useSupabaseOpportunities.ts:112-127` (idem) |
-| `useSupabaseOpportunities` | `archiveOpportunity` | 🔴 violação | `useSupabaseOpportunities.ts:129-144` (idem) |
-| `useSupabaseOpportunities` | `deleteOpportunity` | 🔴 violação | `useSupabaseOpportunities.ts:146-160` (idem) |
-| `useSupabaseOpportunities` | `restoreDeletedOpportunity` | 🔴 violação | `useSupabaseOpportunities.ts:162-183` (idem) |
+| `useSupabaseClients` | `addMutation` | ✅ conforme **(G60, rodada 2)** | `useSupabaseClients.ts` — `setQueryData` prefixando a linha criada, mesmo molde de `useSupabaseFinanceTransactions.createMutation` |
+| `useSupabaseClients` | `updateMutation` | ✅ conforme **(G60, rodada 2)** | `useSupabaseClients.ts` — `setQueryData` map-replace por id |
+| `useSupabaseClients` | `archiveMutation` | ✅ conforme **(G60, rodada 2)** | `useSupabaseClients.ts` — update-in-place (`listClients` não filtra `archived`, linha continua na lista) |
+| `useSupabaseClients` | `deleteMutation` | ✅ conforme **(G60, rodada 2)** | `useSupabaseClients.ts` — `deleteClient` é hard delete, devolve só `true`; o id pra remover do cache vem da variável de entrada da mutation (`onSuccess(_success, clientId)`), não da resposta |
+| `useSupabaseClientContacts` | `createMutation` | ✅ conforme **(G60, rodada 2)** | `useSupabaseClientContacts.ts` — mesmo molde, cache guarda a linha crua (`SupabaseContactRow`), mapeamento pra `ClientContact` só no `return` |
+| `useSupabaseClientContacts` | `updateMutation` | ✅ conforme **(G60, rodada 2)** | `useSupabaseClientContacts.ts` — `setQueryData` map-replace por id |
+| `useSupabaseClientContacts` | `deleteMutation` | ✅ conforme **(G60, rodada 2)** | `useSupabaseClientContacts.ts` — mesmo caso de `deleteClient`: hard delete devolve só `true`, id vem da variável de entrada |
+| `useSupabaseOpportunities` | `createMutation` | ✅ conforme **(migrado em rodada própria, fora desta lane — ver nota)** | `useSupabaseOpportunities.ts` — migrado pra `useMutation`, `setQueryData` na própria queryKey (variante includeArchived/onlyDeleted atual) |
+| `useSupabaseOpportunities` | `updateMutation` | ✅ conforme (idem) | idem |
+| `useSupabaseOpportunities` | `moveStageMutation` | ✅ conforme (idem) | idem |
+| `useSupabaseOpportunities` | `markWonMutation` | ✅ conforme (idem) | idem |
+| `useSupabaseOpportunities` | `markLostMutation` | ✅ conforme (idem) | idem |
+| `useSupabaseOpportunities` | `archiveMutation` | ✅ conforme (idem) | idem |
+| `useSupabaseOpportunities` | `deleteMutation` | ✅ conforme (idem) | idem |
+| `useSupabaseOpportunities` | `restoreMutation` | ✅ conforme (idem) | idem |
 
-**Achado estrutural (ainda válido)**: `useSupabaseOpportunities.ts` continua sendo o único hook do repo com mutations que **nem usa `useMutation` do React Query** — são 8 funções `async` simples, cada uma com seu próprio try/catch + toast + `await invalidate()` manual. Corrigir G30 aqui não é só trocar `invalidate` por `setQueryData` (como nos hooks já corrigidos) — é também decidir se vale migrar pra `useMutation` primeiro (consistência com o resto da casa) ou aplicar o fix no molde atual. **Decisão de escopo explicitamente adiada** — não corrigido nesta rodada de G60 (item 4 do pedido que gerou esta atualização), fica pra rodada própria com essa decisão de migração resolvida antes de codar.
+**Achado estrutural — RESOLVIDO, não por esta lane**: `useSupabaseOpportunities.ts` era o único hook do repo com mutations que nem usava `useMutation` do React Query (8 funções `async` simples, cada uma com try/catch + toast + `await invalidate()` manual). Migrado pra `useMutation` + `setQueryData` numa rodada própria (comentário de topo do arquivo: "Preparação G30/G32, rodada 2, useMutation"; characterization tests prévios, `useSupabaseOpportunities.test.ts`, R1) — mesclada em `main` e incorporada nesta auditoria só por rebase durante a rodada 1 de G60, não como trabalho desta lane. **Trade-off intencional documentado no próprio arquivo** (linhas 48-61): antes, `invalidate()` invalidava TODAS as variantes de `includeArchived`/`onlyDeleted` de uma vez — agora `setQueryData` só escreve a queryKey exata da instância atual; outras instâncias do hook (ex.: uma tela "ativas" + outra "arquivadas" montadas em paralelo) só refletem no próximo refetch delas, não imediatamente. Mesmo trade-off que Financeiro/Projetos já aceitaram.
 
 **Achado de hook "parcialmente confiável" — RESOLVIDO nesta rodada**: `useSupabaseProjects.ts` era citado nesta própria auditoria (e no G53 da Lane D) como referência de G30, mas só `updateMutation` tinha sido corrigido (Fase D, Caso 2); `createMutation`, no mesmo arquivo, nunca recebeu o mesmo tratamento — catalogado como **G60** no plano mestre (classe: "fix de lição aplicado só à mutation citada no incidente, irmãs do mesmo arquivo ficam pra trás"). Ambas as mutations do arquivo agora são conformes.
 
-**Clients/ClientContacts — transferido, não esquecido**: as 7 violações de `useSupabaseClients.ts`/`useSupabaseClientContacts.ts` não entraram no escopo desta rodada de fix por decisão explícita de coordenação — a Lane C está em ciclo ativo no domínio Clientes (`docs/qa/etapa-5-flip-clientes-pacote.md`, Fase A já mesclada) e uma correção de G30 nesses 2 arquivos, feita fora desse ciclo, arriscaria colidir com o desenho de bifurcação que ela está construindo. Fica registrado como trabalho pendente a ser assumido dentro do pacote de Clientes dela, não uma rodada solta.
+**Clients/ClientContacts — RESOLVIDO na rodada 2, não ficou "transferido" de verdade**: a rodada 1 registrou as 7 violações como transferidas pro pacote Clientes da Lane C, por precaução de coordenação. Na prática o pacote dela seguiu **doc-only** (Fase A/investigações, sem tocar `useSupabaseClients.ts`/`useSupabaseClientContacts.ts`) — decisão do revisor: devolver o item pra Lane D, dona do padrão G30 nesta etapa, em vez de deixar a pendência esperando um ciclo de código que não ia tocar esses arquivos tão cedo. Fix aplicado: mesmo molde simples de `useSupabaseFinanceTransactions` (cache guarda a linha crua do repository, sem shape mapeado — nenhum dos dois hooks precisou do `mergeQuotePatch` que `useSupabaseQuotes` exigiu). Achado à parte: `deleteClient`/`deleteClientContact` (`clientsRepository.ts`) fazem **hard delete de verdade** e devolvem só `true`, não a linha apagada — diferente de todo delete já corrigido até aqui (`softDeleteReceivable`/`softDeleteQuote`, que devolvem a linha) — o id a remover do cache precisou vir da variável de ENTRADA da mutation (2º argumento do `onSuccess`), não da resposta.
 
 ### 1.1 Hooks sem mutation (G30 não se aplica)
 
@@ -124,10 +134,10 @@ Os outros 4 (flags) não têm `useQuery`, N/A.
 | Financeiro | `useSupabaseFinanceTransactions`, `useSupabaseFinanceWriteFlag`, `useSupabaseFinancialSummary` | **Lane A** — não tocado em nenhuma das 2 rodadas (auditoria nem fix); já 100% conforme G30/G32, sem pendência |
 | Projetos/Tarefas | `useSupabaseProjects`, `useSupabaseProjectsSummary`, `useSupabaseProjectsWriteFlag`, `useSupabaseProjectTasks` | Lane D — G53 corrigiu `useSupabaseProjectTasks`; G60 corrigiu `useSupabaseProjects.createMutation`. **Domínio 100% conforme G30/G32 agora.** |
 | Orçamentos (Quotes) | `useSupabaseQuotes`, `useSupabaseQuotesWriteFlag`, `useSupabaseOpportunityQuotes` | Lane D — G60 corrigiu as 6 mutations de `useSupabaseQuotes`. **Domínio 100% conforme G30/G32 agora.** |
-| CRM/Oportunidades | `useSupabaseOpportunities`, `useSupabaseCrmWriteFlag` | Sem lane ativa identificada — 8 violações remanescentes, único hook sem `useMutation`, pendente de rodada própria (decisão de migração) |
-| Clientes | `useSupabaseClients`, `useSupabaseClientContacts`, `useSupabaseTechnicalSheet` | **Lane C** (ciclo Clientes em andamento) — 7 violações remanescentes, transferidas pro pacote dela, não corrigidas por esta lane pra evitar colisão |
+| CRM/Oportunidades | `useSupabaseOpportunities`, `useSupabaseCrmWriteFlag` | Migrado por rodada própria (fora desta lane), mesclado antes da rodada 2 de G60. **Domínio 100% conforme G30/G32.** |
+| Clientes | `useSupabaseClients`, `useSupabaseClientContacts`, `useSupabaseTechnicalSheet` | Lane D — G60 rodada 2 corrigiu `useSupabaseClients`+`useSupabaseClientContacts` (devolvido pelo revisor; pacote Clientes da Lane C segue doc-only, não tocou esses arquivos). **Domínio 100% conforme G30/G32.** |
 
-**Nenhuma violação encontrada está em arquivo de Financeiro (Lane A)**, e as duas maiores concentrações de violação (Quotes 6, Projects 1) já foram corrigidas (G60) sem tocar nenhum arquivo de Lane A ou Lane C. Restam só Opportunities (8, decisão de migração pendente) e Clients/ClientContacts (7, transferido pro pacote da Lane C).
+**Nenhuma violação encontrada está em arquivo de Financeiro (Lane A). Nenhuma violação de G30 remanescente em nenhum domínio** — os 15 hooks `useSupabase*` do repo estão 100% conformes nos dois eixos (G30 e G32) a partir da rodada 2 de G60.
 
 ---
 
@@ -146,14 +156,25 @@ grep -l "invalidate" (padrão onSuccess)   → 5 arquivos useSupabase* (+ useSig
 auditadas**, batendo com a contagem manual do §1 (22 violações + 5 conformes, estado original).
 
 ```
-[Confirmação pós-G60, 16/ago]
+[Confirmação pós-rodada 1 de G60, 16/ago]
 grep -l "setQueryData" src/hooks/*.ts     → 4 arquivos (ProjectTasks, FinanceTransactions, Projects,
                                              Quotes)
 grep -l "invalidate" (padrão onSuccess)   → 3 arquivos useSupabase* (Clients, ClientContacts,
-                                             Opportunities — os 3 que ficaram de fora do fix)
+                                             Opportunities — os 3 que pareciam de fora do fix; a
+                                             migração independente de Opportunities só apareceu
+                                             nesta auditoria depois, ver §1)
 ```
-`useSupabaseProjects.ts`/`useSupabaseQuotes.ts` saíram da lista de `invalidate` e entraram na de
-`setQueryData` — confirma os 7 mutations corrigidas (§1) sem varredura manual adicional.
+
+```
+[Confirmação final, pós rodada 2 de G60 + migração independente de Opportunities, 16/ago]
+grep -c "setQueryData" src/hooks/*.ts     → 7 arquivos com pelo menos 1 ocorrência (ProjectTasks,
+                                             FinanceTransactions, Projects, Quotes, Opportunities,
+                                             Clients, ClientContacts)
+grep -n "onSuccess: invalidate\b" src/hooks/*.ts → ZERO ocorrências em qualquer arquivo useSupabase*
+```
+Nenhum hook `useSupabase*` do repo ainda depende de `invalidateQueries()` sozinho pra refletir a
+própria mutation — os 27 pontos de escrita auditados em §1 (18 `useMutation` originais + 8 de
+Opportunities migradas + 1 `useCallback` de ProjectTasks) estão todos conformes.
 
 ---
 
@@ -173,10 +194,27 @@ falhando contra o código antigo, 11/11 verdes após restaurar (2 testes pré-ex
 mestre — classe "fix de lição aplicado só à mutation citada no incidente, irmãs do mesmo arquivo
 ficam pra trás".
 
-**Pendente, não desta rodada**: `useSupabaseOpportunities` (8 violações — decisão de migração pra
-`useMutation` antes de aplicar o fix, rodada própria) e `useSupabaseClients`/`useSupabaseClientContacts`
-(7 violações — transferido pro pacote Clientes da Lane C, para não colidir com o ciclo dela em
-andamento).
+**Rodada de fix G60, continuação (16/ago, branch `etapa-5-g30-fix-clients`)**: o revisor devolveu
+`useSupabaseClients`+`useSupabaseClientContacts` pra Lane D — o pacote Clientes da Lane C seguiu
+doc-only (Fase A e investigações, nunca tocou esses 2 arquivos), então a transferência registrada
+na rodada 1 não ia se concretizar tão cedo. Fix aplicado no mesmo molde simples de
+`useSupabaseFinanceTransactions` (cache guarda a linha crua, sem shape mapeado). Achado à parte,
+não coberto pelos moldes anteriores: `deleteClient`/`deleteClientContact` fazem hard delete de
+verdade e devolvem só `true` — o id a remover do cache veio da variável de ENTRADA da mutation,
+não da resposta (nenhum delete corrigido até então precisou disso; os 2 deletes de Financeiro/
+Quotes são soft-delete e devolvem a linha). Testes fail→fix→pass via `git stash` — 9 testes novos
+falhando contra o código antigo, 11/11 verdes após restaurar (2 testes pré-existentes, casos 5/6
+de erro isolado e coerção de tipo, intocados nos dois lados).
+
+**Achado ao atualizar este doc, não desta lane**: `useSupabaseOpportunities` já tinha sido migrado
+pra `useMutation`+`setQueryData` numa rodada independente, mesclada em `main` antes desta
+atualização — a nota "pendente de rodada própria" da rodada 1 ficou desatualizada sem que ninguém
+tivesse revisitado esta auditoria até agora. Corrigido aqui só como atualização de documentação
+(nenhum código tocado nesse arquivo por esta lane).
+
+**Estado final: 27/27 mutations conformes, 11/11 queries conformes — G30 e G32 fechados nos 15
+hooks `useSupabase*` do repo.** Nenhum arquivo de Lane A (Financeiro) ou do ciclo de código da
+Lane C (Clientes) foi tocado em nenhuma das rodadas.
 
 ## Referências
 

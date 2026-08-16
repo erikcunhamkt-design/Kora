@@ -11,7 +11,6 @@
 // number) de propósito: o `client.id` de um client Supabase é uma UUID string mascarada
 // de number pelo cast em useClientsDataSource.ts — o parâmetro aqui força o chamador a
 // converter explicitamente (String(client.id)) em vez de deixar passar o valor cru.
-import { useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { clientsRepository, type SupabaseContactInput } from "@/repositories/clientsRepository";
 import type { ClientContact } from "@/types/domain";
@@ -60,18 +59,23 @@ export function useSupabaseClientContacts(workspaceId: string | undefined, clien
     enabled,
   });
 
-  const invalidate = useCallback(
-    () => queryClient.invalidateQueries({ queryKey }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [queryClient, workspaceId, clientId],
-  );
-
+  // G60 (docs/architecture/kora-hub-auditoria-e-plano.md) — G30 varrendo as 3
+  // mutations deste hook (transferido de volta pra Lane D — pacote Clientes
+  // da Lane C é doc-only, não toca este arquivo). Cache guarda a linha crua
+  // do repository (SupabaseContactRow) — mapSupabaseContactToClientContact só
+  // roda no `return` (leitura), nunca no cache — mesmo molde simples de
+  // useSupabaseFinanceTransactions/useSupabaseProjects.
   const createMutation = useMutation({
     mutationFn: (input: SupabaseContactInput) => {
       if (!workspaceId || !clientId) throw new Error("Workspace ou cliente ausente.");
       return clientsRepository.createClientContact(workspaceId, clientId, input);
     },
-    onSuccess: invalidate,
+    onSuccess: (created) => {
+      queryClient.setQueryData<SupabaseContactRow[]>(
+        queryKey,
+        (prev) => [created, ...(prev ?? []).filter((c) => c.id !== created.id)],
+      );
+    },
   });
 
   const updateMutation = useMutation({
@@ -79,15 +83,28 @@ export function useSupabaseClientContacts(workspaceId: string | undefined, clien
       if (!workspaceId) throw new Error("Workspace ausente.");
       return clientsRepository.updateClientContact(workspaceId, contactId, patch);
     },
-    onSuccess: invalidate,
+    onSuccess: (updated) => {
+      queryClient.setQueryData<SupabaseContactRow[]>(
+        queryKey,
+        (prev) => (prev ?? []).map((c) => (c.id === updated.id ? updated : c)),
+      );
+    },
   });
 
+  // deleteClientContact é hard delete de verdade (clientsRepository.ts) —
+  // devolve `true`, não a linha apagada, então o id pra remover do cache vem
+  // da própria variável de entrada da mutation (2º argumento do onSuccess).
   const deleteMutation = useMutation({
     mutationFn: (contactId: string) => {
       if (!workspaceId) throw new Error("Workspace ausente.");
       return clientsRepository.deleteClientContact(workspaceId, contactId);
     },
-    onSuccess: invalidate,
+    onSuccess: (_success, contactId) => {
+      queryClient.setQueryData<SupabaseContactRow[]>(
+        queryKey,
+        (prev) => (prev ?? []).filter((c) => c.id !== contactId),
+      );
+    },
   });
 
   return {

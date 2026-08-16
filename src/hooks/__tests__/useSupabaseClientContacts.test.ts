@@ -2,10 +2,19 @@
 // verdade para clients Supabase-first (antes de C8, a aba "Contatos" mostrava sucesso
 // mas nada era gravado — ver docs/qa/etapa-5-fatia-4-clients.md §4.2).
 //
-// Casos do design (§4.4-c): 1 (criar->refetch persiste), 2 (editar->refetch persiste),
-// 3 (remover->refetch some), 5 (erro isolado por operação), 6 (clientId chega como
-// string, sem coerção). Caso 4 (client local inalterado) e 7 (homologação manual) estão
-// em ContactsTab.test.tsx / fora do escopo automatizado, respectivamente.
+// Casos do design (§4.4-c): 1 (criar->persiste), 2 (editar->persiste), 3 (remover->some),
+// 5 (erro isolado por operação), 6 (clientId chega como string, sem coerção). Caso 4
+// (client local inalterado) e 7 (homologação manual) estão em ContactsTab.test.tsx / fora
+// do escopo automatizado, respectivamente.
+//
+// G60 (docs/architecture/kora-hub-auditoria-e-plano.md) — G30: os casos 1/2/3 abaixo
+// foram escritos originalmente pro padrão invalidate-only (mockavam um 2º retorno de
+// listClientContacts simulando "o refetch pós-invalidação"). Migrados pro molde G30:
+// cada mutation devolve a linha real (mesmo formato que .select().single() do Supabase
+// devolve de verdade) e o hook grava essa resposta direto no cache via setQueryData —
+// nenhum refetch acontece. Os mocks de update/create agora precisam devolver a linha
+// COMPLETA e CORRETA (antes, um mock incompleto não importava, porque o 2º retorno do
+// refetch "corrigia" a leitura por baixo — esse comportamento não existe mais).
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -53,32 +62,34 @@ function makeContact(overrides: Partial<ClientContact> = {}): ClientContact {
   };
 }
 
+function makeRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "real-uuid-1",
+    name: "Deni",
+    role: "Financeiro",
+    email: null,
+    phone: null,
+    whatsapp: null,
+    is_primary: false,
+    is_financial: true,
+    is_decision_maker: false,
+    notes: null,
+    created_at: "2026-07-20T00:00:00Z",
+    updated_at: "2026-07-20T00:00:00Z",
+    ...overrides,
+  };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe("useSupabaseClientContacts — caso 1: criar -> refetch -> persiste", () => {
-  it("cria o contato e o refetch mostra a linha real da nuvem (uuid real, não o id temporário)", async () => {
-    vi.mocked(clientsRepository.listClientContacts)
-      .mockResolvedValueOnce([]) // antes de salvar
-      .mockResolvedValueOnce([
-        {
-          id: "real-uuid-1",
-          name: "Deni",
-          role: "Financeiro",
-          email: null,
-          phone: null,
-          whatsapp: null,
-          is_primary: false,
-          is_financial: true,
-          is_decision_maker: false,
-          notes: null,
-          created_at: "2026-07-20T00:00:00Z",
-          updated_at: "2026-07-20T00:00:00Z",
-        },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ] as any); // após salvar (refetch pós-invalidação)
-    vi.mocked(clientsRepository.createClientContact).mockResolvedValue({ id: "real-uuid-1" } as never);
+describe("useSupabaseClientContacts — caso 1: criar reflete sem refetch (G30)", () => {
+  it("cria o contato e o cache reflete a linha real da nuvem, sem chamar listClientContacts de novo", async () => {
+    vi.mocked(clientsRepository.listClientContacts).mockResolvedValue([]);
+    vi.mocked(clientsRepository.createClientContact).mockResolvedValue(
+      makeRow({ id: "real-uuid-1" }) as never,
+    );
 
     const { result } = renderHook(() => useSupabaseClientContacts(WORKSPACE_ID, CLIENT_ID), {
       wrapper: makeWrapper(),
@@ -89,6 +100,9 @@ describe("useSupabaseClientContacts — caso 1: criar -> refetch -> persiste", (
     const draft = makeContact({ id: "ct-1784521404974-temp" }); // id local, nunca existiu na nuvem
     await result.current.createContact(draft);
 
+    // listClientContacts nunca foi re-chamado pra confirmar a criação — a UI
+    // usa a resposta da própria mutation (G30), não um refetch.
+    expect(clientsRepository.listClientContacts).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(result.current.contacts).toHaveLength(1));
     // A linha que sobrevive é a da nuvem (uuid real) — o id temporário do form nunca é gravado.
     expect(result.current.contacts[0].id).toBe("real-uuid-1");
@@ -101,28 +115,16 @@ describe("useSupabaseClientContacts — caso 1: criar -> refetch -> persiste", (
   });
 });
 
-describe("useSupabaseClientContacts — caso 2: editar -> refetch -> persiste", () => {
-  it("chama updateClientContact com o id real e reflete a mudança após refetch", async () => {
-    const existing = {
-      id: "real-uuid-2",
-      name: "Deni Antigo",
-      role: "Financeiro",
-      email: null,
-      phone: null,
-      whatsapp: null,
-      is_primary: false,
-      is_financial: true,
-      is_decision_maker: false,
-      notes: null,
-      created_at: "2026-07-20T00:00:00Z",
-      updated_at: "2026-07-20T00:00:00Z",
-    };
-    vi.mocked(clientsRepository.listClientContacts)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .mockResolvedValueOnce([existing] as any)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .mockResolvedValueOnce([{ ...existing, name: "Deni Editado" }] as any);
-    vi.mocked(clientsRepository.updateClientContact).mockResolvedValue(existing as never);
+describe("useSupabaseClientContacts — caso 2: editar reflete sem refetch (G30)", () => {
+  it("chama updateClientContact com o id real e reflete a mudança na própria resposta da mutation, sem refetch", async () => {
+    const existing = makeRow({ id: "real-uuid-2", name: "Deni Antigo" });
+    vi.mocked(clientsRepository.listClientContacts).mockResolvedValue([existing] as never);
+    // Mock realista: um UPDATE de verdade (.update(patch).select().single()) devolve a
+    // linha JÁ EDITADA, não a antiga — diferente do mock anterior (pré-G30), que
+    // devolvia `existing` intocado porque só o refetch simulado "corrigia" a leitura.
+    vi.mocked(clientsRepository.updateClientContact).mockResolvedValue(
+      makeRow({ id: "real-uuid-2", name: "Deni Editado" }) as never,
+    );
 
     const { result } = renderHook(() => useSupabaseClientContacts(WORKSPACE_ID, CLIENT_ID), {
       wrapper: makeWrapper(),
@@ -137,30 +139,38 @@ describe("useSupabaseClientContacts — caso 2: editar -> refetch -> persiste", 
       "real-uuid-2",
       expect.objectContaining({ name: "Deni Editado" }),
     );
+    // listClientContacts nunca foi re-chamado — a UI usa a resposta do próprio
+    // UPDATE (G30), não um refetch.
+    expect(clientsRepository.listClientContacts).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(result.current.contacts[0].name).toBe("Deni Editado"));
+  });
+
+  it("preserva os demais contatos do cache — só substitui o que mudou", async () => {
+    const a = makeRow({ id: "real-uuid-a", name: "A" });
+    const b = makeRow({ id: "real-uuid-b", name: "B" });
+    vi.mocked(clientsRepository.listClientContacts).mockResolvedValue([a, b] as never);
+    vi.mocked(clientsRepository.updateClientContact).mockResolvedValue(
+      makeRow({ id: "real-uuid-a", name: "A Editado" }) as never,
+    );
+
+    const { result } = renderHook(() => useSupabaseClientContacts(WORKSPACE_ID, CLIENT_ID), {
+      wrapper: makeWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.contacts).toHaveLength(2));
+
+    await result.current.updateContact(makeContact({ id: "real-uuid-a", name: "A Editado" }));
+
+    await waitFor(() => expect(result.current.contacts.find((c) => c.id === "real-uuid-a")?.name).toBe("A Editado"));
+    expect(result.current.contacts).toHaveLength(2);
+    expect(result.current.contacts.find((c) => c.id === "real-uuid-b")?.name).toBe("B");
   });
 });
 
-describe("useSupabaseClientContacts — caso 3: remover -> refetch -> não reaparece", () => {
-  it("chama deleteClientContact e o refetch já não traz a linha", async () => {
-    const existing = {
-      id: "real-uuid-3",
-      name: "Deni",
-      role: null,
-      email: null,
-      phone: null,
-      whatsapp: null,
-      is_primary: false,
-      is_financial: false,
-      is_decision_maker: false,
-      notes: null,
-      created_at: "2026-07-20T00:00:00Z",
-      updated_at: "2026-07-20T00:00:00Z",
-    };
-    vi.mocked(clientsRepository.listClientContacts)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .mockResolvedValueOnce([existing] as any)
-      .mockResolvedValueOnce([]);
+describe("useSupabaseClientContacts — caso 3: remover some do cache sem refetch (G30)", () => {
+  it("chama deleteClientContact e o contato some do cache imediatamente, sem refetch", async () => {
+    const existing = makeRow({ id: "real-uuid-3", role: null, is_financial: false });
+    vi.mocked(clientsRepository.listClientContacts).mockResolvedValue([existing] as never);
     vi.mocked(clientsRepository.deleteClientContact).mockResolvedValue(true);
 
     const { result } = renderHook(() => useSupabaseClientContacts(WORKSPACE_ID, CLIENT_ID), {
@@ -172,28 +182,18 @@ describe("useSupabaseClientContacts — caso 3: remover -> refetch -> não reapa
     await result.current.deleteContact("real-uuid-3");
 
     expect(clientsRepository.deleteClientContact).toHaveBeenCalledWith(WORKSPACE_ID, "real-uuid-3");
+    // listClientContacts nunca foi re-chamado — deleteClientContact devolve só
+    // `true` (hard delete), o id removido do cache vem da própria variável de
+    // entrada da mutation (G30/G60), não de uma resposta com linha nem de refetch.
+    expect(clientsRepository.listClientContacts).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(result.current.contacts).toHaveLength(0));
   });
 });
 
 describe("useSupabaseClientContacts — caso 5: erro isolado por operação", () => {
   it("uma criação que falha rejeita a chamada e NÃO altera os contatos já carregados", async () => {
-    const existing = {
-      id: "real-uuid-4",
-      name: "Contato Intocado",
-      role: null,
-      email: null,
-      phone: null,
-      whatsapp: null,
-      is_primary: false,
-      is_financial: false,
-      is_decision_maker: false,
-      notes: null,
-      created_at: "2026-07-20T00:00:00Z",
-      updated_at: "2026-07-20T00:00:00Z",
-    };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    vi.mocked(clientsRepository.listClientContacts).mockResolvedValue([existing] as any);
+    const existing = makeRow({ id: "real-uuid-4", name: "Contato Intocado", role: null, is_financial: false });
+    vi.mocked(clientsRepository.listClientContacts).mockResolvedValue([existing] as never);
     vi.mocked(clientsRepository.createClientContact).mockRejectedValue(new Error("network down"));
 
     const { result } = renderHook(() => useSupabaseClientContacts(WORKSPACE_ID, CLIENT_ID), {
@@ -213,7 +213,7 @@ describe("useSupabaseClientContacts — caso 5: erro isolado por operação", ()
 describe("useSupabaseClientContacts — caso 6: clientId chega como string, sem coerção", () => {
   it("repassa o clientId string (uuid) intacto pro repository, sem virar number", async () => {
     vi.mocked(clientsRepository.listClientContacts).mockResolvedValue([]);
-    vi.mocked(clientsRepository.createClientContact).mockResolvedValue({ id: "x" } as never);
+    vi.mocked(clientsRepository.createClientContact).mockResolvedValue(makeRow({ id: "x" }) as never);
 
     const { result } = renderHook(() => useSupabaseClientContacts(WORKSPACE_ID, CLIENT_ID), {
       wrapper: makeWrapper(),
