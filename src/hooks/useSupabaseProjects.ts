@@ -43,16 +43,19 @@ export function useSupabaseProjects() {
     staleTime: 30_000,
   });
 
-  const invalidate = useCallback(
-    () => queryClient.invalidateQueries({ queryKey: ["supabase-projects", workspaceId] }),
-    [queryClient, workspaceId],
-  );
-
   // Criação NATIVA (não vem de um registro local a importar) — mesmo
   // precedente de buildNativeSourceLocalId() em useSupabaseQuotes.ts (Q10):
   // prefixo "native:" nunca colide com o formato de import
   // ("${installId}:${localId}"), e cada chamada gera um valor novo, então
   // duas criações nunca competem pelo mesmo source_local_id.
+  //
+  // G60 (docs/architecture/kora-hub-auditoria-e-plano.md) — G30 aplicado aqui
+  // também: o fix original (Fase D, Caso 2) só corrigiu `updateMutation`
+  // abaixo, deixando `createMutation` com o mesmo padrão invalidate-only que
+  // causou o bug original (drawer preso mostrando dado velho até o refetch).
+  // Mesmo molde de `useSupabaseFinanceTransactions.createMutation` — grava a
+  // linha devolvida pelo próprio INSERT direto no cache, prefixada (mais
+  // recente primeiro), nunca dependendo de um refetch subsequente.
   const createMutation = useMutation({
     mutationFn: (input: NewProjectInput) => {
       // mapLocalProjectToSupabase só lê os campos de negócio (name, clientName,
@@ -68,7 +71,12 @@ export function useSupabaseProjects() {
       const payload = mapLocalProjectToSupabase(projectLike, readProjectImportMaps());
       return projectsRepository.importProject(workspaceId, buildNativeSourceLocalId(), payload);
     },
-    onSuccess: invalidate,
+    onSuccess: (created) => {
+      queryClient.setQueryData<SupabaseProject[]>(
+        queryKey,
+        (prev) => [created, ...(prev ?? []).filter((p) => p.id !== created.id)],
+      );
+    },
   });
 
   // G30 (Fase D, Caso 2) — grava a linha devolvida pelo próprio UPDATE

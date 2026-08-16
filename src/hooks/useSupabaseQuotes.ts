@@ -7,7 +7,7 @@
 import { useCallback, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
-import { quotesRepository } from "@/repositories/quotesRepository";
+import { quotesRepository, type SupabaseQuote } from "@/repositories/quotesRepository";
 import {
   mapLocalQuoteToSupabaseQuote,
   mapSupabaseQuoteToLocalQuote,
@@ -72,8 +72,23 @@ export function useSupabaseQuotes() {
     staleTime: 30_000,
   });
 
-  const invalidate = useCallback(
-    () => queryClient.invalidateQueries({ queryKey: ["supabase-quotes", workspaceId] }),
+  // G60 (docs/architecture/kora-hub-auditoria-e-plano.md) — G30 varrendo as 6
+  // mutations deste hook (nenhuma tinha sido corrigida antes; `invalidate`
+  // fica só para os fluxos que não têm resposta própria pra gravar). Molde de
+  // `useSupabaseFinanceTransactions`, adaptado: aqui o cache guarda `Quote[]`
+  // já MAPEADO (`fetchQuotesWithItems`), não a linha crua — cada mutation
+  // precisa passar a resposta por `mapSupabaseQuoteToLocalQuote` antes de
+  // gravar. Como esse mapper sempre devolve `items: []` (não busca itens),
+  // `mergeQuotePatch` preserva os `items` já cacheados da quote — nenhuma das
+  // 3 mutations de patch (status/update/archive) toca em itens.
+  const mergeQuotePatch = useCallback(
+    (supa: SupabaseQuote) => {
+      const mapped = mapSupabaseQuoteToLocalQuote(supa);
+      queryClient.setQueryData<Quote[]>(
+        ["supabase-quotes", workspaceId],
+        (prev) => (prev ?? []).map((q) => (q.id === mapped.id ? { ...mapped, items: q.items } : q)),
+      );
+    },
     [queryClient, workspaceId],
   );
 
@@ -95,16 +110,26 @@ export function useSupabaseQuotes() {
         supaItems,
       );
     },
-    onSuccess: invalidate,
+    // A RPC devolve só a linha-pai — os itens já são conhecidos localmente
+    // (`variables.items`, acabaram de ser enviados), evita reler pra montar
+    // o objeto completo que vai pro cache.
+    onSuccess: (created, variables) => {
+      const newQuote = mapSupabaseQuoteToLocalQuote(created);
+      newQuote.items = variables.items;
+      queryClient.setQueryData<Quote[]>(
+        queryKey,
+        (prev) => [newQuote, ...(prev ?? []).filter((q) => q.id !== newQuote.id)],
+      );
+    },
   });
 
   // Etapa 5 · Fatia 10 (item 8, §3) — mesmo método genérico do repository
   // (item 2), exposto como mutation pra QuotesSection.tsx poder usar com
-  // invalidação automática de cache, igual às demais mutations deste hook.
+  // reflexo imediato no cache, igual às demais mutations deste hook.
   const updateStatusMutation = useMutation({
     mutationFn: ({ quoteId, status }: { quoteId: string; status: Quote["status"] }) =>
       quotesRepository.updateStatus(workspaceId, quoteId, status),
-    onSuccess: invalidate,
+    onSuccess: mergeQuotePatch,
   });
 
   const updateMutation = useMutation({
@@ -115,25 +140,43 @@ export function useSupabaseQuotes() {
       if (patch.status) supaPatch.status = patch.status;
       return quotesRepository.updateQuote(workspaceId, quoteId, supaPatch);
     },
-    onSuccess: invalidate,
+    onSuccess: mergeQuotePatch,
   });
 
   const archiveMutation = useMutation({
     mutationFn: ({ quoteId, archived }: { quoteId: string; archived: boolean }) =>
       quotesRepository.archiveQuote(workspaceId, quoteId, archived),
-    onSuccess: invalidate,
+    onSuccess: mergeQuotePatch,
   });
 
+  // softDeleteQuote não entra no molde de mergeQuotePatch: listQuotes já
+  // filtra deleted_at IS NULL (quotesRepository.ts) — uma quote excluída sai
+  // da lista, não fica "atualizada" nela. Mesmo tratamento de
+  // useSupabaseFinanceTransactions.deleteMutation (filter, não map).
   const softDeleteMutation = useMutation({
     mutationFn: ({ quoteId, reason }: { quoteId: string; reason?: string }) =>
       quotesRepository.softDeleteQuote(workspaceId, quoteId, reason),
-    onSuccess: invalidate,
+    onSuccess: (deleted) => {
+      queryClient.setQueryData<Quote[]>(
+        queryKey,
+        (prev) => (prev ?? []).filter((q) => q.id !== deleted.id),
+      );
+    },
   });
 
+  // replaceQuoteItems devolve os itens novos (SupabaseQuoteItem[]), não a
+  // quote — só o campo `items` da quote correspondente é substituído no
+  // cache, os demais campos (status/título/etc.) ficam intocados.
   const replaceItemsMutation = useMutation({
     mutationFn: ({ quoteId, items }: { quoteId: string; items: QuoteItem[] }) =>
       quotesRepository.replaceQuoteItems(workspaceId, quoteId, items.map(mapLocalQuoteItemToSupabaseItem)),
-    onSuccess: invalidate,
+    onSuccess: (newItems, variables) => {
+      const mappedItems = newItems.map(mapSupabaseQuoteItemToLocalItem);
+      queryClient.setQueryData<Quote[]>(
+        queryKey,
+        (prev) => (prev ?? []).map((q) => (q.id === variables.quoteId ? { ...q, items: mappedItems } : q)),
+      );
+    },
   });
 
   // Fatia 10 · Fase D (incidente #2) — mesma correção de
