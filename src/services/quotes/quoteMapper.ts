@@ -191,6 +191,17 @@ export function mapSupabaseQuoteToLocalQuote(sq: SupabaseQuote): Quote {
     status,
     cloudStatusRaw,
     createdAt: sq.created_at?.slice(0, 10) ?? "",
+    // Decisão registrada (rodada de verificação do backlog da auditoria de
+    // leitura, `docs/qa/etapa-5-auditoria-leitura-nuvem-local.md` §1.4) —
+    // `isDemo: false` hardcoded de propósito, NÃO um campo esquecido:
+    // `public.quotes` não tem coluna `is_demo` (confirmado lendo TODAS as
+    // migrations da tabela — `20260531030000_create_quotes_schema.sql` e as
+    // 4 ALTER TABLE subsequentes, nenhuma adiciona a coluna). Também
+    // estruturalmente seguro mesmo se a coluna existisse um dia:
+    // `useLocalQuotesImport.ts:141` (`if (local.isDemo) continue;`) já
+    // impede qualquer quote demo de chegar na nuvem pelo import, e a criação
+    // nativa (`useSupabaseQuotes.createMutation`) nunca marca is_demo — não
+    // existe hoje um caminho real que produza uma quote nuvem demo.
     isDemo: false,
     company: sq.company ?? undefined,
     notes: sq.notes ?? undefined,
@@ -205,11 +216,52 @@ export function mapSupabaseQuoteToLocalQuote(sq: SupabaseQuote): Quote {
     // uuid via cast, mesmo molde de useClientsDataSource.ts:9/G67-ext.
     clientId: sq.client_id ? (sq.client_id as unknown as number) : undefined,
     opportunityId: sq.opportunity_id ? (sq.opportunity_id as unknown as number) : undefined,
+    // ACHADO registrado, NÃO corrigido nesta rodada (rodada de verificação do
+    // backlog, `docs/qa/etapa-5-auditoria-leitura-nuvem-local.md` §1.4) —
+    // `sq.updated_at` nunca é lido pra `Quote.updatedAt` (existe no tipo
+    // local, existe na coluna cloud). Tem consumidor real:
+    // `buildCommercialEvents.ts` (linha ~102, evento "Orçamento vencido")
+    // usa `parseDate(q.updatedAt) ?? parseDate(q.sentAt) ?? parseDate(q.createdAt)`
+    // — hoje sempre cai no fallback `createdAt` pra quote nuvem (`updatedAt`/
+    // `sentAt` sempre undefined), então a data do evento é menos precisa do
+    // que poderia ser (usa a criação, não a última atualização real). Risco
+    // BAIXO/MÉDIO — degrada precisão de UI, não perde dado nem quebra nada.
+    // Fix proposto (não aplicado aqui): `updatedAt: sq.updated_at ?? undefined`,
+    // 1 linha, mesmo molde de `createdAt` acima. NÃO aplicado nesta rodada
+    // porque o único consumidor conhecido (`buildCommercialEvents.ts`) é
+    // arquivo em voo da Lane C (refactor de activityTimeline) — decisão de
+    // quando aplicar fica com o revisor/lane dona do arquivo.
     // other optional fields left undefined or defaulted
   } as Quote;
 }
 
-/** Convert a local QuoteItem to Supabase record */
+/**
+ * Convert a local QuoteItem to Supabase record.
+ *
+ * ACHADO registrado, NÃO corrigido nesta rodada (rodada de verificação do
+ * backlog, `docs/qa/etapa-5-auditoria-leitura-nuvem-local.md` §1.5) —
+ * `service_id: undefined` é hardcoded aqui, mesmo quando `item.serviceId`
+ * tem um valor real: `QuotesSection.tsx` (`addServiceItem`, fluxo "+
+ * Adicionar serviço do catálogo") grava `serviceId: svc.id` genuinamente.
+ * Consumidor real do lado de leitura: `ServicesSection.tsx:216-224`
+ * (`usageMap`/"serviço mais usado" — conta `item.serviceId` em todas as
+ * quotes) — hoje SUBCONTA silenciosamente qualquer item de quote nuvem,
+ * porque `serviceId` nunca sobrevive ao espelho (nem na escrita, aqui, nem
+ * na leitura, `mapSupabaseQuoteItemToLocalItem` abaixo).
+ *
+ * NÃO é um fix de 1 linha, diferente dos outros achados desta auditoria:
+ * `service_id` é uma coluna `uuid` (`quote_items`, migration
+ * `20260531030000_create_quotes_schema.sql:28`), mas o catálogo de Serviços
+ * (`useServices.ts`) é 100% local — sem tabela Supabase própria, sem
+ * import-map (`grep` por `servicesRepository`/`SupabaseService` no repo
+ * inteiro → zero resultados). `Service.id` local (`svc-${Date.now()}`)
+ * NUNCA é um uuid válido — mandar cru pra essa coluna violaria a mesma
+ * regra de segurança (Q4) que todo `resolve*Fk` deste repo já aplica.
+ * Enviar `service_id` de verdade exigiria primeiro um catálogo de Serviços
+ * na nuvem (tabela + import-map, mesmo desenho de clients/quotes/projects/
+ * tasks/crm) — fora do escopo de um fix pontual. Fica registrado como
+ * proposta de escopo maior, decisão de priorização com o revisor.
+ */
 export function mapLocalQuoteItemToSupabaseItem(
   item: QuoteItem,
 ): Omit<SupabaseQuoteItem, "id" | "quote_id" | "created_at" | "updated_at"> {
