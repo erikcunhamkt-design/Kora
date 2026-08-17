@@ -368,4 +368,25 @@ Mesmo critério operacional do precedente de `projects`/`quotes` (fixado em text
 - Não substitui os gates permanentes do protocolo (EXPORT MANUAL, PRINT PRÉ-CLIQUE, prova de servidor §17) — só aponta onde cada um entra nesta fatia especificamente.
 - Não reabre nenhuma das 4 divergências de produto catalogadas em G41 (`clientId`/`opportunityId`/`clientName`/`category`/`paymentMethod` hardcoded em `CreateReceivableDialog`) — ficam como estão, fora de escopo deste runbook.
 
+---
+
+## 6. Fechamento da Fase D — sign-off
+
+**Placar: 8/8 casos verdes — 2026-08-17. Domínio Financeiro: HOMOLOGADO.** Limpeza (Caso 8) confirmada pelo operador com resíduo zero (`count(*) = 0` para `HOMOLOG-FIN-%`, §Caso 8 acima).
+
+**Hashes-chave da homologação:**
+- Flip dos defaults (Fase C): `fc55c20`.
+- G55 — gate fóssil `blockWrite()` bloqueando "Gerar conta a receber" pós-cutover: `a7b110d`.
+- G56 — colisão de idempotência silenciosa entre os 2 diálogos de recebível (aviso de colisão adicionado): `de1ce9b`.
+- G68 (leitura) — `mapSupabaseQuoteToLocalQuote` perdia `client_id`/`opportunity_id` uuid, 2ª extensão do G67: `cd8bb26`.
+
+**Fluxo real documentado (retest, ver Emenda pós-retest no §3, Caso 4):** aprovar um orçamento **pelo painel de preview** abre `QuoteToReceivableDialog` sozinho, 250ms depois, sem clique nenhum em "Gerar conta a receber" — comportamento esperado do produto (`QuotesSection.tsx:677-686`, mapeado no adendo do G56, `kora-hub-auditoria-e-plano.md`), não um vermelho de teste. Quem reexecutar este runbook precisa reconhecer esse gatilho antes de marcar qualquer coisa como anômala.
+
+**Ressalvas registradas (não bloqueiam o HOMOLOGADO, não viram vermelho):**
+- **(a)** O aviso de UX previsto pro uso dos 4 campos sem coluna cloud (`recurrence`/`supplierId`/`cashAccountId`/`notes`, §5.1) não dispara na prática — usuário não é avisado que esses campos não viajam pro Supabase. Registrado como item de fila (débito de UX, não incidente) — ver abaixo.
+- **(b)** A lista de transações em modo Supabase não oferece "Editar" apesar do banner/UX sugerir que a edição está disponível. Registrado como item de fila (débito de UX, não incidente) — ver abaixo.
+- **(c)** G69 (detecção de recebível derivada da fonte de verdade, substituindo `quote.financeEntryId` em modo Supabase) foi **aprovado pós-sign-off** — a Fase D fechou 8/8 sem esperar por ele porque nenhum dos 8 casos do runbook dependia dele; a implementação segue como rodada separada (catálogo mestre, entrada G69).
+
+**Referência:** este runbook (Casos 1-8 acima), `kora-hub-auditoria-e-plano.md` (G55/G56/G68/G69), adendo do G56 (mapa de call sites + fluxo real do auto-open).
+
 **PARADO aqui — este runbook segue sendo preparação, mesmo com a Fase B fechada. Execução real da Fase C (flip) e Fase D (homologação) só com um novo "vai" que autorize especificamente abrir a Fase C — e só depois do gate do §1.3 (as 2 migrations aplicadas pelo operador, com confirmação por escrito) fechar.**
