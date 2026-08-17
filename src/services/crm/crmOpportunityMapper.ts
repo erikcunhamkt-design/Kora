@@ -122,6 +122,14 @@ export function mapSupabaseOpportunityToLocalLead(opportunity: SupabaseOpportuni
     estimatedValue: Number(opportunity.potential_value || 0),
     priority: (opportunity.priority as Priority) || "média",
     lastInteraction: opportunity.updated_at ? intlDate(opportunity.updated_at) : intlDate(new Date()),
+    // Decisão registrada (auditoria de leitura nuvem→local,
+    // `docs/qa/etapa-5-auditoria-leitura-nuvem-local.md` §1.6) — `opportunity.status`
+    // NUNCA é lido aqui, de propósito: `Lead` local não tem campo `status`, só
+    // `stage`. Não é uma FK perdida (lição G61: campo sem decisão registrada
+    // vira "esquecido" na próxima auditoria) — `status` cloud já É um espelho
+    // DERIVADO de `stage` (ver a escrita, `mapLocalLeadToSupabaseOpportunity`
+    // acima: `status: stage === "fechado" ? "won" : ...`), não uma fonte de
+    // informação nova a resgatar na leitura.
     stage,
     pipelineId: "default",
     stageId: stage,
@@ -148,6 +156,10 @@ export function mapSupabaseOpportunityToLocalLead(opportunity: SupabaseOpportuni
     nextActionDate: opportunity.next_action_date || undefined,
     expectedCloseDate: opportunity.expected_close_date || undefined,
     wonAt: opportunity.won_at || undefined,
+    // Decisão registrada (mesma auditoria/§1.6 citada acima) — `opportunity.lost_at`
+    // NUNCA é lido aqui, de propósito: `Lead` local não tem campo `lostAt`
+    // (só `lostReason`, sem timestamp) — assimetria com `won_at`/`wonAt`
+    // (que TEM par local) é estrutural, não um esquecimento.
     lostReason: opportunity.lost_reason || undefined,
     convertedClientId: opportunity.converted_client_id
       ? (opportunity.converted_client_id as unknown as number)

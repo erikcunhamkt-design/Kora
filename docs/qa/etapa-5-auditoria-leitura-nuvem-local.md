@@ -144,14 +144,14 @@ SQL, listo como achado **não confirmado**, não classificado.
 uma quote já conhecida; local `QuoteItem` não tem campos de timestamp
 próprios — consistente com o tipo).
 
-### 1.6 `crmOpportunityMapper.mapSupabaseOpportunityToLocalLead` — ⚠️ 2 achados (baixo risco, plausivelmente redundantes)
+### 1.6 `crmOpportunityMapper.mapSupabaseOpportunityToLocalLead` — ✅ DECISÃO DOCUMENTADA (rodada-relâmpago, comment-only)
 
 `SupabaseOpportunity` (`crmOpportunitiesRepository.ts:14-51`): 32 campos.
 
 | Campo cloud | Lido? | Observação |
 |---|---|---|
-| `status` | ❌ nunca lido | `Lead` local **não tem campo `status`** (só `stage`). Plausível redundância: a escrita (`mapLocalLeadToSupabaseOpportunity:60`) já deriva `status` a partir de `stage` (`stage === "fechado" ? "won" : ...`) — ou seja, `status` cloud é um espelho DERIVADO de `stage`, não uma fonte de informação nova. Não encontrei comentário que registre isso como decisão explícita — plausível, mas não documentado. |
-| `lost_at` | ❌ nunca lido | `Lead` local **não tem campo `lostAt`** (só `lostReason`, sem timestamp) — mesma classe de ausência estrutural do `status` acima, também não documentada explicitamente. `won_at` tem contraparte (`wonAt`, lido) — a assimetria (um dos dois pares tem campo local, o outro não) não é explicada em nenhum comentário. |
+| `status` | ❌ nunca lido | `Lead` local **não tem campo `status`** (só `stage`). Redundância: a escrita (`mapLocalLeadToSupabaseOpportunity:60`) já deriva `status` a partir de `stage` (`stage === "fechado" ? "won" : ...`) — `status` cloud é um espelho DERIVADO de `stage`, não uma fonte de informação nova. **Decisão agora registrada em comentário** (`crmOpportunityMapper.ts`, junto da atribuição de `stage`) — lição G61 aplicada: decisão sem comentário vira "campo esquecido" na próxima auditoria. |
+| `lost_at` | ❌ nunca lido | `Lead` local **não tem campo `lostAt`** (só `lostReason`, sem timestamp) — mesma classe de ausência estrutural do `status` acima. `won_at` tem contraparte (`wonAt`, lido) — a assimetria é estrutural, não um esquecimento. **Decisão agora registrada em comentário** (`crmOpportunityMapper.ts`, junto de `lostReason`). |
 
 Já corrigidos nesta etapa (G67-ext, não reabertos aqui): `client_id`,
 `converted_client_id`. Todos os demais 28 campos são lidos ou estruturalmente
@@ -196,15 +196,15 @@ pra fechar o cruzamento pedido.
 
 | Mapper | Campo cloud | Atribuído? | Classificação | Evidência |
 |---|---|---|---|---|
-| `tasksMapper` | `sort_order` | ❌ | **Esquecida** (não documentada), risco baixo — escrita já hardcoda 0 | `tasksMapper.ts:263-300` (função), `tasksRepository.ts:20` (coluna) |
+| `tasksMapper` | `sort_order` | ❌ | **Backlog de verificação futura** (inerte — escrita já hardcoda 0, sem fix agora) | `tasksMapper.ts:263-300` (função), `tasksRepository.ts:20` (coluna) |
 | `tasksMapper` | `opportunity_id` | ❌ | **Decidida/documentada** — ausência estrutural, comentário `tasksMapper.ts:9-12` | `tasksMapper.ts:9-12` |
 | `quoteMapper` (quote) | `client_id` | ✅ (corrigido em `cd8bb26`) | Era **Esquecida** (risco ALTO) — fechada pela Lane A antes do merge desta auditoria, 2ª extensão do G67 | `quoteMapper.ts:206-207`, `useSupabaseQuotes.ts:49-60`, `QuotesSection.tsx:527,530` |
 | `quoteMapper` (quote) | `opportunity_id` | ✅ (corrigido em `cd8bb26`) | Idem — mesmo fix, mesmo commit | `quoteMapper.ts:206-207` |
-| `quoteMapper` (quote) | `updated_at` | ❌ | **Esquecida**, risco baixo (nenhum consumidor crítico achado) | `quoteMapper.ts:171-201`, `useQuotes.ts:59` |
-| `quoteMapper` (quote) | `is_demo` | ❌ (hardcoded `false`) | **Não confirmada** — possível omissão em 2 camadas (tipo + leitura), coluna não verificada via SQL nesta rodada | `quoteMapper.ts:194` |
-| `quoteMapper` (item) | `service_id` | ❌ | **Esquecida**, risco baixo — inerte nos 2 sentidos (escrita também hardcoda `undefined`) | `quoteMapper.ts:217-224` |
-| `crmOpportunityMapper` | `status` | ❌ | **Plausivelmente decidida** (redundante com `stage`), mas não documentada explicitamente | `crmOpportunityMapper.ts:110-152` |
-| `crmOpportunityMapper` | `lost_at` | ❌ | **Plausivelmente decidida** (`Lead` não tem `lostAt`), não documentada explicitamente | `crmOpportunityMapper.ts:110-152` |
+| `quoteMapper` (quote) | `updated_at` | ❌ | **Backlog de verificação futura**, risco baixo (nenhum consumidor crítico achado), sem fix agora | `quoteMapper.ts:171-201`, `useQuotes.ts:59` |
+| `quoteMapper` (quote) | `is_demo` | ❌ (hardcoded `false`) | **Backlog de verificação futura** — possível omissão em 2 camadas (tipo + leitura), coluna não verificada via SQL nesta rodada, sem fix agora | `quoteMapper.ts:194` |
+| `quoteMapper` (item) | `service_id` | ❌ | **Backlog de verificação futura** (inerte — escrita também hardcoda `undefined`, sem fix agora) | `quoteMapper.ts:217-224` |
+| `crmOpportunityMapper` | `status` | ❌ | **Decidida/documentada** (rodada-relâmpago, comment-only) — redundante com `stage` | `crmOpportunityMapper.ts:124-131` |
+| `crmOpportunityMapper` | `lost_at` | ❌ | **Decidida/documentada** (rodada-relâmpago, comment-only) — `Lead` não tem `lostAt` | `crmOpportunityMapper.ts:150-153` |
 | `mapSupabaseToLocalSheet` | `accesses` (via `raw_payload`) | ❌ | **Decidida/documentada** — já catalogado, território G63/Lane E | `etapa-5-flip-fichas-pacote.md:141,150` |
 | `mapSupabaseToLocalSheet` | `competitors` (via `raw_payload`) | ❌ | **Decidida/documentada** — idem | `etapa-5-flip-fichas-pacote.md:142,151` |
 | `projectsMapper` | — | — | ✅ Conforme, nenhuma omissão | §1.1 |
@@ -215,11 +215,11 @@ pra fechar o cruzamento pedido.
 
 ## 3. Fechamento
 
-**Nenhuma linha de código alterada** — inventário puro, conforme instrução.
-Nenhum arquivo em voo de outra lane tocado (`CRM.tsx`, `Financeiro.tsx`,
-`ClientTechnicalSheet.tsx`/`technicalSheet*`, `quoteMapper.ts`,
-`QuotesSection.tsx`/`QuoteToReceivableDialog.tsx` — todos só lidos, não
-editados).
+**Rodada original (inventário)**: nenhuma linha de código alterada, inventário
+puro, conforme instrução. Nenhum arquivo em voo de outra lane tocado
+(`CRM.tsx`, `Financeiro.tsx`, `ClientTechnicalSheet.tsx`/`technicalSheet*`,
+`quoteMapper.ts`, `QuotesSection.tsx`/`QuoteToReceivableDialog.tsx` — todos só
+lidos, não editados).
 
 **Achado central — corrigido antes do merge**: `quoteMapper.mapSupabaseQuoteToLocalQuote`
 não lia `client_id`/`opportunity_id` (existem no tipo local, existem na
@@ -228,17 +228,19 @@ modo Supabase. Fechado pela Lane A em `cd8bb26`, catalogado como 2ª extensão
 do G67, antes desta auditoria chegar ao merge — a nota de coordenação do
 achado original se confirmou útil (evitou uma rodada de fix duplicada).
 
-**Achados secundários de baixo risco** (`sort_order`/`service_id`, ambos
-inertes nos 2 sentidos hoje): registrados, não corrigidos, sem urgência.
-
-**Achados plausivelmente decididos mas não documentados**
-(`crmOpportunityMapper.status`/`lost_at`): registrados para o dono do
-domínio decidir se vale a pena formalizar a decisão em comentário ou tratar
-como gap real.
+**Rodada-relâmpago (comment-only, pós-merge da Parte 1)**: os 2 achados
+"plausivelmente decididos mas não documentados" (`crmOpportunityMapper.status`/
+`lost_at`) ganharam comentário de decisão no próprio mapper — lição G61
+aplicada ("decisão sem comentário vira campo esquecido pra próxima
+auditoria"). Nenhuma linha de lógica mudou, só comentários. Os 3 achados
+inertes de baixo risco (`tasksMapper.sort_order`, `quoteMapper` (item)
+`.service_id`, `quoteMapper` (quote) `.updated_at`/`.is_demo`) foram
+formalmente registrados como **backlog de verificação futura** — sem fix
+nesta rodada, sem urgência (todos inertes nos 2 sentidos hoje, ou de impacto
+não confirmado).
 
 **Já coberto por trabalho existente, não reaberto**: `accesses`/`competitors`
-de Fichas Técnicas (G63, Lane E) e `is_demo` de quote (achado não confirmado,
-precisa checar a coluna real antes de virar um G).
+de Fichas Técnicas (G63, Lane E).
 
 ## Referências
 
