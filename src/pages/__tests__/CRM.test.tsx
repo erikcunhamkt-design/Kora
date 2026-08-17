@@ -52,6 +52,7 @@ vi.mock("@/repositories/crmOpportunitiesRepository", () => ({
     deleteOpportunity: vi.fn(),
     createOpportunity: vi.fn(),
     restoreSoftDeletedOpportunity: vi.fn(),
+    moveOpportunityStage: vi.fn(),
     listOpportunities: vi.fn().mockResolvedValue([]),
   },
 }));
@@ -96,6 +97,30 @@ const PIPELINE = {
     { id: "fechado", name: "Fechado", color: "#0a0", order: 1, type: "won" as const },
   ],
 };
+
+// G64 — funil customizado ("Gerenciar funis"): ids arbitrários
+// (não um dos 6 StageKey fixos), 1º estágio já "open" pra testar o caminho
+// de criação sem precisar de nenhum <Select> de estágio (a UI de criação
+// não tem um — sempre usa stages[0] do pipeline ativo).
+const CUSTOM_PIPELINE = {
+  id: "custom1",
+  name: "Funil B2B",
+  isDefault: false,
+  createdAt: "2026-01-01T00:00:00Z",
+  updatedAt: "2026-01-01T00:00:00Z",
+  stages: [
+    { id: "s_prospec", name: "Prospecção", color: "#888", order: 0, type: "open" as const },
+    { id: "s_ganhamos", name: "Ganhamos", color: "#0a0", order: 1, type: "won" as const },
+  ],
+};
+
+/** Acha o <input> associado a um <Label> pelo texto (sem htmlFor/id nesta tela — mesmo wrapper div). */
+function fieldInput(labelText: string): HTMLInputElement {
+  const label = screen.getByText(labelText);
+  const input = label.parentElement?.querySelector("input");
+  if (!input) throw new Error(`Input não encontrado pro campo "${labelText}"`);
+  return input as HTMLInputElement;
+}
 
 function makeLocalLead(overrides: Partial<Lead> = {}): Lead {
   return {
@@ -582,5 +607,194 @@ describe("CRM · G62 (salvar pipeline) — gate fóssil bare-call removido, escr
     await waitFor(() => expect(updatePipeline).toHaveBeenCalledTimes(1));
     expect(updatePipeline).toHaveBeenCalledWith("default", expect.objectContaining({ name: "Pipeline Principal" }));
     expect(toast.error).not.toHaveBeenCalledWith(expect.stringContaining("próxima etapa"));
+  });
+});
+
+describe("CRM · G64 item 1 (funis customizados) — criação em Supabase grava o estágio real, não coage pro pipeline padrão", () => {
+  it("funil customizado: cria oportunidade com stage='s_prospec' (id real), não 'lead' (fallback do pipeline padrão)", async () => {
+    vi.mocked(usePipelines).mockReturnValue({
+      pipelines: [CUSTOM_PIPELINE], activePipeline: CUSTOM_PIPELINE, activePipelineId: "custom1",
+      setActivePipelineId: vi.fn(), addPipeline: vi.fn(), updatePipeline: vi.fn(), deletePipeline: vi.fn(),
+    } as never);
+    vi.mocked(useLeads).mockReturnValue({
+      leads: [], addLead: vi.fn(), moveLead: vi.fn(), moveLeadToStage: vi.fn(), moveLeadToPipeline: vi.fn(),
+      updateLead: vi.fn(), archiveLead: vi.fn(), deleteLead: vi.fn(), setLeadTags: vi.fn(), markConverted: vi.fn(),
+    } as never);
+    vi.mocked(useSupabaseCrmWriteFlag).mockReturnValue({ enabled: true, setEnabled: vi.fn(), toggle: vi.fn() });
+    vi.mocked(useSupabaseOpportunities).mockReturnValue({
+      opportunities: [], loading: false, error: null, refresh: vi.fn(),
+    } as never);
+    vi.mocked(crmOpportunitiesRepository.createOpportunity).mockResolvedValue(
+      makeSupabaseOpportunity({ id: "new-opp", stage: "s_prospec" }) as never,
+    );
+    localStorage.setItem(CRM_DATA_SOURCE_KEY, "supabase");
+
+    renderCRM();
+    fireEvent.click(screen.getByText("Nova oportunidade"));
+    fireEvent.change(fieldInput("Nome / contato*"), { target: { value: "Lead B2B" } });
+    fireEvent.change(fieldInput("Email"), { target: { value: "leadb2b@teste.com" } });
+    fireEvent.click(await screen.findByText("Criar oportunidade"));
+
+    await waitFor(() => expect(crmOpportunitiesRepository.createOpportunity).toHaveBeenCalledTimes(1));
+    const payload = vi.mocked(crmOpportunitiesRepository.createOpportunity).mock.calls[0][1];
+    expect(payload.stage).toBe("s_prospec");
+    expect(payload.status).toBe("open");
+  });
+
+  it("funil customizado com 1º estágio type='won': cria oportunidade já com status='won' (deriva de PipelineStage.type, não de string literal)", async () => {
+    const wonFirstPipeline = { ...CUSTOM_PIPELINE, stages: [CUSTOM_PIPELINE.stages[1], { ...CUSTOM_PIPELINE.stages[0], order: 1 }] };
+    vi.mocked(usePipelines).mockReturnValue({
+      pipelines: [wonFirstPipeline], activePipeline: wonFirstPipeline, activePipelineId: "custom1",
+      setActivePipelineId: vi.fn(), addPipeline: vi.fn(), updatePipeline: vi.fn(), deletePipeline: vi.fn(),
+    } as never);
+    vi.mocked(useLeads).mockReturnValue({
+      leads: [], addLead: vi.fn(), moveLead: vi.fn(), moveLeadToStage: vi.fn(), moveLeadToPipeline: vi.fn(),
+      updateLead: vi.fn(), archiveLead: vi.fn(), deleteLead: vi.fn(), setLeadTags: vi.fn(), markConverted: vi.fn(),
+    } as never);
+    vi.mocked(useSupabaseCrmWriteFlag).mockReturnValue({ enabled: true, setEnabled: vi.fn(), toggle: vi.fn() });
+    vi.mocked(useSupabaseOpportunities).mockReturnValue({
+      opportunities: [], loading: false, error: null, refresh: vi.fn(),
+    } as never);
+    vi.mocked(crmOpportunitiesRepository.createOpportunity).mockResolvedValue(
+      makeSupabaseOpportunity({ id: "new-opp", stage: "s_ganhamos" }) as never,
+    );
+    localStorage.setItem(CRM_DATA_SOURCE_KEY, "supabase");
+
+    renderCRM();
+    fireEvent.click(screen.getByText("Nova oportunidade"));
+    fireEvent.change(fieldInput("Nome / contato*"), { target: { value: "Lead Fechado Direto" } });
+    fireEvent.change(fieldInput("Email"), { target: { value: "fechado@teste.com" } });
+    fireEvent.click(await screen.findByText("Criar oportunidade"));
+
+    await waitFor(() => expect(crmOpportunitiesRepository.createOpportunity).toHaveBeenCalledTimes(1));
+    const payload = vi.mocked(crmOpportunitiesRepository.createOpportunity).mock.calls[0][1];
+    expect(payload.stage).toBe("s_ganhamos");
+    expect(payload.status).toBe("won");
+  });
+});
+
+describe("CRM · G64 item 1 (funis customizados) — mover card passa PipelineStage.type pro repository", () => {
+  it("mover card pra estágio customizado chama moveOpportunityStage(..., stage.id, stage.type) — não só o id", async () => {
+    const leadNuvem = makeSupabaseOpportunity({ stage: "s_prospec" });
+    // mapSupabaseOpportunityToLocalLead hardcoda pipelineId:"default" pra
+    // todo lead de origem Supabase (crmOpportunityMapper.ts:126) — o
+    // pipeline ativo precisa ter id "default" pro card aparecer na lista
+    // filtrada por pipeline, mesmo simulando estágios customizados nele
+    // (cenário real: usuário editou os estágios do pipeline padrão via
+    // "Gerenciar funis", não criou um pipeline novo).
+    const customDefaultPipeline = { ...CUSTOM_PIPELINE, id: "default" };
+    vi.mocked(usePipelines).mockReturnValue({
+      pipelines: [customDefaultPipeline], activePipeline: customDefaultPipeline, activePipelineId: "default",
+      setActivePipelineId: vi.fn(), addPipeline: vi.fn(), updatePipeline: vi.fn(), deletePipeline: vi.fn(),
+    } as never);
+    vi.mocked(useLeads).mockReturnValue({
+      leads: [], addLead: vi.fn(), moveLead: vi.fn(), moveLeadToStage: vi.fn(), moveLeadToPipeline: vi.fn(),
+      updateLead: vi.fn(), archiveLead: vi.fn(), deleteLead: vi.fn(), setLeadTags: vi.fn(), markConverted: vi.fn(),
+    } as never);
+    vi.mocked(useSupabaseCrmWriteFlag).mockReturnValue({ enabled: true, setEnabled: vi.fn(), toggle: vi.fn() });
+    vi.mocked(useSupabaseOpportunities).mockReturnValue({
+      opportunities: [leadNuvem], loading: false, error: null, refresh: vi.fn(),
+    } as never);
+    vi.mocked(crmOpportunitiesRepository.moveOpportunityStage).mockResolvedValue(
+      makeSupabaseOpportunity({ stage: "s_ganhamos", status: "won" }) as never,
+    );
+    localStorage.setItem(CRM_DATA_SOURCE_KEY, "supabase");
+
+    renderCRM();
+    await openLeadMenu("Lead Nuvem");
+    const subTrigger = screen.getByText("Mover para etapa");
+    fireEvent.pointerDown(subTrigger, { button: 0, pointerId: 1, isPrimary: true });
+    fireEvent.pointerUp(subTrigger, { button: 0, pointerId: 1, isPrimary: true });
+    fireEvent.click(subTrigger);
+    const stageItem = await screen.findByRole("menuitem", { name: "Ganhamos" });
+    fireEvent.pointerDown(stageItem, { button: 0, pointerId: 1, isPrimary: true });
+    fireEvent.pointerUp(stageItem, { button: 0, pointerId: 1, isPrimary: true });
+    fireEvent.click(stageItem);
+
+    await waitFor(() => expect(crmOpportunitiesRepository.moveOpportunityStage).toHaveBeenCalledTimes(1));
+    expect(crmOpportunitiesRepository.moveOpportunityStage).toHaveBeenCalledWith(
+      "ws1", "opp-uuid-homolog", "s_ganhamos", "won",
+    );
+  });
+});
+
+describe("CRM · G64 itens 2/3 (deep link + consumidor local-only) — clientId bifurcado por useClientsDataSource(), comparação por string", () => {
+  it("?newOpportunity=1&clientId=<uuid>: cliente só-nuvem (nunca em useClients() local) preenche o form via useClientsDataSource()", async () => {
+    vi.mocked(useClientsDataSource).mockReturnValue({
+      source: "supabase", addClient: vi.fn(),
+      clients: [{
+        id: "client-uuid-1", name: "Cliente Nuvem", company: "Empresa Nuvem", email: "cliente@nuvem.com",
+        phone: "11999998888", whatsapp: "", instagram: "", site: "", serviceType: "Branding",
+        status: "Ativo", potentialValue: 5000, lastProject: "", lastInteraction: "", observations: "",
+        projects: [], tasks: [], temperature: "Quente", origin: "Indicação",
+      }] as never,
+    } as never);
+    vi.mocked(useLeads).mockReturnValue({
+      leads: [], addLead: vi.fn(), moveLead: vi.fn(), moveLeadToStage: vi.fn(), moveLeadToPipeline: vi.fn(),
+      updateLead: vi.fn(), archiveLead: vi.fn(), deleteLead: vi.fn(), setLeadTags: vi.fn(), markConverted: vi.fn(),
+    } as never);
+    vi.mocked(useSupabaseOpportunities).mockReturnValue({
+      opportunities: [], loading: false, error: null, refresh: vi.fn(),
+    } as never);
+
+    render(
+      <MemoryRouter initialEntries={["/crm?newOpportunity=1&clientId=client-uuid-1"]}>
+        <CRM />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Vinculada a um cliente existente.")).toBeInTheDocument();
+    expect(fieldInput("Nome / contato*").value).toBe("Cliente Nuvem");
+    expect(fieldInput("Empresa").value).toBe("Empresa Nuvem");
+  });
+
+  it("clientId sem correspondência: form abre em branco, sem quebrar (regressão do caminho antigo Number(id)+useClients())", async () => {
+    vi.mocked(useClientsDataSource).mockReturnValue({
+      source: "supabase", addClient: vi.fn(), clients: [],
+    } as never);
+    vi.mocked(useLeads).mockReturnValue({
+      leads: [], addLead: vi.fn(), moveLead: vi.fn(), moveLeadToStage: vi.fn(), moveLeadToPipeline: vi.fn(),
+      updateLead: vi.fn(), archiveLead: vi.fn(), deleteLead: vi.fn(), setLeadTags: vi.fn(), markConverted: vi.fn(),
+    } as never);
+    vi.mocked(useSupabaseOpportunities).mockReturnValue({
+      opportunities: [], loading: false, error: null, refresh: vi.fn(),
+    } as never);
+
+    render(
+      <MemoryRouter initialEntries={["/crm?newOpportunity=1&clientId=client-uuid-inexistente"]}>
+        <CRM />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Adicione uma oportunidade ao pipeline ativo.")).toBeInTheDocument();
+    expect(fieldInput("Nome / contato*").value).toBe("");
+  });
+
+  it("modo local (cliente com id numérico local): continua vinculando normalmente — zero regressão", async () => {
+    vi.mocked(useClientsDataSource).mockReturnValue({
+      source: "local", addClient: vi.fn(),
+      clients: [{
+        id: 42, name: "Cliente Local", company: "Empresa Local", email: "local@teste.com",
+        phone: "11988887777", whatsapp: "", instagram: "", site: "", serviceType: "Geral",
+        status: "Ativo", potentialValue: 1000, lastProject: "", lastInteraction: "", observations: "",
+        projects: [], tasks: [], temperature: "Morno", origin: "",
+      }] as never,
+    } as never);
+    vi.mocked(useLeads).mockReturnValue({
+      leads: [], addLead: vi.fn(), moveLead: vi.fn(), moveLeadToStage: vi.fn(), moveLeadToPipeline: vi.fn(),
+      updateLead: vi.fn(), archiveLead: vi.fn(), deleteLead: vi.fn(), setLeadTags: vi.fn(), markConverted: vi.fn(),
+    } as never);
+    vi.mocked(useSupabaseOpportunities).mockReturnValue({
+      opportunities: [], loading: false, error: null, refresh: vi.fn(),
+    } as never);
+
+    render(
+      <MemoryRouter initialEntries={["/crm?newOpportunity=1&clientId=42"]}>
+        <CRM />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Vinculada a um cliente existente.")).toBeInTheDocument();
+    expect(fieldInput("Nome / contato*").value).toBe("Cliente Local");
   });
 });

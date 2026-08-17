@@ -908,6 +908,96 @@ Fix autorizado pelo revisor após o adendo de verificação (0 linhas expostas).
 
 ---
 
+**G64 — Funis customizados: `NewLeadDialog` coagia o estágio pros 6 valores do pipeline padrão na criação, e `moveOpportunityStage` derivava won/lost comparando string literal "fechado"/"perdido" em vez de `PipelineStage.type` — os dois quebram silenciosamente pra qualquer funil criado via "Gerenciar funis". [MÉDIO — confirmado e FECHADO, mesma classe do G33/G55/G58-G59/G62 (gate/lógica presa a um vocabulário que deixou de ser universal), aqui aplicada a `stage`/`status`, não a um gate de escrita]**
+Achado da própria Lane C, catalogado no draft de CHECK de CRM
+(`docs/qa/etapa-5-flip-crm-rodada3-check-drafts.md` §1) e fechado nesta
+rodada — junto com o achado irmão do G67 (`CRM.tsx:399`, mesmo padrão de
+deep link quebrado do QuotesSection), registrado abaixo como itens 2/3 sem
+número novo.
+
+### Item 1 — funis customizados (o achado que reservou este número)
+
+- **Causa raiz (criação):** `NewLeadDialog.handleSave` (`CRM.tsx`) sempre
+  coagia `form.stageId` (id real do estágio, pode ser customizado) pra um
+  dos 6 valores fixos de `StageKey`, com fallback `"lead"` — necessário pro
+  modelo LOCAL (`Lead.stage` é tipado `StageKey`), mas o `onSave` do
+  componente pai usava esse valor JÁ COAGIDO (`data.stage`) pra montar o
+  payload da nuvem, descartando o `data.stageId` real que a própria
+  `NewLeadDialog` já enviava. `crm_opportunities.stage` é TEXT livre sem
+  CHECK (confirmado no draft de CRM, §1) — não havia motivo pra nuvem herdar
+  a mesma limitação do modelo local.
+- **Causa raiz (mover estágio):** `crmOpportunitiesRepository.moveOpportunityStage`
+  derivava `status` comparando `stage === "fechado"`/`"perdido"` — só bate
+  no pipeline padrão. `CRM.tsx:handleMoveToStage` já tinha o
+  `PipelineStage` completo (com `.type`) no momento da chamada, mas só
+  passava `stage.id` pro repository — a informação de tipo (`"won"`/`"lost"`/`"open"`)
+  ficava pra trás. Um funil customizado com estágio de fechamento de id
+  diferente (`s_ganhamos`, por exemplo) nunca disparava `status:"won"`
+  por este caminho.
+- **Fix:** (a) `onSave` (criação) monta `stageObj = stages.find(s => s.id === data.stageId)`
+  e usa `stage: data.stageId || data.stage || "lead"` (id real) +
+  `status` derivado de `stageObj?.type`, não da string. (b)
+  `moveOpportunityStage` ganha um 4º parâmetro opcional `stageType`, usado
+  pra derivar `status`/`won_at`/`lost_at` — `handleMoveToStage` passa
+  `stage.type` na chamada. Retrocompatível: sem `stageType`, cai em
+  `"open"` (mesmo comportamento do `else` de antes).
+- **Testes novos:** `crmOpportunitiesRepository.test.ts` (novo arquivo, 5
+  testes unitários do repository, mockando só `supabase.from`) — estágio
+  customizado com `type:"won"`/`"lost"` deriva certo; estágio cujo ID
+  coincide com "fechado" mas `type:"open"` NÃO vira won (prova que a
+  derivação não voltou a ler string); sem `stageType` cai em "open"
+  (retrocompat); pipeline padrão continua funcionando (zero regressão). 3
+  dos 5 falham contra o código anterior — os 2 que passam nos dois lados são
+  guardas de regressão, não diferenciadores. `CRM.test.tsx` (3 testes
+  novos): criação em funil customizado grava `stage` real; criação num
+  funil cujo 1º estágio já é `type:"won"` grava `status:"won"` direto;
+  mover card customizado chama `moveOpportunityStage(..., stage.id, stage.type)`.
+
+### Itens 2/3 — deep link + consumidor local-only (achado irmão do G67, fechado aqui sem número novo)
+
+`CRM.tsx:399` (deep link `?newOpportunity=1&clientId=X`) tinha o mesmíssimo
+defeito que o G67 (acima) fechou em `QuotesSection.tsx`: lia `useClients()`
+(sempre local) e comparava `Number(searchParams.get("clientId"))` contra
+`c.id` — em modo Supabase, `client.id` é um uuid contrabandeado como
+`number`, `Number(uuid)` vira `NaN`, e o seed do form era pulado em
+silêncio. Era também o ÚNICO uso restante de `useClients()`/`clients` em
+`CRM.tsx` fora do fallback local de `handleConvertToClient` (G58) — ou
+seja, o item 2 (deep link) e o item 3 (consumidor local-only, mesma classe
+do G66) colapsam na MESMA correção: `clients` do componente passou a vir de
+`useClientsDataSource()` (já importado desde o G58/G59), e a comparação
+virou `String(c.id) === cidParam`, sem `Number()`. `addClient` (local,
+fallback de `handleConvertToClient`) não foi tocado — continua vindo de
+`useClients()`, fora de escopo.
+
+- **Testes novos** (`CRM.test.tsx`, 3 testes): cliente só-nuvem (uuid, nunca
+  em `useClients()` local) preenche o form via deep link; `clientId` sem
+  correspondência abre em branco sem quebrar (regressão do bug antigo);
+  modo local (`id` numérico) continua vinculando — zero regressão.
+
+### Fail→fix→pass — método §14-A (patch), não `git stash`
+
+`git diff -- <arquivo> > scratchpad/patch` → `git checkout -- <arquivo>` →
+roda teste (falha) → `git apply scratchpad/patch` (reaplica do índice já
+staged) → roda teste (passa). Aplicado 2x nesta rodada: uma vez pra
+`crmOpportunitiesRepository.ts` (3/5 falham sem o fix), uma vez pro arquivo
+inteiro `CRM.tsx` (item 1 + itens 2/3 juntos, mesmo arquivo — 5/6 falham
+sem o fix; o 6º, "clientId sem correspondência", passa nos dois lados por
+coincidência, mesma classe de guarda de regressão).
+
+- **Gates:** `npm run gates` → tsc 0 erros, lint 0 erros/0 warnings, vitest
+  todos passando (baseline + 5 repo + 6 CRM = +11 testes).
+- **Não tocado:** `Financeiro.tsx`, `ClientTechnicalSheet.tsx`, arquivos de
+  outras lanes — escopo estritamente `CRM.tsx`/`crmOpportunitiesRepository.ts`,
+  território exclusivo da Lane C nesta rodada (registrado em
+  `etapa-5-flip-clientes-pacote.md` §4).
+- **Referência:** `docs/qa/etapa-5-flip-crm-rodada3-check-drafts.md` §1
+  (achado original do vocabulário dinâmico de `stage`), G67 acima (mesma
+  classe do item 2/3, precedente direto de fix), G66 (mesma classe do item
+  3), G33/G55/G58-G59/G62 (mesma família de "lógica presa a um vocabulário
+  que deixou de ser universal").
+
+---
+
 **G65 — `git stash` colide entre worktrees do mesmo `.git` — `refs/stash` é do repositório inteiro, não por-worktree; a prova fail→fix→pass via stash pode restaurar o arquivo de OUTRA lane e perder o fix da atual, silenciosamente. [ALTO — confirmado por incidente real, recuperado sem perda de dado dos dois lados]**
 Achado ao vivo durante a rodada de limpeza do G62 (`CRM.tsx:487`/`:610`, commit `0feb815`), ao rodar `git stash push -- src/pages/CRM.tsx` / `git stash pop` pra provar zero mudança de comportamento (padrão usado extensivamente nesta sessão inteira, por todas as lanes, pra prova fail→fix→pass).
 

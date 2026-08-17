@@ -174,14 +174,22 @@ export const crmOpportunitiesRepository = {
     return data;
   },
 
-  async moveOpportunityStage(workspaceId: string, opportunityId: string, stage: string) {
+  // G64 — `stageType` vem de `PipelineStage.type` (chamador decide, tem o
+  // objeto completo) — não mais uma comparação de string literal
+  // "fechado"/"perdido" contra `stage` (que só bate no pipeline padrão; um
+  // funil customizado com estágio de fechamento de id diferente nunca
+  // disparava won/lost por este caminho). `stageType` opcional preserva a
+  // assinatura pra qualquer chamador que ainda não tenha o tipo à mão —
+  // nesse caso cai em "open", mesmo comportamento do `else` de antes pra
+  // qualquer stage que não seja won/lost.
+  async moveOpportunityStage(workspaceId: string, opportunityId: string, stage: string, stageType?: "open" | "won" | "lost") {
     const patch: Partial<SupabaseOpportunityInput> = { stage };
-    if (stage === "fechado") {
+    if (stageType === "won") {
       patch.won_at = new Date().toISOString();
       patch.lost_at = null;
       patch.lost_reason = null;
       patch.status = "won";
-    } else if (stage === "perdido") {
+    } else if (stageType === "lost") {
       patch.lost_at = new Date().toISOString();
       patch.won_at = null;
       patch.status = "lost";

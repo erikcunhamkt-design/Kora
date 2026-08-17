@@ -145,13 +145,17 @@ const CRM = () => {
     addPipeline, updatePipeline, deletePipeline,
   } = usePipelines();
   const { getRulesForPipeline } = usePipelineAutomations();
-  const { addClient, clients } = useClients();
+  const { addClient } = useClients();
   // G58 — mesmo caminho de escrita que Clientes.tsx usa (Supabase-first
   // quando há workspace, fallback local idêntico ao de sempre) — antes,
   // handleConvertToClient gravava só local incondicional, então um cliente
   // convertido pelo CRM não aparecia na tela principal de Clientes (que já
   // é Supabase-first desde a Fatia 4).
-  const { source: clientsSource, addClient: addSupabaseClient } = useClientsDataSource();
+  // G64 — `clients` (bifurcado) também alimenta o deep link
+  // ?newOpportunity=1&clientId=X abaixo — antes lia useClients() (sempre
+  // local) e comparava Number(id), quebrando em silêncio contra um uuid da
+  // nuvem (mesma classe do G67 em QuotesSection).
+  const { source: clientsSource, addClient: addSupabaseClient, clients } = useClientsDataSource();
   const { activeTypes } = useClientTypes();
   const { wouldExceed, showPaywall, setUsage } = usePlan();
   const navigate = useNavigate();
@@ -396,8 +400,8 @@ const CRM = () => {
   // ----- Deep link: ?newOpportunity=1&clientId=X -----
   useEffect(() => {
     if (searchParams.get("newOpportunity") !== "1") return;
-    const cid = Number(searchParams.get("clientId"));
-    const client = clients.find((c) => c.id === cid);
+    const cidParam = searchParams.get("clientId");
+    const client = cidParam ? clients.find((c) => String(c.id) === cidParam) : undefined;
     if (client) {
       const tempMap: Record<string, LeadTemperature> = { Quente: "quente", Morno: "morno", Frio: "frio" };
       setNewLeadInitial({
@@ -577,7 +581,7 @@ const CRM = () => {
       // Optimistic update inside local State by temporary patch / hook refresh
       toast.info("Sincronizando alteração de estágio no Supabase...");
       try {
-        await crmOpportunitiesRepository.moveOpportunityStage(workspace.id, lead.supabaseId, stage.id);
+        await crmOpportunitiesRepository.moveOpportunityStage(workspace.id, lead.supabaseId, stage.id, stage.type);
         
         // Log locally (Success cases only)
         try {
@@ -1198,6 +1202,21 @@ const CRM = () => {
                 }
               }
 
+              // G64 — `data.stage` é `StageKey` coagido pra 1 dos 6 valores
+              // fixos do pipeline padrão (`NewLeadDialog.handleSave`,
+              // obrigatório ali porque `Lead.stage` LOCAL é tipado
+              // `StageKey`) — `data.stageId` carrega o id real do pipeline
+              // (pode ser customizado, "Gerenciar funis"). `crm_opportunities.stage`
+              // é TEXT livre sem CHECK (confirmado em
+              // docs/qa/etapa-5-flip-crm-rodada3-check-drafts.md §1), então a
+              // nuvem deve gravar o estágio real — mesmo contrato que
+              // `moveOpportunityStage` já grava sem coerção nenhuma. Won/lost
+              // deriva de `PipelineStage.type`, não de comparar a string
+              // literal "fechado"/"perdido" (que só existe no pipeline
+              // padrão) — mesmo padrão que `wonCount`/`totalActive` (acima)
+              // já usam pro lado local.
+              const stageObj = stages.find((s) => s.id === data.stageId);
+
               const payload: SupabaseOpportunityInput = {
                 title: data.name,
                 company: data.company || null,
@@ -1205,8 +1224,8 @@ const CRM = () => {
                 email: data.email || null,
                 phone: data.phone || null,
                 whatsapp: data.phone || null,
-                stage: data.stage || "lead",
-                status: data.stage === "fechado" ? "won" : data.stage === "perdido" ? "lost" : "open",
+                stage: data.stageId || data.stage || "lead",
+                status: stageObj?.type === "won" ? "won" : stageObj?.type === "lost" ? "lost" : "open",
                 source: data.source || data.origin || null,
                 temperature: data.temperature || "não definida",
                 priority: data.priority || "média",
