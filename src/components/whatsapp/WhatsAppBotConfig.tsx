@@ -142,7 +142,26 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
         // Try parsing flow_data from DB
         const savedFlow = data.flow_data;
         if (savedFlow && Array.isArray(savedFlow)) {
-          setNodes(savedFlow as unknown as WorkflowNode[]);
+          // G71: flow_data não carrega mais geminiApiKey/gcpServiceAccount
+          // (produtor sanitiza no save, ver handleSaveSettings) — reidrata
+          // o no "ai" a partir das colunas dedicadas, senão o formulário
+          // reabriria com os campos de senha em branco mesmo com credencial
+          // gravada. Também cobre linhas antigas (salvas antes do G71, ainda
+          // com a credencial dentro do jsonb): a coluna dedicada sempre
+          // prevalece.
+          const rehydrated = (savedFlow as unknown as WorkflowNode[]).map((node) =>
+            node.type === "ai"
+              ? {
+                  ...node,
+                  properties: {
+                    ...node.properties,
+                    geminiApiKey: data.gemini_api_key || "",
+                    gcpServiceAccount: data.gcp_service_account || "",
+                  },
+                }
+              : node,
+          );
+          setNodes(rehydrated);
         } else {
           // Fallback legacy conversion
           const legacyInstruction = data.system_instruction || "Você é o atendente virtual do KORA Hub. Seja prestativo, educado e conciso.";
@@ -242,6 +261,21 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
       ? aiNode.properties.customModelName 
       : aiNode.properties.model;
 
+    // G71: flow_data é lido de volta tanto por esta tela (loadSettings)
+    // quanto pela edge function whatsapp-bot-reply (nó "ai" do fluxo visual)
+    // — mas a credencial real já tem coluna dedicada logo abaixo
+    // (gemini_api_key/gcp_service_account, gravadas no MESMO payload).
+    // Duplicá-la dentro do jsonb sem redação é o mesmo padrão-raiz do G63
+    // (raw_payload). Sanitiza só esses 2 campos antes de serializar — o
+    // resto do fluxo (instruction/provider/model) não é segredo e continua
+    // igual. `nodes` (estado do formulário) permanece intacto, só
+    // `sanitizedNodes` vai pro payload.
+    const sanitizedNodes = nodes.map((node) =>
+      node.type === "ai"
+        ? { ...node, properties: { ...node.properties, geminiApiKey: "", gcpServiceAccount: "" } }
+        : node,
+    );
+
     try {
       const payload: BotSettingsInsert = {
         workspace_id: workspaceId,
@@ -254,7 +288,7 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
         gcp_region: aiNode.properties.gcpRegion || null,
         gcp_service_account: aiNode.properties.gcpServiceAccount || null,
         respond_all: triggerNode.properties.respondAll,
-        flow_data: nodes as unknown as Json, // Save visual workflow JSON structures
+        flow_data: sanitizedNodes as unknown as Json, // G71: sem geminiApiKey/gcpServiceAccount no no "ai"
       };
 
       if (settings?.id) {
