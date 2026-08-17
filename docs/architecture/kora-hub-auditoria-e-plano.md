@@ -737,6 +737,20 @@ Achado pela Lane C ao completar o runbook de homologação da Fase B do Pacote d
 
 ---
 
+**G53 — Gap de catalogação: as fundações de Fase B de Tarefas (mapper de leitura, passthrough de UUID, G30) foram entregues em código rotulado "G53" (commit `bc5f5fb`, 15/ago/2026) mas nunca ganharam entrada própria neste catálogo — sequência pulava de G52 pra G55. [BAIXO — confirmado e FECHADO, classe "trabalho real entregue e testado, só a catalogação ficou pra trás" — mesmo espírito do G60/G68, mas em nível de REGISTRO, não de correção de lição]**
+Gap apontado pela Lane C durante a revalidação do pacote de Tarefas contra o main atual (`docs/qa/etapa-5-flip-tarefas-pacote.md`, adendo de 16/ago/2026) — o código já existia, testado e mergeado havia um dia, mas o número "G53" só existia dentro de comentários/mensagens de commit, nunca como entrada numerada aqui. Catalogado agora, retroativamente, pela própria Lane D (dona das fundações) — trabalho de documentação, não de código.
+
+- **Escopo real de G53** (3 fundações independentes da decisão de convivência com `public.tasks`, `etapa-5-flip-tarefas-pacote.md` §3 — nenhum default mudou, nenhum consumidor bifurcou):
+  1. `tasksMapper.mapSupabaseTaskToLocal` — direção nuvem→local, payload completo desde o dia 1 (lição G37 do `financeMapper`). Tratamento campo a campo dos 7 gaps de schema (membro neutro pra enum, coleção vazia pra array, `undefined` pra FK-shaped) e uso de `normalizeCloudTaskStatus` (G40) na leitura de status.
+  2. `tasksMapper.resolveTaskFk` — passthrough de UUID (G37), mesmo molde literal de `resolveProjectFk`/`resolveFinanceFk`.
+  3. `useSupabaseProjectTasks.updateStatus` — G30: grava a linha devolvida pelo próprio UPDATE direto no cache (`setQueryData`), em vez de só invalidar e esperar refetch.
+- **Testes:** fail→fix→pass nas 3 frentes (17 testes novos falhando contra o código antigo, restaurado e 32/32 verdes) — já provados no commit original, não refeitos aqui.
+- **Por que a lacuna aconteceu:** a rodada que produziu o commit foi orientada pelo revisor com o rótulo "G53" já reservado no prompt (mesma convenção de ID pré-reservado usada noutras rodadas desta sessão), mas o passo de "adicionar entrada ao catálogo mestre" não fazia parte do escopo daquela tarefa específica — diferente de outras rodadas desta sessão, onde catalogar era um item explícito da instrução. Sem processo que force a sincronização automática, o número ficou só no código.
+- **Fix:** esta entrada. Nenhuma linha de código tocada — G53 já estava correto e testado, só precisava do registro.
+- **Referência:** commit `bc5f5fb` (implementação original), `docs/qa/etapa-5-flip-tarefas-pacote.md` §3 (desenho das 3 fundações) e §7 (plano de Fase B que motivou a revalidação e achou o gap), G37 (precedente do padrão de payload completo/passthrough UUID), G30 (padrão do fix em `updateStatus`), G40 (`normalizeCloudTaskStatus`, já consumido pelo mapper).
+
+---
+
 **G55 — "Gerar conta a receber" (Vendas → orçamento aprovado) ficava bloqueado em modo Supabase por `blockWrite()`, o MESMO gate fóssil de `quotes` do G33, agora apontando pra um cutover de `finance` já concluído. [MÉDIO — confirmado e FECHADO, classe "gate fóssil cobrindo ação errada" (irmão do G33/G29 — 2ª ocorrência da classe em cutover)]**
 Achado na Fase D (homologação) de Financeiro, Caso 4.3, BUILD `54f7fea`. Com um orçamento aprovado em modo Supabase, clicar "Gerar conta a receber" (atalho do menu ⋯ ou dentro do "Ver") disparava o mesmo toast fóssil de `blockWrite()` ("Edição de orçamentos no modo Supabase chega numa próxima fatia — volte para Local para editar") e nada acontecia. O banner da tela reforçava o mesmo estado obsoleto ("Gerar recebível ainda chega numa próxima fatia (cutover de Financeiro)").
 

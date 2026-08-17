@@ -31,6 +31,25 @@ export interface SupabaseTask {
 }
 
 export const tasksRepository = {
+  // G53 (fundações de Fase B, `etapa-5-flip-tarefas-pacote.md` §3.4/§7 B2) —
+  // leitura de TODAS as tarefas do workspace, não escopada a 1 projeto (molde
+  // de `projectsRepository.listProjects`/`financeRepository.listTransactions`:
+  // filtra soft-delete, ordena por `created_at desc` — diferente de
+  // `listTasksByProject`, que ordena por `sort_order`/`created_at` asc pro
+  // quadro de um projeto específico). Alimenta `useSupabaseTasksAll`, a tela
+  // principal de Tarefas (fora do escopo de um projeto único).
+  async listTasks(workspaceId: string): Promise<SupabaseTask[]> {
+    const { data, error } = await supabase
+      .from("tasks")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false });
+
+    if (error) throw normalizeSupabaseError(error);
+    return (data as SupabaseTask[]) || [];
+  },
+
   async listTasksByProject(workspaceId: string, projectId: string): Promise<SupabaseTask[]> {
     const { data, error } = await supabase
       .from("tasks")

@@ -140,6 +140,19 @@ export const PROJECTS_DATA_SOURCE_KEY = "kora.projects.dataSource.v1";
  */
 export const FINANCE_DATA_SOURCE_KEY = "kora.finance.dataSource.v1";
 
+/**
+ * G53/B3 (fundações de Fase B de Tarefas, `etapa-5-flip-tarefas-pacote.md`
+ * §7) — seletor de fonte de dados de `tasks`. Nasce no MESMO molde de
+ * nascimento de `quotes`/`projects`/`finance` (Fatia N deles, ANTES do
+ * respectivo Pacote do Flip): default **"local"**, só "supabase" explícito
+ * seleciona nuvem — P5 do protocolo (nunca herdar o default às cegas antes
+ * de qualquer homologação de escrita existir; Fase B de Tarefas ainda não
+ * tem escrita nativa em modo Supabase, B5 no plano). O flip do default pra
+ * "supabase" fica pra Fase C de Tarefas (B6 do plano), quando B1-B5
+ * fecharem — mesmo padrão que os 3 domínios irmãos já seguiram.
+ */
+export const TASKS_DATA_SOURCE_KEY = "kora.tasks.dataSource.v1";
+
 // ── acesso seguro a localStorage (SSR-safe / storage desabilitado) ──────────
 
 function safeGet(key: string): string | null {
@@ -236,6 +249,20 @@ export function getFinanceDataSource(): DataSource {
 
 export function setFinanceDataSource(source: DataSource): void {
   safeSet(FINANCE_DATA_SOURCE_KEY, source);
+}
+
+// ── seletor de fonte de tasks (string plana; default "local" pré-flip — G53/B3) ──
+
+/** Só "supabase" explícito seleciona nuvem; qualquer outro valor (ausente,
+ * "local", malformado) ⇒ "local" — nasce pré-flip, mesmo molde de
+ * `getFinanceDataSource()`/`getProjectsDataSource()`/`getQuotesDataSource()`
+ * ANTES dos respectivos Pacotes do Flip flipar o default. */
+export function getTasksDataSource(): DataSource {
+  return safeGet(TASKS_DATA_SOURCE_KEY) === "supabase" ? "supabase" : "local";
+}
+
+export function setTasksDataSource(source: DataSource): void {
+  safeSet(TASKS_DATA_SOURCE_KEY, source);
 }
 
 // ── seletor de fonte da ficha técnica (mapa JSON por cliente; default "supabase") ──
