@@ -108,8 +108,16 @@ export function CreateReceivableDialog({
       // §5) — nunca upsert direto contra um índice parcial. Falha aqui NUNCA desfaz
       // nem bloqueia o lançamento local acima (espelho nunca é refém, nem o local é
       // refém dele).
+      // G70 — gap de escopo do G56: o fix original comparou o `title` devolvido
+      // contra o enviado só em QuoteToReceivableDialog.tsx (Vendas), o outro
+      // produtor que compartilha a MESMA constraint/mesma createReceivableFromQuote
+      // (`ux_ft_receivable_from_quote`, no máximo 1 recebível vivo por quote_id)
+      // nunca ganhou a mesma detecção — um 2º clique aqui (ex.: quote já tem
+      // recebível gerado via Vendas) devolvia a linha existente em silêncio,
+      // mesmo sintoma do G56, sem aviso nenhum pro usuário. Mesmo texto do fix
+      // original, por consistência de UX entre os 2 diálogos.
       try {
-        await financeRepository.createReceivableFromQuote(workspaceId, {
+        const mirrored = await financeRepository.createReceivableFromQuote(workspaceId, {
           quote_id: quoteId,
           client_id: clientId ?? null,
           opportunity_id: opportunityId ?? null,
@@ -118,6 +126,15 @@ export function CreateReceivableDialog({
           amount,
           due_date: dueDate,
         });
+        if (mirrored.title !== title) {
+          console.warn(
+            "Espelho do recebível colidiu com um recebível já existente pra este orçamento (ux_ft_receivable_from_quote) — categoria/forma de pagamento desta tela NÃO chegaram na nuvem.",
+            { localTransactionId: tx.id, existingCloudTitle: mirrored.title },
+          );
+          toast.warning("Este orçamento já tem uma conta a receber na nuvem — categoria e forma de pagamento escolhidas aqui ficaram só no local.", {
+            description: "Veja/edite o recebível existente na tela Financeiro.",
+          });
+        }
       } catch (mirrorErr) {
         console.error("Espelho nuvem do recebível falhou (local já gravado):", mirrorErr);
         toast.warning("Recebível salvo localmente, mas o espelho no Supabase falhou.", {

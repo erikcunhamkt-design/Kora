@@ -41,7 +41,13 @@ describe("CreateReceivableDialog — G22 dual-write", () => {
   });
 
   it("feliz: grava local E espelha na nuvem com os campos certos", async () => {
-    vi.mocked(financeRepository.createReceivableFromQuote).mockResolvedValue({ id: "ft-1" } as never);
+    // G70 — mock precisa devolver o MESMO title enviado (comportamento real de
+    // um insert sem colisão); sem isso a checagem nova (mirrored.title !==
+    // title) dispararia o aviso de colisão falsamente neste teste.
+    vi.mocked(financeRepository.createReceivableFromQuote).mockResolvedValue({
+      id: "ft-1",
+      title: "Recebível - Identidade visual Acme",
+    } as never);
     const onSuccess = vi.fn();
 
     render(<CreateReceivableDialog {...baseProps} onSuccess={onSuccess} />);
@@ -88,8 +94,12 @@ describe("CreateReceivableDialog — G22 dual-write", () => {
     // catch(23505)+re-consulta, que a 2ª chamada para o mesmo quote_id nunca duplica —
     // testado isoladamente em financeRepository.test.ts. Aqui só provamos que o diálogo
     // SEMPRE invoca esse mesmo caminho (nunca um upsert próprio nem um caminho alternativo),
-    // com o mesmo quote_id, em toda geração.
-    vi.mocked(financeRepository.createReceivableFromQuote).mockResolvedValue({ id: "ft-existente" } as never);
+    // com o mesmo quote_id, em toda geração. Título batendo com o enviado em ambas as
+    // chamadas — cenário SEM colisão (a checagem de colisão em si é o describe "G70" abaixo).
+    vi.mocked(financeRepository.createReceivableFromQuote).mockResolvedValue({
+      id: "ft-existente",
+      title: "Recebível - Identidade visual Acme",
+    } as never);
     const onSuccess = vi.fn();
 
     const { unmount } = render(<CreateReceivableDialog {...baseProps} onSuccess={onSuccess} />);
@@ -117,7 +127,10 @@ describe("CreateReceivableDialog — G41 (quoteId ausente no lançamento local)"
   it("addTransaction (local) recebe quoteId, alinhado ao mesmo campo que QuoteToReceivableDialog já grava", async () => {
     const addTransaction = vi.fn(() => ({ id: "tx-local-1" }));
     vi.mocked(useFinance).mockReturnValue({ addTransaction } as never);
-    vi.mocked(financeRepository.createReceivableFromQuote).mockResolvedValue({ id: "ft-1" } as never);
+    vi.mocked(financeRepository.createReceivableFromQuote).mockResolvedValue({
+      id: "ft-1",
+      title: "Recebível - Identidade visual Acme",
+    } as never);
     const onSuccess = vi.fn();
 
     render(<CreateReceivableDialog {...baseProps} onSuccess={onSuccess} />);
@@ -128,5 +141,69 @@ describe("CreateReceivableDialog — G41 (quoteId ausente no lançamento local)"
     expect(addTransaction).toHaveBeenCalledWith(
       expect.objectContaining({ quoteId: "quote-uuid-1" }),
     );
+  });
+});
+
+// G70 — gap de escopo do G56: o fix original (QuoteToReceivableDialog.tsx,
+// Vendas) comparou o title devolvido pelo mirror contra o enviado pra
+// detectar "devolveu a linha de outro recebível" (ux_ft_receivable_from_quote,
+// no máximo 1 recebível vivo por quote_id) — mas o produtor gêmeo deste
+// arquivo (CreateReceivableDialog.tsx, CRM, disparado por
+// LinkedQuotesSection.tsx:248-255 "Gerar recebível") nunca ganhou a mesma
+// checagem. Um 2º clique aqui pra um orçamento que já tem recebível (gerado
+// antes via Vendas, ou até um 2º clique aqui mesmo) devolvia a linha
+// existente em silêncio, sem aviso — mesmo sintoma do G56, produtor
+// diferente.
+describe("CreateReceivableDialog — G70 (colisão silenciosa, mesma proteção do G56)", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.clearAllMocks();
+    const addTransaction = vi.fn(() => ({ id: "tx-local-1" }));
+    vi.mocked(useFinance).mockReturnValue({ addTransaction } as never);
+  });
+
+  it("colisão: título devolvido diverge do enviado → dispara toast.warning (mesmo texto do G56)", async () => {
+    // Simula o cenário real do achado: o orçamento já tem um recebível vivo
+    // na nuvem (gerado antes via QuoteToReceivableDialog, com um título de
+    // formato diferente) — createReceivableFromQuote devolve essa linha
+    // EXISTENTE em vez de criar uma nova (mesmo comportamento idempotente
+    // que já protege contra duplicata no banco, ux_ft_receivable_from_quote).
+    vi.mocked(financeRepository.createReceivableFromQuote).mockResolvedValue({
+      id: "ft-existente-do-vendas",
+      title: "Orçamento aprovado — Identidade visual Acme",
+    } as never);
+    const onSuccess = vi.fn();
+
+    render(<CreateReceivableDialog {...baseProps} onSuccess={onSuccess} />);
+    fireEvent.click(screen.getByText("Confirmar e Gerar"));
+
+    await waitFor(() => expect(onSuccess).toHaveBeenCalled());
+
+    // Nenhuma linha nova: createReceivableFromQuote foi chamado 1 única vez
+    // (o repository, não este teste, é quem garante idempotência no banco —
+    // aqui só provamos que o diálogo não tenta nenhum caminho alternativo).
+    expect(financeRepository.createReceivableFromQuote).toHaveBeenCalledTimes(1);
+    expect(toast.warning).toHaveBeenCalledWith(
+      "Este orçamento já tem uma conta a receber na nuvem — categoria e forma de pagamento escolhidas aqui ficaram só no local.",
+      expect.objectContaining({ description: expect.stringContaining("Financeiro") }),
+    );
+    // Sucesso local continua dispensando o aviso de colisão — local é
+    // sempre autoritativo, o aviso é só sobre a nuvem.
+    expect(toast.success).toHaveBeenCalledWith("Recebível financeiro gerado. Veja em Financeiro.");
+  });
+
+  it("regressão: sem colisão (título devolvido bate com o enviado) → NÃO dispara o aviso novo", async () => {
+    vi.mocked(financeRepository.createReceivableFromQuote).mockResolvedValue({
+      id: "ft-novo",
+      title: "Recebível - Identidade visual Acme",
+    } as never);
+    const onSuccess = vi.fn();
+
+    render(<CreateReceivableDialog {...baseProps} onSuccess={onSuccess} />);
+    fireEvent.click(screen.getByText("Confirmar e Gerar"));
+
+    await waitFor(() => expect(onSuccess).toHaveBeenCalled());
+
+    expect(toast.warning).not.toHaveBeenCalled();
   });
 });

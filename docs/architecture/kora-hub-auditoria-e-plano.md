@@ -965,6 +965,17 @@ Achado por auditoria dedicada (`docs/qa/etapa-5-auditoria-g37-espelhos.md`), a m
 
 ---
 
+**G70 — `CreateReceivableDialog.tsx` (CRM, "Gerar recebível" em `LinkedQuotesSection.tsx:248-255`) compartilha a MESMA constraint/mesmo repository do G56 mas nunca ganhou a mesma detecção de colisão — 2º clique pro mesmo orçamento devolve a linha existente em silêncio. [BAIXO — confirmado e FECHADO, classe "fix de lição aplicado só ao produtor do incidente — o produtor gêmeo do outro domínio ficou sem a mesma proteção (G60/G68 em nível de diálogo)"]**
+Achado pela Lane A: gap de escopo do G56 (acima). O fix original comparou o `title` devolvido pelo mirror contra o enviado só em `QuoteToReceivableDialog.tsx` (Vendas) — o produtor gêmeo, `CreateReceivableDialog.tsx` (CRM), chama a MESMA `financeRepository.createReceivableFromQuote`, protegida pela MESMA constraint (`ux_ft_receivable_from_quote`, no máximo 1 recebível vivo por `quote_id`), mas nunca ganhou a mesma checagem — um 2º clique em "Gerar recebível" pra um orçamento que já tem recebível vivo (gerado antes por qualquer um dos 2 diálogos) devolve a linha existente em silêncio, sem aviso.
+
+- **Fix:** portada a mesma lógica de `QuoteToReceivableDialog.tsx` — comparar `mirrored.title` contra o `title` enviado; se divergem, `console.warn` + `toast.warning`, MESMO texto do G56 ("Este orçamento já tem uma conta a receber na nuvem — categoria e forma de pagamento escolhidas aqui ficaram só no local.", descrição "Veja/edite o recebível existente na tela Financeiro."), por consistência de UX entre os 2 diálogos.
+- **Testes** (`CreateReceivableDialog.test.tsx`, describe "G70"): colisão (título devolvido diverge do enviado) dispara o aviso — falha contra o código anterior; regressão — sem colisão (título bate) não dispara. 3 testes pré-existentes (`feliz`, `idempotência`, `G41`) tinham mocks de `createReceivableFromQuote` sem `title` — corrigidos pra devolver um título batendo com o enviado, senão a checagem nova dispararia o aviso falsamente nesses testes (mesmo tipo de mock desatualizado já visto no G30, `useSupabaseClientContacts`). Prova fail→fix→pass por patch (G65, sem `git stash`): 1 teste falha contra o código antigo, 6/6 verdes após reaplicar o fix.
+- **Lição sistêmica** (mesma classe do G60/G68, agora em nível de diálogo/componente): quando 2 componentes diferentes compartilham o mesmo produtor de escrita (aqui, `createReceivableFromQuote`) protegido por uma constraint comum, um fix de detecção de colisão aplicado a só um deles deixa o outro exposto ao mesmo bug — a lição precisa varrer todo produtor que compartilha o mesmo caminho de escrita, não só o que apareceu no incidente original.
+- **NÃO tocado:** `QuotesSection.tsx`/`QuoteToReceivableDialog.tsx` (Lane A, G69), `CRM.tsx` (Lane C, G64).
+- **Referência:** G56 acima (fix original, mesmo texto de aviso), G60/G68 acima (mesma classe de lição — "correção varre a ocorrência, não a classe/o produtor gêmeo"), `LinkedQuotesSection.tsx:248-255` (ponto de entrada do CRM).
+
+---
+
 ## 3. Segurança / vulnerabilidades (verificar e endurecer)
 
 > Vários itens abaixo são **"confirmar no código"** — a arquitetura está certa, mas a implementação precisa ser auditada arquivo a arquivo pelo Code.
