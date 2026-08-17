@@ -216,21 +216,18 @@ export function mapSupabaseQuoteToLocalQuote(sq: SupabaseQuote): Quote {
     // uuid via cast, mesmo molde de useClientsDataSource.ts:9/G67-ext.
     clientId: sq.client_id ? (sq.client_id as unknown as number) : undefined,
     opportunityId: sq.opportunity_id ? (sq.opportunity_id as unknown as number) : undefined,
-    // ACHADO registrado, NÃO corrigido nesta rodada (rodada de verificação do
-    // backlog, `docs/qa/etapa-5-auditoria-leitura-nuvem-local.md` §1.4) —
-    // `sq.updated_at` nunca é lido pra `Quote.updatedAt` (existe no tipo
-    // local, existe na coluna cloud). Tem consumidor real:
-    // `buildCommercialEvents.ts` (linha ~102, evento "Orçamento vencido")
-    // usa `parseDate(q.updatedAt) ?? parseDate(q.sentAt) ?? parseDate(q.createdAt)`
-    // — hoje sempre cai no fallback `createdAt` pra quote nuvem (`updatedAt`/
-    // `sentAt` sempre undefined), então a data do evento é menos precisa do
-    // que poderia ser (usa a criação, não a última atualização real). Risco
-    // BAIXO/MÉDIO — degrada precisão de UI, não perde dado nem quebra nada.
-    // Fix proposto (não aplicado aqui): `updatedAt: sq.updated_at ?? undefined`,
-    // 1 linha, mesmo molde de `createdAt` acima. NÃO aplicado nesta rodada
-    // porque o único consumidor conhecido (`buildCommercialEvents.ts`) é
-    // arquivo em voo da Lane C (refactor de activityTimeline) — decisão de
-    // quando aplicar fica com o revisor/lane dona do arquivo.
+    // ACHADO corrigido (rodada de verificação do backlog + fix autorizado,
+    // `docs/qa/etapa-5-auditoria-leitura-nuvem-local.md` §1.4) — `sq.updated_at`
+    // não era lido pra `Quote.updatedAt` (existe no tipo local, existe na
+    // coluna cloud). Consumidor real: `buildCommercialEvents.ts` (evento
+    // "Orçamento vencido") usa `parseDate(q.updatedAt) ?? parseDate(q.sentAt)
+    // ?? parseDate(q.createdAt)` — antes deste fix, sempre caía no fallback
+    // `createdAt` pra quote nuvem (`updatedAt`/`sentAt` sempre undefined),
+    // então a data do evento era menos precisa do que podia ser (usava a
+    // criação, não a última atualização real). Fix liberado só depois do
+    // refactor de `activityTimeline` (Lane C, `dc8cff8`) mergear — antes
+    // disso o único consumidor conhecido estava em arquivo em voo.
+    updatedAt: sq.updated_at ?? undefined,
     // other optional fields left undefined or defaulted
   } as Quote;
 }

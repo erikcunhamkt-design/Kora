@@ -223,6 +223,51 @@ describe("quoteMapper — G68 — client_id/opportunity_id (uuid) preservados na
   });
 });
 
+// Rodada de verificação do backlog da auditoria de leitura
+// (docs/qa/etapa-5-auditoria-leitura-nuvem-local.md §1.4) — sq.updated_at
+// nunca era lido pra Quote.updatedAt, apesar de existir nos 2 lados.
+// Consumidor real: buildCommercialEvents.ts (evento "Orçamento vencido"),
+// liberado pra fix só depois do refactor de activityTimeline (Lane C) mergear.
+describe("quoteMapper — updatedAt (rodada de verificação do backlog)", () => {
+  it("updated_at da nuvem, diferente de created_at, é preservado em Quote.updatedAt", () => {
+    const sq = {
+      id: "q6",
+      workspace_id: "w1",
+      title: "Orçamento atualizado",
+      subtotal: 100,
+      discount: 0,
+      total: 100,
+      status: "enviado",
+      created_at: "2026-08-01T00:00:00.000Z",
+      updated_at: "2026-08-05T00:00:00.000Z",
+      archived: false,
+    } as unknown as SupabaseQuote;
+
+    const local = mapSupabaseQuoteToLocalQuote(sq);
+
+    expect(local.updatedAt).toBe("2026-08-05T00:00:00.000Z");
+  });
+
+  it("regressão: updated_at ausente vira undefined (fallback atual de buildCommercialEvents.ts pra sentAt/createdAt continua funcionando)", () => {
+    const sq = {
+      id: "q7",
+      workspace_id: "w1",
+      title: "Orçamento sem updated_at",
+      subtotal: 100,
+      discount: 0,
+      total: 100,
+      status: "rascunho",
+      created_at: "2026-08-01T00:00:00.000Z",
+      updated_at: null,
+      archived: false,
+    } as unknown as SupabaseQuote;
+
+    const local = mapSupabaseQuoteToLocalQuote(sq);
+
+    expect(local.updatedAt).toBeUndefined();
+  });
+});
+
 describe("quoteMapper — item", () => {
   it("maps a local QuoteItem to a Supabase item", () => {
     const item: QuoteItem = { id: "i1", name: "Design", quantity: 2, unitPrice: 150 };

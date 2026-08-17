@@ -88,7 +88,7 @@ Todos os demais campos (`id`, `title`, `description`, `client_id`,
 |---|---|---|
 | **`client_id`** | ❌ **nunca lido** | `Quote.clientId?: number` **existe** no tipo local (`useQuotes.ts:53`) — nunca atribuído em `mapSupabaseQuoteToLocalQuote` (`quoteMapper.ts:171-201`). Confirmado por `grep client_id` no arquivo inteiro: só aparece na direção de ESCRITA (`mapLocalQuoteToSupabaseQuote`, linha 164) e no comentário do topo — zero ocorrências na função de leitura. |
 | **`opportunity_id`** | ❌ **nunca lido** | Mesmo caso — `Quote.opportunityId?: number` existe (`useQuotes.ts:55`), nunca atribuído na leitura. |
-| `updated_at` | ❌ nunca lido | **VEREDITO (rodada de verificação): FIX PROPOSTO, não aplicado.** `Quote.updatedAt?: string` existe (`useQuotes.ts:59`). Consumidor real encontrado: `buildCommercialEvents.ts` (evento "Orçamento vencido") — `parseDate(q.updatedAt) ?? parseDate(q.sentAt) ?? parseDate(q.createdAt)`, hoje sempre cai no fallback `createdAt` pra quote nuvem. Risco BAIXO/MÉDIO (imprecisão de data na timeline, não perda de dado). Fix seria 1 linha (`updatedAt: sq.updated_at ?? undefined`, comentário já registrado em `quoteMapper.ts`) — **não aplicado**: o único consumidor conhecido está em `buildCommercialEvents.ts`, arquivo em voo da Lane C (refactor de `activityTimeline`), fora do escopo desta rodada por instrução explícita. |
+| `updated_at` | ✅ **corrigido** | **VEREDITO FINAL: FIX APLICADO** (rodada de merge, autorizado após o refactor `activityTimeline` da Lane C mergear em `dc8cff8`). `Quote.updatedAt?: string` existe (`useQuotes.ts:59`), consumidor real em `buildCommercialEvents.ts` (evento "Orçamento vencido") — `parseDate(q.updatedAt) ?? parseDate(q.sentAt) ?? parseDate(q.createdAt)`, antes sempre caía no fallback `createdAt` pra quote nuvem. Fix: `updatedAt: sq.updated_at ?? undefined` (`quoteMapper.ts`). Testado (describe "quoteMapper — updatedAt", `quoteMapper.test.ts`): valor preservado quando presente; regressão — ausente vira `undefined`. Prova fail→fix→pass por patch (G65): 1 teste falha contra o código antigo, 43/43 verdes após reaplicar. |
 
 **Por que isto é o achado central desta auditoria, não uma curiosidade:**
 `useSupabaseQuotes.fetchQuotesWithItems` (`useSupabaseQuotes.ts:49-60`) — a
@@ -142,7 +142,7 @@ false`), `mapSupabaseQuoteToLocalQuote` grava `isDemo: false` sempre.
 
 | Campo cloud | Lido? | Observação |
 |---|---|---|
-| `service_id` | ❌ nunca lido | ~~Risco BAIXO, inerte nos 2 sentidos~~ — **VEREDITO (rodada de verificação): FIX PROPOSTO, de escopo MAIOR que os demais — não aplicado.** `QuoteItem.serviceId?: string` existe (`useQuotes.ts:17`) e **tem dado real**: `addServiceItem` (`QuotesSection.tsx:792-797`, fluxo "+ Adicionar serviço do catálogo") grava `serviceId: svc.id` genuinamente — não é um campo inerte como `sort_order`. Consumidor real: `ServicesSection.tsx:216-224` (`usageMap`/"serviço mais usado") conta `item.serviceId` em todas as quotes — hoje subconta silenciosamente qualquer item de quote nuvem, porque `serviceId` nunca sobrevive nem à escrita (`mapLocalQuoteItemToSupabaseItem` também hardcoda `undefined`) nem à leitura. **Por que não é um fix de 1 linha**: `service_id` é `uuid` na coluna (`quote_items`, migration `20260531030000_create_quotes_schema.sql:28`), mas o catálogo de Serviços (`useServices.ts`) não tem tabela Supabase própria nem import-map (`grep` por `servicesRepository`/`SupabaseService` no repo inteiro → zero resultados) — `Service.id` local (`svc-${Date.now()}`) nunca é um uuid válido, mandar cru violaria a mesma regra Q4 que todo `resolve*Fk` do repo aplica. Corrigir de verdade exigiria um catálogo de Serviços na nuvem primeiro (tabela + import-map, mesmo desenho de clients/quotes/projects/tasks/crm) — proposta registrada em comentário (`quoteMapper.ts`), decisão de priorização fica com o revisor. |
+| `service_id` | ❌ nunca lido | **VEREDITO FINAL: BACKLOG ESTRUTURAL do ciclo futuro de Vendas/Catálogo** (registrado no merge, não corrigido). `QuoteItem.serviceId?: string` existe (`useQuotes.ts:17`) e **tem dado real**: `addServiceItem` (`QuotesSection.tsx:815-821`, fluxo "+ Adicionar serviço do catálogo") grava `serviceId: svc.id` genuinamente. Consumidor real: `ServicesSection.tsx:216-224` (`usageMap`/"serviço mais usado") conta `item.serviceId` em todas as quotes — hoje subconta silenciosamente qualquer item de quote nuvem, porque `serviceId` nunca sobrevive nem à escrita (`mapLocalQuoteItemToSupabaseItem` também hardcoda `undefined`) nem à leitura. **Pré-requisito antes de qualquer fix**: `service_id` é `uuid` na coluna (`quote_items`, migration `20260531030000_create_quotes_schema.sql:28`), mas o catálogo de Serviços (`useServices.ts`) não tem tabela Supabase própria nem import-map (`grep` por `servicesRepository`/`SupabaseService` no repo inteiro → zero resultados) — `Service.id` local (`svc-${Date.now()}`) nunca é um uuid válido, mandar cru violaria a regra Q4. Fica registrado como item do ciclo futuro de Vendas/Catálogo — construir o catálogo de Serviços na nuvem (tabela + import-map, mesmo desenho de clients/quotes/projects/tasks/crm) é pré-requisito, não um fix pontual. Proposta detalhada em comentário (`quoteMapper.ts`). |
 
 `id`, `name`, `quantity`, `unit_price` são lidos. `quote_id`/`created_at`/
 `updated_at` são estruturais (item sempre resolvido dentro do contexto de
@@ -205,9 +205,9 @@ pra fechar o cruzamento pedido.
 | `tasksMapper` | `opportunity_id` | ❌ | **Decidida/documentada** — ausência estrutural, comentário `tasksMapper.ts:9-12` | `tasksMapper.ts:9-12` |
 | `quoteMapper` (quote) | `client_id` | ✅ (corrigido em `cd8bb26`) | Era **Esquecida** (risco ALTO) — fechada pela Lane A antes do merge desta auditoria, 2ª extensão do G67 | `quoteMapper.ts:206-207`, `useSupabaseQuotes.ts:49-60`, `QuotesSection.tsx:527,530` |
 | `quoteMapper` (quote) | `opportunity_id` | ✅ (corrigido em `cd8bb26`) | Idem — mesmo fix, mesmo commit | `quoteMapper.ts:206-207` |
-| `quoteMapper` (quote) | `updated_at` | ❌ | **Fix proposto, não aplicado** — consumidor real em `buildCommercialEvents.ts` (evento "Orçamento vencido"), risco baixo/médio (imprecisão de data). Não aplicado: consumidor está em arquivo em voo da Lane C | `quoteMapper.ts` (comentário junto de `opportunityId`), `buildCommercialEvents.ts` |
+| `quoteMapper` (quote) | `updated_at` | ✅ **corrigido** | **Fix aplicado** (`updatedAt: sq.updated_at ?? undefined`) — autorizado após o refactor `activityTimeline` da Lane C mergear (`dc8cff8`), consumidor real em `buildCommercialEvents.ts` liberado | `quoteMapper.ts`, `buildCommercialEvents.ts`, testes describe "quoteMapper — updatedAt" |
 | `quoteMapper` (quote) | `is_demo` | ❌ (hardcoded `false`) | **Vestigial/estrutural — decisão documentada** (comment-only): coluna `is_demo` NÃO existe em `public.quotes` (confirmado em todas as migrations da tabela) | `quoteMapper.ts` (comentário junto de `isDemo`), `supabase/migrations/20260531030000_create_quotes_schema.sql` |
-| `quoteMapper` (item) | `service_id` | ❌ | **Fix proposto, escopo MAIOR — não aplicado**: tem consumidor real (`usageMap`/"serviço mais usado") E dado real (`addServiceItem`), mas exige catálogo de Serviços na nuvem (tabela + import-map) antes de poder resolver com segurança (Q4) | `quoteMapper.ts` (comentário extenso junto de `mapLocalQuoteItemToSupabaseItem`), `ServicesSection.tsx:216-224`, `QuotesSection.tsx:792-797` |
+| `quoteMapper` (item) | `service_id` | ❌ | **Backlog estrutural do ciclo futuro de Vendas/Catálogo** — pré-requisito: tabela cloud de Serviços + import-map (sem isso, mandar `service_id` violaria a regra Q4) | `quoteMapper.ts` (comentário extenso junto de `mapLocalQuoteItemToSupabaseItem`), `ServicesSection.tsx:216-224`, `QuotesSection.tsx:815-821` |
 | `crmOpportunityMapper` | `status` | ❌ | **Decidida/documentada** (rodada-relâmpago, comment-only) — redundante com `stage` | `crmOpportunityMapper.ts:124-131` |
 | `crmOpportunityMapper` | `lost_at` | ❌ | **Decidida/documentada** (rodada-relâmpago, comment-only) — `Lead` não tem `lostAt` | `crmOpportunityMapper.ts:150-153` |
 | `mapSupabaseToLocalSheet` | `accesses` (via `raw_payload`) | ❌ | **Decidida/documentada** — já catalogado, território G63/Lane E | `etapa-5-flip-fichas-pacote.md:141,150` |
@@ -251,25 +251,29 @@ específicos que o "backlog genérico" da rodada anterior:
    Confirmado lendo todas as migrations de `quotes`: a coluna `is_demo`
    simplesmente não existe — não era uma omissão em 2 camadas como suspeitado,
    é ausência real de coluna. Comentário adicionado em `quoteMapper.ts`.
-3. **`quoteMapper.updated_at` — FIX PROPOSTO, não aplicado.** Achado um
-   consumidor real (`buildCommercialEvents.ts`, evento "Orçamento vencido")
-   — hoje degrada pra usar `createdAt` em vez de `updatedAt`/`sentAt`. Fix
-   seria 1 linha, mas o único consumidor está em arquivo em voo da Lane C
-   (refactor `activityTimeline`) — proposta documentada em comentário,
-   aplicação fica pra quando o arquivo consumidor estiver estável.
-4. **`quoteMapper` (item) `.service_id` — FIX PROPOSTO, escopo MAIOR, não
-   aplicado.** Diferente do que a rodada anterior presumiu ("inerte nos 2
-   sentidos"): tem consumidor real (`ServicesSection.tsx`, "serviço mais
-   usado") E dado real (`QuotesSection.tsx.addServiceItem`) — mas o catálogo
-   de Serviços não tem tabela Supabase nem import-map, então resolver isso
-   com segurança (regra Q4, nunca id local cru em coluna uuid) exige
-   construir esse catálogo na nuvem primeiro — fora do escopo de um fix
-   pontual. Proposta detalhada documentada em comentário, decisão de
-   priorização fica com o revisor.
+3. **`quoteMapper.updated_at` — FIX APLICADO** (rodada de merge). O refactor
+   `activityTimeline` da Lane C mergeou em `dc8cff8` antes desta rodada,
+   liberando o único consumidor conhecido (`buildCommercialEvents.ts`,
+   evento "Orçamento vencido") — antes degradava pra usar `createdAt` em vez
+   de `updatedAt`/`sentAt`. Fix de 1 linha (`updatedAt: sq.updated_at ??
+   undefined`), testado fail→fix→pass por patch (G65): 1 teste falha contra
+   o código antigo, 43/43 verdes após reaplicar.
+4. **`quoteMapper` (item) `.service_id` — BACKLOG ESTRUTURAL do ciclo futuro
+   de Vendas/Catálogo**, não corrigido. Diferente do que a rodada anterior
+   presumiu ("inerte nos 2 sentidos"): tem consumidor real
+   (`ServicesSection.tsx`, "serviço mais usado") E dado real
+   (`QuotesSection.tsx.addServiceItem`) — mas o catálogo de Serviços não tem
+   tabela Supabase nem import-map, então resolver isso com segurança (regra
+   Q4, nunca id local cru em coluna uuid) exige construir esse catálogo na
+   nuvem primeiro. Registrado como pré-requisito do próximo ciclo de
+   Vendas/Catálogo, não um fix pontual — proposta detalhada em comentário
+   (`quoteMapper.ts`).
 
-Nenhum arquivo em voo tocado (`QuotesSection.tsx`/runbook — Lane A;
-`buildCommercialEvents.ts`/`activityTimeline` — Lane C; `functions`/`flow_data`
-— Lane E — todos só lidos/referenciados quando aplicável, nunca editados).
+Nenhum arquivo em voo tocado nesta rodada (`QuotesSection.tsx`/runbook —
+Lane A; `functions`/`flow_data` — Lane E — todos só lidos/referenciados
+quando aplicável, nunca editados). `buildCommercialEvents.ts`
+(`activityTimeline`, Lane C) já não estava mais em voo no momento do merge —
+mergeado em `dc8cff8` antes desta rodada, confirmado via `git fetch`.
 
 **Já coberto por trabalho existente, não reaberto**: `accesses`/`competitors`
 de Fichas Técnicas (G63, Lane E).
