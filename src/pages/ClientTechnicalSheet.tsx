@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useClients, type ClientTechnicalSheet } from "@/hooks/useClients";
+import { useClientsDataSource } from "@/hooks/useClientsDataSource";
 import { cn } from "@/lib/utils";
 import { useSupabaseTechnicalSheet } from "@/hooks/useSupabaseTechnicalSheet";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
@@ -231,7 +232,16 @@ function RestoreFromSupabaseDialog({
 export default function ClientTechnicalSheetPage() {
   const { clientId } = useParams<{ clientId: string }>();
   const navigate = useNavigate();
-  const { clients, updateClient } = useClients();
+  const { updateClient } = useClients();
+  // Rodada 2b-fichas (etapa-5-flip-clientes-pacote.md §2.3, consumidor
+  // 3/3) — mesmo padrão do G66/G64: só a LEITURA (lista de clientes usada
+  // pra achar o cliente por id) bifurca. `updateClient` continua vindo de
+  // useClients() local — persist() (abaixo) já gateia essa chamada por
+  // `activeDataSource === "local"`, escrita fora de escopo aqui. Flags do
+  // G63 (autosaveEnabled, activeDataSource da ficha técnica em si)
+  // intocadas — são um data source PRÓPRIO da ficha, ortogonal ao do
+  // registro de cliente.
+  const { clients } = useClientsDataSource();
 
   const client = useMemo(
     () => clients.find((c) => String(c.id) === String(clientId)) ?? null,

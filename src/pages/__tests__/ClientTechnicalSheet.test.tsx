@@ -8,6 +8,7 @@ import { MemoryRouter, Routes, Route } from "react-router-dom";
 
 import ClientTechnicalSheetPage from "@/pages/ClientTechnicalSheet";
 import { useClients } from "@/hooks/useClients";
+import { useClientsDataSource } from "@/hooks/useClientsDataSource";
 import { useSupabaseTechnicalSheet } from "@/hooks/useSupabaseTechnicalSheet";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { clientTechnicalSheetsRepository } from "@/repositories/clientTechnicalSheetsRepository";
@@ -18,6 +19,7 @@ import {
 } from "@/config/flags";
 
 vi.mock("@/hooks/useClients", () => ({ useClients: vi.fn() }));
+vi.mock("@/hooks/useClientsDataSource", () => ({ useClientsDataSource: vi.fn() }));
 vi.mock("@/hooks/useSupabaseTechnicalSheet", () => ({ useSupabaseTechnicalSheet: vi.fn() }));
 vi.mock("@/hooks/useCurrentWorkspace", () => ({ useCurrentWorkspace: vi.fn() }));
 vi.mock("@/repositories/clientTechnicalSheetsRepository", () => ({
@@ -63,8 +65,10 @@ beforeEach(() => {
     membership: null, loading: false, error: null,
   } as never);
   vi.mocked(useClients).mockReturnValue({
-    clients: [makeClientWithAccesses()],
     updateClient: vi.fn(),
+  } as never);
+  vi.mocked(useClientsDataSource).mockReturnValue({
+    clients: [makeClientWithAccesses()],
   } as never);
   vi.mocked(useSupabaseTechnicalSheet).mockReturnValue({
     supabaseClientId: "uuid-cliente-1",
@@ -130,5 +134,36 @@ describe("ClientTechnicalSheet · G63 — seletor de fonte por-cliente também �
     // "Supabase experimental".
     const localButton = screen.getByRole("button", { name: "Local" });
     expect(localButton.className).toMatch(/bg-primary/);
+  });
+});
+
+// Rodada 2b-fichas (etapa-5-flip-clientes-pacote.md §2.3, consumidor 3/3) —
+// a página buscava o cliente via useClients() (sempre local), então um
+// cliente só-nuvem (Clientes.tsx já Supabase-first desde a Fatia 4) nunca
+// era encontrado aqui, mesmo tendo ficha técnica própria. Fix: a busca usa
+// useClientsDataSource() (bifurcado) — updateClient (escrita, gateada por
+// activeDataSource==="local" dentro de persist()) continua vindo de
+// useClients(), intocado.
+describe("ClientTechnicalSheet · G6x (rodada 2b-fichas) — busca de cliente usa useClientsDataSource(), não useClients() local", () => {
+  it("cliente presente SÓ em useClientsDataSource() (ausente de useClients()) é encontrado e a página renderiza normalmente", async () => {
+    vi.mocked(useClients).mockReturnValue({ updateClient: vi.fn() } as never);
+    vi.mocked(useClientsDataSource).mockReturnValue({
+      clients: [makeClientWithAccesses()],
+    } as never);
+
+    renderPage();
+
+    expect(await screen.findByText("Ficha técnica")).toBeInTheDocument();
+    expect(screen.getByText("Acme")).toBeInTheDocument();
+    expect(screen.queryByText("Cliente não encontrado.")).not.toBeInTheDocument();
+  });
+
+  it("cliente ausente de useClientsDataSource(): 'Cliente não encontrado.' — não quebra (regressão)", async () => {
+    vi.mocked(useClients).mockReturnValue({ updateClient: vi.fn() } as never);
+    vi.mocked(useClientsDataSource).mockReturnValue({ clients: [] } as never);
+
+    renderPage();
+
+    expect(await screen.findByText("Cliente não encontrado.")).toBeInTheDocument();
   });
 });
