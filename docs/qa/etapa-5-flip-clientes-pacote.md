@@ -294,7 +294,7 @@ principal já ser Supabase-first para o mesmo usuário — 3/3 FECHADO:**
 |---|---|---|
 | ~~`Financeiro.tsx:141` (`ClientsTab`)~~ **FECHADO (G66)** | Lista completa de clientes na aba "Clientes" do Financeiro | Bifurcado pra `useClientsDataSource()` (só a aba, não o `QuickSaleDialog` — fora do escopo desta rodada) — cliente criado na nuvem aparece na aba. `kora-hub-auditoria-e-plano.md` §G66. |
 | ~~`CRM.tsx:147`~~ **FECHADO (G64)** | Lista de clientes pro CRM (além da escrita, ver §2.4) | Bifurcado pra `useClientsDataSource()` — junto com o fix do deep link `?newOpportunity=1&clientId=X` (mesma classe do G67). `kora-hub-auditoria-e-plano.md` §G64. |
-| ~~`ClientTechnicalSheet.tsx:234`~~ **FECHADO** | Busca cliente por id pra editar ficha técnica | Bifurcado pra `useClientsDataSource()` — `updateClient` (escrita, gateada por `activeDataSource==="local"` dentro de `persist()`, flags do G63 intocadas) continua vindo de `useClients()`. Cliente só-nuvem com ficha técnica própria agora é encontrado. Sem G-número atribuído ainda — pacote fechado nesta rodada, cabe ao revisor decidir se cataloga. |
+| ~~`ClientTechnicalSheet.tsx:234`~~ **FECHADO (adendo G66)** | Busca cliente por id pra editar ficha técnica | Bifurcado pra `useClientsDataSource()` — `updateClient` (escrita, gateada por `activeDataSource==="local"` dentro de `persist()`, flags do G63 intocadas) continua vindo de `useClients()`. Cliente só-nuvem com ficha técnica própria agora é encontrado. Catalogado como 3ª ocorrência da classe, adendo na entrada G66 (sem número novo). |
 
 **Consumidores 3/3 fechados — este achado (§2.3) está resolvido por
 completo.**
@@ -404,8 +404,9 @@ arquivos) — ver backlog abaixo.
 - `CRM.tsx` (G64, itens 2/3) — colapsou com o fix do deep link
   `?newOpportunity=1&clientId=X` (mesma classe do G67/G66), já que era o
   único uso restante de `useClients()`/`clients` no arquivo.
-- `ClientTechnicalSheet.tsx` (rodada 2b-fichas, sem G-número atribuído
-  ainda) — busca de cliente por id bifurcada; `updateClient` (escrita local,
+- `ClientTechnicalSheet.tsx` (rodada 2b-fichas, adendo na entrada G66 —
+  3ª ocorrência da classe, sem número novo) — busca de cliente por id
+  bifurcada; `updateClient` (escrita local,
   já gateada por `activeDataSource==="local"` dentro de `persist()`) e as
   flags do G63 (autosave, data source por-cliente da ficha técnica em si)
   não foram tocadas — são um data source PRÓPRIO da ficha, ortogonal ao do

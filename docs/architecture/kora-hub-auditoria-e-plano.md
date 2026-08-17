@@ -1034,6 +1034,40 @@ Achado catalogado na Fase A do Pacote do Flip de Clientes (`docs/qa/etapa-5-flip
 - **Regra nova de higiene de workspace (item novo, não coberto por G65/§14-A — esses tratam do mecanismo de `refs/stash`, este trata de ONDE cada lane trabalha):** `orbit-designer-hub` (a pasta raiz, distinta dos worktrees `Kora-laneA`/`Kora-laneD`/`Kora-laneE`/etc.) deveria ser usada **só pra merges fast-forward com árvore limpa** — nunca como local de trabalho com WIP. Trabalho de código de cada lane pertence à worktree própria dela; a raiz só deveria ver `git fetch`/`git rebase`/`gates`/`push` de um branch já commitado, nunca edições em andamento. Este incidente (e o do G65) só foi possível porque havia WIP não-commitado na raiz compartilhada no mesmo momento em que outra lane também operava lá. Proposta pro operador registrar como emenda formal (§14-B ou equivalente) em `protocolo-homologacao.md`, paralela ao §14-A — não escrita aqui porque catalogar regra de protocolo formal é decisão do revisor, não do Code unilateralmente.
 - **Referência:** `docs/qa/etapa-5-flip-clientes-pacote.md` §2.3 (achado original, agora marcado 1/3 fechado), G58 acima (mesma classe de achado, escrita em vez de leitura), G65 acima (mesmo incidente de infraestrutura, mecanismo completo), `docs/qa/protocolo-homologacao.md` §14-A (fix de processo que cobre os dois casos).
 
+### Adendo — 3ª ocorrência da classe, inventário de consumidores fechado (rodada 2b-fichas)
+
+`ClientTechnicalSheet.tsx:234` tinha exatamente o mesmo defeito desta
+entrada e do G64 (itens 2/3): a página buscava o cliente por id via
+`useClients()` (sempre local) — cliente só-nuvem com ficha técnica própria
+nunca era encontrado, mesmo `Clientes.tsx` já sendo Supabase-first desde a
+Fatia 4. Fix, mesmo escopo estrito das outras duas ocorrências: só a
+LEITURA (a busca por id) bifurca pra `useClientsDataSource()`;
+`updateClient` (escrita local dentro de `persist()`) continua vindo de
+`useClients()`, já corretamente gateado por `activeDataSource === "local"`
+— não é um bug, não foi tocado. As flags do G63 (`autosaveEnabled`, o data
+source PRÓPRIO da ficha técnica em si, por-cliente) também não foram
+tocadas — são ortogonais ao data source do REGISTRO de cliente, achado
+diferente.
+
+**2 testes novos** (`ClientTechnicalSheet.test.tsx`): cliente presente só
+em `useClientsDataSource()` (ausente de `useClients()`) é encontrado, a
+página renderiza normalmente; cliente ausente mostra "Cliente não
+encontrado." sem quebrar (regressão). Suíte existente (4 testes do G63)
+migrada pro mock novo sem mudar nenhum assert — zero regressão.
+Fail→fix→pass via método §14-A (patch, não stash): revertido → **6/6
+falham** (crash, `Cannot read properties of undefined (reading 'find')` —
+o mock moveu `clients` pra `useClientsDataSource()`, o código antigo ainda
+lia de `useClients()`). Reaplicado → 6/6 passam.
+
+**Inventário de consumidores locais-only de `docs/qa/etapa-5-flip-clientes-pacote.md`
+§2.3 fechado por completo — 3/3:** `Financeiro.tsx` (esta entrada), `CRM.tsx`
+(G64 itens 2/3), `ClientTechnicalSheet.tsx` (este adendo).
+
+**Nota sobre o item "regra nova de higiene de workspace" acima:** a
+proposta de emenda formal (§14-B) foi incorporada — `docs/qa/protocolo-homologacao.md`
+§14-B (`orbit-designer-hub` exclusiva pra merges ff com árvore limpa, zero
+WIP nela) já existe, citando esta entrada (G66) e o G65 como precedentes.
+
 ---
 
 **G67 — Deep link `?newQuote=1&clientId=X` (Vendas) usava `Number(id)` + hook pré-cutover — o cast quebra em silêncio com uuid e o wizard de orçamento abre cego; o gap de `client_id` trafega orçamento → projeto → recebível. [MÉDIO — confirmado e FECHADO, mesma classe do G44/G37]**
