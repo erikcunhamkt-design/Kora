@@ -66,7 +66,21 @@ Todos os demais campos (`id`, `title`, `description`, `client_id`,
 `project_id`, `priority`, `due_date`, `status`, `created_at`, `updated_at`,
 `archived`, `is_demo`, `quote_id`, `source`) são lidos.
 
-### 1.4 `quoteMapper.mapSupabaseQuoteToLocalQuote` — 🔴 ACHADO PRINCIPAL (alto risco, ATIVO hoje)
+### 1.4 `quoteMapper.mapSupabaseQuoteToLocalQuote` — ✅ CORRIGIDO EM `cd8bb26` (achado principal, era 🔴 no momento em que esta auditoria foi escrita)
+
+> **Atualização pós-merge**: `client_id`/`opportunity_id` foram corrigidos pela
+> LANE A em `cd8bb26` (`fix(vendas): G68 - mapSupabaseQuoteToLocalQuote perdia
+> client_id/opportunity_id uuid na leitura (2ª extensão do G67)`), catalogado
+> como 2ª extensão do G67 (sem número novo) — **antes** desta auditoria ser
+> mergeada. Fix confirmado por leitura direta do código pós-rebase:
+> `quoteMapper.ts:206-207` — `clientId: sq.client_id ? (sq.client_id as
+> unknown as number) : undefined` / `opportunityId: sq.opportunity_id ? (...)
+> : undefined`, mesmo molde "uuid contrabandeado" do G67-ext. Testado (describe
+> "G68" em `quoteMapper.test.ts`) com prova fail→fix→pass por patch (G65).
+> `updated_at` (achado secundário, risco baixo) e `is_demo` (não confirmado)
+> **NÃO foram tocados** pelo hotfix — seguem em aberto, ver tabela consolidada
+> (§2). Texto original abaixo preservado como registro do achado tal como
+> reportado no momento em que foi encontrado, não apagado.
 
 `SupabaseQuote` (`quotesRepository.ts:21-58`): 27 campos.
 
@@ -184,8 +198,8 @@ pra fechar o cruzamento pedido.
 |---|---|---|---|---|
 | `tasksMapper` | `sort_order` | ❌ | **Esquecida** (não documentada), risco baixo — escrita já hardcoda 0 | `tasksMapper.ts:263-300` (função), `tasksRepository.ts:20` (coluna) |
 | `tasksMapper` | `opportunity_id` | ❌ | **Decidida/documentada** — ausência estrutural, comentário `tasksMapper.ts:9-12` | `tasksMapper.ts:9-12` |
-| `quoteMapper` (quote) | `client_id` | ❌ | **Esquecida** — risco ALTO, ativo hoje, afeta toda quote em modo nuvem | `quoteMapper.ts:171-201`, `useSupabaseQuotes.ts:49-60`, `QuotesSection.tsx:527,530` |
-| `quoteMapper` (quote) | `opportunity_id` | ❌ | **Esquecida** — mesma classe/risco do `client_id` acima | `quoteMapper.ts:171-201` |
+| `quoteMapper` (quote) | `client_id` | ✅ (corrigido em `cd8bb26`) | Era **Esquecida** (risco ALTO) — fechada pela Lane A antes do merge desta auditoria, 2ª extensão do G67 | `quoteMapper.ts:206-207`, `useSupabaseQuotes.ts:49-60`, `QuotesSection.tsx:527,530` |
+| `quoteMapper` (quote) | `opportunity_id` | ✅ (corrigido em `cd8bb26`) | Idem — mesmo fix, mesmo commit | `quoteMapper.ts:206-207` |
 | `quoteMapper` (quote) | `updated_at` | ❌ | **Esquecida**, risco baixo (nenhum consumidor crítico achado) | `quoteMapper.ts:171-201`, `useQuotes.ts:59` |
 | `quoteMapper` (quote) | `is_demo` | ❌ (hardcoded `false`) | **Não confirmada** — possível omissão em 2 camadas (tipo + leitura), coluna não verificada via SQL nesta rodada | `quoteMapper.ts:194` |
 | `quoteMapper` (item) | `service_id` | ❌ | **Esquecida**, risco baixo — inerte nos 2 sentidos (escrita também hardcoda `undefined`) | `quoteMapper.ts:217-224` |
@@ -207,12 +221,12 @@ Nenhum arquivo em voo de outra lane tocado (`CRM.tsx`, `Financeiro.tsx`,
 `QuotesSection.tsx`/`QuoteToReceivableDialog.tsx` — todos só lidos, não
 editados).
 
-**Achado central**: `quoteMapper.mapSupabaseQuoteToLocalQuote` nunca lê
-`client_id`/`opportunity_id` (existem no tipo local, existem na coluna
-cloud, nunca atravessam) — bug ativo hoje, afeta toda quote listada em modo
-Supabase. Bate com a descrição do hotfix em voo da Lane A — **recomenda-se
-verificar o hotfix dela antes de abrir uma rodada de fix própria**, para não
-duplicar trabalho.
+**Achado central — corrigido antes do merge**: `quoteMapper.mapSupabaseQuoteToLocalQuote`
+não lia `client_id`/`opportunity_id` (existem no tipo local, existem na
+coluna cloud, nunca atravessavam) — bug ativo, afetava toda quote listada em
+modo Supabase. Fechado pela Lane A em `cd8bb26`, catalogado como 2ª extensão
+do G67, antes desta auditoria chegar ao merge — a nota de coordenação do
+achado original se confirmou útil (evitou uma rodada de fix duplicada).
 
 **Achados secundários de baixo risco** (`sort_order`/`service_id`, ambos
 inertes nos 2 sentidos hoje): registrados, não corrigidos, sem urgência.
