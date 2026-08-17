@@ -8,6 +8,7 @@ import { decideRateLimitOutcome } from "../_shared/rateLimit.ts";
 import { fetchWithRetry } from "../_shared/retry.ts";
 import { buildAnthropicMessages, parseAnthropicReply } from "../_shared/anthropicParser.ts";
 import { composeSystemInstruction } from "../_shared/brainComposer.ts";
+import { resolveAiConfig } from "../_shared/botCredentials.ts";
 
 interface BotFlowNodeProperties {
   respondAll?: boolean;
@@ -502,42 +503,21 @@ Deno.serve(async (req) => {
         }
       }
 
-      if (aiNode) {
-        systemInstruction = aiNode.properties?.instruction || systemInstruction;
-        provider = aiNode.properties?.provider || "gemini_api_key";
-        modelName = aiNode.properties?.model || DEFAULT_MODEL;
-        geminiApiKey = aiNode.properties?.geminiApiKey || null;
-        gcpProjectId = aiNode.properties?.gcpProjectId || null;
-        gcpRegion = aiNode.properties?.gcpRegion || gcpRegion;
-        gcpServiceAccount = aiNode.properties?.gcpServiceAccount || null;
-      } else {
-        // Fallback to table root columns
-        systemInstruction = bot.system_instruction || systemInstruction;
-        provider = bot.provider || "gemini_api_key";
-        modelName = bot.model_name || DEFAULT_MODEL;
-        geminiApiKey = bot.gemini_api_key || null;
-        gcpProjectId = bot.gcp_project_id || null;
-        gcpRegion = bot.gcp_region || gcpRegion;
-        gcpServiceAccount = bot.gcp_service_account || null;
-
-        // Apply database-level custom keys if configured
-        if (provider === "gemini_api_key" && bot.gemini_api_key) {
-          geminiApiKey = bot.gemini_api_key;
-          gcpServiceAccount = null;
-          gcpProjectId = null;
-        } else if (provider === "vertex_ai" && bot.gcp_service_account) {
-          gcpServiceAccount = bot.gcp_service_account;
-          // Extract project ID from Service Account JSON if available
-          try {
-            const parsed = JSON.parse(gcpServiceAccount);
-            gcpProjectId = parsed.project_id || bot.gcp_project_id || gcpProjectId;
-          } catch {
-            gcpProjectId = bot.gcp_project_id || gcpProjectId;
-          }
-          gcpRegion = bot.gcp_region || gcpRegion;
-          geminiApiKey = null;
-        }
-      }
+      // G71: credenciais nunca vêm mais de aiNode.properties (flow_data,
+      // jsonb) — sempre das colunas dedicadas da própria linha, mesmo com o
+      // nó "ai" presente/habilitado. O produtor (WhatsAppBotConfig.tsx) já
+      // não duplica mais geminiApiKey/gcpServiceAccount dentro de flow_data;
+      // ler daqui em diante manteria compatibilidade com uma fonte que o
+      // próprio produtor esvaziou. Lógica extraída pra
+      // _shared/botCredentials.ts (testável fora do Deno.serve).
+      const resolved = resolveAiConfig(bot, aiNode?.properties, systemInstruction, DEFAULT_MODEL, gcpRegion);
+      systemInstruction = resolved.systemInstruction;
+      provider = resolved.provider;
+      modelName = resolved.modelName;
+      geminiApiKey = resolved.geminiApiKey;
+      gcpProjectId = resolved.gcpProjectId;
+      gcpRegion = resolved.gcpRegion;
+      gcpServiceAccount = resolved.gcpServiceAccount;
 
       contents = ordered
         .map((m) => ({
