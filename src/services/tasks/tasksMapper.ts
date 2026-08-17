@@ -220,6 +220,19 @@ const KNOWN_LOCAL_TASK_SOURCE: ReadonlySet<string> = new Set<TaskSource>(["manua
  *     rotulado p/ string" do padrão do financeMapper não se aplica a nenhum
  *     campo aqui; registrado explicitamente, não por omissão.
  *
+ * Campo CLOUD sem contraparte local (direção oposta dos gaps acima) — decisão
+ * registrada (rodada de verificação do backlog da auditoria de leitura,
+ * `docs/qa/etapa-5-auditoria-leitura-nuvem-local.md` §1.3):
+ *   - `sort_order` (`SupabaseTask`) — `Task` local não tem NENHUM campo de
+ *     ordenação (`grep` por `sortOrder`/`sort_order` em `useTasks.ts` → zero
+ *     resultados). Confirmado sem consumidor: toda ordenação de tarefas na UI
+ *     (`Tarefas.tsx`) é computada em runtime por `sortByDue`/`sortByPriority`/
+ *     `sortByCreated` — nunca uma ordem manual persistida. O drag-and-drop do
+ *     Kanban (`Tarefas.tsx`, `handleDrop`/`moveTask`) move tarefas ENTRE
+ *     colunas de status, não reordena dentro de uma coluna. `mapLocalTaskToSupabase`
+ *     (escrita, acima) já grava `sort_order: 0` hardcoded — vestigial nos 2
+ *     sentidos, não um campo esquecido.
+ *
  * Campos DERIVADOS (têm coluna cloud, mas sem denormalização pronta —
  * diferente de gap estrutural):
  *   - `client`/`project` (strings de exibição, REQUERIDAS no tipo local,

@@ -59,7 +59,7 @@ G37/`deliverables`).
 
 | Campo cloud | Lido? | Observação |
 |---|---|---|
-| `sort_order` | ❌ **nunca lido** | `Task` local não tem NENHUM campo de ordenação (`grep` por `sortOrder`/`sort_order` em `useTasks.ts` → zero resultados) — e o comentário exaustivo de gaps deste mapper (linhas 198-262) documenta todo campo local sem coluna cloud, mas **não menciona este na direção inversa**. Não é uma omissão "decidida" registrada — é uma lacuna não documentada. Risco prático BAIXO: `mapLocalTaskToSupabase` (escrita, linha 96) já grava `sort_order: 0` hardcoded — não existe ordem real hoje pra se perder na leitura, o campo é inerte nos 2 sentidos. Recomendação: 1 linha de comentário registrando a decisão (ou implementar ordenação de verdade, fora do escopo desta auditoria). |
+| `sort_order` | ❌ **nunca lido** | ~~Não é uma omissão "decidida" registrada~~ — **VEREDITO (rodada de verificação): VESTIGIAL, decisão agora documentada em comentário** (`tasksMapper.ts`, bloco de `mapSupabaseTaskToLocal`). Confirmado por leitura de `Tarefas.tsx`: toda ordenação é computada em runtime (`sortByDue`/`sortByPriority`/`sortByCreated`), nunca persistida; o drag-and-drop do Kanban (`handleDrop`/`moveTask`, `Tarefas.tsx:368-369,917-961`) move tarefas ENTRE colunas de status, não reordena dentro de uma coluna — `moveTask` (`useTasks.ts:154`) só grava `status`+`updatedAt`. `mapLocalTaskToSupabase` (escrita) já grava `sort_order: 0` hardcoded — inerte nos 2 sentidos, sem consumidor real hoje. |
 | `opportunity_id` | ❌ nunca lido | **Decidido/documentado** — comentário no topo do arquivo (linhas 9-12): `Task` local não tem NENHUM campo `opportunityId` (só `Project` tem), "ausência estrutural do campo", já registrado antes desta auditoria. Não reaberto. |
 
 Todos os demais campos (`id`, `title`, `description`, `client_id`,
@@ -88,7 +88,7 @@ Todos os demais campos (`id`, `title`, `description`, `client_id`,
 |---|---|---|
 | **`client_id`** | ❌ **nunca lido** | `Quote.clientId?: number` **existe** no tipo local (`useQuotes.ts:53`) — nunca atribuído em `mapSupabaseQuoteToLocalQuote` (`quoteMapper.ts:171-201`). Confirmado por `grep client_id` no arquivo inteiro: só aparece na direção de ESCRITA (`mapLocalQuoteToSupabaseQuote`, linha 164) e no comentário do topo — zero ocorrências na função de leitura. |
 | **`opportunity_id`** | ❌ **nunca lido** | Mesmo caso — `Quote.opportunityId?: number` existe (`useQuotes.ts:55`), nunca atribuído na leitura. |
-| `updated_at` | ❌ nunca lido | `Quote.updatedAt?: string` existe (`useQuotes.ts:59`) — não atribuído; só aparece num comentário sobre defaults de banco (linha 154). Risco menor que os 2 acima (nenhum consumidor crítico identificado por leitura de código), mas mesma classe. |
+| `updated_at` | ❌ nunca lido | **VEREDITO (rodada de verificação): FIX PROPOSTO, não aplicado.** `Quote.updatedAt?: string` existe (`useQuotes.ts:59`). Consumidor real encontrado: `buildCommercialEvents.ts` (evento "Orçamento vencido") — `parseDate(q.updatedAt) ?? parseDate(q.sentAt) ?? parseDate(q.createdAt)`, hoje sempre cai no fallback `createdAt` pra quote nuvem. Risco BAIXO/MÉDIO (imprecisão de data na timeline, não perda de dado). Fix seria 1 linha (`updatedAt: sq.updated_at ?? undefined`, comentário já registrado em `quoteMapper.ts`) — **não aplicado**: o único consumidor conhecido está em `buildCommercialEvents.ts`, arquivo em voo da Lane C (refactor de `activityTimeline`), fora do escopo desta rodada por instrução explícita. |
 
 **Por que isto é o achado central desta auditoria, não uma curiosidade:**
 `useSupabaseQuotes.fetchQuotesWithItems` (`useSupabaseQuotes.ts:49-60`) — a
@@ -121,15 +121,20 @@ abaixo), `company`, `notes`, `approved_at`, `rejected_at`).
 
 **Sub-achado — `isDemo: false` hardcoded, não `sq.is_demo`**: diferente de
 todos os outros 6 mappers (que fazem `st.is_demo ?? false`/`sp.is_demo ??
-false`), `mapSupabaseQuoteToLocalQuote` grava `isDemo: false` sempre, sem ler
-o campo real. `SupabaseQuote` não declara `is_demo` na interface (`grep` no
-tipo confirma: ausente de `quotesRepository.ts:21-58`) — mas a coluna existe
-na tabela `quotes` (mesmo padrão de `is_demo boolean` em todas as outras
-tabelas desta migração, confirmado por convenção do schema, não lido
-diretamente da migration SQL nesta rodada — fora do escopo verificar o SQL
-de `quotes` agora). Se a coluna existir e não estiver no tipo TS, é uma
-omissão em 2 camadas (tipo E leitura) — mas como não confirmei a coluna via
-SQL, listo como achado **não confirmado**, não classificado.
+false`), `mapSupabaseQuoteToLocalQuote` grava `isDemo: false` sempre.
+
+> **VEREDITO (rodada de verificação): VESTIGIAL/ESTRUTURAL, decisão agora
+> documentada em comentário** (`quoteMapper.ts`, junto do `isDemo: false`).
+> Confirmado por leitura de TODAS as migrations da tabela `quotes`
+> (`20260531030000_create_quotes_schema.sql` + as 4 `ALTER TABLE`
+> subsequentes) — **a coluna `is_demo` não existe** em `public.quotes`.
+> Não é omissão em 2 camadas como suspeitado originalmente — é ausência real
+> de coluna, o hardcode é o único comportamento correto possível. Também
+> seguro por construção mesmo que a coluna seja adicionada um dia:
+> `useLocalQuotesImport.ts:141` (`if (local.isDemo) continue;`) já impede
+> qualquer quote demo de chegar na nuvem via import, e a criação nativa
+> (`useSupabaseQuotes.createMutation`) nunca marca `is_demo` — não existe
+> hoje um caminho real que produza uma quote nuvem demo.
 
 ### 1.5 `quoteMapper.mapSupabaseQuoteItemToLocalItem` — ⚠️ 1 achado (baixo risco, inerte)
 
@@ -137,7 +142,7 @@ SQL, listo como achado **não confirmado**, não classificado.
 
 | Campo cloud | Lido? | Observação |
 |---|---|---|
-| `service_id` | ❌ nunca lido | `QuoteItem.serviceId?: string` existe (`useQuotes.ts:17`) — nunca atribuído em `mapSupabaseQuoteItemToLocalItem` (`quoteMapper.ts:217-224`). Não documentado como decisão. Risco BAIXO: `mapLocalQuoteItemToSupabaseItem` (escrita) também grava `service_id: undefined` sempre (hardcoded) — inerte nos 2 sentidos, igual ao `sort_order` de tasks. |
+| `service_id` | ❌ nunca lido | ~~Risco BAIXO, inerte nos 2 sentidos~~ — **VEREDITO (rodada de verificação): FIX PROPOSTO, de escopo MAIOR que os demais — não aplicado.** `QuoteItem.serviceId?: string` existe (`useQuotes.ts:17`) e **tem dado real**: `addServiceItem` (`QuotesSection.tsx:792-797`, fluxo "+ Adicionar serviço do catálogo") grava `serviceId: svc.id` genuinamente — não é um campo inerte como `sort_order`. Consumidor real: `ServicesSection.tsx:216-224` (`usageMap`/"serviço mais usado") conta `item.serviceId` em todas as quotes — hoje subconta silenciosamente qualquer item de quote nuvem, porque `serviceId` nunca sobrevive nem à escrita (`mapLocalQuoteItemToSupabaseItem` também hardcoda `undefined`) nem à leitura. **Por que não é um fix de 1 linha**: `service_id` é `uuid` na coluna (`quote_items`, migration `20260531030000_create_quotes_schema.sql:28`), mas o catálogo de Serviços (`useServices.ts`) não tem tabela Supabase própria nem import-map (`grep` por `servicesRepository`/`SupabaseService` no repo inteiro → zero resultados) — `Service.id` local (`svc-${Date.now()}`) nunca é um uuid válido, mandar cru violaria a mesma regra Q4 que todo `resolve*Fk` do repo aplica. Corrigir de verdade exigiria um catálogo de Serviços na nuvem primeiro (tabela + import-map, mesmo desenho de clients/quotes/projects/tasks/crm) — proposta registrada em comentário (`quoteMapper.ts`), decisão de priorização fica com o revisor. |
 
 `id`, `name`, `quantity`, `unit_price` são lidos. `quote_id`/`created_at`/
 `updated_at` são estruturais (item sempre resolvido dentro do contexto de
@@ -196,13 +201,13 @@ pra fechar o cruzamento pedido.
 
 | Mapper | Campo cloud | Atribuído? | Classificação | Evidência |
 |---|---|---|---|---|
-| `tasksMapper` | `sort_order` | ❌ | **Backlog de verificação futura** (inerte — escrita já hardcoda 0, sem fix agora) | `tasksMapper.ts:263-300` (função), `tasksRepository.ts:20` (coluna) |
+| `tasksMapper` | `sort_order` | ❌ | **Vestigial — decisão documentada** (comment-only): nenhum consumidor de ordenação persistida existe; escrita já hardcoda 0 | `tasksMapper.ts` (bloco de `mapSupabaseTaskToLocal`), `Tarefas.tsx` (`sortByDue`/`sortByPriority`/`sortByCreated`, `handleDrop`/`moveTask`) |
 | `tasksMapper` | `opportunity_id` | ❌ | **Decidida/documentada** — ausência estrutural, comentário `tasksMapper.ts:9-12` | `tasksMapper.ts:9-12` |
 | `quoteMapper` (quote) | `client_id` | ✅ (corrigido em `cd8bb26`) | Era **Esquecida** (risco ALTO) — fechada pela Lane A antes do merge desta auditoria, 2ª extensão do G67 | `quoteMapper.ts:206-207`, `useSupabaseQuotes.ts:49-60`, `QuotesSection.tsx:527,530` |
 | `quoteMapper` (quote) | `opportunity_id` | ✅ (corrigido em `cd8bb26`) | Idem — mesmo fix, mesmo commit | `quoteMapper.ts:206-207` |
-| `quoteMapper` (quote) | `updated_at` | ❌ | **Backlog de verificação futura**, risco baixo (nenhum consumidor crítico achado), sem fix agora | `quoteMapper.ts:171-201`, `useQuotes.ts:59` |
-| `quoteMapper` (quote) | `is_demo` | ❌ (hardcoded `false`) | **Backlog de verificação futura** — possível omissão em 2 camadas (tipo + leitura), coluna não verificada via SQL nesta rodada, sem fix agora | `quoteMapper.ts:194` |
-| `quoteMapper` (item) | `service_id` | ❌ | **Backlog de verificação futura** (inerte — escrita também hardcoda `undefined`, sem fix agora) | `quoteMapper.ts:217-224` |
+| `quoteMapper` (quote) | `updated_at` | ❌ | **Fix proposto, não aplicado** — consumidor real em `buildCommercialEvents.ts` (evento "Orçamento vencido"), risco baixo/médio (imprecisão de data). Não aplicado: consumidor está em arquivo em voo da Lane C | `quoteMapper.ts` (comentário junto de `opportunityId`), `buildCommercialEvents.ts` |
+| `quoteMapper` (quote) | `is_demo` | ❌ (hardcoded `false`) | **Vestigial/estrutural — decisão documentada** (comment-only): coluna `is_demo` NÃO existe em `public.quotes` (confirmado em todas as migrations da tabela) | `quoteMapper.ts` (comentário junto de `isDemo`), `supabase/migrations/20260531030000_create_quotes_schema.sql` |
+| `quoteMapper` (item) | `service_id` | ❌ | **Fix proposto, escopo MAIOR — não aplicado**: tem consumidor real (`usageMap`/"serviço mais usado") E dado real (`addServiceItem`), mas exige catálogo de Serviços na nuvem (tabela + import-map) antes de poder resolver com segurança (Q4) | `quoteMapper.ts` (comentário extenso junto de `mapLocalQuoteItemToSupabaseItem`), `ServicesSection.tsx:216-224`, `QuotesSection.tsx:792-797` |
 | `crmOpportunityMapper` | `status` | ❌ | **Decidida/documentada** (rodada-relâmpago, comment-only) — redundante com `stage` | `crmOpportunityMapper.ts:124-131` |
 | `crmOpportunityMapper` | `lost_at` | ❌ | **Decidida/documentada** (rodada-relâmpago, comment-only) — `Lead` não tem `lostAt` | `crmOpportunityMapper.ts:150-153` |
 | `mapSupabaseToLocalSheet` | `accesses` (via `raw_payload`) | ❌ | **Decidida/documentada** — já catalogado, território G63/Lane E | `etapa-5-flip-fichas-pacote.md:141,150` |
@@ -232,12 +237,39 @@ achado original se confirmou útil (evitou uma rodada de fix duplicada).
 "plausivelmente decididos mas não documentados" (`crmOpportunityMapper.status`/
 `lost_at`) ganharam comentário de decisão no próprio mapper — lição G61
 aplicada ("decisão sem comentário vira campo esquecido pra próxima
-auditoria"). Nenhuma linha de lógica mudou, só comentários. Os 3 achados
-inertes de baixo risco (`tasksMapper.sort_order`, `quoteMapper` (item)
-`.service_id`, `quoteMapper` (quote) `.updated_at`/`.is_demo`) foram
-formalmente registrados como **backlog de verificação futura** — sem fix
-nesta rodada, sem urgência (todos inertes nos 2 sentidos hoje, ou de impacto
-não confirmado).
+auditoria"). Nenhuma linha de lógica mudou, só comentários.
+
+**Rodada de verificação do backlog (4 campos, comment-only + doc — SEM fix de
+lógica)**: os 4 campos ficaram divididos em 3 vereditos diferentes, mais
+específicos que o "backlog genérico" da rodada anterior:
+
+1. **`tasksMapper.sort_order` — VESTIGIAL, decisão documentada.** Confirmado
+   por leitura de `Tarefas.tsx`: nenhum consumidor de ordenação persistida
+   existe (ordenação sempre computada em runtime; o drag-and-drop do Kanban
+   move status, não reordena). Comentário adicionado em `tasksMapper.ts`.
+2. **`quoteMapper.is_demo` — VESTIGIAL/ESTRUTURAL, decisão documentada.**
+   Confirmado lendo todas as migrations de `quotes`: a coluna `is_demo`
+   simplesmente não existe — não era uma omissão em 2 camadas como suspeitado,
+   é ausência real de coluna. Comentário adicionado em `quoteMapper.ts`.
+3. **`quoteMapper.updated_at` — FIX PROPOSTO, não aplicado.** Achado um
+   consumidor real (`buildCommercialEvents.ts`, evento "Orçamento vencido")
+   — hoje degrada pra usar `createdAt` em vez de `updatedAt`/`sentAt`. Fix
+   seria 1 linha, mas o único consumidor está em arquivo em voo da Lane C
+   (refactor `activityTimeline`) — proposta documentada em comentário,
+   aplicação fica pra quando o arquivo consumidor estiver estável.
+4. **`quoteMapper` (item) `.service_id` — FIX PROPOSTO, escopo MAIOR, não
+   aplicado.** Diferente do que a rodada anterior presumiu ("inerte nos 2
+   sentidos"): tem consumidor real (`ServicesSection.tsx`, "serviço mais
+   usado") E dado real (`QuotesSection.tsx.addServiceItem`) — mas o catálogo
+   de Serviços não tem tabela Supabase nem import-map, então resolver isso
+   com segurança (regra Q4, nunca id local cru em coluna uuid) exige
+   construir esse catálogo na nuvem primeiro — fora do escopo de um fix
+   pontual. Proposta detalhada documentada em comentário, decisão de
+   priorização fica com o revisor.
+
+Nenhum arquivo em voo tocado (`QuotesSection.tsx`/runbook — Lane A;
+`buildCommercialEvents.ts`/`activityTimeline` — Lane C; `functions`/`flow_data`
+— Lane E — todos só lidos/referenciados quando aplicável, nunca editados).
 
 **Já coberto por trabalho existente, não reaberto**: `accesses`/`competitors`
 de Fichas Técnicas (G63, Lane E).
