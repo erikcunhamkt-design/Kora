@@ -157,6 +157,24 @@ aceitando que não-admins percam a escrita sem aviso claro até a UI ser
 ajustada depois. **Não é decisão que este pacote toma** — só levanta o
 draft pronto e a lacuna encontrada.
 
+**Confirmação do revisor (rodada de merge do G71):** o(s) workspace(s) em
+produção hoje têm um único usuário (owner) — não existe, hoje, nenhum
+membro não-admin que dependa de escrever em `whatsapp_bot_settings` ou
+`workspace_ai_credentials` pelas 2 telas de §3.0. **Aplicar os 2 drafts
+agora é seguro** — não quebra escrita de ninguém, porque não há
+não-admin no workspace atual pra quebrar. Isso NÃO fecha a ressalva de
+§3.0, só muda quando ela vira bloqueante: o gate de papel na UI
+(`WhatsAppBotConfig.tsx`/`VertexAIConnectionCard.tsx`) passa a ser
+**obrigatório antes de qualquer workspace ganhar um segundo membro
+não-admin** — se os drafts forem aplicados antes desse gate existir, e
+depois o workspace virar multiusuário sem a UI ter sido ajustada, o
+sintoma descrito em §3.0 (escrita falhando em silêncio por RLS, sem
+mensagem de permissão) volta a valer. Registrado aqui pra não se perder
+entre a aplicação dos drafts (que pode acontecer agora) e o trabalho de
+UI (que precisa acontecer antes do workspace crescer) — são 2 pacotes
+diferentes, sem dependência de ordem entre si, mas com essa janela de
+risco se a ordem inverter.
+
 ### 3.1 Draft — `workspace_ai_credentials` (escrita → admin)
 
 ```sql
