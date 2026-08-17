@@ -287,15 +287,17 @@ indiretamente por `useBifurcatedProjects.ts`/`useSupabaseFinanceTransactions.ts`
 por grep (`grep -rl "useClientsDataSource" src/`, 18 arquivos totais contando
 testes).
 
-**3 telas ainda chamavam `useClients()` puro (sempre local), apesar do
-Clientes principal já ser Supabase-first para o mesmo usuário — 1/3
-fechado na Rodada 2b-parcial (G66):**
+**3 telas chamavam `useClients()` puro (sempre local), apesar do Clientes
+principal já ser Supabase-first para o mesmo usuário — 3/3 FECHADO:**
 
 | Arquivo | Uso | Efeito prático hoje |
 |---|---|---|
 | ~~`Financeiro.tsx:141` (`ClientsTab`)~~ **FECHADO (G66)** | Lista completa de clientes na aba "Clientes" do Financeiro | Bifurcado pra `useClientsDataSource()` (só a aba, não o `QuickSaleDialog` — fora do escopo desta rodada) — cliente criado na nuvem aparece na aba. `kora-hub-auditoria-e-plano.md` §G66. |
 | ~~`CRM.tsx:147`~~ **FECHADO (G64)** | Lista de clientes pro CRM (além da escrita, ver §2.4) | Bifurcado pra `useClientsDataSource()` — junto com o fix do deep link `?newOpportunity=1&clientId=X` (mesma classe do G67). `kora-hub-auditoria-e-plano.md` §G64. |
-| `ClientTechnicalSheet.tsx:234` | Busca cliente por id pra editar ficha técnica | **Bloqueado** — Lane E em voo (G63, fichas técnicas). Rodada 2b-restante, depois do merge da Lane E. |
+| ~~`ClientTechnicalSheet.tsx:234`~~ **FECHADO** | Busca cliente por id pra editar ficha técnica | Bifurcado pra `useClientsDataSource()` — `updateClient` (escrita, gateada por `activeDataSource==="local"` dentro de `persist()`, flags do G63 intocadas) continua vindo de `useClients()`. Cliente só-nuvem com ficha técnica própria agora é encontrado. Sem G-número atribuído ainda — pacote fechado nesta rodada, cabe ao revisor decidir se cataloga. |
+
+**Consumidores 3/3 fechados — este achado (§2.3) está resolvido por
+completo.**
 
 **Nota sobre `kora-hub-auditoria-e-plano.md:688`:** o catálogo existente
 afirma, ao descrever um fix em `QuotesSection.tsx`, que `useClientsDataSource()`
@@ -397,18 +399,19 @@ escopo). Catalogado como **G66**
 `ClientTechnicalSheet.tsx` NÃO tocados nesta rodada (lanes B/E em voo nesses
 arquivos) — ver backlog abaixo.
 
-**Backlog restante — rodada 3, ainda não iniciada:**
+**Rodada 2b — CONCLUÍDA, 3/3 consumidores fechados:**
+- `Financeiro.tsx` (G66) — só a aba "Clientes", `QuickSaleDialog` intocado.
+- `CRM.tsx` (G64, itens 2/3) — colapsou com o fix do deep link
+  `?newOpportunity=1&clientId=X` (mesma classe do G67/G66), já que era o
+  único uso restante de `useClients()`/`clients` no arquivo.
+- `ClientTechnicalSheet.tsx` (rodada 2b-fichas, sem G-número atribuído
+  ainda) — busca de cliente por id bifurcada; `updateClient` (escrita local,
+  já gateada por `activeDataSource==="local"` dentro de `persist()`) e as
+  flags do G63 (autosave, data source por-cliente da ficha técnica em si)
+  não foram tocadas — são um data source PRÓPRIO da ficha, ortogonal ao do
+  registro de cliente.
 
-- **Rodada 2b-resto — `CRM.tsx` concluído (G64, itens 2/3), `ClientTechnicalSheet.tsx`
-  ainda pendente:** `CRM.tsx` bifurcado pra `useClientsDataSource()` na
-  mesma rodada em que o achado de funis customizados (G64 item 1) foi
-  fechado — o único uso restante de `useClients()`/`clients` no arquivo era
-  o deep link `?newOpportunity=1&clientId=X` (mesma classe do G67/G66),
-  então os itens 2 (deep link) e 3 (consumidor local-only) colapsaram na
-  mesma correção. Catalogado em `kora-hub-auditoria-e-plano.md` §G64.
-  `ClientTechnicalSheet.tsx` segue bloqueada até o G63 da Lane E aterrissar
-  — não tocada nesta rodada, fora do território de `CRM.tsx` que a Lane C
-  tinha reservado.
+**Backlog restante — rodada 3, ainda não iniciada:**
 - **Rodada 3 (candidata, backlog do operador — pós-Fase D):** decisão sobre
   CHECK de vocabulário em `status`/`temperature` (§2.2) — **migration**,
   então gate reforçado do protocolo; correta pra propor só depois que uma
