@@ -294,7 +294,7 @@ fechado na Rodada 2b-parcial (G66):**
 | Arquivo | Uso | Efeito prático hoje |
 |---|---|---|
 | ~~`Financeiro.tsx:141` (`ClientsTab`)~~ **FECHADO (G66)** | Lista completa de clientes na aba "Clientes" do Financeiro | Bifurcado pra `useClientsDataSource()` (só a aba, não o `QuickSaleDialog` — fora do escopo desta rodada) — cliente criado na nuvem aparece na aba. `kora-hub-auditoria-e-plano.md` §G66. |
-| `CRM.tsx:147` | Lista de clientes pro CRM (além da escrita, ver §2.4) | **Bloqueado** — Lane B ainda em voo em `CRM.tsx` (G59/`handleSavePipeline`, banner). Rodada 2b-restante, depois do merge da Lane B. |
+| ~~`CRM.tsx:147`~~ **FECHADO (G64)** | Lista de clientes pro CRM (além da escrita, ver §2.4) | Bifurcado pra `useClientsDataSource()` — junto com o fix do deep link `?newOpportunity=1&clientId=X` (mesma classe do G67). `kora-hub-auditoria-e-plano.md` §G64. |
 | `ClientTechnicalSheet.tsx:234` | Busca cliente por id pra editar ficha técnica | **Bloqueado** — Lane E em voo (G63, fichas técnicas). Rodada 2b-restante, depois do merge da Lane E. |
 
 **Nota sobre `kora-hub-auditoria-e-plano.md:688`:** o catálogo existente
@@ -397,29 +397,18 @@ escopo). Catalogado como **G66**
 `ClientTechnicalSheet.tsx` NÃO tocados nesta rodada (lanes B/E em voo nesses
 arquivos) — ver backlog abaixo.
 
-**Backlog restante — rodada 2b-resto e rodada 3, ainda não iniciadas:**
+**Backlog restante — rodada 3, ainda não iniciada:**
 
-- **Rodada 2b-resto (addendum, verificação de integridade 16/ago/2026 —
-  DESBLOQUEADA):** bifurcar os 2 consumidores restantes de §2.3 (`CRM.tsx`
-  leitura de lista, `ClientTechnicalSheet.tsx`) pra `useClientsDataSource()`
-  — padrão já provado (2 vezes agora, Clientes.tsx e Financeiro.tsx), sem
-  desenho novo necessário. Era bloqueada porque `CRM.tsx` tocava o mesmo
-  arquivo que a Lane B estava corrigindo — mas ambos os fósseis do par G59
-  (`handleConvertToClient`, G58, E `handleSavePipeline`, **G62**) já
-  aterrissaram em `main` (`688efd1` e `91d9070`/`0feb815`, respectivamente) —
-  `CRM.tsx` está livre. `ClientTechnicalSheet.tsx` segue como antes,
-  bloqueada até o G63 da Lane E aterrissar. Confirmar tip real no fetch
-  antes de começar, como sempre, mas a condição de bloqueio original de
-  `CRM.tsx` já foi satisfeita.
-  **Propriedade de arquivo (registrado 16/ago/2026):** com a Rodada 2b-resto
-  desbloqueada pro lado de `CRM.tsx`, esse arquivo tem 2 trabalhos
-  concorrentes previstos — a bifurcação de leitura desta rodada e o achado
-  reservado como **G64** (`NewLeadDialog`/derivação won-lost, funis
-  customizados), ambos da **Lane C**. Dono único por arquivo enquanto os
-  dois estiverem em voo: **Lane C** — nenhuma outra lane deve abrir uma
-  branch tocando `CRM.tsx` até uma das duas rodadas fechar, mesmo padrão de
-  coordenação já usado no par G58/G59 vs. G62 (Lane B esperou o merge antes
-  de tocar o mesmo arquivo).
+- **Rodada 2b-resto — `CRM.tsx` concluído (G64, itens 2/3), `ClientTechnicalSheet.tsx`
+  ainda pendente:** `CRM.tsx` bifurcado pra `useClientsDataSource()` na
+  mesma rodada em que o achado de funis customizados (G64 item 1) foi
+  fechado — o único uso restante de `useClients()`/`clients` no arquivo era
+  o deep link `?newOpportunity=1&clientId=X` (mesma classe do G67/G66),
+  então os itens 2 (deep link) e 3 (consumidor local-only) colapsaram na
+  mesma correção. Catalogado em `kora-hub-auditoria-e-plano.md` §G64.
+  `ClientTechnicalSheet.tsx` segue bloqueada até o G63 da Lane E aterrissar
+  — não tocada nesta rodada, fora do território de `CRM.tsx` que a Lane C
+  tinha reservado.
 - **Rodada 3 (candidata, backlog do operador — pós-Fase D):** decisão sobre
   CHECK de vocabulário em `status`/`temperature` (§2.2) — **migration**,
   então gate reforçado do protocolo; correta pra propor só depois que uma
