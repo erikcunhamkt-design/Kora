@@ -166,6 +166,63 @@ describe("quoteMapper — quote", () => {
   });
 });
 
+// G68 (3ª ocorrência da classe, adendo do G67) — mapSupabaseQuoteToLocalQuote
+// nunca lia client_id/opportunity_id do row da nuvem pra Quote.clientId/
+// opportunityId local, mesmo com o dado presente na coluna (confirmado via
+// SQL do operador na Fase D, Caso 6.3: quotes.client_id uuid preenchido,
+// mas financial_transactions.client_id do recebível gerado = NULL — o
+// vínculo se perdia entre ler o quote e QuoteToReceivableDialog.tsx:164
+// resolveFinanceFk(quote.clientId) receber undefined). Diferente do G67-ext
+// (crmOpportunityMapper: Number(uuid) === NaN) — aqui os campos nunca eram
+// atribuídos, não havia cast nenhum quebrando.
+describe("quoteMapper — G68 — client_id/opportunity_id (uuid) preservados na leitura", () => {
+  it("client_id/opportunity_id uuid da nuvem viram Quote.clientId/opportunityId (contrabandeados via cast, nunca undefined por omissão)", () => {
+    const sq = {
+      id: "q4",
+      workspace_id: "w1",
+      client_name: "Cliente Nuvem",
+      title: "Orçamento com cliente",
+      subtotal: 100,
+      discount: 0,
+      total: 100,
+      status: "aprovado",
+      created_at: "2026-08-01T00:00:00.000Z",
+      updated_at: "2026-08-01T00:00:00.000Z",
+      archived: false,
+      client_id: "3e890de3-1111-2222-3333-444455556666",
+      opportunity_id: "9f8e7d6c-1111-2222-3333-444455556666",
+    } as unknown as SupabaseQuote;
+
+    const local = mapSupabaseQuoteToLocalQuote(sq);
+
+    expect(String(local.clientId)).toBe("3e890de3-1111-2222-3333-444455556666");
+    expect(String(local.opportunityId)).toBe("9f8e7d6c-1111-2222-3333-444455556666");
+  });
+
+  it("regressão: client_id/opportunity_id ausentes continuam virando undefined (nunca um 0/NaN inventado)", () => {
+    const sq = {
+      id: "q5",
+      workspace_id: "w1",
+      client_name: "Sem vínculo",
+      title: "Orçamento sem cliente",
+      subtotal: 50,
+      discount: 0,
+      total: 50,
+      status: "rascunho",
+      created_at: "2026-08-01T00:00:00.000Z",
+      updated_at: "2026-08-01T00:00:00.000Z",
+      archived: false,
+      client_id: null,
+      opportunity_id: null,
+    } as unknown as SupabaseQuote;
+
+    const local = mapSupabaseQuoteToLocalQuote(sq);
+
+    expect(local.clientId).toBeUndefined();
+    expect(local.opportunityId).toBeUndefined();
+  });
+});
+
 describe("quoteMapper — item", () => {
   it("maps a local QuoteItem to a Supabase item", () => {
     const item: QuoteItem = { id: "i1", name: "Design", quantity: 2, unitPrice: 150 };

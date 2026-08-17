@@ -196,6 +196,15 @@ export function mapSupabaseQuoteToLocalQuote(sq: SupabaseQuote): Quote {
     notes: sq.notes ?? undefined,
     approvedAt: sq.approved_at ?? undefined,
     rejectedAt: sq.rejected_at ?? undefined,
+    // G68 (3ª ocorrência da classe, adendo do G67) — client_id/opportunity_id
+    // são uuid (string) na coluna Supabase; Quote.clientId/opportunityId são
+    // tipados `number` localmente (v2 commercial linkage). Diferente do
+    // G67-ext (crmOpportunityMapper: Number(uuid) === NaN), aqui o defeito era
+    // mais simples — os campos nunca eram lidos do row nuvem pra Quote local,
+    // ficando sempre undefined mesmo com o dado presente. Fix: contrabandeia o
+    // uuid via cast, mesmo molde de useClientsDataSource.ts:9/G67-ext.
+    clientId: sq.client_id ? (sq.client_id as unknown as number) : undefined,
+    opportunityId: sq.opportunity_id ? (sq.opportunity_id as unknown as number) : undefined,
     // other optional fields left undefined or defaulted
   } as Quote;
 }
