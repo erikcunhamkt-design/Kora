@@ -11,6 +11,39 @@
   - **R2 (`tarefas-r2-auditoria.md`)**: contenção **(a) ADOTADA** pelo revisor em 14/ago/2026 — `supabaseOperationalDashboard`/`projectsSupabaseCreateBaseTasks`/`tasksSupabaseStatusTransition` seguem OFF por política até a decisão de flip. **Atualização 15/ago/2026 — R2 FECHADO POR QUANTIFICAÇÃO**: as 8 SQLs do §1 daquele doc foram rodadas pelo operador; resultado íntegro de **0 linhas em `public.tasks`** (`tarefas-r2-auditoria.md` §4). O texto original deste bloco ("ainda não rodadas", "pré-requisito de fase") descrevia corretamente o estado em 14/ago — preservado abaixo (§2) com nota de data, não apagado. Consequência prática: §2 deixa de ser uma fase bloqueante do plano (mesa vazia, nada a reconciliar) e §5 (convivência) fecha como **(a) Fundir**.
   - **G41 (Financeiro, Lane C)**: sem dependência técnica direta com Tarefas, mas mesmo arquivo-alvo (`ClientActivitiesTab.tsx`) e mesmo `docs/architecture/kora-hub-auditoria-e-plano.md` como catálogo compartilhado — coordenação de numeração G42+ com as lanes em voo fica fora deste doc (não atribuo número G novo aqui, só descrevo achados).
 
+### Adendo de revalidação (16/ago/2026) — muita coisa deste doc já foi construída por outra lane
+
+> **Contexto do ciclo novo**: o operador decidiu tocar o flip de escrita de Tarefas. Antes de
+> desenhar a Fase B do zero, revalidei este pacote (escrito em 15/ago) contra o `main` atual —
+> a Lane D já entregou um commit de **"fundações de Fase B"** (`bc5f5fb`, rotulado **G53** no
+> código, mas **sem entrada própria no catálogo mestre** — `kora-hub-auditoria-e-plano.md` pula
+> de G52 pra G55, achado registrado abaixo, não corrigido aqui: escrever a entrada é decisão de
+> quem fez o trabalho ou do revisor, não presumida por mim). O commit fechou 3 dos itens que
+> este pacote listava como pendentes de Fase B (§3.2, §3.4 parcial, §3.5) — todos confirmados
+> por leitura direta do código nesta rodada, não por inferência do nome do commit. Detalhe por
+> item nas seções correspondentes abaixo (marcadas "**REVALIDADO 16/ago**"). Resumo executivo:
+
+| Item do plano original | Estado em 15/ago (quando este doc nasceu) | Estado real em 16/ago (revalidado) |
+|---|---|---|
+| §3.1 — vocabulário do 2º produtor (G49) | "Fix em voo pela Lane B, ainda não mesclado" | **FECHADO** — `CreateProjectBaseTasksDialog.tsx` grava `"a_fazer"`/`"alta"`\|`"média"`\|`"baixa"` (português) desde o commit `54f7fea`; `normalizeCloudTaskPriority` existe na leitura. CHECK de `status`/`priority` (§1.1) **já não tem mais pré-condição bloqueando** — pode entrar na Fase B sem esperar mais nada. |
+| §3.2 — passthrough de UUID em `resolveTaskFk` (G37-classe) | "Achado novo, fix proposto pra Fase B" | **FECHADO** — `resolveTaskFk` (`tasksMapper.ts:53-61`) já testa `UUID_RE` e retorna o uuid direto antes de procurar no import-map, mesmo molde de `resolveProjectFk`/`resolveFinanceFk`. |
+| §3.4 — `mapSupabaseTaskToLocal` (leitura nuvem→local) | "Não existe — trabalho de Fase B" | **PARCIALMENTE FEITO** — a função existe e está completa (`tasksMapper.ts:263-300`), usa os dois normalizadores acima na leitura, trata os gaps estruturais (§1.2/§1.3/§1.4) com o mesmo padrão "omitir, não forçar" que o resto da casa usa. **Ainda faltam** o método `tasksRepository.listTasks(workspaceId)` (só existe `listTasksByProject`, escopado a 1 projeto — confirmado por grep, zero ocorrência de `listTasks` sem sufixo) e os hooks `useSupabaseTasksAll`/`useBifurcatedTasks` em si (nenhum dos dois existe — confirmado, `find` não acha nenhum arquivo com esses nomes). Ou seja: o CONVERSOR está pronto, o CANO que alimenta ele (list-all + hook bifurcado) ainda não foi construído. |
+| §3.5 — G30 em `useSupabaseProjectTasks.updateStatus` | "Achado, não corrigido" | **FECHADO** — `updateStatus` (`useSupabaseProjectTasks.ts:22-40`) já grava a resposta do UPDATE direto no cache via `setQueryData`, sem depender de `invalidateQueries`. Confirmado também por `docs/qa/etapa-5-auditoria-hooks-g30-g32.md:56` ("✅ conforme"). |
+| §5 — ressalva sobre G49 não ter mesclado ainda | "A contenção (flags OFF) segue ativa até o G49 mesclar" | **A condição já se cumpriu** — G49 mesclado (linha acima). A contenção (flags OFF) **continua ativa mesmo assim** — não é o G49 que a religa, é uma decisão de Fase C explícita (§6.1) — só o texto que explicava POR QUE esperar ficou obsoleto, a política em si não mudou. |
+
+**Achado novo desta revalidação, fora do que o commit da Lane D cobriu — G67-classe, ainda não
+catalogado em lugar nenhum:** `Tarefas.tsx:228-241` (deep link `?task=<id>`) tem exatamente o
+mesmo padrão de bug que `QuotesSection.tsx` (G67) e `CRM.tsx` (G64 itens 2/3) já tiveram —
+`const id = Number(raw); if (!Number.isFinite(id)) return;` comparado contra `t.id` (`tasks.find(t
+=> t.id === id)`). Hoje isso nunca falha porque toda `Task.id` é local (`number` de verdade). No
+dia em que `useBifurcatedTasks` existir e `mapSupabaseTaskToLocal` (já pronto, ver acima) começar
+a alimentar a tela, `st.id as unknown as number` (`tasksMapper.ts:267`, mesmo cast-contrabando
+uuid→number que todo domínio bifurcado usa) faz `Number(raw)` virar `NaN` pra qualquer task da
+nuvem — o deep link simplesmente para de encontrar a tarefa, em silêncio, sem toast, sem erro.
+**Não é um bug hoje — é um bug latente que a própria bifurcação (§4.1) vai ativar se não for
+corrigido na mesma rodada.** Adicionado como item explícito do plano de consumidores abaixo (§4.1
+revisado) — mesmo fix, mesmo padrão: comparação por `String(id)`, não `Number()`.
+
 ---
 
 ## 1. Triagem dos 7 gaps de campo — bloqueantes vs. pós-flip
@@ -128,7 +161,18 @@ priority: t.priority, // vem de DEFAULT_TASKS (linhas 38-46): "medium"/"high"/"l
 - **Proposta de sequência na Fase B** (não implementada aqui): (1) `CreateProjectBaseTasksDialog.tsx` passa a gravar `status: "a_fazer"` e traduz `t.priority` (`"medium"→"média"`, `"high"→"alta"`, `"low"→"baixa"`) antes do payload — mesmo espírito do fix do G40, aplicado ao 2º produtor que ficou de fora; (2) só depois disso o CHECK de `status`/`priority` (que faltou no §1.1 acima — propositalmente omitido dali, porque §1.1 é só sobre os 4 campos genuinamente preventivos) entra como migration separada, condicionada à query 1.4 do §2 confirmando zero linhas legadas remanescentes.
 - **Nota**: `DEFAULT_TASKS` (linha 38) já usa `priority: "medium"` como valor mais comum — se a tradução granular parecer desproporcional pra uma rodada pequena, a alternativa mínima é só trocar os 3 literais do array + o `"todo"` hardcoded — mesmo tamanho de diff que o fix G40 teve no dropdown.
 
-### 3.2 Passthrough de UUID nas FKs — G37 ainda NÃO aplicado aqui (achado novo)
+**REVALIDADO 16/ago/2026 — item (1) da sequência acima já foi feito.** Confirmado por leitura
+direta de `CreateProjectBaseTasksDialog.tsx` no `main` atual: `DEFAULT_TASKS` grava
+`priority: "média"`/`"alta"`/`"baixa"` (português, não mais `"medium"`/`"high"`/`"low"`);
+`handleConfirm` grava `status: "a_fazer"` (não mais `"todo"`). `tasksMapper.ts` ganhou
+`normalizeCloudTaskPriority` (mesmo molde de `normalizeCloudTaskStatus`, protege a leitura de
+qualquer linha legada em inglês que já exista — não existe nenhuma, mesa vazia confirmada). **Item
+(2) fica liberado** — o CHECK de `status`/`priority` já pode entrar na Fase B sem nenhuma
+pré-condição pendente. Já catalogado como **G49** no catálogo mestre (`kora-hub-auditoria-e-plano.md:709`), commit
+`54f7fea` — a entrada de lá já está correta e marcada FECHADO; só o texto DESTE pacote (escrito
+em 15/ago, antes do merge) que estava desatualizado. Sem ação necessária no catálogo mestre.
+
+### 3.2 Passthrough de UUID nas FKs — G37 ainda NÃO aplicado aqui (achado novo) — **REVALIDADO 16/ago/2026: FECHADO, ver nota no fim da seção**
 
 `resolveTaskFk` (`tasksMapper.ts:42-48`) tem exatamente a mesma forma que `resolveFinanceFk` tinha ANTES do fix de desenho do pacote de Financeiro — todo `localId` é tratado como id local a procurar no import-map, sem checar se já é um uuid real:
 
@@ -159,11 +203,19 @@ export function resolveTaskFk(
 }
 ```
 
+**REVALIDADO 16/ago/2026 — este fix já está no `main`, byte a byte igual ao proposto acima.**
+Confirmado por leitura direta de `tasksMapper.ts:53-61` — `UUID_RE` definida (`:22`), passthrough
+aplicado exatamente como desenhado aqui. Rotulado **G53** no comentário do código
+(`tasksMapper.ts:44-51`, "fundações de Fase B") — mas G53 **não tem entrada própria** no catálogo
+mestre (`kora-hub-auditoria-e-plano.md` pula de G52 pra G55, confirmado por grep). Achado
+registrado no adendo de revalidação (Abertura) — não escrito aqui porque documentar o trabalho de
+outra lane no catálogo mestre não é decisão minha a tomar sozinha.
+
 ### 3.3 Payload de escrita — completo, ao contrário do achado de Financeiro
 
 Checklist campo-a-campo (mesma disciplina que achou o `deliverables` esquecido em Financeiro/G37): `mapLocalTaskToSupabase` (`tasksMapper.ts:68-87`) já cobre TODAS as colunas de `SupabaseTask` que têm campo local correspondente — `project_id`/`client_id`/`quote_id` (via `resolveTaskFk`), `opportunity_id` (sempre `null`, documentado como ausência estrutural, não bug), `title`/`description`/`status`/`priority`/`due_date`/`source`/`sort_order`/`is_demo`/`archived`. **Não há achado de payload incompleto aqui** — diferente de Financeiro, o gap desta rodada está no passthrough de FK (§3.2) e no vocabulário do 2º produtor (§3.1), não em campo esquecido.
 
-### 3.4 Direção de leitura — `mapSupabaseTaskToLocal` não existe (mesmo gap que Financeiro tem)
+### 3.4 Direção de leitura — `mapSupabaseTaskToLocal` não existe (mesmo gap que Financeiro tem) — **REVALIDADO 16/ago/2026: função pronta, cano que a alimenta ainda não**
 
 Confirmado por grep exaustivo (`mapSupabaseTaskToLocal`, zero resultados em `src/`): `tasksMapper.ts` só tem a direção de escrita, igual ao achado de Financeiro sobre `financeMapper.ts`. É trabalho de Fase B: converter `SupabaseTask` → `Task` local, campo a campo (tabela do §3.3 invertida), incluindo:
 - `status`/`priority`: usar `normalizeCloudTaskStatus` (já existe, `tasksMapper.ts:130-132`) na leitura, pra tratar os 3 valores legados em inglês (se algum sobreviver na nuvem, seja de `createProjectBaseTasks` pré-fix do §3.1, seja de dado histórico) como alias, nunca mascarando um valor desconhecido.
@@ -173,9 +225,28 @@ Confirmado por grep exaustivo (`mapSupabaseTaskToLocal`, zero resultados em `src
 
 Também falta **`tasksRepository.listTasks(workspaceId)`** — só existe `listTasksByProject` (`tasksRepository.ts:34-46`), escopado a um projeto. Insuficiente pra alimentar `Tarefas.tsx` (tela principal, todas as tarefas do workspace, com ou sem projeto). Mesmo gap estrutural que Financeiro tinha com `listReceivables` vs. `listTransactions`.
 
-### 3.5 Achado extra, fora do escopo de G40: `useSupabaseProjectTasks.updateStatus` ainda não aplica G30
+**REVALIDADO 16/ago/2026:** `mapSupabaseTaskToLocal` **já existe**, completa
+(`tasksMapper.ts:263-300`), e segue exatamente a receita acima — usa os dois normalizadores na
+leitura, `client`/`project` ficam string vazia (lookup por `clientNameById` só parcialmente
+aplicado — `client` já recebe o parâmetro, `project` fica sempre `""`, pendente), os 4 campos do
+§1.1 (`scope`/`tags`/`recurrence`/`reminder*`) recebem default neutro (`"work"`, `[]`, `"none"`,
+`undefined`/`false`) — consistente com a migration deles ainda não ter sido aplicada (§1.1
+continua proposta, não aplicada), `subtasks`/`comments`/`taskProjectId`/`milestoneId` ausentes
+como previsto. **Mas `tasksRepository.listTasks(workspaceId)` continua sem existir** (confirmado
+por grep — só `listTasksByProject`) **e nenhum dos 2 hooks (`useSupabaseTasksAll`,
+`useBifurcatedTasks`) existe** (confirmado — `find` não acha nenhum arquivo com esses nomes). O
+conversor está pronto; o cano que alimenta `Tarefas.tsx`/os 8 consumidores (§4.1) com ele ainda
+não foi construído — isso é o núcleo real do trabalho de Fase B que sobra, ver §7.
+
+### 3.5 Achado extra, fora do escopo de G40: `useSupabaseProjectTasks.updateStatus` ainda não aplica G30 — **REVALIDADO 16/ago/2026: FECHADO**
 
 Lido diretamente no código (`useSupabaseProjectTasks.ts:21-30`): a mutation `updateStatus` só faz `queryClient.invalidateQueries(...)` depois do `UPDATE` — nunca escreve a resposta no cache via `setQueryData`. Mesma classe do bug que G30 corrigiu em Projetos (`ProjectDetailDrawer.tsx` preso mostrando status antigo). Está atrás das mesmas 2 flags OFF do G40 (não dispara hoje), mas é um achado real, independente do vocabulário — fica registrado aqui pra a Fase B tratar junto (não atribuo número G novo, pra não colidir com G42+ das lanes em voo).
+
+**REVALIDADO 16/ago/2026:** já corrigido — `useSupabaseProjectTasks.ts:22-40` grava a linha
+devolvida pelo `UPDATE` (`.select().single()`) direto no cache via `setQueryData`, sem
+`invalidateQueries` em lugar nenhum do arquivo. Confirmado também por
+`docs/qa/etapa-5-auditoria-hooks-g30-g32.md:56` ("✅ conforme"). Rotulado G53 no comentário do
+código, mesma observação do §3.2 sobre a entrada faltando no catálogo mestre.
 
 ---
 
@@ -201,7 +272,7 @@ export function useBifurcatedTasks(): Task[] {
 
 | Arquivo | Ação |
 |---|---|
-| `src/pages/Tarefas.tsx` | Trocar `useTasks()` por `useBifurcatedTasks()` — tela real |
+| `src/pages/Tarefas.tsx` | Trocar `useTasks()` por `useBifurcatedTasks()` — tela real. **Adendo 16/ago/2026 (G67-classe, achado novo desta revalidação):** o deep link `?task=<id>` (`Tarefas.tsx:228-241`) faz `Number(raw)` e compara contra `t.id` — mesmo padrão do bug já fechado 3x nesta sessão (G67/QuotesSection, G64 itens 2/3/CRM, G67-ext/crmOpportunityMapper). Hoje nunca falha (todo `Task.id` é local); no dia em que `mapSupabaseTaskToLocal` alimentar a tela (`id: st.id as unknown as number`, uuid contrabandeado), `Number(uuid)` vira `NaN` e o deep link para de achar a tarefa em silêncio. **Tem que ser corrigido na MESMA rodada que bifurca esta tela** — comparação por `String(id)`, não `Number()` — senão vira um bug latente ativado pela própria bifurcação. |
 | `src/components/projects/ProjectDetailDrawer.tsx` | Trocar `useTasks()` por `useBifurcatedTasks()` — **atenção**: hoje filtra local por `projectId` (não lê `public.tasks`, ver Fase A §1.1); pós-bifurcação passa a coexistir com o painel experimental que já lê `public.tasks` via `useSupabaseProjectTasks` no mesmo drawer — checar se os dois viram a mesma coisa ou continuam paralelos (depende da decisão do §5) |
 | `src/components/clients/ClientActivitiesTab.tsx` | Ver §4.2 — rota crítica, 3º domínio a bifurcar neste arquivo |
 | `src/components/day/DayCenter.tsx` / `src/hooks/useDayCenterActions.ts` | Leitura via `useBifurcatedTasks()`; escrita (`completeTask` → `updateTask`) segue **local-only por enquanto** — mesma decisão que Financeiro tomou pra `updateTransactionStatus` na Central do Dia (classe b, não é a rota crítica desta fatia). Ver nota abaixo — é uma recomendação, não a única opção defensável. |
@@ -240,6 +311,13 @@ Confirmado lendo o código (linhas 431-436, não só o inventário): hoje o arqu
 > `createProjectBaseTasks` que rodar DEPOIS de hoje e ANTES do fix do G49 mesclar (Lane B, em
 > voo) — por isso a contenção (a) do R2 (flags OFF) segue ativa até lá, mesmo com a decisão de
 > convivência já fechada (ver `tarefas-r2-auditoria.md` §4).
+>
+> **REVALIDADO 16/ago/2026:** o G49 já mesclou (`54f7fea`, confirmado por leitura direta do
+> código — ver adendo de revalidação na Abertura). A condição que esta ressalva descrevia
+> ("enquanto o G49 não mesclar") **já se cumpriu** — qualquer `createProjectBaseTasks` que rodar
+> a partir de agora grava o vocabulário certo. Isso **não desliga a contenção (a) do R2** (flags
+> OFF) sozinho — essa é uma decisão de Fase C explícita (§6.1/§7), não uma consequência automática
+> do merge do G49. Só o motivo pelo qual a ressalva existia deixou de ser urgente.
 
 Diferente de Financeiro (onde a nuvem só tinha o que o próprio flip trouxe), aqui `public.tasks` já tem linhas nativas (`project_template`, via `createProjectBaseTasks`) que nunca passaram por import e nunca terão `source_local_id`. Quando `Tarefas.tsx` passar a ler `public.tasks` (Fase C), essas linhas — hoje visíveis SÓ dentro de `ProjectDetailDrawer` via `useSupabaseProjectTasks` (escopo de projeto, painel experimental) — se tornam candidatas a aparecer na tela principal pela primeira vez. 3 opções, com trade-offs — decisão do revisor/operador, não fechada aqui (texto original, 14/ago/2026):
 
@@ -314,12 +392,87 @@ Compensando parcialmente (herdado da Fase A, ainda válido): schema com FK compl
 
 ---
 
+## 7. Plano de Fase B (16/ago/2026) — vantagem estrutural + rodadas paralelizáveis por lane
+
+### 7.1 A vantagem estrutural (tabela vazia + FUNDIR) justifica um caminho mais curto que o espelho reversível completo?
+
+**Não — recomendo manter o padrão completo.** A pergunta certa não é "o espelho reversível existe
+por causa de dado divergente já na nuvem", é "por que o padrão existe, ponto". Duas razões
+distintas sustentam o Espelho Reversível em qualquer flip deste projeto, e só UMA delas deixa de
+se aplicar aqui:
+
+1. **Proteger contra dado LOCAL divergente/perdido durante a transição** (import assistido,
+   reversibilidade de flag) — **continua se aplicando integralmente**. `public.tasks` vazia é
+   sobre a NUVEM, não sobre `orbyt.tasks.v1` no `localStorage` de cada usuário — esse continua
+   tendo dado real, ativamente usado. O importador assistido (`useLocalTasksImport.ts`, já
+   homologado 10/11 por leitura de código, §6.4) e a reversibilidade de `kora.tasks.dataSource.v1`
+   (Nível 1 de rollback, §6.3) protegem exatamente esse lado — nenhum dos dois fica menos
+   necessário porque a nuvem está vazia.
+2. **Dar um kill switch pra código NOVO ainda não testado em produção** (a razão de existir de
+   toda Fase C/Fase D deste projeto) — **também continua se aplicando**. O caminho de escrita
+   nativa em modo Supabase pra `Tarefas.tsx` (criar/editar tarefa arbitrária, não só
+   `createProjectBaseTasks`/`updateTaskStatus`) **ainda não existe** — é código novo que a Fase B
+   vai escrever. Zero linhas na nuvem não reduz o risco de um bug NESSE código novo; só elimina o
+   risco de um passo de **backfill de dado já divergente**, que é exatamente o que a decisão (a)
+   do §5 já capturou (nenhum backfill a desenhar).
+
+**Onde a vantagem estrutural JÁ se converteu em economia real (não precisa ser buscada de novo)**:
+§5 fechou trivial (sem opção (c)/backfill), a Fase B não carrega mais a incerteza "e se o volume
+vier alto" que inflava a estimativa original (§6.4, itens 1-2 já resolvidos). **Onde NÃO ajuda**:
+nenhum dos 8 consumidores (§4.1) fica mais simples de bifurcar por causa disso; nenhuma das 4
+migrations de schema (§1.1) fica menos necessária; o CHECK de vocabulário (§3.1) continua
+precisando da mesma sequência (fix do produtor → migration); a Fase D (homologação) continua
+precisando existir, porque testa código NOVO, não dado antigo.
+
+**Conclusão prática pro plano abaixo**: fatiar em rodadas do mesmo tamanho/forma que
+Financeiro/Projetos tiveram — a "vantagem" já foi contabilizada no tamanho de cada rodada (mais
+curtas onde havia menos risco de dado, iguais onde o risco é sobre código novo), não numa mudança
+de arquitetura.
+
+### 7.2 Rodadas paralelizáveis por lane — sem colisão de arquivo
+
+Convenção: cada rodada lista os arquivos que toca; nenhuma rodada da mesma "coluna" (mesmo
+período) toca arquivo que outra também toca. Classes de risco do catálogo, entre colchetes, citam
+o que cada rodada precisa aplicar **desde o desenho** (preventivo — não descobrir depois, como
+várias entradas do catálogo já documentaram acontecer quando isso não é feito de propósito).
+
+| Rodada | Lane sugerida | Arquivos | Depende de | Classes de risco a aplicar por desenho |
+|---|---|---|---|---|
+| **B1 — Schema (4 migrations do §1.1) + CHECK de vocabulário (§3.1 item 2)** | Qualquer uma (SQL, sem código de app) | `supabase/migrations/*.sql` (novos arquivos) | Nenhuma — G49 já mesclado, sem pré-condição | Migration só PROPOSTA, nunca aplicada pelo Code (protocolo §0/§6/§8-b) — mesmo texto de aviso que §1.1 já tem |
+| **B2 — `tasksRepository.listTasks(workspaceId)` + `useSupabaseTasksAll`** | Uma lane, isolada | `src/repositories/tasksRepository.ts`, `src/hooks/useSupabaseTasksAll.ts` (novo) | Nenhuma técnica — só schema não-bloqueante (a leitura funciona sem as 4 colunas novas, só não devolve os campos ainda) | **[G32]** fetch sempre em paralelo, hook nunca condicional a `dataSource` (padrão já confirmado em `useSupabaseProjectTasks`/`useSupabaseProjects`) |
+| **B3 — `useBifurcatedTasks()` + flag nova `kora.tasks.dataSource.v1`** | Mesma lane de B2 (mesmo hook novo, sem colisão com outras) | `src/hooks/useBifurcatedTasks.ts` (novo), `src/config/flags.ts` (append) | B2 (usa `useSupabaseTasksAll`) | Nasce default `"local"` (P5 do protocolo, mesmo molde de `kora.finance.dataSource.v1` pré-flip) |
+| **B4 — Bifurcar os 8 consumidores (§4.1)** | Pode paralelizar por consumidor entre 2-3 lanes, DESDE que cada uma pegue arquivos diferentes da tabela §4.1 | `Tarefas.tsx`, `ProjectDetailDrawer.tsx`, `ClientActivitiesTab.tsx` (ver nota §4.2 — coordenar com quem estiver em voo nele), `DayCenter.tsx`/`useDayCenterActions.ts`, `useDayCenterData.ts`, `QuoteToProjectDialog.tsx`, `useTaskReminders.ts` | B3 | **[G67-classe]** `Tarefas.tsx` — corrigir o deep link `?task=id` (achado novo §4.1) NA MESMA rodada que bifurca essa tela, não depois. **[G22]** `QuoteToProjectDialog.tsx` — espelho best-effort, mesmo padrão dos outros diálogos de criação nativa. **[G29]** atualizar comentário de `useDayCenterData.ts` que hoje afirma tasks "100% local, fora de escopo". |
+| **B5 — Escrita nativa em modo Supabase pra `Tarefas.tsx`** (criar/editar/mover tarefa arbitrária — não existe hoje, é o único caminho de escrita 100% novo desta fatia) | Uma lane, depois de B4 fechar `Tarefas.tsx` | `Tarefas.tsx` (mesmo arquivo de B4 — sequencial, não paralelo com B4) | B4 (mesmo arquivo) | **[G30]** toda mutation nova grava a resposta via `setQueryData` desde o primeiro commit — não "descobrir depois" como `useSupabaseProjectTasks` precisou. **[G37]** se alguma FK for resolvida no caminho de escrita novo, usar `resolveTaskFk` (já pronto, §3.2) — nunca reinventar sem o passthrough de uuid. **[G52-classe]** checado nesta revalidação: `Task` local não tem nenhum campo companheiro de status tipo `paid_at`/`completedAt` — não há campo condicionado à transição de status que a escrita nova possa esquecer (diferente do achado original do G52 em Financeiro). Registrado aqui pra não precisar reinvestigar. |
+| **B6 — Fase C (flip dos defaults) + Fase D (homologação, runbook próprio)** | Depois de B1-B5 fecharem, gates verdes | `kora.tasks.dataSource.v1` (flip do default), `docs/qa/etapa-5-flip-tarefas-runbook.md` (novo — **checar se a Lane B já está escrevendo um runbook aqui antes de criar**, por instrução explícita desta rodada) | Tudo acima | **[G56-classe]** watch-item, não achado confirmado: se um dia existir mais de 1 produtor nativo escrevendo em `public.tasks` sob a mesma constraint (`source_local_id`), replicar a checagem de colisão que Financeiro precisou (G56) — hoje só `createProjectBaseTasks` e o import geral escrevem, sem overlap de escopo conhecido, mas vale o runbook exercitar o cenário se for barato. |
+
+**Ordem de dependência, não de calendário**: B1 é independente de tudo (só schema). B2→B3→B4 são
+sequenciais entre si (cada uma constrói sobre a anterior), mas B1 pode rodar em paralelo com
+qualquer uma delas. B5 precisa de B4 fechado (mesmo arquivo, `Tarefas.tsx`). B6 precisa de tudo.
+Isso dá margem real pra 2-3 lanes trabalharem ao mesmo tempo sem colidir, contanto que B1 (SQL) e
+B2/B3 (hooks novos) peguem lanes diferentes de B4 (consumidores, mexe em arquivos que outras
+fatias — Financeiro, Projetos — também tocam ocasionalmente).
+
+**Arquivos explicitamente NÃO tocados por este plano nem por esta rodada** (confirmado por
+instrução, não assumido): diálogos de Financeiro (Lane A em voo), `quoteMapper.ts`/qualquer doc
+sobre `tasksMapper.ts` (Lane D em voo), `supabase/functions/`/qualquer arquivo com `flow_data` no
+nome (Lane E em voo), qualquer runbook novo em `docs/qa/` que a Lane B já esteja escrevendo — não
+verificado diretamente nesta rodada (Code não vê branches de outras lanes), só passado adiante
+como restrição explícita.
+
+---
+
 ## Referências
 
 - `docs/architecture/etapa-5-flip-tarefas-fase-a.md` — inventário-base desta rodada
 - `docs/qa/tarefas-r2-auditoria.md` — quantificação SQL (§1), contenção (a) adotada 14/ago/2026, resultado da quantificação e fechamento do R2 em §4 (15/ago/2026, 0 linhas em `public.tasks`)
-- `docs/architecture/kora-hub-auditoria-e-plano.md` — G49 (`createProjectBaseTasks` grava vocabulário legado, ARMADO, fix em voo na Lane B) — referenciado em §3.1
+- `docs/architecture/kora-hub-auditoria-e-plano.md` — G49 (`createProjectBaseTasks` grava vocabulário legado — FECHADO em 16/ago, ver adendo de revalidação) — referenciado em §3.1
+- **Revalidação 16/ago/2026** (adendo na Abertura + notas em §3.1/§3.2/§3.4/§3.5/§4.1/§5, plano novo em §7): commit `bc5f5fb` (Lane D, "G53 - fundações de Fase B") fechou §3.2/§3.4-parcial/§3.5 antes deste ciclo de flip começar — revalidado por leitura direta do código, não por inferência do nome do commit. G53 não tem entrada própria no catálogo mestre (`G52`→`G55`, gap não corrigido nesta rodada). Achado novo: deep link `?task=id` em `Tarefas.tsx` tem o mesmo bug G67-classe (`Number(id)` contra uuid) que já foi fechado 3x nesta sessão em outros domínios — ainda não catalogado, latente até `useBifurcatedTasks` existir.
 - `docs/qa/etapa-5-flip-financeiro-pacote.md` — molde de estrutura/profundidade (Lane C), precedente direto do tratamento "pós-flip com aviso" (§1.2/§1.3) e do padrão `useBifurcatedX`
 - `docs/qa/etapa-5-fatia-7-projects.md` §10 (subtasks/comments, linhas 808-825) e §13.7/§13.8 (bug (g), fan-out retroativo — corrigido, confirmado por leitura de código)
 - `docs/architecture/kora-hub-auditoria-e-plano.md` — G22 (dual-write existente), G29 (banner desatualizado), G30 (cache de mutação), G32 (fetch paralelo é design da casa), G37 (payload de espelho incompleto + passthrough de UUID), G40 (vocabulário `updateTaskStatus`, FECHADO), G41 (Financeiro, contexto de coordenação de arquivo)
 - `docs/architecture/kora-roadmap.md` §3.6 — status de Tarefas pré-flip ("não migrado na prática")
+
+---
+
+**PARADO aqui — só revalidação + plano (§7), nada de código nesta rodada.** §18 — aguardando
+revisão do plano e "vai" pra começar a Fase B (B1-B6, §7.2).
