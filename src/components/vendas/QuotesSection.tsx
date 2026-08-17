@@ -15,6 +15,7 @@ import { getQuotesDataSource, setQuotesDataSource } from "@/config/flags";
 import { isSupabaseQuotesWriteEnabled } from "@/hooks/useSupabaseQuotesWriteFlag";
 import { useServices } from "@/hooks/useServices";
 import { useClientsDataSource } from "@/hooks/useClientsDataSource";
+import { useBifurcatedFinance } from "@/hooks/useBifurcatedFinance";
 import { useLeads } from "@/hooks/useLeads";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -101,6 +102,28 @@ export function QuotesSection() {
   const { leads, updateLead } = useLeads();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+
+  // G69 — quote.financeEntryId nunca é persistido no quote renderizado em
+  // modo Supabase (updateQuote/:702 abaixo é sempre local; useSupabaseQuotes
+  // não tem campo nem mutação equivalente pra financeEntryId) — o menu ⋯, o
+  // atalho do preview e o card "Financeiro" ficavam presos pra sempre em
+  // "Sem conta a receber ainda", mesmo depois de uma geração bem-sucedida
+  // (achado do adendo G56, retest Fase D). Fix: "tem recebível?" derivado da
+  // fonte de verdade (financial_transactions, via useBifurcatedFinance — já
+  // bifurcado local/nuvem, read-only por desenho, staleTime 30s do lado
+  // Supabase), não mais do campo nunca-persistido. Lista completa por
+  // enquanto (variante A, aprovada) — 1 request extra reaproveitado de
+  // Financeiro.tsx quando já montado na mesma sessão; query dedicada
+  // por quote_id fica como evolução futura se o volume de transações pesar
+  // (trade-off registrado no catálogo, entrada G69).
+  const financeTransactions = useBifurcatedFinance();
+  const receivableTxByQuoteId = useMemo(() => {
+    const map = new Map<string, (typeof financeTransactions)[number]>();
+    for (const t of financeTransactions) {
+      if (t.source === "quote" && t.quoteId) map.set(t.quoteId, t);
+    }
+    return map;
+  }, [financeTransactions]);
 
   // Etapa 5 · Fatia 9 — seletor de dataSource, default LOCAL (kora.quotes.dataSource.v1,
   // config/flags.ts). Os dois hooks acima rodam sempre; só um alimenta a tela por vez —
@@ -224,7 +247,7 @@ export function QuotesSection() {
   const openQuotes = quotes.filter((q) => effectiveStatus(q) === "rascunho" || effectiveStatus(q) === "enviado");
   const openValue = openQuotes.reduce((s, q) => s + q.total, 0);
   const approvedQuotes = quotes.filter((q) => q.status === "aprovado");
-  const approvedPendingFinance = approvedQuotes.filter((q) => !q.financeEntryId);
+  const approvedPendingFinance = approvedQuotes.filter((q) => !receivableTxByQuoteId.has(q.id));
   const approvedPendingValue = approvedPendingFinance.reduce((s, q) => s + q.total, 0);
   const expiringSoon = quotes.filter((q) => {
     const d = getQuoteDaysToExpire(q);
@@ -602,13 +625,13 @@ export function QuotesSection() {
                               <Copy className="h-3.5 w-3.5 mr-2" /> Duplicar
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            {q.status === "aprovado" && !q.financeEntryId && (
+                            {q.status === "aprovado" && !receivableTxByQuoteId.has(q.id) && (
                               <DropdownMenuItem onClick={() => openReceivableDialog(q)}>
                                 <Wallet className="h-3.5 w-3.5 mr-2" /> Gerar conta a receber
                               </DropdownMenuItem>
                             )}
-                            {q.financeEntryId && (
-                              <DropdownMenuItem onClick={() => navigate(`/financeiro?tab=receivables&entryId=${q.financeEntryId}`)}>
+                            {receivableTxByQuoteId.has(q.id) && (
+                              <DropdownMenuItem onClick={() => navigate(`/financeiro?tab=receivables&entryId=${receivableTxByQuoteId.get(q.id)!.id}`)}>
                                 <Wallet className="h-3.5 w-3.5 mr-2" /> Ver recebível
                               </DropdownMenuItem>
                             )}
@@ -678,14 +701,14 @@ export function QuotesSection() {
             const wasApproved = preview.status === "aprovado";
             updateQuoteStatusEverywhere(preview, "aprovado", () => {
               toast.success("Orçamento aprovado");
-              if (!wasApproved && !preview.financeEntryId) {
+              if (!wasApproved && !receivableTxByQuoteId.has(preview.id)) {
                 // Offer receivable generation as a natural next step.
                 setTimeout(() => setReceivableQuote({ ...preview, status: "aprovado" }), 250);
               }
             });
           }}
-          onGenerateReceivable={!preview.financeEntryId ? () => openReceivableDialog(preview) : undefined}
-          onOpenReceivable={preview.financeEntryId ? () => navigate(`/financeiro?tab=receivables&entryId=${preview.financeEntryId}`) : undefined}
+          onGenerateReceivable={!receivableTxByQuoteId.has(preview.id) ? () => openReceivableDialog(preview) : undefined}
+          onOpenReceivable={receivableTxByQuoteId.has(preview.id) ? () => navigate(`/financeiro?tab=receivables&entryId=${receivableTxByQuoteId.get(preview.id)!.id}`) : undefined}
           onOpenOpportunity={preview.opportunityId ? () => navigate("/crm") : undefined}
           onOpenClient={preview.clientId ? () => navigate(`/clientes?client=${preview.clientId}`) : undefined}
           onGenerateProject={preview.status === "aprovado" && !preview.projectId ? () => openProjectDialog(preview) : undefined}
@@ -1150,6 +1173,11 @@ function QuotePreview({
 }) {
   const eff = effectiveStatus(quote);
   const days = getQuoteDaysToExpire(quote);
+  // G69 — deriva do prop já computado pelo pai a partir da fonte de verdade
+  // (receivableTxByQuoteId, QuotesSection acima), não mais de
+  // quote.financeEntryId (nunca persistido em modo Supabase). onOpenReceivable
+  // só existe quando o pai já confirmou que há um recebível vivo pra este quote.
+  const hasReceivable = !!onOpenReceivable;
 
   return (
     <Shell title="Preview do orçamento" onClose={onClose} wide>
@@ -1247,15 +1275,15 @@ function QuotePreview({
           <div className="min-w-0 flex-1">
             <div className="text-[11px] uppercase tracking-wide text-muted-foreground/80">Financeiro</div>
             <div className="text-sm font-semibold text-foreground">
-              {quote.financeEntryId ? "Conta a receber gerada" : "Sem conta a receber ainda"}
+              {hasReceivable ? "Conta a receber gerada" : "Sem conta a receber ainda"}
             </div>
             <div className="text-[11px] text-muted-foreground">
-              {quote.financeEntryId
+              {hasReceivable
                 ? "Acompanhe o recebimento e marque como pago no financeiro."
                 : "Transforme este orçamento aprovado em uma receita prevista."}
             </div>
           </div>
-          {quote.financeEntryId ? (
+          {hasReceivable ? (
             <button
               type="button"
               onClick={onOpenReceivable}

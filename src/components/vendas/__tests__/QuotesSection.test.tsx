@@ -14,6 +14,7 @@ import { useSupabaseQuotes } from "@/hooks/useSupabaseQuotes";
 import { useClients } from "@/hooks/useClients";
 import { useClientsDataSource } from "@/hooks/useClientsDataSource";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
+import { useBifurcatedFinance } from "@/hooks/useBifurcatedFinance";
 import { useLeads } from "@/hooks/useLeads";
 import { financeRepository } from "@/repositories/financeRepository";
 import { QUOTES_DATA_SOURCE_KEY } from "@/config/flags";
@@ -37,6 +38,12 @@ vi.mock("@/hooks/useLeads", () => ({ useLeads: vi.fn() }));
 // espelho G22 (mirrorCreateToSupabase). Sem o mock, useAuth() (de dentro de
 // useCurrentWorkspace) quebra por falta de AuthProvider no teste.
 vi.mock("@/hooks/useCurrentWorkspace", () => ({ useCurrentWorkspace: vi.fn() }));
+// G69 — QuotesSection passou a ler useBifurcatedFinance() (fonte de verdade
+// pra "tem recebível?", substitui quote.financeEntryId). Sem mock, o hook
+// real dispara useSupabaseFinanceTransactions() -> useQuery() sem
+// QueryClientProvider na árvore de teste — mesma razão do mock de
+// useClientsDataSource acima (G44).
+vi.mock("@/hooks/useBifurcatedFinance", () => ({ useBifurcatedFinance: vi.fn() }));
 // G56 — QuoteToReceivableDialog (filho de QuotesSection) chama
 // financeRepository.createReceivableFromQuote no espelho; sem mock, o teste
 // de ponta a ponta (menu -> diálogo -> confirmar -> espelho) bateria no
@@ -131,6 +138,7 @@ function setupCommonMocks() {
   vi.mocked(useClientsDataSource).mockReturnValue({ clients: [], source: "local" } as never);
   vi.mocked(useLeads).mockReturnValue({ leads: [], updateLead: vi.fn() } as never);
   vi.mocked(useCurrentWorkspace).mockReturnValue({ workspace: { id: "ws1" } } as never);
+  vi.mocked(useBifurcatedFinance).mockReturnValue([] as never);
 }
 
 beforeEach(() => {
@@ -398,6 +406,51 @@ describe("QuotesSection · G33/G55 — nem 'Gerar projeto' nem 'Gerar conta a re
       "ws1",
       expect.objectContaining({ quote_id: "q-cloud-1" }),
     ));
+  });
+});
+
+// G69 — quote.financeEntryId nunca persiste no quote renderizado em modo
+// Supabase (updateQuote, chamado no onGenerated do diálogo, é sempre local —
+// useSupabaseQuotes não tem campo/mutação equivalente). O menu ⋯, o atalho
+// do preview e o card "Aprovados" ficavam presos em "sem recebível" pra
+// sempre, mesmo após uma geração bem-sucedida (achado do adendo G56, retest
+// Fase D). Fix: "tem recebível?" derivado de useBifurcatedFinance()
+// (financial_transactions com quoteId === quote.id e source === "quote"),
+// não mais de financeEntryId.
+describe("QuotesSection · G69 — recebível detectado pela fonte de verdade (useBifurcatedFinance)", () => {
+  async function renderApprovedQuoteInSupabaseMode() {
+    vi.mocked(useQuotes).mockReturnValue({
+      quotes: [], addQuote: vi.fn(), updateStatus: vi.fn(), updateQuote: vi.fn(),
+      duplicateQuote: vi.fn(), deleteQuote: vi.fn(),
+    } as never);
+    vi.mocked(useSupabaseQuotes).mockReturnValue({
+      quotes: [makeSupabaseMappedQuote({ status: "aprovado" })], loading: false, error: null,
+    } as never);
+    renderSection();
+    fireEvent.click(screen.getByText("Supabase experimental"));
+    await screen.findByText("Orçamento Nuvem");
+  }
+
+  it("quote com recebível na nuvem (financeEntryId nunca setado) — menu vira 'Ver recebível', card conta certo", async () => {
+    vi.mocked(useBifurcatedFinance).mockReturnValue([
+      { id: "ft-existing", quoteId: "q-cloud-1", source: "quote", type: "income" },
+    ] as never);
+    await renderApprovedQuoteInSupabaseMode();
+
+    await openQuoteMenu("Orçamento Nuvem");
+    expect(screen.getByText("Ver recebível")).toBeInTheDocument();
+    expect(screen.queryByText("Gerar conta a receber")).not.toBeInTheDocument();
+    expect(screen.getByText("Todos lançados no financeiro")).toBeInTheDocument();
+  });
+
+  it("sem recebível na nuvem — menu continua oferecendo 'Gerar conta a receber', card mostra a pendência", async () => {
+    vi.mocked(useBifurcatedFinance).mockReturnValue([] as never);
+    await renderApprovedQuoteInSupabaseMode();
+
+    await openQuoteMenu("Orçamento Nuvem");
+    expect(screen.getByText("Gerar conta a receber")).toBeInTheDocument();
+    expect(screen.queryByText("Ver recebível")).not.toBeInTheDocument();
+    expect(screen.getByText(/sem recebível/)).toBeInTheDocument();
   });
 });
 
