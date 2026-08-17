@@ -1635,12 +1635,17 @@ const QuickSaleDialog = ({ open, onOpenChange, fin, clients, cloudMode, onCreate
     };
 
     if (cloudMode) {
-      // §1.2 do desenho — recurrence não tem coluna na nuvem ainda: NUNCA
-      // bloqueia a criação (post-flip gap explícito), só avisa que aquele
-      // pedaço específico não é gravado, pra não confundir quem escolheu
-      // "Recorrente" achando que teria o mesmo efeito do modo Local.
-      if (form.mode === "recurring") {
-        toast.warning("Recorrência ainda não é gravada em modo Supabase — a venda será criada como avulsa na nuvem.");
+      // §1.2 do desenho — recurrence/notes não têm coluna na nuvem ainda:
+      // NUNCA bloqueia a criação (post-flip gap explícito), só avisa que
+      // aqueles pedaços específicos não são gravados. Ressalva do sign-off
+      // da Fase D (Financeiro, item (a)) — o aviso cobria só recorrência,
+      // "Observações" ficava silenciosamente sem coluna, sem nenhum sinal.
+      const gaps: string[] = [];
+      if (form.mode === "recurring") gaps.push("recorrência");
+      if (form.notes.trim()) gaps.push("observações");
+      if (gaps.length > 0) {
+        const label = gaps.join(" e ");
+        toast.warning(`${label.charAt(0).toUpperCase()}${label.slice(1)} ${gaps.length > 1 ? "ainda não são gravadas" : "ainda não é gravada"} em modo Supabase — ${gaps.length > 1 ? "esses campos ficarão" : "esse campo ficará"} só neste dispositivo.`);
       }
       onCreateCloud(input).then(() => {
         toast.success("Venda registrada na nuvem");
@@ -1776,14 +1781,18 @@ const ExpenseDialog = ({ open, onOpenChange, fin, cloudMode, onCreateCloud }: {
     };
 
     if (cloudMode) {
-      // §1.2 do desenho — recurrence e supplierId não têm coluna na nuvem
-      // ainda: NUNCA bloqueia a criação, só avisa o que não vai ser gravado
-      // (mesmo contrato de QuickSaleDialog acima).
+      // §1.2 do desenho — recurrence/supplierId/notes não têm coluna na
+      // nuvem ainda: NUNCA bloqueia a criação, só avisa o que não vai ser
+      // gravado (mesmo contrato de QuickSaleDialog acima). Ressalva do
+      // sign-off da Fase D (Financeiro, item (a)) — o aviso cobria só
+      // recorrência/fornecedor, "Observações" ficava sem nenhum sinal.
       const gaps: string[] = [];
       if (form.kind === "recurring") gaps.push("recorrência");
       if (form.supplierId) gaps.push("fornecedor");
+      if (form.notes.trim()) gaps.push("observações");
       if (gaps.length > 0) {
-        toast.warning(`${gaps.join(" e ")} ainda não ${gaps.length > 1 ? "são gravados" : "é gravado"} em modo Supabase — a despesa será criada sem ${gaps.length > 1 ? "esses campos" : "esse campo"}.`);
+        const label = gaps.join(", ");
+        toast.warning(`${label.charAt(0).toUpperCase()}${label.slice(1)} ainda não ${gaps.length > 1 ? "são gravados" : "é gravado"} em modo Supabase — a despesa será criada sem ${gaps.length > 1 ? "esses campos" : "esse campo"}.`);
       }
       onCreateCloud(input).then(() => {
         toast.success("Despesa lançada na nuvem");

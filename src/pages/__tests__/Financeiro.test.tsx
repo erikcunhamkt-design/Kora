@@ -15,7 +15,7 @@
 // sem setar nada manualmente — mesmo padrão usado no flip de quotes/
 // projects (`b90f86a`).
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -331,6 +331,53 @@ describe("Financeiro · escrita real com a flag ligada (Fase B, §2 do desenho)"
     fireEvent.click(screen.getByRole("button", { name: "Registrar venda" }));
 
     await waitFor(() => expect(toast.warning).toHaveBeenCalledWith(expect.stringContaining("Recorrência ainda não é gravada")));
+    await waitFor(() => expect(financeRepository.importTransaction).toHaveBeenCalled());
+  });
+
+  // Ressalva (a) do sign-off da Fase D (Financeiro) — o aviso de campo
+  // sem coluna cobria só "recorrência"; "Observações" ficava preenchido
+  // e enviado à nuvem sem NENHUM sinal de que o texto some do outro
+  // dispositivo. Mesmo contrato dos demais gaps (§1.2): nunca bloqueia.
+  it("preencher 'Observações' em modo Supabase avisa (ressalva (a) do sign-off) mas NÃO bloqueia a criação — Venda rápida", async () => {
+    vi.mocked(financeRepository.importTransaction).mockResolvedValue({
+      id: "sft-new3", workspace_id: "ws1", type: "receivable", status: "pending",
+      title: "Venda com nota", amount: 90, source: "sale", is_demo: false, archived: false,
+      created_at: "2026-08-15T00:00:00Z", updated_at: "2026-08-15T00:00:00Z",
+    } as never);
+    await switchToSupabaseWithWrite();
+
+    fireEvent.click(screen.getByText("Venda rápida"));
+    fireEvent.change(screen.getByPlaceholderText("Ex: Projeto de branding"), { target: { value: "Venda com nota" } });
+    fireEvent.change(screen.getByRole("spinbutton"), { target: { value: "90" } });
+    pickCategory("Serviços");
+    const dialog = document.querySelector('[role="dialog"]') as HTMLElement;
+    const notes = dialog.querySelector("textarea") as HTMLTextAreaElement;
+    fireEvent.change(notes, { target: { value: "Nota interna, só pra mim" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Registrar venda" }));
+
+    await waitFor(() => expect(toast.warning).toHaveBeenCalledWith(expect.stringContaining("Observações ainda não é gravada")));
+    await waitFor(() => expect(financeRepository.importTransaction).toHaveBeenCalled());
+  });
+
+  it("preencher 'Observações' em despesa, modo Supabase, avisa (ressalva (a) do sign-off) mas NÃO bloqueia — mesmo contrato de Venda rápida", async () => {
+    vi.mocked(financeRepository.importTransaction).mockResolvedValue({
+      id: "sft-exp-new", workspace_id: "ws1", type: "payable", status: "pending",
+      title: "Despesa com nota", amount: 80, source: "manual", is_demo: false, archived: false,
+      created_at: "2026-08-15T00:00:00Z", updated_at: "2026-08-15T00:00:00Z",
+    } as never);
+    await switchToSupabaseWithWrite();
+
+    fireEvent.click(screen.getByText("Lançar despesa"));
+    const dialog = document.querySelector('[role="dialog"]') as HTMLElement;
+    const titleInput = within(dialog).getByText("Descrição *").parentElement!.querySelector("input") as HTMLInputElement;
+    fireEvent.change(titleInput, { target: { value: "Despesa com nota" } });
+    fireEvent.change(within(dialog).getByRole("spinbutton"), { target: { value: "80" } });
+    pickCategory("Ferramentas e Software");
+    const notes = dialog.querySelector("textarea") as HTMLTextAreaElement;
+    fireEvent.change(notes, { target: { value: "Nota interna" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Lançar despesa" }));
+
+    await waitFor(() => expect(toast.warning).toHaveBeenCalledWith(expect.stringContaining("Observações ainda não é gravado")));
     await waitFor(() => expect(financeRepository.importTransaction).toHaveBeenCalled());
   });
 
