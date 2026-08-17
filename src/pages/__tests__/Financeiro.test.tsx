@@ -458,6 +458,68 @@ describe("Financeiro · escrita real com a flag ligada (Fase B, §2 do desenho)"
     await waitFor(() => expect(financeRepository.softDeleteReceivable).toHaveBeenCalledWith("ws1", "sft-1"));
     await waitFor(() => expect(screen.queryByText("Recebível Nuvem X")).not.toBeInTheDocument());
   });
+
+  // Ressalva (b) do sign-off da Fase D — "Editar" na lista Supabase, v1.
+  // Só campos com coluna real (título/descrição/valor/vencimento/status/
+  // categoria/forma de pagamento); recorrência/fornecedor/conta-caixa/
+  // observações (Caso 5/G41, sem coluna cloud) nunca aparecem no form.
+  it("Editar no painel abre pré-preenchido, salva o patch certo (título/valor/status) e nunca mostra campos locais-only", async () => {
+    vi.mocked(financeRepository.listTransactions).mockResolvedValue([
+      makeRow({ due_date: "2026-09-01", category: "Serviços", payment_method: "pix", description: "Nota antiga" }),
+    ]);
+    vi.mocked(financeRepository.updateTransaction).mockResolvedValue(
+      makeRow({ title: "Recebível Editado", amount: 700, status: "paid" }) as never,
+    );
+    await switchToSupabaseWithWrite();
+    await screen.findByText("Recebível Nuvem X");
+
+    const trigger3 = screen.getByRole("button", { name: "Ações" });
+    fireEvent.pointerDown(trigger3, { button: 0, pointerId: 1, isPrimary: true });
+    fireEvent.pointerUp(trigger3, { button: 0, pointerId: 1, isPrimary: true });
+    fireEvent.click(trigger3);
+    fireEvent.click(await screen.findByText("Editar"));
+
+    const dialogTitle = await screen.findByText("Editar transação");
+    const dialogEl = dialogTitle.closest('[role="dialog"]') as HTMLElement;
+
+    // pré-preenchido com os dados reais da linha
+    const titleInput = within(dialogEl).getByText("Título *").parentElement!.querySelector("input") as HTMLInputElement;
+    expect(titleInput.value).toBe("Recebível Nuvem X");
+    expect((within(dialogEl).getByRole("spinbutton") as HTMLInputElement).value).toBe("500");
+
+    // campos locais-only (Caso 5/G41) nunca aparecem neste form
+    expect(within(dialogEl).queryByText("Observações")).not.toBeInTheDocument();
+    expect(within(dialogEl).queryByText("Fornecedor")).not.toBeInTheDocument();
+
+    fireEvent.change(titleInput, { target: { value: "Recebível Editado" } });
+    fireEvent.change(within(dialogEl).getByRole("spinbutton"), { target: { value: "700" } });
+
+    // Select de Status: localizado via o wrapper do campo (não por texto —
+    // "Pendente" também aparece no StatusBadge da linha por trás do
+    // diálogo) e filtrando o <select> nativo escondido (autofill) que
+    // Radix injeta ao lado do botão customizado de verdade.
+    const statusField = within(dialogEl).getByText("Status").closest("div") as HTMLElement;
+    const statusTrigger = statusField.querySelector('button[role="combobox"]') as HTMLElement;
+    fireEvent.click(statusTrigger);
+    // Escopo pro listbox aberto — "Pago" também aparece nos badges de
+    // status de transações locais de demo (aba Overview, sempre montada ao
+    // lado do painel Supabase), então uma busca global por texto colide.
+    const listbox = await screen.findByRole("listbox");
+    fireEvent.click(within(listbox).getByText("Pago"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
+
+    await waitFor(() => expect(financeRepository.updateTransaction).toHaveBeenCalledWith("ws1", "sft-1", {
+      title: "Recebível Editado",
+      description: "Nota antiga",
+      amount: 700,
+      due_date: "2026-09-01",
+      status: "paid",
+      category: "Serviços",
+      payment_method: "pix",
+    }));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Transação atualizada"));
+  });
 });
 
 // Etapa 5 · Rodada 2b-parcial (etapa-5-flip-clientes-pacote.md §2.3,

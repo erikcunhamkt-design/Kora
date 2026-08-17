@@ -223,6 +223,8 @@ const Financeiro = () => {
   const [openExpense, setOpenExpense] = useState(false);
   const [openCats, setOpenCats] = useState(false);
   const [tutorialOpen, setTutorialOpen] = useState(false);
+  // Ressalva (b) do sign-off da Fase D — "Editar" na lista Supabase, v1.
+  const [editingTx, setEditingTx] = useState<Transaction | null>(null);
 
   // Clean deep-link params once consumed
   useEffect(() => {
@@ -315,7 +317,14 @@ const Financeiro = () => {
             </span>
             <span className="text-muted-foreground">
               {writeEnabled
-                ? "A lista abaixo já vem da nuvem e aceita criar/editar/marcar pago/excluir. Recorrência e fornecedor ainda não têm coluna na nuvem — leia o aviso ao usá-los."
+                // Ressalva (b) do sign-off da Fase D — até aqui "editar" era
+                // promessa do banner sem UI nenhuma por trás (achado do
+                // sign-off); "Editar" na lista agora existe de verdade
+                // (título/descrição/valor/vencimento/status/categoria/forma
+                // de pagamento — campos com coluna real). Recorrência,
+                // fornecedor, conta-caixa e observações continuam fora
+                // (mesmo gap sem coluna do Caso 5/G41).
+                ? "A lista abaixo já vem da nuvem e aceita criar/editar/marcar pago/excluir. Recorrência, fornecedor e observações ainda não têm coluna na nuvem — leia o aviso ao usá-los; edição cobre só os campos com coluna real."
                 : "A lista abaixo já vem da nuvem. Escrita (criar, editar, marcar como pago, excluir) ainda não existe nesse modo — as abas locais continuam funcionando normalmente, intocadas, pra você lançar e editar enquanto isso."}
             </span>
           </div>
@@ -328,6 +337,7 @@ const Financeiro = () => {
           writeEnabled={writeEnabled}
           onUpdate={updateSupabaseTransaction}
           onDelete={deleteSupabaseTransaction}
+          onEdit={setEditingTx}
         />
       )}
 
@@ -384,6 +394,10 @@ const Financeiro = () => {
         open={openExpense} onOpenChange={setOpenExpense} fin={fin}
         cloudMode={cloudWriteMode} onCreateCloud={createSupabaseTransaction}
       />
+      <EditTransactionDialog
+        open={!!editingTx} onOpenChange={(v) => !v && setEditingTx(null)}
+        transaction={editingTx} fin={fin} onUpdate={updateSupabaseTransaction}
+      />
       <CategoriesDialog open={openCats} onOpenChange={setOpenCats} fin={fin} />
       <TutorialDialog open={tutorialOpen} onOpenChange={setTutorialOpen} />
     </div>
@@ -401,13 +415,14 @@ const Financeiro = () => {
 // preserva o painel 100% read-only de antes, byte a byte (mesma condição
 // de vazio/erro/loading, mesma tabela sem coluna de ações).
 const SupabaseTransactionsPanel = ({
-  transactions, loading, error, refresh, writeEnabled, onUpdate, onDelete,
+  transactions, loading, error, refresh, writeEnabled, onUpdate, onDelete, onEdit,
 }: {
   transactions: Transaction[];
   loading: boolean;
   error: string | null;
   refresh: () => void;
   writeEnabled: boolean;
+  onEdit: (transaction: Transaction) => void;
   onUpdate: (transactionId: string, patch: Partial<SupabaseFinancialTransaction>) => Promise<unknown>;
   onDelete: (transactionId: string) => Promise<unknown>;
 }) => {
@@ -508,6 +523,9 @@ const SupabaseTransactionsPanel = ({
                               Cancelar
                             </DropdownMenuItem>
                           )}
+                          <DropdownMenuItem onClick={() => onEdit(t)}>
+                            <Pencil className="h-3.5 w-3.5 mr-2" /> Editar
+                          </DropdownMenuItem>
                           <DropdownMenuItem className="text-destructive" onClick={() => remove(t.id)}>
                             Excluir
                           </DropdownMenuItem>
@@ -522,6 +540,140 @@ const SupabaseTransactionsPanel = ({
         </div>
       )}
     </div>
+  );
+};
+
+// ============================================================
+// EDIT TRANSACTION DIALOG (ressalva (b) do sign-off da Fase D, v1)
+// ============================================================
+// v1 — só campos com coluna real em SupabaseFinancialTransaction: título,
+// descrição, valor, vencimento, status, categoria, forma de pagamento.
+// Locais-only (recurrence/supplierId/cashAccountId/notes, Caso 5/G41 —
+// sem coluna cloud) ficam OMITIDOS do form, não hostilizados com aviso —
+// diferente de criar (QuickSaleDialog/ExpenseDialog, onde avisar faz
+// sentido porque o valor É digitado e SOME), aqui não há valor nenhum a
+// perder porque o campo nunca teve onde persistir na nuvem em primeiro
+// lugar. FKs (client_id/quote_id/opportunity_id) fora da v1 de propósito —
+// exigiriam useClientsDataSource + resolveFinanceFk (mesmo padrão de
+// QuoteToReceivableDialog.tsx) e mudam o contrato de uma linha só-texto
+// pra uma que resolve vínculo; registrado como v2, não implementado agora.
+const EditTransactionDialog = ({ open, onOpenChange, transaction, fin, onUpdate }: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  transaction: Transaction | null;
+  fin: ReturnType<typeof useFinance>;
+  onUpdate: (transactionId: string, patch: Partial<SupabaseFinancialTransaction>) => Promise<unknown>;
+}) => {
+  const { currency } = useFormat();
+  const [form, setForm] = useState({
+    title: "", description: "", amount: "", dueDate: "",
+    status: "pending" as TxStatus, category: "", paymentMethod: "pix" as PaymentMethod,
+  });
+
+  // Reseed fields whenever a new transaction is opened for editing.
+  useEffect(() => {
+    if (!open || !transaction) return;
+    setForm({
+      title: transaction.title,
+      description: transaction.description ?? "",
+      amount: String(transaction.amount ?? 0),
+      dueDate: transaction.dueDate ?? "",
+      status: transaction.status,
+      category: transaction.category ?? "",
+      paymentMethod: transaction.paymentMethod ?? "pix",
+    });
+  }, [open, transaction]);
+
+  if (!transaction) return null;
+
+  const cats = fin.categories.filter((c) => c.type === transaction.type);
+
+  const submit = () => {
+    const amount = parseFloat(form.amount);
+    if (!form.title.trim() || !amount || amount <= 0 || !form.category) {
+      toast.error("Preencha título, valor e categoria");
+      return;
+    }
+    onUpdate(transaction.id, {
+      title: form.title.trim(),
+      description: form.description.trim() || null,
+      amount,
+      due_date: form.dueDate || null,
+      status: form.status,
+      category: form.category,
+      payment_method: form.paymentMethod,
+    }).then(() => {
+      toast.success("Transação atualizada");
+      onOpenChange(false);
+    }).catch((err) => {
+      console.error("Falha ao editar transação (Supabase):", err);
+      toast.error("Não foi possível editar essa transação na nuvem.");
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[640px] bg-card border-border max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Editar transação</DialogTitle>
+          <DialogDescription>
+            Só os campos com coluna real na nuvem podem ser editados. Recorrência, fornecedor,
+            conta-caixa e observações continuam sem edição aqui — mesmo gap sem coluna do Caso 5.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 py-2">
+          <div className="sm:col-span-2 space-y-1.5">
+            <Label className="text-xs">Título *</Label>
+            <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Valor ({currency}) *</Label>
+            <Input type="number" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Vencimento</Label>
+            <Input type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Categoria *</Label>
+            <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
+              <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+              <SelectContent>
+                {cats.map((c) => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Status</Label>
+            <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v as TxStatus })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pending">Pendente</SelectItem>
+                <SelectItem value="paid">Pago</SelectItem>
+                <SelectItem value="canceled">Cancelado</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Forma de pagamento</Label>
+            <Select value={form.paymentMethod} onValueChange={(v) => setForm({ ...form, paymentMethod: v as PaymentMethod })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {(Object.keys(methodLabels) as PaymentMethod[]).map((m) => <SelectItem key={m} value={m}>{methodLabels[m]}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="sm:col-span-2 space-y-1.5">
+            <Label className="text-xs">Descrição</Label>
+            <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="min-h-[60px]" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button onClick={submit}>Salvar</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };
 
