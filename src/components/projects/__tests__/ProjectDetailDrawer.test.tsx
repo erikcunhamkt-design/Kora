@@ -14,6 +14,7 @@ import { ProjectDetailDrawer } from "@/components/projects/ProjectDetailDrawer";
 import { useProjects, type Project } from "@/hooks/useProjects";
 import { useSupabaseProjects } from "@/hooks/useSupabaseProjects";
 import { useTasks } from "@/hooks/useTasks";
+import { useBifurcatedTasks } from "@/hooks/useBifurcatedTasks";
 import { useClients } from "@/hooks/useClients";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { PROJECTS_SUPABASE_WRITE_FLAG_KEY } from "@/hooks/useSupabaseProjectsWriteFlag";
@@ -25,6 +26,7 @@ vi.mock("@/hooks/useProjects", async () => {
 });
 vi.mock("@/hooks/useSupabaseProjects", () => ({ useSupabaseProjects: vi.fn() }));
 vi.mock("@/hooks/useTasks", () => ({ useTasks: vi.fn() }));
+vi.mock("@/hooks/useBifurcatedTasks", () => ({ useBifurcatedTasks: vi.fn() }));
 vi.mock("@/hooks/useClients", () => ({ useClients: vi.fn() }));
 vi.mock("@/hooks/useCurrentWorkspace", () => ({ useCurrentWorkspace: vi.fn() }));
 vi.mock("@/services/projects/projectsCloudMirror", () => ({ mirrorProjectToSupabase: vi.fn() }));
@@ -63,7 +65,8 @@ function makeProject(overrides: Partial<Project> = {}): Project {
 }
 
 function setupCommonMocks() {
-  vi.mocked(useTasks).mockReturnValue({ tasks: [], addTask: vi.fn(), moveTask: vi.fn() } as never);
+  vi.mocked(useTasks).mockReturnValue({ addTask: vi.fn(), moveTask: vi.fn() } as never);
+  vi.mocked(useBifurcatedTasks).mockReturnValue([] as never);
   vi.mocked(useClients).mockReturnValue({ clients: [] } as never);
   vi.mocked(useCurrentWorkspace).mockReturnValue({ workspace: { id: "ws1" } } as never);
 }
@@ -189,5 +192,31 @@ describe("ProjectDetailDrawer · modo Supabase — CRUD real (Pacote do Flip, Fa
     ));
     const [, patch] = updateSupabaseProject.mock.calls[0];
     expect(patch).not.toHaveProperty("progress");
+  });
+});
+
+describe("ProjectDetailDrawer · B4 — tarefas leem via useBifurcatedTasks (etapa-5-flip-tarefas-pacote.md §7)", () => {
+  it("tarefa só-nuvem (useBifurcatedTasks, ausente de useTasks local) vinculada ao projeto aparece na lista", async () => {
+    vi.mocked(useProjects).mockReturnValue({ updateProject: vi.fn() } as never);
+    vi.mocked(useSupabaseProjects).mockReturnValue({ updateProject: vi.fn() } as never);
+    vi.mocked(useBifurcatedTasks).mockReturnValue([
+      { id: "cloud-task-uuid", title: "Tarefa só-nuvem", projectId: "pj-1", archived: false, status: "a_fazer", priority: "média" },
+    ] as never);
+
+    renderDrawer(makeProject());
+
+    expect(await screen.findByText("Tarefa só-nuvem")).toBeInTheDocument();
+  });
+
+  it("regressão: tarefa local continua aparecendo normalmente", async () => {
+    vi.mocked(useProjects).mockReturnValue({ updateProject: vi.fn() } as never);
+    vi.mocked(useSupabaseProjects).mockReturnValue({ updateProject: vi.fn() } as never);
+    vi.mocked(useBifurcatedTasks).mockReturnValue([
+      { id: 42, title: "Tarefa local", projectId: "pj-1", archived: false, status: "a_fazer", priority: "média" },
+    ] as never);
+
+    renderDrawer(makeProject());
+
+    expect(await screen.findByText("Tarefa local")).toBeInTheDocument();
   });
 });

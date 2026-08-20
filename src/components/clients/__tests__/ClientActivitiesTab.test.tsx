@@ -20,7 +20,7 @@ import type { Quote } from "@/hooks/useQuotes";
 import { useBifurcatedFinance } from "@/hooks/useBifurcatedFinance";
 import { useBifurcatedProjects } from "@/hooks/useBifurcatedProjects";
 import type { Project } from "@/hooks/useProjects";
-import { useTasks } from "@/hooks/useTasks";
+import { useBifurcatedTasks } from "@/hooks/useBifurcatedTasks";
 import type { Task } from "@/hooks/useTasks";
 import { useClientActivityLogs } from "@/hooks/useClientActivityLogs";
 import type { Client, ClientContact, ClientManualActivity } from "@/types/domain";
@@ -30,7 +30,7 @@ vi.mock("@/hooks/useLeads", () => ({ useLeads: vi.fn() }));
 vi.mock("@/hooks/useQuotes", () => ({ useQuotes: vi.fn() }));
 vi.mock("@/hooks/useBifurcatedFinance", () => ({ useBifurcatedFinance: vi.fn() }));
 vi.mock("@/hooks/useBifurcatedProjects", () => ({ useBifurcatedProjects: vi.fn() }));
-vi.mock("@/hooks/useTasks", () => ({ useTasks: vi.fn() }));
+vi.mock("@/hooks/useBifurcatedTasks", () => ({ useBifurcatedTasks: vi.fn() }));
 vi.mock("@/hooks/useClientActivityLogs", async () => {
   const actual = await vi.importActual<typeof import("@/hooks/useClientActivityLogs")>("@/hooks/useClientActivityLogs");
   return { ...actual, useClientActivityLogs: vi.fn() };
@@ -121,7 +121,7 @@ beforeEach(() => {
   vi.mocked(useLeads).mockReturnValue({ leads: [] } as never);
   vi.mocked(useQuotes).mockReturnValue({ quotes: [] } as never);
   vi.mocked(useBifurcatedProjects).mockReturnValue([] as never);
-  vi.mocked(useTasks).mockReturnValue({ tasks: [] } as never);
+  vi.mocked(useBifurcatedTasks).mockReturnValue([] as never);
   vi.mocked(useClientActivityLogs).mockReturnValue({
     logs: [], addLog: vi.fn(), updateLog: vi.fn(), deleteLog: vi.fn(),
   } as never);
@@ -137,7 +137,15 @@ function renderTab(client: Client) {
 
 describe("ClientActivitiesTab · G41 — recebível CRM (client_id da nuvem) agora aparece na timeline", () => {
   it("recebível lido via useBifurcatedFinance com client_id uuid-cast bate por clientId, aparece no histórico", async () => {
-    vi.mocked(useBifurcatedFinance).mockReturnValue([makeCloudReceivable()] as never);
+    // dueDate explícito no futuro (não o default do factory, "2026-08-20") —
+    // achado desta rodada, fora do escopo de B4: o default cruzou pra
+    // "hoje"/passado com o avanço do calendário real, fazendo
+    // buildFinanceEvents (today = new Date(), sem fake timer neste arquivo)
+    // emitir TAMBÉM um evento "Recebível vencido" (mesma descrição, regex
+    // do assert abaixo batia nos 2). Não é a intenção do teste (que só quer
+    // provar o casamento por client_id, não o cálculo de vencimento) — fix
+    // pontual só neste teste, sem tocar o default do factory nem o assert.
+    vi.mocked(useBifurcatedFinance).mockReturnValue([makeCloudReceivable({ dueDate: "2099-01-01" })] as never);
     const client = makeClient();
 
     renderTab(client);
@@ -317,9 +325,9 @@ describe("ClientActivitiesTab · G54 caracterização — tarefas", () => {
   it("tarefa casada por clientId: criada + concluída", async () => {
     vi.mocked(useBifurcatedFinance).mockReturnValue([] as never);
     const client = makeClient({ id: 1 });
-    vi.mocked(useTasks).mockReturnValue({
-      tasks: [makeTask({ clientId: 1, status: "concluido" as never, updatedAt: "2026-01-10T00:00:00.000Z" })],
-    } as never);
+    vi.mocked(useBifurcatedTasks).mockReturnValue([
+      makeTask({ clientId: 1, status: "concluido" as never, updatedAt: "2026-01-10T00:00:00.000Z" }),
+    ] as never);
 
     renderTab(client);
 
@@ -334,14 +342,29 @@ describe("ClientActivitiesTab · G54 caracterização — tarefas", () => {
     vi.mocked(useBifurcatedProjects).mockReturnValue([
       makeProject({ id: "proj-A", clientId: 1 }),
     ] as never);
-    vi.mocked(useTasks).mockReturnValue({
-      tasks: [makeTask({ title: "Tarefa via projeto", projectId: "proj-A" })],
-    } as never);
+    vi.mocked(useBifurcatedTasks).mockReturnValue([
+      makeTask({ title: "Tarefa via projeto", projectId: "proj-A" }),
+    ] as never);
 
     renderTab(client);
 
     expect(await screen.findByText("Tarefa criada")).toBeInTheDocument();
     expect(screen.getByText("Tarefa via projeto")).toBeInTheDocument();
+  });
+});
+
+describe("ClientActivitiesTab · B4 — tarefas leem via useBifurcatedTasks (etapa-5-flip-tarefas-pacote.md §7)", () => {
+  it("tarefa só-nuvem (existe só na fonte de useBifurcatedTasks, nunca em useTasks local) aparece na timeline", async () => {
+    vi.mocked(useBifurcatedFinance).mockReturnValue([] as never);
+    const client = makeClient({ id: 1 });
+    vi.mocked(useBifurcatedTasks).mockReturnValue([
+      makeTask({ id: "cloud-task-uuid" as unknown as number, title: "Tarefa só-nuvem", clientId: 1 }),
+    ] as never);
+
+    renderTab(client);
+
+    expect(await screen.findByText("Tarefa criada")).toBeInTheDocument();
+    expect(screen.getByText("Tarefa só-nuvem")).toBeInTheDocument();
   });
 });
 

@@ -1,13 +1,16 @@
 import type { Client } from "@/hooks/useClients";
-import type { useTasks } from "@/hooks/useTasks";
+import type { Task } from "@/hooks/useTasks";
 import { parseDate } from "./format";
 import type { InferredEvent } from "./types";
 
-// Tasks NÃO bifurca nesta rodada (Fase B do flip de Tarefas, ainda não
-// chegou) — hook cru (useTasks), só mudou de lugar pra este construtor.
+// Tasks bifurcou na B4 (etapa-5-flip-tarefas-pacote.md §7) — o chamador
+// (ClientActivitiesTab.tsx) passa o array já resolvido por
+// useBifurcatedTasks(); este construtor continua puro (recebe Task[], não
+// chama hook nenhum), só o tipo do parâmetro deixou de referenciar
+// especificamente useTasks.
 export function buildTaskEvents(args: {
   client: Client;
-  tasks: ReturnType<typeof useTasks>["tasks"];
+  tasks: Task[];
   clientProjectIds: Set<string>;
 }): InferredEvent[] {
   const { client, tasks, clientProjectIds } = args;

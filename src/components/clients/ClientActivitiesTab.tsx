@@ -18,7 +18,7 @@ import { useLeads } from "@/hooks/useLeads";
 import { useQuotes } from "@/hooks/useQuotes";
 import { useBifurcatedFinance } from "@/hooks/useBifurcatedFinance";
 import { useBifurcatedProjects } from "@/hooks/useBifurcatedProjects";
-import { useTasks } from "@/hooks/useTasks";
+import { useBifurcatedTasks } from "@/hooks/useBifurcatedTasks";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   useClientActivityLogs,
@@ -96,12 +96,12 @@ const manualIcon: Record<ManualActivityType, LucideIcon> = {
 
 // ---------- Component ----------
 //
-// Timeline montada por composição: cada hook (bifurcado ou cru, como hoje)
-// alimenta 1 construtor por domínio (activityTimeline/build*Events.ts),
-// depois merge/dedup/sort (activityTimeline/mergeActivities.ts). Quando
-// Tarefas bifurcar (Fase B do flip), a mudança fica confinada ao hook de
-// tasks + buildTaskEvents.ts — refactor preventivo, etapa-5-flip-tarefas-
-// pacote.md §4 (G54).
+// Timeline montada por composição: cada hook bifurcado alimenta 1 construtor
+// por domínio (activityTimeline/build*Events.ts), depois merge/dedup/sort
+// (activityTimeline/mergeActivities.ts). Tarefas bifurcou nesta rodada (B4,
+// etapa-5-flip-tarefas-pacote.md §7) — a mudança ficou confinada ao hook de
+// tasks (useBifurcatedTasks) + buildTaskEvents.ts, exatamente como esta nota
+// previu quando só existia o refactor preventivo (G54).
 
 export const ClientActivitiesTab = ({
   client,
@@ -131,7 +131,7 @@ export const ClientActivitiesTab = ({
   // mesmo precedente de clientId/opportunityId em mapSupabaseProjectToLocal)
   // — bate por p.clientId === client.id sem precisar de mapa reverso nenhum.
   const transactions = useBifurcatedFinance();
-  const { tasks } = useTasks();
+  const tasks = useBifurcatedTasks();
   const { logs, addLog, updateLog, deleteLog } = useClientActivityLogs(client.id);
 
   const [dialogOpen, setDialogOpen] = useState(false);

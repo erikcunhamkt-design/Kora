@@ -22,6 +22,7 @@ import {
   PROJECT_STATUS_LABEL, useProjects,
 } from "@/hooks/useProjects";
 import { useTasks, formatPtBr, type Task, type TaskPriority } from "@/hooks/useTasks";
+import { useBifurcatedTasks } from "@/hooks/useBifurcatedTasks";
 import { useClients } from "@/hooks/useClients";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { ClientTechnicalSheetSnapshot } from "@/components/clients/ClientTechnicalSheetSnapshot";
@@ -84,7 +85,22 @@ export function ProjectDetailDrawer({ project, open, onOpenChange, dataSource = 
   const navigate = useNavigate();
   const { updateProject: updateLocalProject } = useProjects();
   const { updateProject: updateSupabaseProject } = useSupabaseProjects();
-  const { tasks, addTask, moveTask } = useTasks();
+  // B4 (etapa-5-flip-tarefas-pacote.md §7) — leitura bifurcada
+  // (useBifurcatedTasks). addTask/moveTask continuam de useTasks (local): a
+  // escrita nativa em modo Supabase pra Tarefas é a B5 do plano, ainda não
+  // existe — mover/criar uma tarefa lida da nuvem por aqui é um no-op no
+  // array local, mesma classe de limitação conhecida do "ler bifurcado,
+  // escrever só local" que o resto da casa já tem enquanto a fase de
+  // escrita de um domínio não chega.
+  // B4 (etapa-5-flip-tarefas-pacote.md §7) — leitura bifurcada
+  // (useBifurcatedTasks). addTask/moveTask continuam de useTasks (local): a
+  // escrita nativa em modo Supabase pra Tarefas é a B5 do plano, ainda não
+  // existe — mover/criar uma tarefa lida da nuvem por aqui é um no-op no
+  // array local, mesma classe de limitação conhecida do "ler bifurcado,
+  // escrever só local" que o resto da casa já tem enquanto a fase de
+  // escrita de um domínio não chega.
+  const { addTask, moveTask } = useTasks();
+  const tasks = useBifurcatedTasks();
   const { clients } = useClients();
   const { workspace } = useCurrentWorkspace();
   const linkedClient = useMemo(
