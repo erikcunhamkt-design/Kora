@@ -445,6 +445,13 @@ várias entradas do catálogo já documentaram acontecer quando isso não é fei
 | **B5 — Escrita nativa em modo Supabase pra `Tarefas.tsx`** (criar/editar/mover tarefa arbitrária — não existe hoje, é o único caminho de escrita 100% novo desta fatia) | Uma lane, depois de B4 fechar `Tarefas.tsx` | `Tarefas.tsx` (mesmo arquivo de B4 — sequencial, não paralelo com B4) | B4 (mesmo arquivo) | **[G30]** toda mutation nova grava a resposta via `setQueryData` desde o primeiro commit — não "descobrir depois" como `useSupabaseProjectTasks` precisou. **[G37]** se alguma FK for resolvida no caminho de escrita novo, usar `resolveTaskFk` (já pronto, §3.2) — nunca reinventar sem o passthrough de uuid. **[G52-classe]** checado nesta revalidação: `Task` local não tem nenhum campo companheiro de status tipo `paid_at`/`completedAt` — não há campo condicionado à transição de status que a escrita nova possa esquecer (diferente do achado original do G52 em Financeiro). Registrado aqui pra não precisar reinvestigar. |
 | **B6 — Fase C (flip dos defaults) + Fase D (homologação, runbook próprio)** | Depois de B1-B5 fecharem, gates verdes | `kora.tasks.dataSource.v1` (flip do default), `docs/qa/etapa-5-flip-tarefas-runbook.md` (novo — **checar se a Lane B já está escrevendo um runbook aqui antes de criar**, por instrução explícita desta rodada) | Tudo acima | **[G56-classe]** watch-item, não achado confirmado: se um dia existir mais de 1 produtor nativo escrevendo em `public.tasks` sob a mesma constraint (`source_local_id`), replicar a checagem de colisão que Financeiro precisou (G56) — hoje só `createProjectBaseTasks` e o import geral escrevem, sem overlap de escopo conhecido, mas vale o runbook exercitar o cenário se for barato. |
 
+**Status B4 (21/ago/2026):** fatia `Tarefas.tsx` FECHADA (Lane C) — leitura bifurcada
+(`useBifurcatedTasks()`, escrita permanece local/`useTasks()` nesta rodada) + fix G67-classe do
+deep link `?task=<id>` (comparação por string, catalogado como **G73**). Fatia
+`ProjectDetailDrawer.tsx`+`ClientActivitiesTab.tsx` já havia fechado antes (commit `7c1ae42`).
+Pendentes do inventário de 8 consumidores (§4.1): `DayCenter.tsx`/`useDayCenterActions.ts`,
+`useDayCenterData.ts`, `QuoteToProjectDialog.tsx`, `useTaskReminders.ts`.
+
 **Ordem de dependência, não de calendário**: B1 é independente de tudo (só schema). B2→B3→B4 são
 sequenciais entre si (cada uma constrói sobre a anterior), mas B1 pode rodar em paralelo com
 qualquer uma delas. B5 precisa de B4 fechado (mesmo arquivo, `Tarefas.tsx`). B6 precisa de tudo.

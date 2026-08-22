@@ -34,6 +34,7 @@ import {
   useTasks, type Task, type TaskStatus, type TaskPriority, type TaskRecurrence, type TaskScope,
   toIsoDate, formatPtBr,
 } from "@/hooks/useTasks";
+import { useBifurcatedTasks } from "@/hooks/useBifurcatedTasks";
 import { useTaskProjects, type TaskProject, type TaskProjectType } from "@/hooks/useTaskProjects";
 import {
   useTaskReminders, computeReminderAt, REMINDER_PRESET_LABELS, type ReminderPreset,
@@ -183,10 +184,14 @@ const ViewChip = ({ label, count, active, onClick, icon: Icon }: {
 /* ------------------------------------------------------------------ */
 
 const Tarefas = () => {
+  // B4 (etapa-5-flip-tarefas-pacote.md §7) — leitura bifurcada (useBifurcatedTasks).
+  // Escrita continua local (useTasks): escrita nativa em modo Supabase pra
+  // Tarefas.tsx é a B5 do plano, ainda não existe.
   const {
-    tasks, addTask, updateTask, moveTask, toggleSubtask, addSubtask,
+    addTask, updateTask, moveTask, toggleSubtask, addSubtask,
     duplicateTask, archiveTask, deleteTask,
   } = useTasks();
+  const tasks = useBifurcatedTasks();
   const {
     projects: taskProjects, addProject: addTaskProject, renameProject: renameTaskProject,
     archiveProject: archiveTaskProject, deleteProject: deleteTaskProject,
@@ -231,12 +236,13 @@ const Tarefas = () => {
   useEffect(() => {
     const raw = searchParams.get("task");
     if (!raw) return;
-    const id = Number(raw);
-    if (!Number.isFinite(id)) return;
-    const found = tasks.find(t => t.id === id);
+    // G67-classe: comparação por string, não Number() — em modo Supabase o id
+    // é um uuid "contrabandeado" como number (useBifurcatedTasks), e
+    // Number(uuid) vira NaN, fazendo o find() falhar em silêncio.
+    const found = tasks.find(t => String(t.id) === raw);
     if (found) {
       setSelectedTask(found);
-      setHighlightedTaskId(id);
+      setHighlightedTaskId(found.id);
     }
   }, [searchParams, tasks]);
 
