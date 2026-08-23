@@ -219,8 +219,21 @@ const Clientes = () => {
         if (data.document !== undefined) patch.document = data.document;
         if (data.avatarUrl !== undefined) patch.avatar_url = data.avatarUrl || null;
 
-        await supabaseUpdate(id.toString(), patch);
-        toast.success("Cliente atualizado no Supabase.");
+        if (Object.keys(patch).length > 0) {
+          await supabaseUpdate(id.toString(), patch);
+        }
+        // G75 (docs/qa/etapa-5-flip-materiais-pacote.md) — "Biblioteca do
+        // cliente" (Client.assets) não tem coluna cloud, de propósito fora
+        // da whitelist acima (não há onde persistir ainda — decisão de
+        // produto pendente, 3 opções no pacote). Antes disto o
+        // toast.success genérico mentia sucesso mesmo quando o patch acima
+        // ficava vazio (nada foi de fato gravado, updateAssets grava só
+        // aqui). Nunca bloqueia — só troca a mensagem por uma honesta.
+        if (data.assets !== undefined) {
+          toast.warning("Material salvo só neste dispositivo — a Biblioteca do cliente ainda não sincroniza com a nuvem.");
+        } else {
+          toast.success("Cliente atualizado no Supabase.");
+        }
       } catch (err) {
         toast.error("Erro ao atualizar cliente no Supabase.");
         throw err;
