@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { useTasks } from "@/hooks/useTasks";
 import { useFinance } from "@/hooks/useFinance";
 import { useBifurcatedFinance } from "@/hooks/useBifurcatedFinance";
-import { getFinanceDataSource } from "@/config/flags";
+import { getFinanceDataSource, getTasksDataSource } from "@/config/flags";
 import { useAllClientActivityLogs, useClientActivityLogs } from "@/hooks/useClientActivityLogs";
 import { useDayCenterResolvedActions } from "@/hooks/useDayCenterResolvedActions";
 import type { DayActionItem } from "@/lib/dayCenter";
@@ -29,6 +29,18 @@ import type { DayActionItem } from "@/lib/dayCenter";
  * esta guarda existe DUPLICADA em `DayCenter.tsx` (canMarkPaid/confirmMarkPaid,
  * mesma lógica). Extrair pra um helper compartilhado — não feito nesta
  * rodada pra não aumentar o escopo da Fase B além do desenho.
+ *
+ * Etapa 5 · Tarefas Fase B (Pacote do Flip, §7 B4, 22/ago/2026) — mesma
+ * classe de risco aplicada por desenho pra `completeTask`: `useDayCenterData`
+ * passou a ler `tasks` via `useBifurcatedTasks()` nesta mesma rodada, então
+ * um item de tarefa exibido aqui pode vir da nuvem (id uuid contrabandeado
+ * como number) enquanto `updateTask` continua o mutator LOCAL de
+ * `useTasks()` — decisão do desenho (pacote §4.1: "escrita segue
+ * local-only por enquanto"). Sem a guarda, `updateTask(Number(uuid), ...)`
+ * vira `NaN`, nenhuma linha local bate `t.id !== NaN`, e o `.map` devolve o
+ * array intacto — nenhum erro, nenhum efeito, toast de sucesso mesmo assim
+ * (G75, mesma classe do G67/G73). `canCompleteTask` bloqueia a ação inteira
+ * quando `dataSource=supabase`, mesmo padrão de `canMarkPaid` acima.
  */
 export function useDayCenterActions() {
   const { updateTask } = useTasks();
@@ -40,6 +52,10 @@ export function useDayCenterActions() {
 
   const completeTask = useCallback((item: DayActionItem) => {
     if (item.relatedType !== "task" || item.relatedId == null) return;
+    if (getTasksDataSource() === "supabase") {
+      toast.error("Concluir tarefa pela Central do Dia ainda não funciona em modo Supabase — use a tela Tarefas.");
+      return;
+    }
     try {
       updateTask(Number(item.relatedId), { status: "concluido" });
     } catch {

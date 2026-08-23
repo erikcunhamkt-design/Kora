@@ -6,6 +6,17 @@ export type NotifPermission = "default" | "granted" | "denied" | "unsupported";
 
 const CHECK_INTERVAL_MS = 30_000;
 
+// Etapa 5 · Tarefas Fase B (Pacote do Flip, §7 B4, 22/ago/2026) — aplicado
+// por desenho, G75 (mesma classe do G67/G73): `tasks` (o argumento deste hook)
+// já pode vir bifurcado (Tarefas.tsx usa useBifurcatedTasks() desde
+// 16ca588), então `t.id` pode ser um uuid contrabandeado como number.
+// `onMarkSent` (único caller hoje) grava via o mutator LOCAL de
+// useTasks() — uma tarefa só-nuvem nunca teria `reminderSentAt` persistido
+// por essa via, e o `if (t.reminderSentAt) return;` acima nunca passaria a
+// ser true pra ela: o lembrete dispararia de novo a cada tick (30s) pra
+// sempre. Pular tarefas de id uuid até existir um mutator cloud-aware (B5).
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function supportsNotifications(): boolean {
   return typeof window !== "undefined" && "Notification" in window;
 }
@@ -58,6 +69,7 @@ export function useTaskReminders(
         if (!t.reminderEnabled || !t.reminderAt) return;
         if (t.status === "concluido" || t.archived) return;
         if (t.reminderSentAt) return;
+        if (UUID_RE.test(String(t.id))) return;
         const due = new Date(t.reminderAt).getTime();
         if (isNaN(due)) return;
         if (due <= now) fire(t);

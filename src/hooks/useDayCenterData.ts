@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useTasks } from "@/hooks/useTasks";
+import { useBifurcatedTasks } from "@/hooks/useBifurcatedTasks";
 import { useLeads } from "@/hooks/useLeads";
 import { useQuotes } from "@/hooks/useQuotes";
 import { useBifurcatedProjects } from "@/hooks/useBifurcatedProjects";
@@ -24,11 +24,18 @@ import { computeDayCenter, type DayCenterResult } from "@/lib/dayCenter";
  * — leitura só; a escrita (updateTransactionStatus, via DayCenter.tsx/
  * useDayCenterActions.ts) segue local-only por decisão do desenho (mesma
  * classe (b) que Projetos já tratou pro onboarding — "concluir transação"
- * pela Central do Dia não é a rota crítica desta fase). tasks/leads/quotes
+ * pela Central do Dia não é a rota crítica desta fase).
+ *
+ * Etapa 5 · Tarefas Fase B (Pacote do Flip, §7 B4 — correção de comentário
+ * G29, 22/ago/2026): `tasks` agora vem de useBifurcatedTasks() (local OU
+ * nuvem, conforme kora.tasks.dataSource.v1) — mesma leitura-só/escrita-local
+ * do padrão acima (`completeTask`, em DayCenter.tsx/useDayCenterActions.ts,
+ * segue gravando via o mutator local de useTasks(), com guarda contra
+ * no-op silencioso quando a tarefa exibida vier da nuvem). leads/quotes
  * seguem 100% locais, fora de escopo desta fase.
  */
 export function useDayCenterData(): DayCenterResult {
-  const { tasks } = useTasks();
+  const tasks = useBifurcatedTasks();
   const { leads } = useLeads();
   const transactions = useBifurcatedFinance();
   const { quotes } = useQuotes();
