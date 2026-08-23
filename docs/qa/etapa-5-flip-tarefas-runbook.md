@@ -19,19 +19,19 @@
 > placeholders e teve todos resolvidos numa "Atualização (rodada
 > seguinte) — Fase B FECHADA".
 >
-> **Estado da Fase B no momento desta rodada** (`git log origin/main`,
-> ver Abertura): B1 (as 5 migrations, §1 abaixo) já mesclou
-> (`696a589`). B2/B3 (`tasksRepository.listTasks`,
-> `useBifurcatedTasks`/`useSupabaseTasksAll`) aparecem em voo no disco
-> local de outras lanes (confirmado por leitura direta de
-> `tasksRepository.ts`, que já tem `listTasks(workspaceId)` — comentário
-> cita "G53, fundações de Fase B" — e de `ProjectsSection.test.tsx`, que
-> já importa `useBifurcatedTasks`), mas **nenhum dos dois hashes foi
-> confirmado em `origin/main` nesta rodada** — não citar hash de B2/B3
-> aqui sem reconfirmar por `git log origin/main` na hora de fechar os
-> placeholders. B4 (8 consumidores) e B5 (escrita nativa) **não
-> mesclados** — é o que justifica a maioria dos `[completar pós-B]`
-> abaixo.
+> **Atualização (rebase desta rodada) — B1/B2/B3 fechados, B4 quase
+> completo.** `main` avançou pra `16ca588` desde a abertura: B1 já
+> mesclado (`696a589`); B2+B3 (`tasksRepository.listTasks`,
+> `useSupabaseTasksAll`, `useBifurcatedTasks`, flag
+> `kora.tasks.dataSource.v1`) mesclados em `44f0ff9`; B4 fechou 2 das 3
+> fatias — `ProjectDetailDrawer.tsx`+`ClientActivitiesTab.tsx` (`7c1ae42`)
+> e `Tarefas.tsx` + **G73** (`16ca588`, deep link corrigido — ver Caso
+> 4-bis abaixo, deixa de ser placeholder). **Falta só a fatia de
+> `DayCenter.tsx`/`useDayCenterActions.ts`/`useDayCenterData.ts`/
+> `useTaskReminders.ts` + `QuoteToProjectDialog.tsx`** — destravada nesta
+> mesma rodada (Parte 2), ver nota inline nos Casos 1/7. B5 (escrita
+> nativa em `Tarefas.tsx`) **ainda não mesclada** — segue justificando os
+> `[completar pós-B5]` abaixo.
 
 ## Abertura (§16/§17)
 
@@ -49,13 +49,17 @@
   (calendário), Lane E em B4 (`ProjectDetailDrawer`/`ClientActivitiesTab`),
   Lane A em Vendas/`QuoteToProjectDialog`. Este runbook não toca nenhum
   arquivo de código — só `docs/qa/etapa-5-flip-tarefas-runbook.md` (novo).
+- **Rebase desta rodada (merge)**: "vai" recebido para `bb5a597`; `git fetch`
+  mostrou `origin/main` avançado pra `16ca588` (B2/B3 `44f0ff9`, B4
+  `7c1ae42`+`16ca588`/G73). `git rebase origin/main` — limpo, sem conflito
+  (só doc novo, nenhum arquivo em comum com os commits de B2-B4).
 
 ## Referências (com o porquê de cada uma)
 
 - [`etapa-5-flip-financeiro-runbook.md`](etapa-5-flip-financeiro-runbook.md) — molde direto de estrutura, formato de caso, critério de vermelho/ressalva/achado, e a convenção `[completar pós-B]`.
 - [`etapa-5-flip-tarefas-pacote.md`](etapa-5-flip-tarefas-pacote.md) — fonte primária: §6.2 (os 9 casos), §5 (decisão (a) Fundir), §7.2 (tabela B1-B6, dependências e classes de risco por rodada), §4.1 (os 8 consumidores a bifurcar, achado do deep link).
 - [`etapa-5-flip-tarefas-migrations-drafts.md`](etapa-5-flip-tarefas-migrations-drafts.md) — os 5 drafts de migration (§1 abaixo), já mesclados como drafts (`696a589`), nenhum aplicado.
-- [`docs/architecture/kora-hub-auditoria-e-plano.md`](../architecture/kora-hub-auditoria-e-plano.md) — G29 (banner desatualizado), G30 (cache de mutação via `setQueryData`), G32 (fetch paralelo, design da casa), G37 (payload de espelho + passthrough de UUID), G40 (vocabulário cloud incompleto), G49 (vocabulário de `createProjectBaseTasks`, pré-requisito do CHECK), G56 (colisão de idempotência entre 2 produtores), G67/G67-ext/G67-ext-2 (`Number(uuid)` = `NaN`, inclusive a variante de deep-link).
+- [`docs/architecture/kora-hub-auditoria-e-plano.md`](../architecture/kora-hub-auditoria-e-plano.md) — G29 (banner desatualizado), G30 (cache de mutação via `setQueryData`), G32 (fetch paralelo, design da casa), G37 (payload de espelho + passthrough de UUID), G40 (vocabulário cloud incompleto), G49 (vocabulário de `createProjectBaseTasks`, pré-requisito do CHECK), G56 (colisão de idempotência entre 2 produtores), G67/G67-ext/G67-ext-2 (`Number(uuid)` = `NaN`), **G73** (mesma classe, deep link `?task=id` de `Tarefas.tsx`, resolvido em `16ca588`).
 - [`docs/qa/protocolo-homologacao.md`](protocolo-homologacao.md) — §0/§6 (Code não acessa banco/localStorage do operador), §16/§17 (isolamento de worktree, prova de build por hash), §18 (merge condicionado a "vai"), §1/§2 (EXPORT MANUAL, PRINT PRÉ-CLIQUE).
 
 ---
@@ -108,7 +112,24 @@ Mesma lição de Financeiro/Projetos: não flipar `kora.tasks.dataSource.v1` ant
 
 ### 2.2 A flag — hoje (não existe) / depois (proposto)
 
-`kora.tasks.dataSource.v1` **nasce nesta mesma fatia** — não existe hoje (Fase A §1.3 do pacote, confirmado). **[completar pós-B]** — citar arquivo:linha real de `src/config/flags.ts` e o texto exato de `getTasksDataSource()` assim que B3 mesclar (mesmo padrão de `getFinanceDataSource()`/`getProjectsDataSource()` pós-flip: só `"local"` explícito seleciona local).
+**Confirmado contra o código real (B3, `44f0ff9`)** — `TASKS_DATA_SOURCE_KEY = "kora.tasks.dataSource.v1"` (`src/config/flags.ts:154`):
+
+```ts
+// HOJE (B3, em produção) — só "supabase" explícito seleciona nuvem.
+export function getTasksDataSource(): DataSource {
+  return safeGet(TASKS_DATA_SOURCE_KEY) === "supabase" ? "supabase" : "local";
+}
+```
+
+```ts
+// DEPOIS (Fase C, proposto — mesmo padrão literal de getFinanceDataSource()/
+// getProjectsDataSource() pós-flip) — só "local" explícito seleciona local.
+export function getTasksDataSource(): DataSource {
+  return safeGet(TASKS_DATA_SOURCE_KEY) === "local" ? "local" : "supabase";
+}
+```
+
+`[completar pós-B5]` — nenhuma flag de escrita separada existe ainda (`useBifurcatedTasks.ts` é read-only por desenho, comentário do arquivo confirma); confirmar se B5 nasce opt-in direto via `dataSource` ou ganha uma 2ª flag tipo `kora.tasks.supabaseWrite.enabled` (padrão de Financeiro) quando B5 mesclar.
 
 ### 2.3 Rollback nível 1 — override de flag, sem deploy
 
@@ -146,7 +167,7 @@ Prefixo de entidades sintéticas: **`HOMOLOG-TAR-`** (não reaproveitar tarefas 
 | `HOMOLOG-TAR-tarefa-A` | Tarefa criada nativa, direto na tela principal em modo Supabase — Casos 2, 3, 4, 9 |
 | `HOMOLOG-TAR-tarefa-base` | Tarefa gerada por `createProjectBaseTasks` (`source='project_template'`) — Caso 5 (coexistência) |
 | `HOMOLOG-TAR-tarefa-quote` | Tarefa criada via `QuoteToProjectDialog` (STARTER_TASKS) — Caso 7 (consumidores cruzados, Vendas) |
-| `HOMOLOG-TAR-tarefa-deeplink` | Tarefa usada para exercitar `?task=<id>` — watch-item G67-classe, ver Caso 4-bis abaixo |
+| `HOMOLOG-TAR-tarefa-deeplink` | Tarefa usada para exercitar `?task=<id>` — prova do fix G73, ver Caso 4-bis abaixo |
 
 ### 3.2 Lições de Financeiro/Projetos incorporadas explicitamente (não re-derivar)
 
@@ -154,7 +175,7 @@ Prefixo de entidades sintéticas: **`HOMOLOG-TAR-`** (não reaproveitar tarefas 
 - **Toast de espelho best-effort não é vermelho por si só** — se `QuoteToProjectDialog.tsx` (Caso 7) usa mirror G22 (padrão `addTask` write local + espelho best-effort, pacote §4.1), esperar propagação antes de marcar vermelho.
 - **Drawer/cache — lição G30.** Qualquer caso que edite uma tarefa já aberta (kanban, drawer) precisa confirmar que o PRÓPRIO ponto de origem reflete a mudança sem F5 — se a mutation nova seguir invalidate-only, reproduz o G30.
 - **`workspace_id` já conhecido** — `2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9`, sem placeholder.
-- **[G67-classe] Deep link `?task=id` — achado novo desta revalidação, não herdado.** `Tarefas.tsx:228-241` faz `Number(raw)` contra `t.id`; hoje nunca falha (todo `Task.id` é local), mas quando `mapSupabaseTaskToLocal` alimentar a tela com uuid contrabandeado (`id: st.id as unknown as number`), `Number(uuid)` vira `NaN` e o deep link para de achar a tarefa em silêncio. Fix atribuído a B4/Lane C, na MESMA rodada que bifurca `Tarefas.tsx` — comparação por `String(id)`, não `Number()`. **Sem G-número ainda** (não corrigido/catalogado até este esqueleto fechar) — ver Caso 4-bis.
+- **[G73, RESOLVIDO nesta rodada] Deep link `?task=id`.** Corrigido e catalogado — `Tarefas.tsx:236-243` (`16ca588`) trocou `Number(raw)`/`Number.isFinite` por comparação `String(t.id) === raw`, mesmo molde do fix já aplicado em `QuotesSection.tsx` (G67) e `CRM.tsx` (G64). Corrigido NA MESMA rodada que bifurcou a leitura de `Tarefas.tsx` — deixa de ser watch-item, vira caso executável (Caso 4-bis).
 - **[G56-classe] watch-item, não achado confirmado (pacote §7.2, linha B6).** Se um dia existir mais de 1 produtor nativo escrevendo em `public.tasks` sob a mesma constraint (`source_local_id`), replicar a checagem de colisão que Financeiro precisou (G56). Hoje só `createProjectBaseTasks` e o import geral escrevem, sem overlap de escopo conhecido — mas vale o runbook exercitar o cenário se for barato (ver Caso 5-bis).
 
 ### 3.3 Os 9 casos
@@ -163,15 +184,15 @@ Esqueleto herdado de `etapa-5-flip-tarefas-pacote.md` §6.2 (9 casos — herda o
 
 ---
 
-**Caso 1 — Leitura em modo Supabase** — `[completar pós-B2/B3]`
+**Caso 1 — Leitura em modo Supabase** — executável hoje pra `Tarefas.tsx`/`ProjectDetailDrawer.tsx`/`ClientActivitiesTab.tsx` (B2/B3/B4 fechados); `[completar pós-B4-Parte2]` pros 5 consumidores restantes (Central do Dia, lembretes, `QuoteToProjectDialog`)
 
 Tarefas antes só locais aparecem oriundas de `public.tasks`, tratamento de `project_template` conforme a opção (a) Fundir (§5 do pacote — sem tratamento especial, funde direto).
 
 | Passo | Ação | Esperado | Prova |
 |---|---|---|---|
-| 1.1 | `[completar pós-B3]` Console: `localStorage.setItem("kora.tasks.dataSource.v1", "supabase");` → F5, abrir tela de Tarefas | `[completar pós-B4]` Seletor mostra "Supabase"; consumidor bifurcado (`useBifurcatedTasks`) alimenta a tela — citar arquivo:linha real | Visual |
+| 1.1 | Console: `localStorage.setItem("kora.tasks.dataSource.v1", "supabase");` → F5, abrir tela de Tarefas | Seletor mostra "Supabase"; `tasks = useBifurcatedTasks()` alimenta a tela (`Tarefas.tsx:194`, `44f0ff9`/`16ca588`, confirmado por leitura direta) | Visual |
 | 1.2 | — | Tela mostra as tarefas já reais do workspace, sem duplicar as locais equivalentes | `SELECT count(*) FROM public.tasks WHERE workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' AND deleted_at IS NULL;` comparado com a contagem visual |
-| 1.3 | Conferir campos sem coluna cloud, se algum sobrar após os 5 drafts aplicados (§1.3) | `[completar pós-B]` — depende de quais campos locais NÃO tiverem equivalente cloud mesmo após os 5 drafts (a confirmar contra `mapSupabaseTaskToLocal` real) | Visual |
+| 1.3 | Conferir campos sem coluna cloud, se algum sobrar após os 5 drafts aplicados (§1.3) | `[completar pós-B5]` — depende de quais campos locais NÃO tiverem equivalente cloud mesmo após os 5 drafts (a confirmar contra `useSupabaseTasksAll`/mapper real) | Visual |
 
 ---
 
@@ -208,14 +229,14 @@ Já resolvido pelo G40 pro caminho `updateTaskStatus` (`tasksRepository.ts:87-10
 
 ---
 
-**Caso 4-bis — Deep link `?task=id` não quebra em silêncio (G67-classe)** — `[completar pós-B4]`, sem G-número ainda
+**Caso 4-bis — Deep link `?task=id` não quebra em silêncio (G73, RESOLVIDO — executável)**
 
-Watch-item registrado no §3.2 acima — fix atribuído a B4/Lane C na mesma rodada que bifurca `Tarefas.tsx`.
+Corrigido e catalogado nesta rodada — `Tarefas.tsx:236-243` (`16ca588`), comparação por `String(t.id) === raw`, mesmo molde de G67 (`QuotesSection.tsx`)/G64 (`CRM.tsx`). Teste automatizado já cobre o cenário (`src/pages/__tests__/Tarefas.test.tsx`, caso (b) uuid + caso (c) regressão id numérico local, `16ca588`) — o caso abaixo é a homologação ao vivo, não a primeira prova.
 
 | Passo | Ação | Esperado | Prova |
 |---|---|---|---|
-| 4-bis.1 | `[completar pós-B4]` Em modo Supabase, abrir a URL `?task=<uuid-de-HOMOLOG-TAR-tarefa-A>` | A tarefa correspondente abre/destaca — comparação deve ser por `String(id)`, não `Number(id)` (se o fix não tiver entrado, `Number(uuid)` vira `NaN`, deep link falha em silêncio) | Visual |
-| 4-bis.2 | — | **Vermelho automático** se a tarefa não abrir e nenhum erro visível aparecer (falha silenciosa, mesma classe G67/G67-ext/G67-ext-2) | Visual — comparar com o comportamento de uma tarefa local (`Number`-safe, deve sempre ter funcionado) |
+| 4-bis.1 | Em modo Supabase, abrir a URL `?task=<uuid-de-HOMOLOG-TAR-tarefa-A>` | A tarefa correspondente abre/destaca — comparação por `String(id)` (`Tarefas.tsx:239`), não `Number(id)` | Visual |
+| 4-bis.2 | Regressão — em modo local, repetir com um `id` numérico local | Continua funcionando (caso (c) do teste automatizado, `16ca588`) | Visual |
 
 ---
 
@@ -251,26 +272,26 @@ Não é achado confirmado — é o watch-item do pacote §7.2 (linha B6): hoje s
 
 ---
 
-**Caso 7 — Consumidores cruzados** — `[completar pós-B4]`
+**Caso 7 — Consumidores cruzados** — `ProjectDetailDrawer.tsx`/`ClientActivitiesTab.tsx` executáveis hoje (`7c1ae42`); Central do Dia + `QuoteToProjectDialog.tsx` `[completar pós-B4-Parte2]` (destravado nesta rodada)
 
-Central do Dia, `ClientActivitiesTab.tsx` (3 domínios, atenção redobrada — pacote §4.2, coordenação com Financeiro/Lane C em voo no mesmo arquivo), `ProjectDetailDrawer.tsx` (2 leituras de `public.tasks` coexistindo — a nova bifurcada e a `useSupabaseProjectTasks` já existente, decisão de convergência ainda em aberto no pacote §4.1).
+`ClientActivitiesTab.tsx` (3 domínios, atenção redobrada — pacote §4.2, coordenação com Financeiro/Lane C em voo no mesmo arquivo) e `ProjectDetailDrawer.tsx` já bifurcados (`tasks = useBifurcatedTasks()`, `ProjectDetailDrawer.tsx:103` / `ClientActivitiesTab.tsx:134`, `7c1ae42`) — decisão de convergência das 2 leituras de `public.tasks` (nova bifurcada vs. `useSupabaseProjectTasks` já existente) ainda `[completar pós-B4-Parte2]`, não resolvida nesse commit. Central do Dia e `QuoteToProjectDialog.tsx` seguem cru — fatia destravada nesta mesma rodada (Parte 2).
 
 | Passo | Ação | Esperado | Prova |
 |---|---|---|---|
-| 7.1 | `[completar pós-B4]` Abrir Central do Dia com `HOMOLOG-TAR-tarefa-A` pendente, em modo Supabase | Aparece corretamente; escrita (`completeTask`) — confirmar se ficou local-only por decisão (recomendação do pacote §4.1) ou se ganhou caminho cloud | Visual |
-| 7.2 | `[completar pós-B4]` Gerar `HOMOLOG-TAR-tarefa-quote` via `QuoteToProjectDialog` (STARTER_TASKS), em modo Supabase | Grava local + espelho best-effort (G22) — toast de espelho não é vermelho por si só (§3.2) | Visual + `SELECT source FROM public.tasks WHERE title = 'HOMOLOG-TAR-tarefa-quote';` |
-| 7.3 | `[completar pós-B4]` Abrir `ProjectDetailDrawer.tsx` de um projeto com tarefas em modo Supabase | Confirmar se as 2 leituras (`useBifurcatedTasks` nova e `useSupabaseProjectTasks` existente) convergem ou continuam paralelas — decisão do pacote §4.1 ainda em aberto na abertura desta rodada | Visual |
-| 7.4 | `[completar pós-B4]` Abrir ficha de um cliente sintético vinculado a `HOMOLOG-TAR-tarefa-A` → aba Atividades (`ClientActivitiesTab.tsx`) | Timeline mostra o evento de tarefa corretamente, coexistindo com os domínios já bifurcados (projetos) e o que estiver em voo (finanças, Lane C) | Visual |
+| 7.1 | `[completar pós-B4-Parte2]` Abrir Central do Dia com `HOMOLOG-TAR-tarefa-A` pendente, em modo Supabase | Aparece corretamente; escrita (`completeTask`) — confirmar se ficou local-only por decisão (recomendação do pacote §4.1) ou se ganhou caminho cloud | Visual |
+| 7.2 | `[completar pós-B4-Parte2]` Gerar `HOMOLOG-TAR-tarefa-quote` via `QuoteToProjectDialog` (STARTER_TASKS), em modo Supabase | Grava local + espelho best-effort (G22) — toast de espelho não é vermelho por si só (§3.2) | Visual + `SELECT source FROM public.tasks WHERE title = 'HOMOLOG-TAR-tarefa-quote';` |
+| 7.3 | Abrir `ProjectDetailDrawer.tsx` de um projeto com tarefas em modo Supabase | Leitura bifurcada (`useBifurcatedTasks`, `:103`) funciona; confirmar se ainda coexiste em paralelo com `useSupabaseProjectTasks` ou se já convergiram — leitura de código não achou convergência explícita nesta rodada, marcar visualmente | Visual |
+| 7.4 | Abrir ficha de um cliente sintético vinculado a `HOMOLOG-TAR-tarefa-A` → aba Atividades (`ClientActivitiesTab.tsx`) | Timeline mostra o evento de tarefa corretamente (`useBifurcatedTasks`, `:134`), coexistindo com os domínios já bifurcados (projetos) e o que estiver em voo (finanças, Lane C) | Visual |
 
 ---
 
-**Caso 8 — Banner/texto desatualizado (G29)** — `[completar pós-B4]`
+**Caso 8 — Banner/texto desatualizado (G29)** — `Tarefas.tsx` já auditado (comentário `:187-189` já reflete o estado real, `16ca588`); `useDayCenterData.ts` `[completar pós-B4-Parte2]`
 
-Auditar `Tarefas.tsx` + o comentário de `useDayCenterData.ts` (linhas 15-20, pacote §4.1: hoje lista `tasks` explicitamente como "100% local, fora de escopo") por copy que sobreviva ao ponto em que a escrita real já funciona.
+Auditar o comentário de `useDayCenterData.ts` (linhas 15-20, pacote §4.1: hoje lista `tasks` explicitamente como "100% local, fora de escopo") por copy que sobreviva ao ponto em que a leitura bifurcada chegar nesse arquivo — parte do escopo da Parte 2 desta mesma rodada.
 
 | Passo | Ação | Esperado | Prova |
 |---|---|---|---|
-| 8.1 | `[completar pós-B4]` Ler `Tarefas.tsx` e `useDayCenterData.ts:15-20` contra `main` pós-B4 | Nenhum texto/comentário afirma "só local"/"fora de escopo" se a escrita cloud já estiver ativa — mesma lição G29 que Financeiro/Projetos já pegaram | Leitura de código |
+| 8.1 | `[completar pós-B4-Parte2]` Ler `useDayCenterData.ts:15-20` contra `main` pós-Parte 2 | Nenhum texto/comentário afirma "só local"/"fora de escopo" se a leitura cloud já estiver ativa — mesma lição G29 que Financeiro/Projetos já pegaram | Leitura de código |
 
 ---
 
@@ -307,13 +328,13 @@ Mesmo critério operacional dos runbooks de Projetos/Financeiro:
 
 ## 5. O que este doc NÃO faz
 
-- Não executa nenhum caso — é esqueleto de preparação, a maioria dos casos ainda `[completar pós-B4]`/`[completar pós-B5]`.
+- Não executa nenhum caso — é esqueleto de preparação. Casos 1/4-bis/5-bis/7 (parcial)/8 (parcial) já executáveis contra código real (B1/B2/B3/B4 fechados); os demais seguem `[completar pós-B4-Parte2]`/`[completar pós-B5]`.
 - Não aplica os 5 drafts de migration do §1.3 nem confirma que foram aplicados — ação do operador.
-- Não cita hash de B2/B3/B4/B5 nem do commit de flip da Fase C — nenhum confirmado em `origin/main` nesta rodada; `[completar pós-B]` marca exatamente onde cada um entra.
-- Não resolve a decisão em aberto do pacote §4.1 sobre `completeTask` (Central do Dia) ficar local-only ou ganhar caminho cloud — fica pro revisor decidir, registrado aqui só como dependência do Caso 7.
-- Não resolve a decisão em aberto do pacote §4.1 sobre `ProjectDetailDrawer.tsx` convergir as 2 leituras de `public.tasks` ou continuar paralelas — mesma situação, registrada como dependência do Caso 7.3.
+- Não cita hash de B5 nem do commit de flip da Fase C — nenhum dos dois mesclado em `origin/main` nesta rodada; `[completar pós-B5]` marca exatamente onde cada um entra. Hashes de B1 (`696a589`), B2/B3 (`44f0ff9`), B4 (`7c1ae42`/`16ca588`) já confirmados e citados inline.
+- Não resolve a decisão em aberto do pacote §4.1 sobre `completeTask` (Central do Dia) ficar local-only ou ganhar caminho cloud — fica pro revisor decidir, registrado aqui só como dependência do Caso 7 (Parte 2 desta rodada).
+- Não resolve a decisão em aberto do pacote §4.1 sobre `ProjectDetailDrawer.tsx` convergir as 2 leituras de `public.tasks` ou continuar paralelas — mesma situação, registrada como dependência do Caso 7.3 (leitura de código nesta rodada não achou convergência).
 - Não substitui os gates permanentes do protocolo (EXPORT MANUAL, PRINT PRÉ-CLIQUE, prova de servidor §17) — só aponta onde cada um entra nesta fatia.
 
 ---
 
-**PARADO aqui — este é um esqueleto, não o runbook fechado. Fica pra uma rodada seguinte (pós-B4/B5) resolver todos os `[completar pós-B]` contra o código real mesclado, mesmo movimento que o runbook de Financeiro já passou. Execução real da Fase C/Fase D só com um novo "vai" que autorize especificamente abrir cada fase — e só depois do gate do §1.3 (os 5 drafts aplicados pelo operador, com confirmação por escrito) fechar. §18.**
+**PARADO aqui — este é um esqueleto, não o runbook fechado. B1-B4 já mesclados e refletidos contra código real nesta rodada (rebase pós-`16ca588`); falta ainda a fatia de Central do Dia/lembretes/`QuoteToProjectDialog` (parte de B4, destravada nesta mesma rodada) e B5 (escrita nativa). Fica pra uma rodada seguinte resolver os `[completar pós-B4-Parte2]`/`[completar pós-B5]` restantes contra o código real mesclado, mesmo movimento que o runbook de Financeiro já passou. Execução real da Fase C/Fase D só com um novo "vai" que autorize especificamente abrir cada fase — e só depois do gate do §1.3 (os 5 drafts aplicados pelo operador, com confirmação por escrito) fechar. §18.**
