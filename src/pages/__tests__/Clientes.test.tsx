@@ -19,9 +19,16 @@ import { usePlan } from "@/contexts/plan-context-value";
 import { useTranslation } from "@/contexts/language-context-value";
 import { useSignupRequests } from "@/hooks/useSignupRequests";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
+import { useBifurcatedTechnicalSheet } from "@/hooks/useBifurcatedTechnicalSheet";
 import type { Client } from "@/types/domain";
 
 vi.mock("@/hooks/useClientsDataSource", () => ({ useClientsDataSource: vi.fn() }));
+// MaterialsTab (dentro de ClientProfileDrawer, aba "Materiais") passou a ler
+// useBifurcatedTechnicalSheet(clientId) — G74/F2/F3, Lane E. Internamente
+// chama useSupabaseTechnicalSheet() -> useQuery(), que quebra sem
+// QueryClientProvider real na árvore de teste. Mock direto (achado G75 não
+// mexe na Ficha Técnica, só na Biblioteca do cliente — irrelevante aqui).
+vi.mock("@/hooks/useBifurcatedTechnicalSheet", () => ({ useBifurcatedTechnicalSheet: vi.fn() }));
 vi.mock("@/hooks/useClientTypes", () => ({ useClientTypes: vi.fn() }));
 vi.mock("@/contexts/plan-context-value", () => ({ usePlan: vi.fn() }));
 vi.mock("@/contexts/language-context-value", () => ({ useTranslation: vi.fn() }));
@@ -105,6 +112,7 @@ function setupCommonMocks(source: "local" | "supabase", client: Client) {
   vi.mocked(useTranslation).mockReturnValue({ t: (k: string) => k } as never);
   vi.mocked(useSignupRequests).mockReturnValue({ pendingCount: 0 } as never);
   vi.mocked(useCurrentWorkspace).mockReturnValue({ workspace: { id: "ws1" } } as never);
+  vi.mocked(useBifurcatedTechnicalSheet).mockReturnValue({} as never);
 }
 
 beforeEach(() => {
