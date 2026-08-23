@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import {
   type Client, CLIENT_ASSET_TYPE_LABELS, CLIENT_ASSET_ACCESS_LABELS,
 } from "@/hooks/useClients";
+import { useBifurcatedTechnicalSheet } from "@/hooks/useBifurcatedTechnicalSheet";
 
 interface Props {
   client: Client;
@@ -19,7 +20,10 @@ interface Props {
 
 export function ClientTechnicalSheetSnapshot({ client, defaultOpen = false }: Props) {
   const navigate = useNavigate();
-  const sheet = client.technicalSheet ?? {};
+  // G74 (etapa-5-flip-fichas-pacote.md §11) — client.technicalSheet é um
+  // campo local-only, nunca populado pra um Client vindo do mapper cloud;
+  // leitura bifurcada por cliente respeita o seletor pós-G63.
+  const sheet = useBifurcatedTechnicalSheet(client.id);
   const branding = sheet.branding;
   const persona = sheet.persona;
   const editorial = sheet.editorialLine;

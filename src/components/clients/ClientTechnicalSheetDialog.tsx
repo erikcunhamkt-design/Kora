@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
+import { useBifurcatedTechnicalSheet } from "@/hooks/useBifurcatedTechnicalSheet";
 import { clientAssetsStorage } from "@/services/storage/clientAssetsStorage";
 import type {
   Client, ClientTechnicalSheet, ClientBranding, ClientPersona,
@@ -55,11 +56,19 @@ export function ClientTechnicalSheetDialog({
   const [draft, setDraft] = useState<ClientTechnicalSheet>({});
   const [view, setView] = useState<SectionId>("overview");
 
+  // G74 (etapa-5-flip-fichas-pacote.md §11) — client.technicalSheet é
+  // local-only, nunca populado pra um Client vindo do mapper cloud; só a
+  // leitura INICIAL do draft bifurca (respeita o seletor pós-G63). A
+  // gravação deste diálogo continua no caminho existente hoje (onSave →
+  // updateClient local), fora de escopo desta rodada.
+  const bifurcatedSheet = useBifurcatedTechnicalSheet(client?.id);
+
   useEffect(() => {
     if (open && client) {
-      setDraft(client.technicalSheet ?? {});
+      setDraft(bifurcatedSheet);
       setView("overview");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, client]);
 
   if (!client) return null;

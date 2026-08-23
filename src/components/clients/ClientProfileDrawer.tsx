@@ -44,6 +44,7 @@ import { useLeads } from "@/hooks/useLeads";
 import { useQuotes } from "@/hooks/useQuotes";
 import { useBifurcatedProjects } from "@/hooks/useBifurcatedProjects";
 import { useBifurcatedFinance } from "@/hooks/useBifurcatedFinance";
+import { useBifurcatedTechnicalSheet } from "@/hooks/useBifurcatedTechnicalSheet";
 import { ClientLibrarySection } from "./ClientLibrarySection";
 import { ClientActivitiesTab } from "./ClientActivitiesTab";
 
@@ -1052,8 +1053,11 @@ const MaterialsTab = ({
   onUpdateAssets?: (clientId: number, assets: ClientAsset[]) => void;
 }) => {
   const navigate = useNavigate();
-  const sheetAssets = client.technicalSheet?.assets ?? [];
-  const social = client.technicalSheet?.socialLinks;
+  // G74 (etapa-5-flip-fichas-pacote.md §11) — client.technicalSheet é
+  // local-only, nunca populado pra um Client vindo do mapper cloud.
+  const sheet = useBifurcatedTechnicalSheet(client.id);
+  const sheetAssets = sheet.assets ?? [];
+  const social = sheet.socialLinks;
 
   const socialEntries = [
     social?.instagram && { label: "Instagram", url: social.instagram },
@@ -1144,7 +1148,8 @@ const LinkRow = ({ title, subtitle, url }: { title: string; subtitle?: string; u
 // ============ Sheet tab ============
 
 const SheetTab = ({ client, onOpen }: { client: Client; onOpen: () => void }) => {
-  const s = client.technicalSheet ?? {};
+  // G74 (etapa-5-flip-fichas-pacote.md §11) — idem MaterialsTab acima.
+  const s = useBifurcatedTechnicalSheet(client.id);
   const branding = !!(s.branding && (s.branding.logoUrl || s.branding.slogan || s.branding.voiceTone || s.branding.brandNotes || s.branding.colors?.length));
   const persona = !!(s.persona && (s.persona.name || s.persona.pains || s.persona.desires || s.persona.behavior));
   const editorial = !!(s.editorialLine && (s.editorialLine.pillars?.length || s.editorialLine.postingFrequency || s.editorialLine.preferredFormats?.length));

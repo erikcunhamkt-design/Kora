@@ -19,6 +19,7 @@ import { useQuotes } from "@/hooks/useQuotes";
 import { useBifurcatedFinance } from "@/hooks/useBifurcatedFinance";
 import { useBifurcatedProjects } from "@/hooks/useBifurcatedProjects";
 import { useBifurcatedTasks } from "@/hooks/useBifurcatedTasks";
+import { useBifurcatedTechnicalSheet } from "@/hooks/useBifurcatedTechnicalSheet";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   useClientActivityLogs,
@@ -132,6 +133,10 @@ export const ClientActivitiesTab = ({
   // — bate por p.clientId === client.id sem precisar de mapa reverso nenhum.
   const transactions = useBifurcatedFinance();
   const tasks = useBifurcatedTasks();
+  // G74 (etapa-5-flip-fichas-pacote.md §11) — client.technicalSheet é
+  // local-only, nunca populado pra um Client vindo do mapper cloud;
+  // buildMaterialEvents.ts (função pura) recebe o resultado já bifurcado.
+  const technicalSheet = useBifurcatedTechnicalSheet(client.id);
   const { logs, addLog, updateLog, deleteLog } = useClientActivityLogs(client.id);
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -145,10 +150,10 @@ export const ClientActivitiesTab = ({
       ...buildFinanceEvents({ client, transactions }),
       ...projectEvents,
       ...buildTaskEvents({ client, tasks, clientProjectIds: projectIds }),
-      ...buildMaterialEvents({ client }),
+      ...buildMaterialEvents({ client, sheet: technicalSheet }),
     ];
     return mergeManualAndInferredActivities(inferred, logs);
-  }, [client, leads, quotes, transactions, projects, tasks, logs]);
+  }, [client, leads, quotes, transactions, projects, tasks, technicalSheet, logs]);
 
   const filtered = filter === "all" ? events : events.filter((e) => e.category === filter);
   const hasInferred = events.some((e) => e.origin === "inferred");

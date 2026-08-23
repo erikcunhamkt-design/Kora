@@ -22,6 +22,7 @@ import { useBifurcatedProjects } from "@/hooks/useBifurcatedProjects";
 import type { Project } from "@/hooks/useProjects";
 import { useBifurcatedTasks } from "@/hooks/useBifurcatedTasks";
 import type { Task } from "@/hooks/useTasks";
+import { useBifurcatedTechnicalSheet } from "@/hooks/useBifurcatedTechnicalSheet";
 import { useClientActivityLogs } from "@/hooks/useClientActivityLogs";
 import type { Client, ClientContact, ClientManualActivity } from "@/types/domain";
 import type { Transaction } from "@/hooks/useFinance";
@@ -31,6 +32,7 @@ vi.mock("@/hooks/useQuotes", () => ({ useQuotes: vi.fn() }));
 vi.mock("@/hooks/useBifurcatedFinance", () => ({ useBifurcatedFinance: vi.fn() }));
 vi.mock("@/hooks/useBifurcatedProjects", () => ({ useBifurcatedProjects: vi.fn() }));
 vi.mock("@/hooks/useBifurcatedTasks", () => ({ useBifurcatedTasks: vi.fn() }));
+vi.mock("@/hooks/useBifurcatedTechnicalSheet", () => ({ useBifurcatedTechnicalSheet: vi.fn() }));
 vi.mock("@/hooks/useClientActivityLogs", async () => {
   const actual = await vi.importActual<typeof import("@/hooks/useClientActivityLogs")>("@/hooks/useClientActivityLogs");
   return { ...actual, useClientActivityLogs: vi.fn() };
@@ -122,6 +124,7 @@ beforeEach(() => {
   vi.mocked(useQuotes).mockReturnValue({ quotes: [] } as never);
   vi.mocked(useBifurcatedProjects).mockReturnValue([] as never);
   vi.mocked(useBifurcatedTasks).mockReturnValue([] as never);
+  vi.mocked(useBifurcatedTechnicalSheet).mockReturnValue({} as never);
   vi.mocked(useClientActivityLogs).mockReturnValue({
     logs: [], addLog: vi.fn(), updateLog: vi.fn(), deleteLog: vi.fn(),
   } as never);
@@ -371,14 +374,15 @@ describe("ClientActivitiesTab · B4 — tarefas leem via useBifurcatedTasks (eta
 describe("ClientActivitiesTab · G54 caracterização — materiais (ficha técnica)", () => {
   it("asset da ficha técnica com createdAt aparece como 'Material adicionado'", async () => {
     vi.mocked(useBifurcatedFinance).mockReturnValue([] as never);
-    const client = makeClient({
-      technicalSheet: {
-        assets: [{
-          id: "a-1", title: "Manual da marca", type: "briefing", url: "https://x",
-          accessStatus: "liberado", createdAt: "2026-01-05T00:00:00.000Z",
-        } as never],
-      },
-    });
+    const client = makeClient();
+    // G74 (etapa-5-flip-fichas-pacote.md §11) — buildMaterialEvents.ts lê o
+    // resultado de useBifurcatedTechnicalSheet, não mais client.technicalSheet.
+    vi.mocked(useBifurcatedTechnicalSheet).mockReturnValue({
+      assets: [{
+        id: "a-1", title: "Manual da marca", type: "briefing", url: "https://x",
+        accessStatus: "liberado", createdAt: "2026-01-05T00:00:00.000Z",
+      } as never],
+    } as never);
 
     renderTab(client);
 
