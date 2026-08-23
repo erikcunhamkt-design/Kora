@@ -285,6 +285,103 @@ varredura anterior concluiu**. A combinação dos 2 fatos muda a recomendação 
 
 ---
 
+## 10. Revalidação (22/ago/2026) — pacote contra o `main` atual
+
+Branch `etapa-5-flip-fichas-fase-b-plano`, worktree `Kora-laneC`, a partir do tip real de
+`origin/main` em `16ca588` (`feat(tasks): B4 - Tarefas.tsx lê tasks via useBifurcatedTasks +
+G73`), confirmado por `git fetch origin main` antes de abrir. Revalidação por LEITURA DIRETA do
+código (não por inferência do texto deste doc nem do catálogo) — o arquivo mudou 2x desde a Fase
+A original: G63 (hotfix de segurança) e o adendo do G66 (bifurcação de leitura de clientes).
+
+- **G63 confirmado fechado, nos 3 pontos do hotfix:**
+  - `technicalSheetMapper.ts:45` — `delete sanitizedRaw.accesses;` antes de montar `raw_payload`.
+    `accesses[].password` **nunca mais entra no payload de escrita**, ponto.
+  - `flags.ts:191-208,290-292` — `getTechnicalSheetExperimentalEnabled`/
+    `getTechnicalSheetAutoSaveEnabled` são `=== "true"` (opt-in); `getTechnicalSheetDataSource`
+    é `map[id] === "supabase" ? "supabase" : "local"` (default `"local"`). Os 3 defaults do
+    achado crítico original estão invertidos.
+  - `ClientTechnicalSheet.tsx:348-353` — o `useEffect` de auto-promote foi **removido por
+    inteiro** (só resta o comentário explicando por quê); banner (`:520-533`) bifurca texto por
+    `autosaveEnabled` real.
+- **G66-addendum (rodada "2b-fichas") confirmado presente:** `ClientTechnicalSheet.tsx:244` lê a
+  lista de clientes via `useClientsDataSource()` (bifurcado); `updateClient` (`:235`) continua de
+  `useClients()` local — mesmo padrão "leitura bifurca, escrita local" do resto da sessão;
+  `persist()` já gateia a escrita local a `activeDataSource === "local"` antes de chamar
+  `updateClient`, então não há dupla-escrita nem regressão de comportamento pra fechar aqui.
+
+**Achado novo, não catalogado até agora — catalogado nesta rodada como G74 (ver
+`kora-hub-auditoria-e-plano.md`):** 4 consumidores secundários da ficha técnica —
+`ClientTechnicalSheetSnapshot.tsx` (usado dentro de `ProjectDetailDrawer.tsx`),
+`ClientTechnicalSheetDialog.tsx`, `ClientProfileDrawer.tsx` e
+`activityTimeline/buildMaterialEvents.ts` (usado por `ClientActivitiesTab.tsx`, G54) — leem
+`client.technicalSheet` diretamente, um campo aninhado LOCAL-ONLY. `mapSupabaseClientToLocalClient`
+(`useClientsDataSource.ts:7-42`, o mapper que qualquer um desses 4 arquivos recebe quando o
+cliente vem da fonte bifurcada) **nunca inclui `technicalSheet` no objeto retornado** — nem
+vazio, nem com um fetch próprio. Consequência: para qualquer cliente cuja ficha técnica só existe
+gravada nativamente na nuvem (autosave ou "Salvar no Supabase", ambos já existentes desde antes
+do G63), esses 4 pontos mostram sempre o estado vazio — sem aviso, sem erro, sem banner errado
+(diferente do G29: aqui não há nenhuma alegação de texto pra contradizer, é puramente um dado que
+nunca chega). Achado por leitura de código durante esta revalidação, não relatado por ninguém
+antes.
+
+---
+
+## 11. Plano de Fase B (22/ago/2026)
+
+### 11.1 Este domínio precisa do padrão Espelho Reversível completo (bifurcação + Fase C + Fase D)?
+
+**Não da forma clássica — o "flip de default" já não se aplica aqui, e não deveria.** Diferente
+de Tarefas/Clientes/Financeiro (um flag GLOBAL que muda o default pra todo mundo), Fichas
+Técnicas já tem, desde o hotfix do G63, um seletor **por cliente**, manual, default `"local"`
+(`getTechnicalSheetDataSource(clientId)`) — e o `useEffect` que um dia promoveu isso
+automaticamente foi removido de propósito, por ter sido o mecanismo do incidente. Propor uma
+"Fase C" que reintroduza um flip de default automático repetiria exatamente o padrão que o G63
+corrigiu — **não é recomendado**, e não foi pedido pelo operador nesta rodada.
+
+O que FALTA, e que é código real e paralelizável, é diferente: **os 4 consumidores secundários
+(G74) nunca leem a fonte de verdade cloud, mesmo quando o próprio cliente já escolheu
+"Supabase experimental" na página principal da ficha.** Isso não é um flip de default — é uma
+bifurcação de LEITURA comum, mesmo molde do G66/G58/B4 (Tarefas), só que a "flag" que decide a
+fonte já existe e já é por-cliente, não uma flag global nova a introduzir.
+
+**Conclusão prática**: sem Fase C, sem Fase D de homologação de default novo. Só uma rodada de
+bifurcação de consumidores (G74) — plumbing, não decisão de produto. A decisão de produto real
+(§11.3) é outra, menor, e não bloqueia o código abaixo.
+
+### 11.2 Rodadas paralelizáveis por lane
+
+| Rodada | Lane sugerida | Arquivos | Depende de | Classes de risco a aplicar por desenho |
+|---|---|---|---|---|
+| **F1 — Revalidação + plano (doc-only, esta rodada)** | Lane C | Este doc | Nenhuma | — |
+| **F2 — `useBifurcatedTechnicalSheet(clientId)` (hook novo)** | Uma lane, isolada | `src/hooks/useBifurcatedTechnicalSheet.ts` (novo) | Nenhuma técnica — reaproveita `useSupabaseTechnicalSheet` (já pronto), `mapSupabaseToLocalSheet` (já pronto), `getTechnicalSheetDataSource(clientId)` (já pronto, G63) | **[G37]** reusar `mapSupabaseToLocalSheet` tal como está — **NUNCA** tentar reconstruir `accesses`/`competitors` a partir de `raw_payload` no novo hook; isso reabriria por trás a porta que o G63 fechou por desenho (a leitura nunca devolveu esses 2 campos de propósito, não por esquecimento). **[G32]** fetch Supabase do lado de baixo (`useSupabaseTechnicalSheet`) já é `enabled: !!workspaceId && !!supabaseClientId`, não condicionar a `dataSource` — só a ESCOLHA de qual resultado devolver é que respeita `getTechnicalSheetDataSource(clientId)`. |
+| **F3 — Bifurcar os 4 consumidores (G74)** | Pode paralelizar por arquivo entre 2 lanes, sem colisão | `ClientTechnicalSheetSnapshot.tsx`, `ClientTechnicalSheetDialog.tsx`, `ClientProfileDrawer.tsx`, `activityTimeline/buildMaterialEvents.ts` (+ 1 linha de plumbing em `ClientActivitiesTab.tsx`, que já chama o construtor — mesmo padrão do G54: o HOOK roda no componente, a função `buildMaterialEvents` continua pura, recebendo o resultado como parâmetro, nunca chamando hook internamente) | F2 | **[G74]** trocar `client.technicalSheet` por `useBifurcatedTechnicalSheet(client.id)` nos 4 pontos. **Atenção `ClientTechnicalSheetDialog.tsx`**: é um formulário com DRAFT editável local (`setDraft`) — só a leitura INICIAL do draft bifurca; a gravação do diálogo continua no caminho de escrita que já existe hoje (local via `updateClient`/`onUpdateTechnicalSheet`, mesma disciplina "ler bifurcado, escrever local" do resto da sessão — este diálogo não ganha escrita nativa nesta rodada). |
+| **F4 — Decisão de produto, não é rodada de código** | Operador/revisor | — | F3 fechado | Ver §11.3 — não bloqueia F2/F3. |
+
+**Ordem de dependência**: F2 é pré-requisito de F3 (mesmo hook, 4 arquivos diferentes — pode
+paralelizar F3 entre lanes DEPOIS de F2 fechar). F4 é decisão pura, roda a qualquer momento,
+independente do código.
+
+### 11.3 Decisão de produto registrada pro operador (não bloqueia F2/F3)
+
+O seletor manual por cliente (default `"local"`, promoção só por clique explícito) deve
+permanecer o estado FINAL do domínio, ou algum dia faz sentido reintroduzir um default
+automático (tipo Fase C dos outros domínios) — agora com uma salvaguarda que não existia no
+G63 original (ex.: confirmação explícita de "1 clique" na primeira visita, não um `useEffect`
+silencioso)? **Recomendação desta rodada: manter manual.** O incidente do G63 nasceu exatamente
+de um default automático sem confirmação — reverter essa decisão de produto precisaria de uma
+UX nova desenhada com essa lição em mente, não de reaplicar o padrão de flag global que os
+outros domínios usam. Não decidido aqui — registrado pra quando/se o operador quiser revisitar.
+
+**Invariante de segurança, válida pra QUALQUER trabalho futuro neste domínio (repetido aqui por
+ênfase explícita do revisor):** `accesses[].password` nunca deve voltar a fazer parte de nenhum
+payload de leitura OU escrita — nem em `raw_payload`, nem numa coluna dedicada futura, nem em
+nenhum hook novo (`useBifurcatedTechnicalSheet` incluso). Não é um estado atual que pode
+regredir por acidente de código (G63 já fechou a escrita); é uma decisão de produto permanente —
+qualquer PR que reintroduza esse campo em qualquer direção precisa de autorização explícita
+nova, não é um "restaurar comportamento antigo" aceitável.
+
+---
+
 ## Referências
 
 - `docs/qa/varredura-fosseis-pos-flip-financeiro.md` §1.1/§2.8 — conclusão original (revisada
@@ -294,9 +391,13 @@ varredura anterior concluiu**. A combinação dos 2 fatos muda a recomendação 
 - `docs/architecture/kora-hub-auditoria-e-plano.md` — G29 (banner desatualizado), G30 (cache de
   mutação), G37 (payload incompleto), G52 (campo condicional), G56 (idempotência) — classes
   usadas como checklist no §7; **G63** — catalogação formal deste achado, pacote de remediação
-  de 5 itens (1 cancelado, 4 mantêm prioridade) e adendo de verificação (16/ago/2026)
+  de 5 itens (1 cancelado, 4 mantêm prioridade) e adendo de verificação (16/ago/2026); **G74**
+  (novo, 22/ago/2026) — 4 consumidores secundários cegos pra ficha técnica nativa-nuvem, achado
+  na revalidação §10, plano de fix em §11.2 (F2/F3)
 - `src/types/domain.ts:31-108` — shape completo local de `ClientTechnicalSheet` e sub-tipos
 - `supabase/migrations/20260530020000_create_client_technical_sheets.sql` — schema, RLS, trigger
+- `src/hooks/useClientsDataSource.ts:7-42` — `mapSupabaseClientToLocalClient`, mapper que nunca
+  popula `technicalSheet` (raiz do G74)
 
 ---
 
