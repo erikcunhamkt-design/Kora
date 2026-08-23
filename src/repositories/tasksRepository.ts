@@ -105,6 +105,46 @@ export const tasksRepository = {
     return data as SupabaseTask;
   },
 
+  // B5 (fundações de Fase B, `etapa-5-flip-tarefas-pacote.md` §7) — UPDATE
+  // genérico de uma task nativa em modo Supabase, molde de
+  // `projectsRepository.updateProject`/`financeRepository.updateTransaction`.
+  // Diferente de `updateTaskStatus` (typed, só o campo `status`), aceita
+  // qualquer subconjunto de `SupabaseTask` — o chamador (Tarefas.tsx) decide
+  // quais campos locais têm contraparte cloud antes de montar o patch.
+  async updateTask(
+    workspaceId: string,
+    taskId: string,
+    patch: Partial<SupabaseTask>,
+  ): Promise<SupabaseTask> {
+    const { data, error } = await supabase
+      .from("tasks")
+      .update({ ...patch, updated_at: new Date().toISOString() } as unknown as TaskUpsert)
+      .eq("id", taskId)
+      .eq("workspace_id", workspaceId)
+      .is("deleted_at", null)
+      .select()
+      .single();
+
+    if (error) throw normalizeSupabaseError(error);
+    return data as SupabaseTask;
+  },
+
+  // B5 — soft-delete de uma task nativa em modo Supabase, molde de
+  // `financeRepository.softDeleteReceivable` (genérico apesar do nome —
+  // UPDATE `deleted_at` WHERE id AND workspace_id).
+  async softDeleteTask(workspaceId: string, taskId: string): Promise<SupabaseTask> {
+    const { data, error } = await supabase
+      .from("tasks")
+      .update({ deleted_at: new Date().toISOString() } as unknown as TaskUpsert)
+      .eq("id", taskId)
+      .eq("workspace_id", workspaceId)
+      .select()
+      .single();
+
+    if (error) throw normalizeSupabaseError(error);
+    return data as SupabaseTask;
+  },
+
   // Etapa 5 · Fatia 7 (F2) — import geral. Sem árvore de decisão (§7.3 do doc da
   // fatia): o vocabulário local de Task.source ("manual"/"projeto"/"orçamento")
   // nunca produz o literal "project_template" (gerador de tarefas base, Etapa 3) —

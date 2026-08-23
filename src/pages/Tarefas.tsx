@@ -35,11 +35,16 @@ import {
   toIsoDate, formatPtBr,
 } from "@/hooks/useTasks";
 import { useBifurcatedTasks } from "@/hooks/useBifurcatedTasks";
+import { useSupabaseTasksAll } from "@/hooks/useSupabaseTasksAll";
+import { useSupabaseTasksWriteFlag } from "@/hooks/useSupabaseTasksWriteFlag";
+import { getTasksDataSource } from "@/config/flags";
+import type { SupabaseTask } from "@/repositories/tasksRepository";
 import { useTaskProjects, type TaskProject, type TaskProjectType } from "@/hooks/useTaskProjects";
 import {
   useTaskReminders, computeReminderAt, REMINDER_PRESET_LABELS, type ReminderPreset,
 } from "@/hooks/useTaskReminders";
 import { toast } from "@/hooks/use-toast";
+import { getFriendlyMessage } from "@/lib/supabase/errors";
 
 /* ------------------------------------------------------------------ */
 /*  Constantes & helpers                                              */
@@ -185,13 +190,83 @@ const ViewChip = ({ label, count, active, onClick, icon: Icon }: {
 
 const Tarefas = () => {
   // B4 (etapa-5-flip-tarefas-pacote.md §7) — leitura bifurcada (useBifurcatedTasks).
-  // Escrita continua local (useTasks): escrita nativa em modo Supabase pra
-  // Tarefas.tsx é a B5 do plano, ainda não existe.
+  //
+  // B5 — escrita nativa. `addTaskLocal`/`updateTaskLocal`/`moveTaskLocal`/
+  // `deleteTaskLocal` (renomeados aqui) continuam intocados — usados sempre
+  // que `cloudWriteMode` está desligado, e SEMPRE para os campos sem
+  // contraparte cloud (`toggleSubtask`/`addSubtask`/`duplicateTask`/
+  // `archiveTask`, mais os patches de `taskProjectId`/`scope`/`recurrence`/
+  // lembrete dentro do detail sheet — nenhum desses tem coluna em
+  // `public.tasks`, "não corrigido" não se aplica aqui, é ausência
+  // estrutural já documentada em `tasksMapper.ts`). `useTaskReminders`
+  // continua chamando `updateTaskLocal` (não a versão bifurcada) — por
+  // instrução explícita, não tocado nesta rodada.
   const {
-    addTask, updateTask, moveTask, toggleSubtask, addSubtask,
-    duplicateTask, archiveTask, deleteTask,
+    addTask: addTaskLocal, updateTask: updateTaskLocal, moveTask: moveTaskLocal,
+    toggleSubtask, addSubtask, duplicateTask, archiveTask, deleteTask: deleteTaskLocal,
   } = useTasks();
   const tasks = useBifurcatedTasks();
+
+  // B5 — [G32] useSupabaseTasksAll já busca sempre em paralelo (via
+  // useBifurcatedTasks acima); chamar de novo aqui só assina o MESMO cache
+  // React Query (queryKey compartilhada) pra expor as mutations — mesmo
+  // precedente de queryKey compartilhada entre 2 hooks já documentado em
+  // useSupabaseProjects.ts. `dataSource` lido direto (mesma função pura que
+  // useBifurcatedTasks já usa por baixo, sem estado próprio — não há
+  // seletor de fonte na UI de Tarefas ainda, fora do escopo desta rodada).
+  const dataSource = getTasksDataSource();
+  const { enabled: tasksWriteEnabled } = useSupabaseTasksWriteFlag();
+  const cloudWriteMode = dataSource === "supabase" && tasksWriteEnabled;
+  const {
+    createTask: createSupabaseTask, updateTask: updateSupabaseTask,
+    moveTask: moveSupabaseTask, deleteTask: deleteSupabaseTask,
+  } = useSupabaseTasksAll();
+
+  const reportCloudWriteError = useCallback((err: unknown) => {
+    toast({ title: "Erro ao salvar na nuvem", description: getFriendlyMessage(err), variant: "destructive" });
+  }, []);
+
+  // addTask/updateTask/moveTask/deleteTask — nomes preservados de propósito:
+  // TODOS os call sites existentes (`onCreate={addTask}`, `onUpdate={updateTask}`,
+  // `onMove`/`handleDrop`, `onDelete`/`confirmDelete`) continuam chamando por
+  // esses nomes, sem nenhuma mudança nos call sites — só a implementação por
+  // trás bifurca. [G30] cada mutation nativa grava a própria resposta no
+  // cache (useSupabaseTasksAll) desde o primeiro commit.
+  const addTask = useCallback((data: Omit<Task, "id" | "isDemo" | "createdAt">) => {
+    if (cloudWriteMode) { createSupabaseTask(data).catch(reportCloudWriteError); return; }
+    addTaskLocal(data);
+  }, [cloudWriteMode, createSupabaseTask, addTaskLocal, reportCloudWriteError]);
+
+  const moveTask = useCallback((id: number, status: TaskStatus) => {
+    if (cloudWriteMode) { moveSupabaseTask(String(id), status).catch(reportCloudWriteError); return; }
+    moveTaskLocal(id, status);
+  }, [cloudWriteMode, moveSupabaseTask, moveTaskLocal, reportCloudWriteError]);
+
+  const deleteTask = useCallback((id: number) => {
+    if (cloudWriteMode) { deleteSupabaseTask(String(id)).catch(reportCloudWriteError); return; }
+    deleteTaskLocal(id);
+  }, [cloudWriteMode, deleteSupabaseTask, deleteTaskLocal, reportCloudWriteError]);
+
+  // updateTask — só os 4 campos com coluna real em `SupabaseTask` (title/
+  // description/priority/due_date) viajam pro caminho nativo; qualquer patch
+  // que toque SÓ campos locais-only (taskProjectId/scope/recurrence/lembrete)
+  // cai no `updateTaskLocal` de sempre, MESMO em modo nuvem — não há coluna
+  // cloud pra essas escritas irem (mesma disciplina do EditTransactionDialog
+  // v1, que omite os campos sem coluna real em vez de fingir gravá-los).
+  const updateTask = useCallback((id: number, patch: Partial<Task>) => {
+    if (cloudWriteMode) {
+      const cloudPatch: Partial<SupabaseTask> = {};
+      if (patch.title !== undefined) cloudPatch.title = patch.title;
+      if (patch.description !== undefined) cloudPatch.description = patch.description || null;
+      if (patch.priority !== undefined) cloudPatch.priority = patch.priority;
+      if (patch.dueDate !== undefined) cloudPatch.due_date = patch.dueDate || null;
+      if (Object.keys(cloudPatch).length > 0) {
+        updateSupabaseTask(String(id), cloudPatch).catch(reportCloudWriteError);
+        return;
+      }
+    }
+    updateTaskLocal(id, patch);
+  }, [cloudWriteMode, updateSupabaseTask, updateTaskLocal, reportCloudWriteError]);
   const {
     projects: taskProjects, addProject: addTaskProject, renameProject: renameTaskProject,
     archiveProject: archiveTaskProject, deleteProject: deleteTaskProject,

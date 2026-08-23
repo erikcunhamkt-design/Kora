@@ -452,6 +452,21 @@ deep link `?task=<id>` (comparação por string, catalogado como **G73**). Fatia
 Pendentes do inventário de 8 consumidores (§4.1): `DayCenter.tsx`/`useDayCenterActions.ts`,
 `useDayCenterData.ts`, `QuoteToProjectDialog.tsx`, `useTaskReminders.ts`.
 
+**Status B5 (22/ago/2026):** escrita nativa FECHADA (Lane D). `tasksRepository.updateTask`/
+`softDeleteTask` (novos, molde `updateProject`/`softDeleteReceivable`); `useSupabaseTasksAll.ts`
+ganhou `createTask`/`updateTask`/`moveTask`/`deleteTask` ([G30] cada mutation grava a própria
+resposta no cache, desde o primeiro commit); `useSupabaseTasksWriteFlag.ts` (novo) — flag
+`kora.tasks.supabaseWrite.v1`, nasce opt-in/default OFF (molde de `useSupabaseFinanceWriteFlag.ts`
+ANTES do respectivo flip, não o estado atual pós-Fase C dele). `Tarefas.tsx`: `addTask`/`moveTask`/
+`deleteTask` bifurcados por inteiro (mesmo nome, implementação troca por trás); `updateTask`
+bifurca só os 4 campos com coluna cloud real (`title`/`description`/`priority`/`dueDate`) — um
+patch que toque só campos locais-only (`taskProjectId`/`scope`/`recurrence`/lembrete) continua
+indo pro `updateTask` local de sempre, mesmo em modo nuvem (ausência estrutural de coluna, não
+"não corrigido"). **NÃO tocado, por instrução explícita**: `useTaskReminders.ts`/`DayCenter.tsx`
+(pendentes do inventário de consumidores, fatia da B). **[G52-classe] verificado, sem achado**:
+`Task` local não tem nenhum campo companheiro de status (tipo `paid_at`/`completedAt`) — a
+escrita nova não tinha nada a esquecer, diferente do incidente original do G52 em Financeiro.
+
 **Ordem de dependência, não de calendário**: B1 é independente de tudo (só schema). B2→B3→B4 são
 sequenciais entre si (cada uma constrói sobre a anterior), mas B1 pode rodar em paralelo com
 qualquer uma delas. B5 precisa de B4 fechado (mesmo arquivo, `Tarefas.tsx`). B6 precisa de tudo.
