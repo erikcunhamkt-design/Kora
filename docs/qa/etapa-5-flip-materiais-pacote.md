@@ -12,6 +12,13 @@
 - **Domínio nunca apareceu em nenhum pacote anterior** (`etapa-5-flip-clientes-pacote.md`,
   `etapa-5-flip-fichas-pacote.md`, `etapa-5-flip-financeiro-pacote.md`,
   `etapa-5-flip-projetos-pacote.md`, `etapa-5-flip-tarefas-pacote.md`) — confirmado por grep.
+- **Atualização — mitigação interina aplicada, catalogada como G75
+  (`kora-hub-auditoria-e-plano.md`).** R1 (perda de dado silenciosa com sucesso falso)
+  **mitigado**, não fechado — `Clientes.tsx:updateClient` agora avisa honestamente (`toast.warning`)
+  em vez de mentir sucesso, nunca bloqueia; R3 (mismatch de validação vs. policy do bucket)
+  **fechado** — `clientAssetsStorage.ts` alinhado. A decisão de persistência definitiva (§10, 3
+  opções) segue pendente — a mitigação não substitui a decisão de produto, só troca uma
+  confirmação falsa por uma honesta.
 
 ---
 
