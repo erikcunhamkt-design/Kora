@@ -157,7 +157,7 @@ describe("OfficialWhatsAppCard · G71 (adendo) — rede (c): erro vira mensagem 
     render(<OfficialWhatsAppCard />);
 
     fireEvent.click(await screen.findByRole("button", { name: /Remover/ }));
-    fireEvent.click(await screen.findByRole("button", { name: "Remover", exact: true }));
+    fireEvent.click(await screen.findByRole("button", { name: "Remover" }));
 
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
     const [title, opts] = vi.mocked(toast.error).mock.calls[0];
