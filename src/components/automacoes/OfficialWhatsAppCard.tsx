@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Copy, Loader2, CheckCircle2, ShieldCheck, Trash2 } from "lucide-react";
+import { Copy, Loader2, CheckCircle2, ShieldCheck, Trash2, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { useWhatsAppOfficial } from "@/hooks/useWhatsAppOfficial";
 import {
@@ -18,10 +18,24 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useWorkspaceRole } from "@/hooks/useWorkspaceRole";
+import { toastError } from "@/lib/supabase/errors";
 
 const WEBHOOK_URL = `https://ewamvzncsloagtcvkbxv.supabase.co/functions/v1/whatsapp-official-webhook`;
+const ADMIN_ONLY_MESSAGE = "Apenas administradores do workspace podem alterar esta configuração.";
 
 export function OfficialWhatsAppCard() {
+  // G71 (adendo de backlog de UI) — 3ª tela do backlog: mesmo achado do
+  // WhatsAppBotConfig/VertexAIConnectionCard, mas AQUI a escrita já era o
+  // precedente que o G71 citou pro RLS admin-gated (whatsapp_official_
+  // credentials) — e mesmo essa tela nunca teve gate de papel na UI. Nota:
+  // diferente das outras 2, esta tela nunca fala direto com a tabela — todo
+  // save/verify/remove passa pela edge function whatsapp-official-
+  // credentials (useWhatsAppOfficial.ts, supabase.functions.invoke) — o
+  // gate de UI aqui é uma melhoria própria, não uma duplicação 1:1 da RLS
+  // (que se aplica a chamadas PostgREST diretas, não à function).
+  const { isAdmin } = useWorkspaceRole();
   const { credentials, loading, busy, save, verify, remove } = useWhatsAppOfficial();
   const [phoneNumberId, setPhoneNumberId] = useState("");
   const [wabaId, setWabaId] = useState("");
@@ -64,7 +78,9 @@ export function OfficialWhatsAppCard() {
       });
       toast.success("Credenciais salvas");
     } catch (e) {
-      toast.error("Falha ao salvar", { description: (e as Error).message });
+      // G71 (adendo): erro cru trocado pelo normalizador ja existente
+      // (src/lib/supabase/errors.ts).
+      toastError(e, "Falha ao salvar");
     }
   };
 
@@ -73,7 +89,7 @@ export function OfficialWhatsAppCard() {
       await verify();
       toast.success("Conexão verificada com a Meta");
     } catch (e) {
-      toast.error("Falha na verificação", { description: (e as Error).message });
+      toastError(e, "Falha na verificação");
     }
   };
 
@@ -83,7 +99,7 @@ export function OfficialWhatsAppCard() {
       setPhoneNumberId(""); setWabaId(""); setAccessToken(""); setAppSecret("");
       toast.success("Credenciais removidas");
     } catch (e) {
-      toast.error("Falha ao remover", { description: (e as Error).message });
+      toastError(e, "Falha ao remover");
     }
   };
 
@@ -96,6 +112,7 @@ export function OfficialWhatsAppCard() {
   }
 
   return (
+    <TooltipProvider>
     <Card className="p-5 space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -117,7 +134,7 @@ export function OfficialWhatsAppCard() {
               : "Use suas próprias credenciais da Meta para enviar e receber mensagens oficiais."}
           </p>
         </div>
-        {credentials && (
+        {credentials && (isAdmin ? (
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="outline" size="sm" disabled={busy}>
@@ -137,7 +154,18 @@ export function OfficialWhatsAppCard() {
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
-        )}
+        ) : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span tabIndex={0}>
+                <Button variant="outline" size="sm" disabled title={ADMIN_ONLY_MESSAGE} className="opacity-60 cursor-not-allowed">
+                  <Lock className="h-4 w-4" /> Remover
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>{ADMIN_ONLY_MESSAGE}</TooltipContent>
+          </Tooltip>
+        ))}
       </div>
 
       <div className="grid md:grid-cols-2 gap-3">
@@ -184,15 +212,40 @@ export function OfficialWhatsAppCard() {
       </div>
 
       <div className="flex gap-2 flex-wrap">
-        <Button onClick={handleSave} disabled={busy}>
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-          {credentials ? "Atualizar credenciais" : "Salvar credenciais"}
-        </Button>
-        {credentials && (
+        {isAdmin ? (
+          <Button onClick={handleSave} disabled={busy}>
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+            {credentials ? "Atualizar credenciais" : "Salvar credenciais"}
+          </Button>
+        ) : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span tabIndex={0}>
+                <Button disabled title={ADMIN_ONLY_MESSAGE} className="opacity-60 cursor-not-allowed">
+                  <Lock className="h-4 w-4" />
+                  {credentials ? "Atualizar credenciais" : "Salvar credenciais"}
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>{ADMIN_ONLY_MESSAGE}</TooltipContent>
+          </Tooltip>
+        )}
+        {credentials && (isAdmin ? (
           <Button variant="outline" onClick={handleVerify} disabled={busy}>
             <CheckCircle2 className="h-4 w-4" /> Testar conexão
           </Button>
-        )}
+        ) : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span tabIndex={0}>
+                <Button variant="outline" disabled title={ADMIN_ONLY_MESSAGE} className="opacity-60 cursor-not-allowed">
+                  <Lock className="h-4 w-4" /> Testar conexão
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>{ADMIN_ONLY_MESSAGE}</TooltipContent>
+          </Tooltip>
+        ))}
       </div>
 
       {credentials && (
@@ -222,5 +275,6 @@ export function OfficialWhatsAppCard() {
         </div>
       )}
     </Card>
+    </TooltipProvider>
   );
 }

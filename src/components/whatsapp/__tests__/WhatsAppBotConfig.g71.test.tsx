@@ -25,6 +25,12 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: mocks.from 
 vi.mock("sonner", () => ({
   toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() }),
 }));
+// G71 (adendo de UI role-gate) — fora do escopo original destes testes
+// (duplicação em flow_data); admin por padrão pra preservar o comportamento
+// já provado sem tocar os asserts.
+vi.mock("@/hooks/useWorkspaceRole", () => ({
+  useWorkspaceRole: () => ({ role: "owner", isAdmin: true, loading: false }),
+}));
 
 import { WhatsAppBotConfig } from "@/components/whatsapp/WhatsAppBotConfig";
 
