@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Check, Loader2, Sparkles, Trash2, Upload } from "lucide-react";
+import { Check, Loader2, Sparkles, Trash2, Upload, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,7 +26,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useVertexCredentials } from "@/hooks/useVertexCredentials";
+import { useWorkspaceRole } from "@/hooks/useWorkspaceRole";
+import { toastError } from "@/lib/supabase/errors";
+
+const ADMIN_ONLY_MESSAGE = "Apenas administradores do workspace podem alterar esta configuração.";
 
 const MODELS = [
   { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash — balanceado (recomendado)" },
@@ -34,6 +39,13 @@ const MODELS = [
 ];
 
 export function VertexAIConnectionCard() {
+  // G71 (adendo de backlog de UI) — leitura fica aberta; os 3 controles de
+  // escrita (salvar, ativar/desativar, remover) viram admin-gated na UI,
+  // espelhando o draft de RLS já proposto pra workspace_ai_credentials
+  // (docs/qa/g71-credenciais-terceiros-pacote-operador.md §3.1). isAdmin
+  // nasce false durante o loading (useWorkspaceRole) — nunca pisca
+  // habilitado antes de saber.
+  const { isAdmin } = useWorkspaceRole();
   const { status, loading, busy, save, toggleActive, remove } = useVertexCredentials();
   const [jsonText, setJsonText] = useState("");
   const [location, setLocation] = useState("us-central1");
@@ -59,7 +71,10 @@ export function VertexAIConnectionCard() {
       setJsonText("");
       setShowForm(false);
     } catch (e) {
-      toast.error((e as Error).message);
+      // G71 (adendo): erro cru trocado pelo normalizador ja existente
+      // (src/lib/supabase/errors.ts) - 42501 (RLS, ex.: nao-admin apos o
+      // draft de RLS ser aplicado) agora vira mensagem amigavel.
+      toastError(e);
     }
   };
 
@@ -68,11 +83,12 @@ export function VertexAIConnectionCard() {
       await remove();
       toast.success("Credencial removida. Voltando aos créditos do app.");
     } catch (e) {
-      toast.error((e as Error).message);
+      toastError(e);
     }
   };
 
   return (
+    <TooltipProvider>
     <Card className="p-5 space-y-4 border-primary/30 bg-gradient-to-br from-card to-primary/5">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3 min-w-0">
@@ -126,34 +142,62 @@ export function VertexAIConnectionCard() {
 
           <div className="flex items-center justify-between gap-2 pt-2 border-t border-border">
             <div className="flex items-center gap-2">
-              <Switch
-                checked={status.isActive}
-                disabled={busy}
-                onCheckedChange={(v) => toggleActive(v).then(() =>
-                  toast.success(v ? "Vertex AI ativada" : "Voltando aos créditos do app")
-                )}
-              />
+              {isAdmin ? (
+                <Switch
+                  checked={status.isActive}
+                  disabled={busy}
+                  onCheckedChange={(v) => toggleActive(v)
+                    .then(() => toast.success(v ? "Vertex AI ativada" : "Voltando aos créditos do app"))
+                    // G71 (adendo): achado durante a rede (c) — esta chamada
+                    // não tinha catch nenhum (só .then), uma rejeição de
+                    // toggleActive (ex.: 42501 pos-RLS) virava unhandled
+                    // rejection, nunca um toast. Normalizador já existente.
+                    .catch((e) => toastError(e))}
+                />
+              ) : (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span tabIndex={0}>
+                      <Switch checked={status.isActive} disabled title={ADMIN_ONLY_MESSAGE} className="opacity-60 cursor-not-allowed" />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>{ADMIN_ONLY_MESSAGE}</TooltipContent>
+                </Tooltip>
+              )}
               <Label className="text-xs">Usar Vertex em vez dos créditos</Label>
             </div>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="ghost" size="sm" disabled={busy}>
-                  <Trash2 className="h-4 w-4" /> Remover
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Remover Vertex AI?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    A chave será apagada e o app voltará a usar os créditos de IA.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleRemove}>Remover</AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+            {isAdmin ? (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="ghost" size="sm" disabled={busy}>
+                    <Trash2 className="h-4 w-4" /> Remover
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Remover Vertex AI?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      A chave será apagada e o app voltará a usar os créditos de IA.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleRemove}>Remover</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            ) : (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span tabIndex={0}>
+                    <Button variant="ghost" size="sm" disabled title={ADMIN_ONLY_MESSAGE} className="opacity-60 cursor-not-allowed">
+                      <Lock className="h-4 w-4" /> Remover
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>{ADMIN_ONLY_MESSAGE}</TooltipContent>
+              </Tooltip>
+            )}
           </div>
         </div>
       ) : !showForm ? (
@@ -214,13 +258,27 @@ export function VertexAIConnectionCard() {
             <Button variant="outline" onClick={() => { setShowForm(false); setJsonText(""); }} disabled={busy}>
               Cancelar
             </Button>
-            <Button onClick={handleSave} disabled={busy} className="flex-1">
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-              Salvar e ativar
-            </Button>
+            {isAdmin ? (
+              <Button onClick={handleSave} disabled={busy} className="flex-1">
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                Salvar e ativar
+              </Button>
+            ) : (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="flex-1">
+                    <Button disabled title={ADMIN_ONLY_MESSAGE} className="w-full opacity-60 cursor-not-allowed">
+                      <Lock className="h-4 w-4" /> Salvar e ativar
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>{ADMIN_ONLY_MESSAGE}</TooltipContent>
+              </Tooltip>
+            )}
           </div>
         </div>
       )}
     </Card>
+    </TooltipProvider>
   );
 }

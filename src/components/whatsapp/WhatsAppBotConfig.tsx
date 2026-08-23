@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { 
-  Bot, Save, AlertCircle, Loader2, Server, Key, BrainCircuit, 
-  Sparkles, MessageSquareCode, Settings2, HelpCircle, Send, 
+  Bot, Save, AlertCircle, Loader2, Server, Key, BrainCircuit,
+  Sparkles, MessageSquareCode, Settings2, HelpCircle, Send,
   RefreshCw, CheckCircle2, ShieldAlert, UserCog, Network,
-  ArrowRight, ToggleLeft, ToggleRight, Play, Eye
+  ArrowRight, ToggleLeft, ToggleRight, Play, Eye, Lock
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,6 +14,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database, Json } from "@/integrations/supabase/types";
+import { useWorkspaceRole } from "@/hooks/useWorkspaceRole";
+import { toastError } from "@/lib/supabase/errors";
 
 type BotSettings = Database["public"]["Tables"]["whatsapp_bot_settings"]["Row"];
 type BotSettingsInsert = Database["public"]["Tables"]["whatsapp_bot_settings"]["Insert"];
@@ -56,6 +58,12 @@ interface HandoverWorkflowNode extends WorkflowNodeBase {
 type WorkflowNode = TriggerWorkflowNode | AiWorkflowNode | SendWorkflowNode | HandoverWorkflowNode;
 
 export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
+  // G71 (adendo de backlog de UI) — leitura fica aberta pra qualquer membro;
+  // escrita (Salvar Fluxo) vira admin-gated na UI, espelhando o draft de RLS
+  // já proposto pra whatsapp_bot_settings (docs/qa/g71-credenciais-
+  // terceiros-pacote-operador.md §3.2). isAdmin nasce false durante o
+  // loading (useWorkspaceRole) — nunca pisca habilitado antes de saber.
+  const { isAdmin } = useWorkspaceRole();
   const [settings, setSettings] = useState<BotSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -197,7 +205,10 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
         }
       }
     } catch (e) {
-      toast.error("Erro ao carregar configurações", { description: (e as Error).message });
+      // G71 (adendo): erro cru trocado pelo normalizador ja existente
+      // (src/lib/supabase/errors.ts) - 42501 (RLS) agora vira mensagem
+      // amigavel em vez do texto tecnico do Postgres.
+      toastError(e, "Erro ao carregar configurações");
     } finally {
       setLoading(false);
     }
@@ -312,7 +323,9 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
         toast.success("Fluxo de Atendimento criado e ativado!");
       }
     } catch (e) {
-      toast.error("Erro ao salvar configurações", { description: (e as Error).message });
+      // G71 (adendo): idem loadSettings - 42501 (RLS, ex.: nao-admin apos o
+      // draft de RLS ser aplicado) agora vira mensagem amigavel.
+      toastError(e, "Erro ao salvar configurações");
     } finally {
       setSaving(false);
     }
@@ -540,10 +553,26 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
               <span className="text-[10px] text-muted-foreground flex items-center gap-1.5 leading-normal">
                 <ShieldAlert className="h-4 w-4 text-violet-400" /> Salve o fluxo antes de testar no simulador ao lado ou no celular.
               </span>
-              <Button size="sm" onClick={handleSaveSettings} disabled={saving} className="bg-gradient-to-r from-violet-600 to-indigo-600 hover:brightness-110 text-xs h-8 text-white px-4 border-0">
-                {saving ? <Loader2 className="h-3 w-3 animate-spin mr-1.5" /> : <Save className="h-3 w-3 mr-1.5" />}
-                Salvar Fluxo
-              </Button>
+              {isAdmin ? (
+                <Button size="sm" onClick={handleSaveSettings} disabled={saving} className="bg-gradient-to-r from-violet-600 to-indigo-600 hover:brightness-110 text-xs h-8 text-white px-4 border-0">
+                  {saving ? <Loader2 className="h-3 w-3 animate-spin mr-1.5" /> : <Save className="h-3 w-3 mr-1.5" />}
+                  Salvar Fluxo
+                </Button>
+              ) : (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span tabIndex={0}>
+                        <Button size="sm" disabled title="Apenas administradores do workspace podem alterar esta configuração." className="bg-gradient-to-r from-violet-600 to-indigo-600 text-xs h-8 text-white px-4 border-0 opacity-60 cursor-not-allowed">
+                          <Lock className="h-3 w-3 mr-1.5" />
+                          Salvar Fluxo
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>Apenas administradores do workspace podem alterar esta configuração.</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
             </div>
 
           </div>
