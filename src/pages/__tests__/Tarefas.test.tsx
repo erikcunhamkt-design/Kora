@@ -241,4 +241,13 @@ describe("Tarefas · B5 — escrita nativa em modo Supabase (etapa-5-flip-tarefa
     await waitFor(() => expect(SUPABASE_TASK_WRITES.updateTask).toHaveBeenCalledWith("cloud-uuid-3", { due_date: "2026-09-15" }));
     expect(LOCAL_TASK_WRITES.updateTask).not.toHaveBeenCalled();
   });
+  // Campo local-only (recurrence/scope/taskProjectId/lembrete) via Select —
+  // não testado por UI aqui (Radix Select em jsdom exige polyfill de
+  // scrollIntoView/pointer capture, fragilidade desnecessária); coberto de
+  // forma direta e precisa pelo describe "splitTaskUpdatePatch" abaixo, que
+  // testa a mesma função pura que o wrapper `updateTask` usa por trás.
 });
+
+// splitTaskUpdatePatch (PATCH MISTO) — testado em
+// src/services/tasks/__tests__/tasksMapper.test.ts, junto do resto do
+// mapper de onde a função vive.

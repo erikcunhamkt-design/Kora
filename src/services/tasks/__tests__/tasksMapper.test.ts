@@ -8,6 +8,7 @@ import {
   resolveTaskFk,
   normalizeCloudTaskStatus,
   normalizeCloudTaskPriority,
+  splitTaskUpdatePatch,
 } from "@/services/tasks/tasksMapper";
 import type { Task } from "@/hooks/useTasks";
 import type { SupabaseTask } from "@/repositories/tasksRepository";
@@ -278,5 +279,39 @@ describe("mapSupabaseTaskToLocal — payload completo desde o dia 1 (lição G37
     const task = mapSupabaseTaskToLocal(makeSupabaseTask({ archived: true, is_demo: true }));
     expect(task.archived).toBe(true);
     expect(task.isDemo).toBe(true);
+  });
+});
+
+// B5 (Tarefas.tsx, escrita nativa) — PATCH MISTO (campo cloud + campo
+// local-only no mesmo patch). Nenhum call site real de `updateTask` em
+// Tarefas.tsx produz um patch misto hoje (ver comentário do wrapper) —
+// estes testes provam o comportamento CORRETO caso um call site futuro
+// venha a produzir um: os 2 lados sempre são preservados, nunca um
+// `return` antecipado descarta o outro.
+describe("splitTaskUpdatePatch (B5, PATCH MISTO)", () => {
+  it("patch só com campos cloud → cloudPatch completo, localPatch vazio", () => {
+    const { cloudPatch, localPatch } = splitTaskUpdatePatch({ title: "Novo título", priority: "alta" });
+    expect(cloudPatch).toEqual({ title: "Novo título", priority: "alta" });
+    expect(localPatch).toEqual({});
+  });
+
+  it("patch só com campos locais-only → localPatch completo, cloudPatch vazio", () => {
+    const { cloudPatch, localPatch } = splitTaskUpdatePatch({ scope: "personal", recurrence: "weekly" });
+    expect(cloudPatch).toEqual({});
+    expect(localPatch).toEqual({ scope: "personal", recurrence: "weekly" });
+  });
+
+  it("PATCH MISTO (1 campo cloud + 1 campo local-only na mesma chamada) → divide corretamente os 2, nenhum se perde", () => {
+    const { cloudPatch, localPatch } = splitTaskUpdatePatch({ priority: "alta", scope: "personal" });
+    expect(cloudPatch).toEqual({ priority: "alta" });
+    expect(localPatch).toEqual({ scope: "personal" });
+  });
+
+  it("dueDate vazio (limpar prazo) vira due_date: null no cloudPatch, nunca undefined; dueDate ausente não entra no patch", () => {
+    const { cloudPatch } = splitTaskUpdatePatch({ dueDate: undefined, priority: "baixa" });
+    expect(cloudPatch).toEqual({ priority: "baixa" });
+
+    const cleared = splitTaskUpdatePatch({ dueDate: "" });
+    expect(cleared.cloudPatch).toEqual({ due_date: null });
   });
 });

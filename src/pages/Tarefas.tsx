@@ -39,6 +39,7 @@ import { useSupabaseTasksAll } from "@/hooks/useSupabaseTasksAll";
 import { useSupabaseTasksWriteFlag } from "@/hooks/useSupabaseTasksWriteFlag";
 import { getTasksDataSource } from "@/config/flags";
 import type { SupabaseTask } from "@/repositories/tasksRepository";
+import { splitTaskUpdatePatch } from "@/services/tasks/tasksMapper";
 import { useTaskProjects, type TaskProject, type TaskProjectType } from "@/hooks/useTaskProjects";
 import {
   useTaskReminders, computeReminderAt, REMINDER_PRESET_LABELS, type ReminderPreset,
@@ -247,23 +248,39 @@ const Tarefas = () => {
     deleteTaskLocal(id);
   }, [cloudWriteMode, deleteSupabaseTask, deleteTaskLocal, reportCloudWriteError]);
 
-  // updateTask — só os 4 campos com coluna real em `SupabaseTask` (title/
-  // description/priority/due_date) viajam pro caminho nativo; qualquer patch
-  // que toque SÓ campos locais-only (taskProjectId/scope/recurrence/lembrete)
-  // cai no `updateTaskLocal` de sempre, MESMO em modo nuvem — não há coluna
-  // cloud pra essas escritas irem (mesma disciplina do EditTransactionDialog
-  // v1, que omite os campos sem coluna real em vez de fingir gravá-los).
+  // Pendência do "vai" condicional (rodada de merge) — PATCH MISTO (campo
+  // cloud + campo local-only no mesmo patch). Levantamento por leitura de
+  // TODOS os call sites de `onUpdate`/`updateTask` no arquivo (confirmado
+  // hoje, nenhum produz patch misto):
+  //   - reminderSentAt sozinho (useTaskReminders — não tocado)
+  //   - { taskProjectId, scope } (2 call sites) — os 2 locais-only
+  //   - { taskProjectId } sozinho (limpeza ao excluir projeto) — local-only
+  //   - { dueDate } sozinho (input de prazo do detail sheet) — cloud
+  //   - { priority } sozinho (Select de prioridade) — cloud
+  //   - { recurrence } sozinho (Select de recorrência) — local-only
+  //   - { scope } sozinho (Select de tipo) — local-only
+  //   - { reminderAt, reminderEnabled, reminderSentAt } — os 3 locais-only
+  //   - { reminderEnabled, reminderSentAt } — os 2 locais-only
+  // Nenhum hoje mistura um campo com coluna cloud (title/description/
+  // priority/dueDate) com um campo local-only na MESMA chamada. Mesmo assim,
+  // a versão anterior deste wrapper tinha um bug latente pra quando isso
+  // acontecesse: `if (cloudPatch tem entradas) { chama nativo; return; }`
+  // — o `return` pulava o `updateTaskLocal`, perdendo em silêncio qualquer
+  // campo local-only que viesse JUNTO num patch misto futuro. Fix (sugestão
+  // do revisor): `splitTaskUpdatePatch` divide o patch em 2 — cloud vai pro
+  // nativo, local-only vai pro local, os 2 SEMPRE que cada um tiver
+  // conteúdo, na MESMA chamada — nunca um `return` antecipado que descarte
+  // o outro lado.
   const updateTask = useCallback((id: number, patch: Partial<Task>) => {
     if (cloudWriteMode) {
-      const cloudPatch: Partial<SupabaseTask> = {};
-      if (patch.title !== undefined) cloudPatch.title = patch.title;
-      if (patch.description !== undefined) cloudPatch.description = patch.description || null;
-      if (patch.priority !== undefined) cloudPatch.priority = patch.priority;
-      if (patch.dueDate !== undefined) cloudPatch.due_date = patch.dueDate || null;
+      const { cloudPatch, localPatch } = splitTaskUpdatePatch(patch);
       if (Object.keys(cloudPatch).length > 0) {
         updateSupabaseTask(String(id), cloudPatch).catch(reportCloudWriteError);
-        return;
       }
+      if (Object.keys(localPatch).length > 0) {
+        updateTaskLocal(id, localPatch);
+      }
+      return;
     }
     updateTaskLocal(id, patch);
   }, [cloudWriteMode, updateSupabaseTask, updateTaskLocal, reportCloudWriteError]);

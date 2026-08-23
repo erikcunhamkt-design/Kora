@@ -311,3 +311,31 @@ export function mapSupabaseTaskToLocal(
     source,
   };
 }
+
+/**
+ * B5 (`Tarefas.tsx`, escrita nativa) — divide um patch parcial de `Task` em 2:
+ * `cloudPatch` (os 4 campos com coluna real em `SupabaseTask` — title/
+ * description/priority/due_date) e `localPatch` (todo o resto, sem coluna
+ * cloud). Vive aqui, não em `Tarefas.tsx`, pelo mesmo motivo de
+ * `mapLocalTaskToSupabase`/`mapSupabaseTaskToLocal` — é o mapper quem sabe
+ * quais campos locais têm contraparte cloud, não a página.
+ *
+ * Achado na rodada de merge (revisor): a versão anterior do wrapper
+ * `updateTask` em `Tarefas.tsx` tinha `if (cloudPatch tem entradas) { chama
+ * nativo; return; }` — um `return` antecipado que descartaria em silêncio
+ * qualquer campo local-only vindo JUNTO num patch misto (nenhum call site
+ * real produz isso hoje, ver comentário de `updateTask` em `Tarefas.tsx`
+ * pra a lista completa). Esta função nunca descarta nenhum dos 2 lados —
+ * quem decide o que fazer com cada metade é o chamador.
+ */
+export function splitTaskUpdatePatch(
+  patch: Partial<Task>,
+): { cloudPatch: Partial<SupabaseTask>; localPatch: Partial<Task> } {
+  const cloudPatch: Partial<SupabaseTask> = {};
+  const localPatch: Partial<Task> = { ...patch };
+  if (patch.title !== undefined) { cloudPatch.title = patch.title; delete localPatch.title; }
+  if (patch.description !== undefined) { cloudPatch.description = patch.description || null; delete localPatch.description; }
+  if (patch.priority !== undefined) { cloudPatch.priority = patch.priority; delete localPatch.priority; }
+  if (patch.dueDate !== undefined) { cloudPatch.due_date = patch.dueDate || null; delete localPatch.dueDate; }
+  return { cloudPatch, localPatch };
+}
