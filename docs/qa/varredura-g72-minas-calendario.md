@@ -39,13 +39,13 @@
 
 | # | Arquivo(s) | Mecanismo | Classe | Ação |
 |---|---|---|---|---|
-| 1 | `ClientActivitiesTab.test.tsx:159,170` (`makeCloudReceivable()` sem override de `dueDate`) × `buildFinanceEvents.ts:40` (`isOverdue`) | Factory default `dueDate: "2026-08-20"` — **já cruzou o limiar hoje** (22/ago/2026). Os 2 testes (linhas 157/168) **ainda passam** por sorte: `"Conta a receber gerada"` e `"Recebível vencido"` são textos DIFERENTES, então `findByText`/`getByText` não colidem (diferente do bug original do G72, que usava uma regex que batia nos 2). Mas cada um desses 2 testes agora renderiza silenciosamente um **2º evento não previsto** (`"Recebível vencido"`) que nenhum assert verifica — mina ativa, mascarada, não quebrou ainda mas já mudou o comportamento exercitado. Um assert futuro adicionado perto de "vencido" nesses testes começaria a falhar sem nenhuma mudança de código. | **Mina real, ATIVA hoje (mascarada)** | **NÃO tocado** — arquivo é `ClientActivitiesTab`/domínio da Lane E (mesmo território do achado original do G72). Listado, não corrigido. |
+| 1 | `ClientActivitiesTab.test.tsx` (`makeCloudReceivable()` sem override de `dueDate`) × `buildFinanceEvents.ts:40` (`isOverdue`) | ✅ **CORRIGIDO** (rodada de merge, F3 da Lane C liberou o arquivo). Factory default `dueDate: "2026-08-20"` — tinha **cruzado o limiar** em 22/ago/2026. Os 2 testes afetados **continuavam passando** por sorte: `"Conta a receber gerada"` e `"Recebível vencido"` são textos DIFERENTES, então `findByText`/`getByText` não colidiam (diferente do bug original do G72, que usava uma regex que batia nos 2) — mas cada um renderizava silenciosamente um **2º evento não previsto** que nenhum assert verificava. **Verificado nos 2 estados, sem mudar nenhum assert** (instrução explícita): revertido só o default via patch → 21/21 ainda passam (a mina não quebrava nada hoje, só mudava o comportamento exercitado em silêncio) → reaplicado → 21/21 continuam passando. Não é um fail→fix→pass tradicional — é uma bomba desarmada preventivamente. Fix: `dueDate` do factory passa a ser relativo (`futureDueDateIso()`, hoje+30 dias) — mesma técnica de `QuotesSection.test.tsx` (`todayIso()`). | **Mina real, corrigida** | **Corrigida** — `git diff` disponível no commit da rodada de merge. |
 | 2 | `ClientActivitiesTab.test.tsx:148` (`dueDate: "2099-01-01"`) | Já corrigido no commit original do G72 (`7c1ae42`/`6cb30de`) — data explícita e comprovadamente futura. | Segura (fix já aplicado, precedente) | Nenhuma — registro de referência. |
 | 3 | `ClientActivitiesTab.test.tsx:285` (`dueDate: "2020-01-01"`, teste "recebível vencido") | Data no passado distante usada pra testar o caso "vencido = true" — direção OPOSTA do bug (aqui a intenção É que fique sempre vencido); nunca deixa de ser verdade com o avanço do calendário. | Segura (padrão correto pra testar "sempre verdadeiro") | Nenhuma. |
 | 4 | `ClientActivitiesTab.test.tsx:264` (`status: "vencido"` literal em fixture de quote) × `buildCommercialEvents.ts:101` | `buildCommercialEvents.ts` checa `q.status === "vencido"` **diretamente** (string literal), não computa a partir de data — o campo do fixture não é comparado contra relógio nenhum. | Falso positivo (campo presente, nunca comparado contra relógio) | Nenhuma. |
 | 5 | `QuotesSection.test.tsx` (`todayIso()`, linha ~87) × `useQuotes.ts.isQuoteExpired`/`QuotesSection.tsx.effectiveStatus` | `createdAt` do fixture é gerado como `new Date().toISOString().slice(0,10)` — sempre "hoje" no momento da execução, mantendo o fixture válido pra sempre. Comentário no próprio arquivo (linha 81-86) já documenta a mina e o motivo do fix. | **Segura — padrão de referência** (é literalmente a técnica que o próprio G72 recomenda como fix sistêmico) | Nenhuma — citado como exemplo positivo a seguir em correções futuras. |
 | 6 | `useDayCenterActions.test.ts` (`dueDate: "2026-08-20"`) × `useDayCenterActions.ts` | Mesmo valor "suspeito" do achado #1, mas `useDayCenterActions.ts` (código sob teste) só usa `new Date()` pra CARIMBAR `resolvedAt` no momento da resolução — nunca compara `dueDate` contra o relógio. `useDayCenterResolvedActions` (que TEM `isToday(iso)`) está 100% mockado neste arquivo (`vi.mock` linha 28) — sua implementação real nunca é exercitada aqui. | Falso positivo (campo presente, função com risco real está mockada) | Nenhuma. |
-| 7 | `Tarefas.tsx` (`isOverdue`/`isToday`/`dueBucket`, linhas 91-104) | Nenhum arquivo `Tarefas.test.tsx` existe no repo — confirmado via busca. Sem teste, não há fixture pra apodrecer. | Sem risco (ausência de teste — fora do escopo de G72, que é sobre teste que apodrece) | Nenhuma. Observação lateral: gap de cobertura, não um achado G72. |
+| 7 | `Tarefas.tsx` (`isOverdue`/`isToday`/`dueBucket`) | **Atualização (rodada de merge)**: `Tarefas.test.tsx` passou a existir (fatias B4/B5, posteriores a esta varredura) — mas confirmado por busca que nenhum teste ali exercita `isOverdue`/`dueBucket`/"atrasada" diretamente. Conclusão original ainda vale, só a premissa mudou. | Sem risco (ausência de teste que exercite a lógica de data — fora do escopo de G72) | Nenhuma. Observação lateral: gap de cobertura, não um achado G72. |
 | 8 | `ContentSection.tsx` (`isToday`, linha ~504) | Nenhum teste importa/renderiza `ContentSection` (confirmado via `grep` repo-wide). | Sem risco (ausência de teste) | Nenhuma. |
 | 9 | `lib/dayCenter.ts` (textos "vencido"/"vencida" em `buildDayCenterItems`-equivalente, linhas 283/365) | Único arquivo de teste que importa de `lib/dayCenter.ts` (`useDayCenterActions.test.ts`) importa só o TIPO `DayActionItem`, nunca a função geradora — a lógica de vencimento não é exercitada por nenhum teste. | Sem risco (ausência de teste) | Nenhuma. |
 | 10 | `useNotificationsCenter.ts` ("vencido"/"vencida" em títulos de notificação-seed, linhas 53/106) | Strings estáticas de conteúdo demo — não são derivadas de nenhuma comparação de data. Sem teste próprio. | Falso positivo (texto estático, não comparação de data) | Nenhuma. |
@@ -55,32 +55,27 @@
 
 ## 2. Fechamento
 
-**1 mina real ativa encontrada, 0 corrigidas nesta rodada** — o único achado
-com risco confirmado (#1) está em `ClientActivitiesTab.test.tsx`/
-`buildFinanceEvents.ts`, território da Lane E (mesmo domínio do achado
-original do G72) — por instrução explícita desta rodada, **não tocado**,
-só listado. Nenhum arquivo da Lane B foi identificado como relevante pra
-esta classe de achado durante a varredura (nenhuma mina encontrada fora do
-território da Lane E).
+**1 mina real ativa encontrada, corrigida na rodada de merge** —
+`ClientActivitiesTab.test.tsx`/`buildFinanceEvents.ts` era território da
+Lane E na rodada original desta varredura (não tocado, só listado); a
+fatia F3 da Lane C mergeou depois (`68440eb`) e liberou o arquivo — fix
+autorizado e aplicado nesta rodada de merge. Nenhum arquivo da Lane B foi
+identificado como relevante pra esta classe de achado durante a varredura
+(nenhuma mina encontrada fora do território da Lane E).
 
-**Provas por patch**: não aplicável — nenhum fix foi aplicado nesta rodada
-(o único achado corrigível está fora do escopo autorizado). `npm run gates`
-rodado em modo sanity (nenhuma linha de código tocada).
-
-**Recomendação de correção pro achado #1** (pra quem estiver de plantão em
-`ClientActivitiesTab.test.tsx`): trocar o default do factory
-`makeCloudReceivable()` de `dueDate: "2026-08-20"` pra um valor relativo
-(`new Date(Date.now() + 365*86400000).toISOString().slice(0,10)`, sempre 1
-ano no futuro) ou um valor fixo suficientemente distante (`"2099-01-01"`,
-mesmo valor já usado no fix pontual da linha 148) — mesma lição que
-`QuotesSection.test.tsx` (`todayIso()`) já aplica corretamente pro domínio
-de quotes.
+**Verificação nos 2 estados (sem mudar assert nenhum, por instrução)**:
+`git diff` do fix salvo como patch → revertido só o default do factory →
+21/21 testes **continuam passando** (a mina já tinha cruzado o limiar, mas
+nenhum assert existente detectava o 2º evento silencioso) → reaplicado →
+21/21 continuam passando. Não é fail→fix→pass tradicional — é confirmação
+de que o fix desarma uma bomba que ainda não tinha explodido, sem alterar
+nenhum comportamento observável do teste hoje.
 
 **Recomendação sistêmica** (já registrada no G72 original, reafirmada
 aqui): fixture de data sempre relativo ao momento do teste OU relógio
 fixado via `vi.useFakeTimers()`/`vi.setSystemTime()` — nunca uma string
-absoluta comparada contra tempo real. Nenhum outro caso do repo hoje viola
-essa regra de forma ativa, além do achado #1.
+absoluta comparada contra tempo real. Com o achado #1 corrigido, nenhum
+caso do repo viola essa regra de forma ativa nesta data (22/ago/2026).
 
 ## Referências
 

@@ -51,10 +51,26 @@ function makeClient(overrides: Partial<Client> = {}): Client {
   };
 }
 
+// G72 (varredura de minas de calendário) — o default anterior deste factory
+// (`dueDate: "2026-08-20"`, absoluto) já tinha cruzado o limiar de
+// `buildFinanceEvents.ts:40` (`isOverdue`) no dia em que esta rodada rodou
+// (22/ago/2026): os 2 call sites de `makeCloudReceivable()` sem override de
+// `dueDate` (linhas ~162/~173) passavam a renderizar um 2º evento "Recebível
+// vencido" não previsto por nenhum assert — mascarado (títulos diferentes
+// não colidem em `findByText`/`getByText`), mas já uma mina ativa, não mais
+// hipotética. Fix: `dueDate` relativo ao momento da execução (hoje + 30
+// dias) — sempre no futuro, qualquer que seja o dia em que a suíte rodar,
+// mesma técnica já usada em `QuotesSection.test.tsx` (`todayIso()`).
+function futureDueDateIso(daysFromNow = 30): string {
+  const d = new Date();
+  d.setDate(d.getDate() + daysFromNow);
+  return d.toISOString().slice(0, 10);
+}
+
 function makeCloudReceivable(overrides: Partial<Transaction> = {}): Transaction {
   return {
     id: "sft-1", type: "income", title: "Recebível — Orçamento aprovado", amount: 1500,
-    category: "Sem categoria (nuvem)", dueDate: "2026-08-20", status: "pending",
+    category: "Sem categoria (nuvem)", dueDate: futureDueDateIso(), status: "pending",
     paymentMethod: "other", recurrence: "none", source: "quote", createdAt: "2026-08-10",
     isDemo: false,
     // client_id real, cast-como-number — exatamente o que
@@ -140,14 +156,17 @@ function renderTab(client: Client) {
 
 describe("ClientActivitiesTab · G41 — recebível CRM (client_id da nuvem) agora aparece na timeline", () => {
   it("recebível lido via useBifurcatedFinance com client_id uuid-cast bate por clientId, aparece no histórico", async () => {
-    // dueDate explícito no futuro (não o default do factory, "2026-08-20") —
-    // achado desta rodada, fora do escopo de B4: o default cruzou pra
-    // "hoje"/passado com o avanço do calendário real, fazendo
-    // buildFinanceEvents (today = new Date(), sem fake timer neste arquivo)
-    // emitir TAMBÉM um evento "Recebível vencido" (mesma descrição, regex
-    // do assert abaixo batia nos 2). Não é a intenção do teste (que só quer
-    // provar o casamento por client_id, não o cálculo de vencimento) — fix
-    // pontual só neste teste, sem tocar o default do factory nem o assert.
+    // dueDate explícito no futuro — achado original (fora do escopo de B4):
+    // o default do factory era absoluto ("2026-08-20") e cruzou pra "hoje"/
+    // passado com o avanço do calendário real, fazendo buildFinanceEvents
+    // (today = new Date(), sem fake timer neste arquivo) emitir TAMBÉM um
+    // evento "Recebível vencido" (mesma descrição, regex do assert abaixo
+    // batia nos 2). Não é a intenção do teste (que só quer provar o
+    // casamento por client_id, não o cálculo de vencimento) — fix pontual
+    // só neste teste, sem tocar o assert. G72 (rodada de varredura
+    // posterior) trocou o default do factory pra relativo
+    // (`futureDueDateIso()`) — este override explícito continua aqui por
+    // clareza/documentação, mas deixou de ser estritamente necessário.
     vi.mocked(useBifurcatedFinance).mockReturnValue([makeCloudReceivable({ dueDate: "2099-01-01" })] as never);
     const client = makeClient();
 
