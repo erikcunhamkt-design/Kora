@@ -14,7 +14,7 @@ import { useFinance } from "@/hooks/useFinance";
 import { useBifurcatedFinance } from "@/hooks/useBifurcatedFinance";
 import { useClientActivityLogs, useAllClientActivityLogs } from "@/hooks/useClientActivityLogs";
 import { useDayCenterResolvedActions } from "@/hooks/useDayCenterResolvedActions";
-import { FINANCE_DATA_SOURCE_KEY } from "@/config/flags";
+import { FINANCE_DATA_SOURCE_KEY, TASKS_DATA_SOURCE_KEY } from "@/config/flags";
 import { toast } from "sonner";
 import type { DayActionItem } from "@/lib/dayCenter";
 
@@ -91,5 +91,49 @@ describe("useDayCenterActions · guarda contra no-op silencioso em modo Supabase
     act(() => result.current.markReceivablePaid(item));
 
     expect(updateTransactionStatus).toHaveBeenCalledWith("sft-1", "paid");
+  });
+});
+
+// Etapa 5 · Tarefas Fase B (Pacote do Flip, §7 B4, 22/ago/2026) — mesma
+// classe de risco: useDayCenterData() passou a ler tasks via
+// useBifurcatedTasks() nessa mesma rodada, então um item de tarefa aqui
+// pode vir da nuvem (id uuid contrabandeado como number) enquanto
+// updateTask segue o mutator LOCAL de useTasks(). Sem a guarda,
+// updateTask(Number(uuid), ...) vira NaN, nenhuma tarefa local bate
+// t.id !== NaN, o .map devolve o array intacto — nenhum erro, nenhum
+// efeito, toast de sucesso mesmo assim (mesma classe do G67/G73).
+const cloudTaskItem: DayActionItem = {
+  id: "item-2", category: "task", relatedType: "task",
+  relatedId: "11111111-1111-1111-1111-111111111111",
+  title: "HOMOLOG-TAR-tarefa-nuvem", priority: "high",
+} as never;
+
+describe("useDayCenterActions · guarda contra no-op silencioso de completeTask em modo Supabase (§7 B4)", () => {
+  it("completeTask em modo Supabase nunca chama updateTask — toast explícito, não um no-op silencioso", () => {
+    localStorage.setItem(TASKS_DATA_SOURCE_KEY, "supabase");
+    const updateTask = vi.fn();
+    vi.mocked(useTasks).mockReturnValue({ updateTask } as never);
+
+    const { result } = renderHook(() => useDayCenterActions());
+    act(() => result.current.completeTask(cloudTaskItem));
+
+    expect(updateTask).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("modo Supabase"));
+  });
+
+  it("completeTask em modo local continua chamando updateTask normalmente (regressão)", () => {
+    localStorage.setItem(TASKS_DATA_SOURCE_KEY, "local");
+    const updateTask = vi.fn();
+    vi.mocked(useTasks).mockReturnValue({ updateTask } as never);
+
+    const localItem: DayActionItem = {
+      id: "item-3", category: "task", relatedType: "task", relatedId: 42,
+      title: "Tarefa local", priority: "high",
+    } as never;
+
+    const { result } = renderHook(() => useDayCenterActions());
+    act(() => result.current.completeTask(localItem));
+
+    expect(updateTask).toHaveBeenCalledWith(42, { status: "concluido" });
   });
 });

@@ -37,7 +37,7 @@ import { useDayCenterData } from "@/hooks/useDayCenterData";
 import { useTasks } from "@/hooks/useTasks";
 import { useFinance } from "@/hooks/useFinance";
 import { useBifurcatedFinance } from "@/hooks/useBifurcatedFinance";
-import { getFinanceDataSource } from "@/config/flags";
+import { getFinanceDataSource, getTasksDataSource } from "@/config/flags";
 import { useClientActivityLogs, useAllClientActivityLogs } from "@/hooks/useClientActivityLogs";
 import { useDayCenterResolvedActions } from "@/hooks/useDayCenterResolvedActions";
 import {
@@ -128,6 +128,18 @@ export function DayCenter({ open, onOpenChange }: Props) {
   // esta guarda existe DUPLICADA em useDayCenterActions.ts (mesma lógica).
   // Extrair pra um helper compartilhado — não feito nesta rodada pra não
   // aumentar o escopo da Fase B além do desenho.
+  //
+  // Etapa 5 · Tarefas Fase B (Pacote do Flip, §7 B4, 22/ago/2026) — mesma
+  // classe de risco aplicada aqui pra completeTask: useDayCenterData() lê
+  // `tasks` via useBifurcatedTasks() nesta mesma rodada, então result.items
+  // pode conter tarefa da nuvem (id uuid contrabandeado como number)
+  // enquanto updateTask segue o mutator LOCAL de useTasks() (escrita
+  // local-only por decisão do desenho, pacote §4.1). canCompleteTask
+  // bloqueia o botão "Concluir" em modo Supabase (some, não fica
+  // clicável-mas-quebrado) e completeTask tem a mesma guarda como defesa em
+  // profundidade — sem isso, Number(uuid) vira NaN, updateTask é um no-op
+  // silencioso e o toast de sucesso mente (G76, mesma classe do G67/G73).
+  const canCompleteTask = getTasksDataSource() !== "supabase";
   const { updateTransactionStatus } = useFinance();
   const transactions = useBifurcatedFinance();
   const { updateLog } = useClientActivityLogs();
@@ -143,6 +155,10 @@ export function DayCenter({ open, onOpenChange }: Props) {
 
   const completeTask = (item: DayActionItem) => {
     if (item.relatedType !== "task" || item.relatedId == null) return;
+    if (!canCompleteTask) {
+      toast.error("Concluir tarefa pela Central do Dia ainda não funciona em modo Supabase — use a tela Tarefas.");
+      return;
+    }
     try {
       updateTask(Number(item.relatedId), { status: "concluido" });
     } catch {
@@ -318,6 +334,7 @@ export function DayCenter({ open, onOpenChange }: Props) {
                 onResolveFollowUp={resolveFollowUp}
                 onMarkPaid={requestMarkPaid}
                 canMarkPaid={canMarkPaid(result.topAction)}
+                canCompleteTask={canCompleteTask}
               />
             ) : (
               <EmptyTopState onGo={go} />
@@ -363,6 +380,7 @@ export function DayCenter({ open, onOpenChange }: Props) {
                       onResolveFollowUp={resolveFollowUp}
                       onMarkPaid={requestMarkPaid}
                       canMarkPaid={canMarkPaid}
+                      canCompleteTask={canCompleteTask}
                     />
                   );
                 })}
@@ -382,6 +400,7 @@ export function DayCenter({ open, onOpenChange }: Props) {
                       onResolveFollowUp={resolveFollowUp}
                       onMarkPaid={requestMarkPaid}
                       canMarkPaid={canMarkPaid(it)}
+                      canCompleteTask={canCompleteTask}
                     />
                   ))
                 )}
@@ -449,12 +468,14 @@ interface QuickActionHandlers {
   onMarkPaid: (item: DayActionItem) => void;
 }
 
-function QuickAction({ item, canMarkPaid, handlers }: {
+function QuickAction({ item, canMarkPaid, canCompleteTask, handlers }: {
   item: DayActionItem;
   canMarkPaid: boolean;
+  canCompleteTask: boolean;
   handlers: QuickActionHandlers;
 }) {
   if (item.relatedType === "task") {
+    if (!canCompleteTask) return null;
     return (
       <Button
         size="sm"
@@ -493,10 +514,11 @@ function QuickAction({ item, canMarkPaid, handlers }: {
   return null;
 }
 
-function TopActionCard({ item, onGo, onCompleteTask, onResolveFollowUp, onMarkPaid, canMarkPaid }: {
+function TopActionCard({ item, onGo, onCompleteTask, onResolveFollowUp, onMarkPaid, canMarkPaid, canCompleteTask }: {
   item: DayActionItem;
   onGo: (r?: string) => void;
   canMarkPaid: boolean;
+  canCompleteTask: boolean;
 } & QuickActionHandlers) {
   const style = PRIORITY_STYLES[item.priority];
   const Icon = CATEGORY_ICON[item.category];
@@ -541,6 +563,7 @@ function TopActionCard({ item, onGo, onCompleteTask, onResolveFollowUp, onMarkPa
             <QuickAction
               item={item}
               canMarkPaid={canMarkPaid}
+              canCompleteTask={canCompleteTask}
               handlers={{ onCompleteTask, onResolveFollowUp, onMarkPaid }}
             />
             <Button size="sm" onClick={() => onGo(item.route)} className="h-7 px-3 text-[0.75rem]">
@@ -563,12 +586,14 @@ function CategorySection({
   onResolveFollowUp,
   onMarkPaid,
   canMarkPaid,
+  canCompleteTask,
 }: {
   title: string;
   icon: React.ComponentType<{ className?: string }>;
   items: DayActionItem[];
   onGo: (r?: string) => void;
   canMarkPaid: (item: DayActionItem) => boolean;
+  canCompleteTask: boolean;
 } & QuickActionHandlers) {
   return (
     <section className="space-y-2">
@@ -591,6 +616,7 @@ function CategorySection({
             onResolveFollowUp={onResolveFollowUp}
             onMarkPaid={onMarkPaid}
             canMarkPaid={canMarkPaid(it)}
+            canCompleteTask={canCompleteTask}
           />
         ))}
       </div>
@@ -598,10 +624,11 @@ function CategorySection({
   );
 }
 
-function ActionRow({ item, onGo, onCompleteTask, onResolveFollowUp, onMarkPaid, canMarkPaid }: {
+function ActionRow({ item, onGo, onCompleteTask, onResolveFollowUp, onMarkPaid, canMarkPaid, canCompleteTask }: {
   item: DayActionItem;
   onGo: (r?: string) => void;
   canMarkPaid: boolean;
+  canCompleteTask: boolean;
 } & QuickActionHandlers) {
   const style = PRIORITY_STYLES[item.priority];
   const Icon = CATEGORY_ICON[item.category];
@@ -633,6 +660,7 @@ function ActionRow({ item, onGo, onCompleteTask, onResolveFollowUp, onMarkPaid, 
       <QuickAction
         item={item}
         canMarkPaid={canMarkPaid}
+        canCompleteTask={canCompleteTask}
         handlers={{ onCompleteTask, onResolveFollowUp, onMarkPaid }}
       />
       <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0 group-hover:text-foreground transition-colors" />
