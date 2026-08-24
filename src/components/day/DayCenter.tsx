@@ -37,9 +37,12 @@ import { useDayCenterData } from "@/hooks/useDayCenterData";
 import { useTasks } from "@/hooks/useTasks";
 import { useFinance } from "@/hooks/useFinance";
 import { useBifurcatedFinance } from "@/hooks/useBifurcatedFinance";
+import { useSupabaseTasksAll } from "@/hooks/useSupabaseTasksAll";
+import { isSupabaseTasksWriteEnabled } from "@/hooks/useSupabaseTasksWriteFlag";
 import { getFinanceDataSource, getTasksDataSource } from "@/config/flags";
 import { useClientActivityLogs, useAllClientActivityLogs } from "@/hooks/useClientActivityLogs";
 import { useDayCenterResolvedActions } from "@/hooks/useDayCenterResolvedActions";
+import { getFriendlyMessage } from "@/lib/supabase/errors";
 import {
   DAY_CATEGORY_LABEL,
   type DayActionItem,
@@ -118,6 +121,7 @@ export function DayCenter({ open, onOpenChange }: Props) {
   const [, setTick] = useState(0);
   const result = useDayCenterData();
   const { updateTask } = useTasks();
+  const { moveTask: moveSupabaseTask } = useSupabaseTasksAll();
   // Etapa 5 · Financeiro Fase B (Pacote do Flip, §3.1 do desenho) — mesma
   // guarda de useDayCenterActions.ts: transactions vem bifurcado (leitura),
   // updateTransactionStatus continua o mutator LOCAL (escrita local-only
@@ -133,13 +137,22 @@ export function DayCenter({ open, onOpenChange }: Props) {
   // classe de risco aplicada aqui pra completeTask: useDayCenterData() lê
   // `tasks` via useBifurcatedTasks() nesta mesma rodada, então result.items
   // pode conter tarefa da nuvem (id uuid contrabandeado como number)
-  // enquanto updateTask segue o mutator LOCAL de useTasks() (escrita
-  // local-only por decisão do desenho, pacote §4.1). canCompleteTask
-  // bloqueia o botão "Concluir" em modo Supabase (some, não fica
-  // clicável-mas-quebrado) e completeTask tem a mesma guarda como defesa em
-  // profundidade — sem isso, Number(uuid) vira NaN, updateTask é um no-op
-  // silencioso e o toast de sucesso mente (G76, mesma classe do G67/G73).
-  const canCompleteTask = getTasksDataSource() !== "supabase";
+  // enquanto updateTask era o mutator LOCAL de useTasks() — sem guarda,
+  // Number(uuid) vira NaN, updateTask é um no-op silencioso e o toast de
+  // sucesso mente (G76, mesma classe do G67/G73).
+  //
+  // Etapa 5 · Tarefas Fase C (G77, 23/ago/2026) — o guard "bloquear sempre
+  // que dataSource=supabase" virou gate FÓSSIL: a Fase C troca o default
+  // pra "supabase", escondendo "Concluir" pra MAIORIA, não só o caso raro
+  // que o G76 mirava. Fix: canCompleteTask agora também permite quando a
+  // flag de escrita nativa (useSupabaseTasksWriteFlag, B5) está ligada —
+  // completeTask abaixo roteia pro moveTask NATIVO de useSupabaseTasksAll()
+  // nesse caso (mesmo molde de cloudWriteMode já usado por Tarefas.tsx),
+  // sem tocar Number() no id. A guarda do G76 continua correta e se aplica
+  // só ao caso que resta: dataSource=supabase COM a flag de escrita OFF.
+  const tasksWriteEnabled = isSupabaseTasksWriteEnabled();
+  const tasksCloudWriteMode = getTasksDataSource() === "supabase" && tasksWriteEnabled;
+  const canCompleteTask = getTasksDataSource() !== "supabase" || tasksWriteEnabled;
   const { updateTransactionStatus } = useFinance();
   const transactions = useBifurcatedFinance();
   const { updateLog } = useClientActivityLogs();
@@ -153,16 +166,20 @@ export function DayCenter({ open, onOpenChange }: Props) {
     navigate(route);
   };
 
-  const completeTask = (item: DayActionItem) => {
+  const completeTask = async (item: DayActionItem) => {
     if (item.relatedType !== "task" || item.relatedId == null) return;
     if (!canCompleteTask) {
       toast.error("Concluir tarefa pela Central do Dia ainda não funciona em modo Supabase — use a tela Tarefas.");
       return;
     }
     try {
-      updateTask(Number(item.relatedId), { status: "concluido" });
-    } catch {
-      toast.error("Não foi possível concluir a tarefa");
+      if (tasksCloudWriteMode) {
+        await moveSupabaseTask(String(item.relatedId), "concluido");
+      } else {
+        updateTask(Number(item.relatedId), { status: "concluido" });
+      }
+    } catch (err) {
+      toast.error(tasksCloudWriteMode ? getFriendlyMessage(err) : "Não foi possível concluir a tarefa");
       return;
     }
     addAction({

@@ -48,3 +48,25 @@ describe("useTaskReminders · guarda contra loop de disparo pra tarefa só-nuvem
     expect(onMarkSent).toHaveBeenCalledWith(7, expect.any(String));
   });
 });
+
+// Etapa 5 · Tarefas Fase C (G77, 23/ago/2026) — completeTask da Central do
+// Dia agora tem um caminho NATIVO (moveTask de useSupabaseTasksAll) pra
+// tarefa só-nuvem em modo Supabase com a flag de escrita ligada — a prova
+// de que o G30 (cache) propaga corretamente é indireta aqui: uma vez que a
+// tarefa reflete status "concluido" (id uuid, veio da nuvem), o lembrete
+// dela some — mesmo guard de status já existente (`t.status === "concluido"`),
+// agora exercitado especificamente contra o caso que o G77 destravou.
+describe("useTaskReminders · lembrete de tarefa concluída some, mesmo pra tarefa só-nuvem (G77)", () => {
+  it("tarefa da nuvem (id uuid) já concluída não dispara lembrete — o guard de status cobre o caminho nativo novo", () => {
+    const completedCloudTask: Task = {
+      ...baseTask,
+      id: "33333333-3333-3333-3333-333333333333" as unknown as number,
+      status: "concluido",
+    } as Task;
+    const onMarkSent = vi.fn();
+
+    renderHook(() => useTaskReminders([completedCloudTask], onMarkSent));
+
+    expect(onMarkSent).not.toHaveBeenCalled();
+  });
+});

@@ -12,6 +12,8 @@ import { useDayCenterActions } from "@/hooks/useDayCenterActions";
 import { useTasks } from "@/hooks/useTasks";
 import { useFinance } from "@/hooks/useFinance";
 import { useBifurcatedFinance } from "@/hooks/useBifurcatedFinance";
+import { useSupabaseTasksAll } from "@/hooks/useSupabaseTasksAll";
+import { TASKS_SUPABASE_WRITE_FLAG_KEY } from "@/hooks/useSupabaseTasksWriteFlag";
 import { useClientActivityLogs, useAllClientActivityLogs } from "@/hooks/useClientActivityLogs";
 import { useDayCenterResolvedActions } from "@/hooks/useDayCenterResolvedActions";
 import { FINANCE_DATA_SOURCE_KEY, TASKS_DATA_SOURCE_KEY } from "@/config/flags";
@@ -21,6 +23,7 @@ import type { DayActionItem } from "@/lib/dayCenter";
 vi.mock("@/hooks/useTasks", () => ({ useTasks: vi.fn() }));
 vi.mock("@/hooks/useFinance", () => ({ useFinance: vi.fn() }));
 vi.mock("@/hooks/useBifurcatedFinance", () => ({ useBifurcatedFinance: vi.fn() }));
+vi.mock("@/hooks/useSupabaseTasksAll", () => ({ useSupabaseTasksAll: vi.fn() }));
 vi.mock("@/hooks/useClientActivityLogs", () => ({
   useClientActivityLogs: vi.fn(),
   useAllClientActivityLogs: vi.fn(),
@@ -48,6 +51,7 @@ beforeEach(() => {
   vi.mocked(useTasks).mockReturnValue({ updateTask: vi.fn() } as never);
   vi.mocked(useFinance).mockReturnValue({ updateTransactionStatus: vi.fn() } as never);
   vi.mocked(useBifurcatedFinance).mockReturnValue([cloudReceivable] as never);
+  vi.mocked(useSupabaseTasksAll).mockReturnValue({ moveTask: vi.fn() } as never);
   vi.mocked(useClientActivityLogs).mockReturnValue({ updateLog: vi.fn() } as never);
   vi.mocked(useAllClientActivityLogs).mockReturnValue([] as never);
   vi.mocked(useDayCenterResolvedActions).mockReturnValue({
@@ -109,19 +113,23 @@ const cloudTaskItem: DayActionItem = {
 } as never;
 
 describe("useDayCenterActions · guarda contra no-op silencioso de completeTask em modo Supabase (§7 B4)", () => {
-  it("completeTask em modo Supabase nunca chama updateTask — toast explícito, não um no-op silencioso", () => {
+  it("completeTask em modo Supabase COM a flag de escrita OFF nunca chama updateTask nem moveTask — toast explícito, não um no-op silencioso", async () => {
     localStorage.setItem(TASKS_DATA_SOURCE_KEY, "supabase");
+    localStorage.setItem(TASKS_SUPABASE_WRITE_FLAG_KEY, "false");
     const updateTask = vi.fn();
+    const moveTask = vi.fn();
     vi.mocked(useTasks).mockReturnValue({ updateTask } as never);
+    vi.mocked(useSupabaseTasksAll).mockReturnValue({ moveTask } as never);
 
     const { result } = renderHook(() => useDayCenterActions());
-    act(() => result.current.completeTask(cloudTaskItem));
+    await act(async () => { await result.current.completeTask(cloudTaskItem); });
 
     expect(updateTask).not.toHaveBeenCalled();
+    expect(moveTask).not.toHaveBeenCalled();
     expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("modo Supabase"));
   });
 
-  it("completeTask em modo local continua chamando updateTask normalmente (regressão)", () => {
+  it("completeTask em modo local continua chamando updateTask normalmente (regressão)", async () => {
     localStorage.setItem(TASKS_DATA_SOURCE_KEY, "local");
     const updateTask = vi.fn();
     vi.mocked(useTasks).mockReturnValue({ updateTask } as never);
@@ -132,8 +140,45 @@ describe("useDayCenterActions · guarda contra no-op silencioso de completeTask 
     } as never;
 
     const { result } = renderHook(() => useDayCenterActions());
-    act(() => result.current.completeTask(localItem));
+    await act(async () => { await result.current.completeTask(localItem); });
 
     expect(updateTask).toHaveBeenCalledWith(42, { status: "concluido" });
+  });
+});
+
+// Etapa 5 · Tarefas Fase C (G77, 23/ago/2026) — o guard do G76 vira gate
+// FÓSSIL a partir do flip (default de dataSource passa a "supabase" pra
+// QUALQUER sessão que nunca tocou o seletor). Fix: com a flag de escrita
+// nativa (B5) ligada, completeTask passa a rotear pro moveTask NATIVO de
+// useSupabaseTasksAll() — sem Number() no id, sem depender do mutator local.
+describe("useDayCenterActions · caminho nativo quando dataSource=supabase + flag de escrita ligada (G77)", () => {
+  it("completeTask chama moveTask NATIVO com String(id) e 'concluido' — não updateTask local", async () => {
+    localStorage.setItem(TASKS_DATA_SOURCE_KEY, "supabase");
+    localStorage.setItem(TASKS_SUPABASE_WRITE_FLAG_KEY, "true");
+    const updateTask = vi.fn();
+    const moveTask = vi.fn().mockResolvedValue({ id: "11111111-1111-1111-1111-111111111111", status: "concluido" });
+    vi.mocked(useTasks).mockReturnValue({ updateTask } as never);
+    vi.mocked(useSupabaseTasksAll).mockReturnValue({ moveTask } as never);
+
+    const { result } = renderHook(() => useDayCenterActions());
+    await act(async () => { await result.current.completeTask(cloudTaskItem); });
+
+    expect(moveTask).toHaveBeenCalledWith("11111111-1111-1111-1111-111111111111", "concluido");
+    expect(updateTask).not.toHaveBeenCalled();
+    expect(toast.success).toHaveBeenCalledWith("Tarefa concluída");
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("erro no moveTask nativo mostra toast de erro amigável, não trava em silêncio", async () => {
+    localStorage.setItem(TASKS_DATA_SOURCE_KEY, "supabase");
+    localStorage.setItem(TASKS_SUPABASE_WRITE_FLAG_KEY, "true");
+    const moveTask = vi.fn().mockRejectedValue(new Error("network down"));
+    vi.mocked(useSupabaseTasksAll).mockReturnValue({ moveTask } as never);
+
+    const { result } = renderHook(() => useDayCenterActions());
+    await act(async () => { await result.current.completeTask(cloudTaskItem); });
+
+    expect(toast.error).toHaveBeenCalled();
+    expect(toast.success).not.toHaveBeenCalled();
   });
 });

@@ -3,9 +3,12 @@ import { toast } from "sonner";
 import { useTasks } from "@/hooks/useTasks";
 import { useFinance } from "@/hooks/useFinance";
 import { useBifurcatedFinance } from "@/hooks/useBifurcatedFinance";
+import { useSupabaseTasksAll } from "@/hooks/useSupabaseTasksAll";
+import { isSupabaseTasksWriteEnabled } from "@/hooks/useSupabaseTasksWriteFlag";
 import { getFinanceDataSource, getTasksDataSource } from "@/config/flags";
 import { useAllClientActivityLogs, useClientActivityLogs } from "@/hooks/useClientActivityLogs";
 import { useDayCenterResolvedActions } from "@/hooks/useDayCenterResolvedActions";
+import { getFriendlyMessage } from "@/lib/supabase/errors";
 import type { DayActionItem } from "@/lib/dayCenter";
 
 /**
@@ -34,32 +37,50 @@ import type { DayActionItem } from "@/lib/dayCenter";
  * classe de risco aplicada por desenho pra `completeTask`: `useDayCenterData`
  * passou a ler `tasks` via `useBifurcatedTasks()` nesta mesma rodada, então
  * um item de tarefa exibido aqui pode vir da nuvem (id uuid contrabandeado
- * como number) enquanto `updateTask` continua o mutator LOCAL de
- * `useTasks()` — decisão do desenho (pacote §4.1: "escrita segue
- * local-only por enquanto"). Sem a guarda, `updateTask(Number(uuid), ...)`
- * vira `NaN`, nenhuma linha local bate `t.id !== NaN`, e o `.map` devolve o
- * array intacto — nenhum erro, nenhum efeito, toast de sucesso mesmo assim
- * (G76, mesma classe do G67/G73). `canCompleteTask` bloqueia a ação inteira
- * quando `dataSource=supabase`, mesmo padrão de `canMarkPaid` acima.
+ * como number) enquanto `updateTask` era o mutator LOCAL de `useTasks()` —
+ * sem guarda, `updateTask(Number(uuid), ...)` vira `NaN`, nenhuma linha
+ * local bate `t.id !== NaN`, e o `.map` devolve o array intacto — nenhum
+ * erro, nenhum efeito, toast de sucesso mesmo assim (G76, mesma classe do
+ * G67/G73).
+ *
+ * Etapa 5 · Tarefas Fase C (G77, 23/ago/2026) — o guard do G76 (bloquear a
+ * ação inteira sempre que `dataSource=supabase`) virou gate FÓSSIL a partir
+ * do flip: a Fase C troca o default de `dataSource` pra `"supabase"`, então
+ * a MAIORIA dos usuários passaria a nunca ver "Concluir" na Central do Dia,
+ * não só o caso raro que o G76 mirava. Fix: `completeTask` agora tem um
+ * 3º caminho — quando `dataSource=supabase` E a flag de escrita nativa
+ * (`useSupabaseTasksWriteFlag`, B5) está ligada, a conclusão vai pelo
+ * `moveTask` NATIVO de `useSupabaseTasksAll()` (`taskId` como string, sem
+ * `Number()`), mesmo molde já usado por `Tarefas.tsx` (`cloudWriteMode`).
+ * A guarda do G76 continua correta e se aplica só ao caso que resta —
+ * `dataSource=supabase` COM a flag de escrita desligada (ninguém tem como
+ * concluir uma tarefa só-nuvem sem um mutator cloud-aware).
  */
 export function useDayCenterActions() {
   const { updateTask } = useTasks();
+  const { moveTask: moveSupabaseTask } = useSupabaseTasksAll();
   const { updateTransactionStatus } = useFinance();
   const transactions = useBifurcatedFinance();
   const { updateLog } = useClientActivityLogs();
   const allManualLogs = useAllClientActivityLogs();
   const { addAction } = useDayCenterResolvedActions();
 
-  const completeTask = useCallback((item: DayActionItem) => {
+  const completeTask = useCallback(async (item: DayActionItem) => {
     if (item.relatedType !== "task" || item.relatedId == null) return;
-    if (getTasksDataSource() === "supabase") {
+    const source = getTasksDataSource();
+    const cloudWriteMode = source === "supabase" && isSupabaseTasksWriteEnabled();
+    if (source === "supabase" && !cloudWriteMode) {
       toast.error("Concluir tarefa pela Central do Dia ainda não funciona em modo Supabase — use a tela Tarefas.");
       return;
     }
     try {
-      updateTask(Number(item.relatedId), { status: "concluido" });
-    } catch {
-      toast.error("Não foi possível concluir a tarefa");
+      if (cloudWriteMode) {
+        await moveSupabaseTask(String(item.relatedId), "concluido");
+      } else {
+        updateTask(Number(item.relatedId), { status: "concluido" });
+      }
+    } catch (err) {
+      toast.error(cloudWriteMode ? getFriendlyMessage(err) : "Não foi possível concluir a tarefa");
       return;
     }
     addAction({
@@ -69,7 +90,7 @@ export function useDayCenterActions() {
       title: item.title,
     });
     toast.success("Tarefa concluída");
-  }, [updateTask, addAction]);
+  }, [updateTask, moveSupabaseTask, addAction]);
 
   const resolveManualFollowUp = useCallback((item: DayActionItem) => {
     if (item.relatedType !== "manual_activity" || !item.relatedId) return;
