@@ -1,5 +1,30 @@
 # Etapa 5 — G1/Tarefas — Fase B, fatia B1 — drafts de migration
 
+> **Status (23/ago/2026 — pós Fase C do flip em `main`, f1fe83f):** os 5
+> drafts abaixo foram promovidos a arquivos reais em `supabase/migrations/`
+> — **ainda NADA aplicado contra o banco**, só commitados no repo pra fila
+> do operador (§8-b), mesmo padrão do precedente de Financeiro
+> (`20260815000100`/`20260815000200`). Arquivos:
+> - `supabase/migrations/20260823000100_etapa5_flip_tarefas_add_scope.sql`
+> - `supabase/migrations/20260823000200_etapa5_flip_tarefas_add_tags.sql`
+> - `supabase/migrations/20260823000300_etapa5_flip_tarefas_add_recurrence.sql`
+> - `supabase/migrations/20260823000400_etapa5_flip_tarefas_add_reminders.sql`
+> - `supabase/migrations/20260823000500_etapa5_flip_tarefas_status_priority_known_chk.sql`
+>
+> **Atenção nova desta rodada** (não existia quando os drafts foram
+> escritos, na Fase B): a Fase C do flip já entrou em `main` — `dataSource`
+> e a flag de escrita de Tarefas agora nascem em "supabase"/ligado por
+> default. Isso significa que, a partir de agora, `public.tasks` recebe
+> escrita real pelo caminho nativo (B5) — a mesa vazia confirmada em
+> 15/ago (`tarefas-r2-auditoria.md` §4) NÃO pode mais ser tratada nem como
+> ponto de partida provável; as verificações prévias embutidas em cada
+> arquivo (sobretudo o draft 5, status/priority) precisam ser rodadas na
+> hora de aplicar, sem suposição alguma.
+>
+> Este doc continua sendo a fonte do *desenho* (motivação, escopo,
+> decisões) — os arquivos em `supabase/migrations/` são a fonte da SQL a
+> aplicar.
+
 > **Nada aplicado.** Este doc guarda os 5 DRAFTS de migration da fatia B1 do
 > pacote do Flip de Tarefas ([`etapa-5-flip-tarefas-pacote.md`](etapa-5-flip-tarefas-pacote.md)
 > §1.1 — os 4 campos bloqueantes — e §3.1 item 2 — CHECK de vocabulário de
