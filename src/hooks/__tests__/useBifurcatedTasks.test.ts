@@ -3,6 +3,13 @@
 // useTasks/useSupabaseTasksAll diretamente (já testados isoladamente em
 // seus próprios arquivos) — este teste prova só a escolha de fonte, mesmo
 // escopo de useBifurcatedFinance.test.ts.
+//
+// Fase C do Pacote do Flip de Tarefas — `kora.tasks.dataSource.v1` default
+// flipado pra "supabase" (só "local" explícito escolhe local), mesmo
+// formato de `kora.finance.dataSource.v1` pós-flip. Describe "modo local"
+// passou de "default" pra "explícito" — divergência DELIBERADA (ver
+// relatório da rodada de flip): nenhum teste do default antigo fica pra
+// trás passando por acidente.
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
 
@@ -40,20 +47,7 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-// Diferente de useBifurcatedFinance (Pacote do Flip já flipou o default pra
-// "supabase"): kora.tasks.dataSource.v1 nasce PRÉ-flip, default "local" —
-// só "supabase" explícito seleciona nuvem (P5 do protocolo).
-describe("useBifurcatedTasks — modo local (default pré-flip)", () => {
-  it("seletor nunca tocado (ausente) devolve as tarefas locais — mesmo comportamento de kora.finance.dataSource.v1 ANTES do Pacote do Flip flipar o default", () => {
-    vi.mocked(useTasks).mockReturnValue({ tasks: [makeLocalTask()] } as never);
-    vi.mocked(useSupabaseTasksAll).mockReturnValue({ tasks: [makeCloudTask()] } as never);
-
-    const { result } = renderHook(() => useBifurcatedTasks());
-
-    expect(result.current).toHaveLength(1);
-    expect(result.current[0].title).toBe("Local X");
-  });
-
+describe("useBifurcatedTasks — modo local (explícito)", () => {
   it("\"local\" explícito devolve as tarefas locais", () => {
     localStorage.setItem(TASKS_DATA_SOURCE_KEY, "local");
     vi.mocked(useTasks).mockReturnValue({ tasks: [makeLocalTask()] } as never);
@@ -66,8 +60,18 @@ describe("useBifurcatedTasks — modo local (default pré-flip)", () => {
   });
 });
 
-describe("useBifurcatedTasks — modo Supabase (explícito)", () => {
-  it("\"supabase\" explícito devolve as tarefas já mapeadas de useSupabaseTasksAll", () => {
+describe("useBifurcatedTasks — modo Supabase", () => {
+  it("devolve as tarefas da nuvem quando o seletor nunca foi tocado (novo default, Fase C do flip)", () => {
+    vi.mocked(useTasks).mockReturnValue({ tasks: [makeLocalTask()] } as never);
+    vi.mocked(useSupabaseTasksAll).mockReturnValue({ tasks: [makeCloudTask()] } as never);
+
+    const { result } = renderHook(() => useBifurcatedTasks());
+
+    expect(result.current).toHaveLength(1);
+    expect(result.current[0].title).toBe("Nuvem X");
+  });
+
+  it("devolve as tarefas já mapeadas de useSupabaseTasksAll quando o seletor está em \"supabase\" (explícito)", () => {
     localStorage.setItem(TASKS_DATA_SOURCE_KEY, "supabase");
     vi.mocked(useTasks).mockReturnValue({ tasks: [makeLocalTask()] } as never);
     vi.mocked(useSupabaseTasksAll).mockReturnValue({ tasks: [makeCloudTask()] } as never);

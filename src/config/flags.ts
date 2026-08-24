@@ -142,14 +142,18 @@ export const FINANCE_DATA_SOURCE_KEY = "kora.finance.dataSource.v1";
 
 /**
  * G53/B3 (fundações de Fase B de Tarefas, `etapa-5-flip-tarefas-pacote.md`
- * §7) — seletor de fonte de dados de `tasks`. Nasce no MESMO molde de
+ * §7) — seletor de fonte de dados de `tasks`. Nasceu no MESMO molde de
  * nascimento de `quotes`/`projects`/`finance` (Fatia N deles, ANTES do
- * respectivo Pacote do Flip): default **"local"**, só "supabase" explícito
- * seleciona nuvem — P5 do protocolo (nunca herdar o default às cegas antes
- * de qualquer homologação de escrita existir; Fase B de Tarefas ainda não
- * tem escrita nativa em modo Supabase, B5 no plano). O flip do default pra
- * "supabase" fica pra Fase C de Tarefas (B6 do plano), quando B1-B5
- * fecharem — mesmo padrão que os 3 domínios irmãos já seguiram.
+ * respectivo Pacote do Flip): default "local", só "supabase" explícito
+ * selecionava nuvem — P5 do protocolo (nunca herdar o default às cegas
+ * antes de qualquer homologação de escrita existir).
+ *
+ * Fase C do Pacote do Flip de Tarefas (B1-B5 fechados) — default flipado
+ * pra "supabase", mesmo formato de `getCrmDataSource()`/`getQuotesDataSource()`/
+ * `getProjectsDataSource()`/`getFinanceDataSource()` pós-flip (só "local"
+ * explícito escolhe local). Sessões que já têm o valor gravado (qualquer um
+ * dos dois) não são afetadas — só quem nunca tocou no seletor herda o novo
+ * default.
  */
 export const TASKS_DATA_SOURCE_KEY = "kora.tasks.dataSource.v1";
 
@@ -251,14 +255,11 @@ export function setFinanceDataSource(source: DataSource): void {
   safeSet(FINANCE_DATA_SOURCE_KEY, source);
 }
 
-// ── seletor de fonte de tasks (string plana; default "local" pré-flip — G53/B3) ──
+// ── seletor de fonte de tasks (string plana; default "supabase" desde a Fase C do flip) ──
 
-/** Só "supabase" explícito seleciona nuvem; qualquer outro valor (ausente,
- * "local", malformado) ⇒ "local" — nasce pré-flip, mesmo molde de
- * `getFinanceDataSource()`/`getProjectsDataSource()`/`getQuotesDataSource()`
- * ANTES dos respectivos Pacotes do Flip flipar o default. */
+/** Só "local" explícito seleciona local; qualquer outro valor ⇒ "supabase". */
 export function getTasksDataSource(): DataSource {
-  return safeGet(TASKS_DATA_SOURCE_KEY) === "supabase" ? "supabase" : "local";
+  return safeGet(TASKS_DATA_SOURCE_KEY) === "local" ? "local" : "supabase";
 }
 
 export function setTasksDataSource(source: DataSource): void {

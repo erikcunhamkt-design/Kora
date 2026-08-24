@@ -28,6 +28,9 @@ import {
   FINANCE_DATA_SOURCE_KEY,
   getFinanceDataSource,
   setFinanceDataSource,
+  TASKS_DATA_SOURCE_KEY,
+  getTasksDataSource,
+  setTasksDataSource,
 } from "@/config/flags";
 
 beforeEach(() => {
@@ -332,6 +335,55 @@ describe("flags · seletor de fonte de financeiro (string plana, default SUPABAS
     getFinanceDataSource();
     expect(localStorage.getItem(FINANCE_DATA_SOURCE_KEY)).toBe("supabase");
     expect(getFinanceDataSource()).toBe("supabase");
+  });
+});
+
+// Fase C do Pacote do Flip de Tarefas — `kora.tasks.dataSource.v1` nasceu no
+// molde PRÉ-flip (default "local", só "supabase" explícito selecionava
+// nuvem, `etapa-5-flip-tarefas-pacote.md` §7 B3) — mesmo nascimento de
+// quotes/projects/finance antes dos respectivos flips. Este describe nunca
+// existiu em `flags.test.ts` antes desta rodada (gap de cobertura desde o
+// nascimento da flag, B3) — criado já no formato PÓS-flip (default
+// "supabase", só "local" explícito escolhe local), mesmo padrão de
+// CRM/quotes/projects/finance pós-flip.
+describe("flags · seletor de fonte de tasks (string plana, default SUPABASE desde a Fase C do flip)", () => {
+  it("default é \"supabase\" quando ausente (mesmo formato do CRM/quotes/projects/finance desde o flip)", () => {
+    expect(localStorage.getItem(TASKS_DATA_SOURCE_KEY)).toBeNull();
+    expect(getTasksDataSource()).toBe("supabase");
+  });
+
+  it("só o literal \"local\" seleciona local", () => {
+    localStorage.setItem(TASKS_DATA_SOURCE_KEY, "local");
+    expect(getTasksDataSource()).toBe("local");
+  });
+
+  it("\"supabase\" e qualquer lixo resolvem para \"supabase\"", () => {
+    localStorage.setItem(TASKS_DATA_SOURCE_KEY, "supabase");
+    expect(getTasksDataSource()).toBe("supabase");
+    localStorage.setItem(TASKS_DATA_SOURCE_KEY, "xpto");
+    expect(getTasksDataSource()).toBe("supabase");
+    localStorage.setItem(TASKS_DATA_SOURCE_KEY, "");
+    expect(getTasksDataSource()).toBe("supabase");
+  });
+
+  it("grava a string plana crua na chave certa", () => {
+    setTasksDataSource("supabase");
+    expect(localStorage.getItem(TASKS_DATA_SOURCE_KEY)).toBe("supabase");
+    setTasksDataSource("local");
+    expect(localStorage.getItem(TASKS_DATA_SOURCE_KEY)).toBe("local");
+  });
+
+  it("valor explícito \"local\" já persistido sobrevive (não é o caso ambíguo, mas confirma round-trip)", () => {
+    setTasksDataSource("local");
+    expect(getTasksDataSource()).toBe("local");
+  });
+
+  it("valor explícito \"supabase\" já persistido nunca é sobrescrito por uma leitura", () => {
+    setTasksDataSource("supabase");
+    getTasksDataSource();
+    getTasksDataSource();
+    expect(localStorage.getItem(TASKS_DATA_SOURCE_KEY)).toBe("supabase");
+    expect(getTasksDataSource()).toBe("supabase");
   });
 });
 
