@@ -1,4 +1,12 @@
-# Etapa 5 · G1/Tarefas · Pacote do Flip — Runbook das Fases C/D (fechado — pronto pra execução)
+# Etapa 5 · G1/Tarefas · Pacote do Flip — Runbook das Fases C/D (EXECUTADO — HOMOLOGADO)
+
+> **Atualização — execução ao vivo concluída.** Ver
+> [`etapa-5-flip-tarefas-homologacao-fase-d.md`](etapa-5-flip-tarefas-homologacao-fase-d.md)
+> pro placar completo (12/12 casos sem vermelho, 2 ressalvas) e o veredito
+> de sign-off. 2 correções deste doc (Caso 5 — gatilho real; Caso 9.1 —
+> comportamento agravado pra tarefa da nuvem) foram aplicadas contra o que
+> a execução real encontrou. **G79** (novo, vínculo cliente↔tarefa/projeto
+> inexistente em modo Supabase) catalogado a partir do achado do Caso 7.4.
 
 > **Escopo desta rodada: doc-only, zero código.** Este doc resolve TODOS os
 > `[completar pós-B4]`/`[completar pós-B4-Parte2]`/`[completar pós-B5]` do
@@ -76,7 +84,8 @@
 - [`etapa-5-flip-financeiro-runbook.md`](etapa-5-flip-financeiro-runbook.md) — molde de estrutura, formato de caso, critério de vermelho/ressalva/achado, e o movimento "placeholder → resolvido contra código real" que este runbook repete.
 - [`etapa-5-flip-tarefas-pacote.md`](etapa-5-flip-tarefas-pacote.md) — fonte primária: §1.1 (4 campos bloqueantes + SQL), §1.2 (subtasks/comments, aviso recomendado nunca implementado), §5 (decisão (a) Fundir), §6.2 (os 9 casos originais), §7.2 (tabela B1-B6).
 - [`etapa-5-flip-tarefas-migrations-drafts.md`](etapa-5-flip-tarefas-migrations-drafts.md) — as 5 SQLs exatas aplicadas pelo operador (§1 abaixo reproduz as 2 mais sensíveis).
-- [`docs/architecture/kora-hub-auditoria-e-plano.md`](../architecture/kora-hub-auditoria-e-plano.md) — G29 (banner desatualizado, inclusive o novo G78), G30 (cache de mutação via `setQueryData`), G32 (fetch paralelo, design da casa), G37 (payload de espelho + passthrough de UUID), G40 (vocabulário cloud incompleto), G49 (vocabulário de `createProjectBaseTasks`), G56 (colisão de idempotência entre 2 produtores), G67/G73 (`Number(uuid)=NaN`), G76 (guarda de `completeTask`), G77 (guarda vira gate fóssil no flip, fechado antes do flip valer), G78 (comentário desatualizado em `ProjectDetailDrawer.tsx`).
+- [`docs/architecture/kora-hub-auditoria-e-plano.md`](../architecture/kora-hub-auditoria-e-plano.md) — G29 (banner desatualizado, inclusive o novo G78), G30 (cache de mutação via `setQueryData`), G32 (fetch paralelo, design da casa), G37 (payload de espelho + passthrough de UUID), G40 (vocabulário cloud incompleto), G49 (vocabulário de `createProjectBaseTasks`), G56 (colisão de idempotência entre 2 produtores), G67/G73 (`Number(uuid)=NaN`), G75 (mesma classe de perda silenciosa de dado, `Client.assets`), G76 (guarda de `completeTask`), G77 (guarda vira gate fóssil no flip, fechado antes do flip valer), G78 (comentário desatualizado em `ProjectDetailDrawer.tsx`), G79 (vínculo cliente↔tarefa/projeto inexistente em modo Supabase, achado da execução ao vivo).
+- [`etapa-5-flip-tarefas-homologacao-fase-d.md`](etapa-5-flip-tarefas-homologacao-fase-d.md) — ata da execução ao vivo, placar 12/12, detalhe por caso, veredito de sign-off.
 - [`docs/qa/protocolo-homologacao.md`](protocolo-homologacao.md) — §0/§6 (Code não acessa banco/localStorage do operador), §16/§17 (isolamento de worktree, prova de build por hash), §18 (merge condicionado a "vai"), §1/§2 (EXPORT MANUAL, PRINT PRÉ-CLIQUE), §8-b (sessão de DDL do operador).
 
 ---
@@ -263,10 +272,12 @@ Já fechado pelo G40 (`updateTaskStatus`) e reconfirmado pelo caminho de escrita
 
 **Caso 5 — Tarefas-base coexistindo com tarefas locais migradas** — pronto pra executar, decisão (a) Fundir já fechada
 
+**Correção pós-execução (homologação ao vivo, `docs/qa/etapa-5-flip-tarefas-homologacao-fase-d.md`)**: o gatilho real NÃO é "criar um projeto novo" — não existe hoje nenhum caminho de criação de projeto que dispare `createProjectBaseTasks` diretamente. O caminho real, confirmado ao vivo, é: **Configurações → Dados → ligar os 2 toggles ("Visão Operacional Supabase (Experimental)" + "Gerar Tarefas Base") → abrir o painel "Visão Operacional" → botão "Gerar tarefas base"** (`SupabaseOperationalDashboardCard` → `CreateProjectBaseTasksDialog`).
+
 | Passo | Ação | Esperado | Prova |
 |---|---|---|---|
-| 5.1 | Gerar `HOMOLOG-TAR-tarefa-base` via fluxo real de criação de projeto com tarefas-base (`createProjectBaseTasks`), sessão em modo Supabase | Aparece fundida com as demais, sem seção/tratamento separado (opção (a), sem backfill — mesa nasceu vazia) | Visual |
-| 5.2 | — | `source='project_template'` gravado corretamente | `SELECT source FROM public.tasks WHERE title = 'HOMOLOG-TAR-tarefa-base';` → `'project_template'` |
+| 5.1 | Ligar os 2 toggles experimentais em Configurações → Dados, abrir o painel "Visão Operacional", clicar "Gerar tarefas base" (`CreateProjectBaseTasksDialog`), sessão em modo Supabase | Aparece fundida com as demais, sem seção/tratamento separado (opção (a), sem backfill — mesa nasceu vazia) | Visual |
+| 5.2 | — | `source='project_template'` gravado corretamente | `SELECT source, status, priority FROM public.tasks WHERE workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' AND source = 'project_template';` → todas as linhas geradas, `status='a_fazer'`, prioridades herdadas do template |
 
 ---
 
@@ -298,7 +309,7 @@ Mecanismo real: `deleteTask` (`Tarefas.tsx:246-249`) → `cloudWriteMode` → `d
 | 7.1 | Abrir Central do Dia com `HOMOLOG-TAR-tarefa-A` pendente, em modo Supabase (default) | Aparece corretamente; "Concluir" funciona por default (G77 — caminho nativo, `moveTask` de `useSupabaseTasksAll`) | Visual + `SELECT status FROM public.tasks WHERE title = 'HOMOLOG-TAR-tarefa-A';` → `'concluido'` após clicar |
 | 7.2 | **Gerar `HOMOLOG-TAR-tarefa-quote` via `QuoteToProjectDialog` (STARTER_TASKS), em modo Supabase** | **Grava SÓ local — `addTask` (linha 128) vem de `useTasks()` cru, sem `cloudWriteMode`, sem espelho G22 nenhum.** Isto é o comportamento REAL, não um bug desta rodada — gap conhecido, nunca fechado em nenhuma fatia | Visual (aparece na tela local) + `SELECT count(*) FROM public.tasks WHERE title = 'HOMOLOG-TAR-tarefa-quote';` → **0** (nunca chega na nuvem) — **não é vermelho, é o gap documentado na Abertura** |
 | 7.3 | Abrir `ProjectDetailDrawer.tsx` de um projeto com tarefas em modo Supabase | Leitura bifurcada funciona (`tasks = useBifurcatedTasks()`, linha 103); criar/mover tarefa por aqui grava só local (comentário do arquivo, G78 — desatualizado sobre o PORQUÊ, mas o comportamento em si está correto) | Visual |
-| 7.4 | Abrir ficha de um cliente sintético vinculado a `HOMOLOG-TAR-tarefa-A` → aba Atividades (`ClientActivitiesTab.tsx:135`) | Timeline mostra o evento de tarefa corretamente, coexistindo com projetos/finanças já bifurcados | Visual |
+| 7.4 | Abrir ficha de um cliente sintético vinculado a `HOMOLOG-TAR-tarefa-A` → aba **"Histórico de Relacionamento"** (nome real da aba — correção pós-execução; o runbook chamava de "Atividades") (`ClientActivitiesTab.tsx:135`) | **Parcial, ver `docs/qa/etapa-5-flip-tarefas-homologacao-fase-d.md`**: aba carrega sem erro, mas captura completa (evento de tarefa vinculada a cliente) é INALCANÇÁVEL por UI hoje — G79 (nenhuma tela vincula `client_id` real pra tarefa/projeto em modo Supabase). Mecanismo (`buildTaskEvents.ts`) coberto por testes unitários; feed já provado funcionando pra tarefas SEM vínculo de cliente | Visual — ressalva registrada, não bloqueia |
 
 ---
 
@@ -311,17 +322,17 @@ Mecanismo real: `deleteTask` (`Tarefas.tsx:246-249`) → `cloudWriteMode` → `d
 
 ---
 
-**Caso 9 — Campos pós-flip (scope/tags/recurrence/reminders) não bloqueiam, mas também NÃO sincronizam ainda (achado de honestidade #1)**
+**Caso 9 — Campos pós-flip (scope/tags/recurrence/reminders) não bloqueiam, mas também NÃO sincronizam ainda (achado de honestidade #1 — AGRAVADO na execução ao vivo)**
 
-**Diferente do texto original do pacote §6.2 item 9** ("aviso explícito aparece") — não existe nenhum aviso na UI hoje (`grep` por "aviso"/texto equivalente em `Tarefas.tsx` → zero resultados). O comportamento real é: os 4 campos gravam e persistem **localmente**, mesmo em modo Supabase, sem nenhuma indicação visual de que não vão pra nuvem — nem bloqueiam, nem avisam, simplesmente não têm efeito cloud (mesma classe do padrão "campo local-only" dos outros domínios, mas sem o "aviso explícito" que Financeiro eventualmente construiu pra `notes`/`recurrence`/etc.).
+**Diferente do texto original do pacote §6.2 item 9** ("aviso explícito aparece") — não existe nenhum aviso na UI hoje (`grep` por "aviso"/texto equivalente em `Tarefas.tsx` → zero resultados). **Correção pós-execução (homologação ao vivo, `docs/qa/etapa-5-flip-tarefas-homologacao-fase-d.md`)**: pra uma tarefa da NUVEM (id uuid), o comportamento é PIOR do que "salva local, sem aviso" — a própria edição não se sustenta na tela. Mecanismo: o mapper hardcoda esses campos como neutros na leitura (o valor exibido nunca reflete uma edição anterior), e o patch de escrita (`updateTaskLocal`, ramo local de `splitTaskUpdatePatch`) tenta achar a tarefa no store local por `id` — como a tarefa nunca existiu localmente, o `.map` de `useTasks()` não bate em nada, e o próximo re-render (via `useBifurcatedTasks`) reverte o campo pro valor neutro de sempre. Pra uma tarefa LOCAL (criada antes do flip ou em modo local), o comportamento original (persiste local, sem aviso) continua valendo.
 
 | Passo | Ação | Esperado | Prova |
 |---|---|---|---|
-| 9.1 | Em modo Supabase, definir `scope`/`tags`/`recorrência`/lembrete em `HOMOLOG-TAR-tarefa-A` pelo detail sheet | Salva normalmente na tela (via `updateTaskLocal`, ramo `localPatch` de `splitTaskUpdatePatch`) — **sem nenhum aviso visual** de que é local-only | Visual — nenhum toast/badge de aviso aparece (comportamento real, não um bug a corrigir aqui) |
-| 9.2 | — | Nenhuma das 4 colunas novas recebe o valor, apesar de existirem no schema (mapper não lê/escreve ainda) | `SELECT scope, tags, recurrence, reminder_at FROM public.tasks WHERE title = 'HOMOLOG-TAR-tarefa-A';` → todas `NULL`/`{}` mesmo após o passo 9.1 |
-| 9.3 | Reabrir a tarefa em OUTRO navegador/sessão (mesmo workspace, mesmo modo Supabase) | `scope`/`tags`/`recorrência`/lembrete definidos no passo 9.1 **NÃO aparecem** — ficam presos ao `localStorage` da sessão de origem | Visual — confirma que não há sincronização, mesmo com a coluna disponível |
+| 9.1 | Em modo Supabase, numa tarefa da NUVEM (id uuid), tentar definir `scope`/`tags`/`recorrência`/lembrete pelo detail sheet | **A edição NÃO se sustenta na tela** — o select/campo volta pro valor anterior no próximo render (patch local não encontra a tarefa no store) | Visual — reabrir o detail sheet da mesma tarefa mostra o valor neutro de sempre, não o que foi digitado |
+| 9.2 | — | Nenhuma das 4 colunas novas recebe o valor, apesar de existirem no schema (mapper não lê/escreve ainda) | `SELECT scope, tags, recurrence, reminder_at, reminder_enabled FROM public.tasks WHERE title = '<tarefa da nuvem testada>';` → `scope`/`recurrence`/`reminder_at` `NULL`, `tags = '{}'`, `reminder_enabled = false` |
+| 9.3 | Repetir o passo 9.1 numa tarefa LOCAL (criada antes do flip ou em modo local) | Comportamento original — salva normalmente NA TELA (via `updateTaskLocal`, que encontra a tarefa no store local), sem nenhum aviso de que é local-only | Visual |
 
-**Não é vermelho** — é o comportamento correto dado o estado real do código (mapper não lê as colunas). É uma **decisão de produto a alinhar com o operador antes do sign-off**: aplicar as migrations sem atualizar o mapper não muda nada pro usuário — só existe infraestrutura de banco esperando um follow-up de código.
+**Não é vermelho** — é o comportamento real dado o estado do código (mapper não lê as colunas). **Prioridade do follow-up elevada pra ALTA** nesta rodada: o gap é mais visível ao usuário (edição nem se sustenta) do que a análise doc-only original previa. Decisão de produto a alinhar com o operador antes de considerar o flip "completo" pro conjunto inteiro de campos.
 
 ---
 
@@ -354,4 +365,4 @@ Mecanismo real: `deleteTask` (`Tarefas.tsx:246-249`) → `cloudWriteMode` → `d
 
 ---
 
-**PARADO aqui — runbook fechado e pronto pra execução real da Fase D. §18: aguardando "vai" específico do revisor pra abrir a homologação ao vivo, caso a caso, com o operador.**
+**HOMOLOGADO — 2026-08-30.** Execução ao vivo concluída, 12/12 casos sem vermelho (2 ressalvas). Ver [`etapa-5-flip-tarefas-homologacao-fase-d.md`](etapa-5-flip-tarefas-homologacao-fase-d.md) pro placar completo, detalhe por caso e veredito de sign-off. Follow-ups liberados (não bloqueiam este sign-off): mapper de 4 colunas (prioridade ALTA), G78, G79, decisão de produto do Caso 7.2, promoção dos drafts de migration a arquivos `.sql`. §18: doc-only, aguardando "vai" pra push/merge deste fechamento.
