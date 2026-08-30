@@ -107,6 +107,23 @@ export type WorkflowNode =
   | HandoverWorkflowNode
   | MenuWorkflowNode;
 
+// Etapa 9 · item 4, rodada R2 — busca por tipo, não por posição no array.
+// `nodes[0]`/`nodes[1]`/`nodes[3]` assumiam a ordem fixa hoje (trigger, ai,
+// send, handover) — quebra no momento em que a árvore ganhar um nó `menu`
+// (R1) em posição arbitrária. O runtime (whatsapp-bot-reply/index.ts:422-424,
+// _shared/botFlowTemplate.ts:14) já busca por tipo — só a UI ficou pra trás.
+// Sem mudança de comportamento hoje (mesmos 4 nós, mesma ordem) — só deixa de
+// depender de posição pra continuar certo quando a ordem deixar de ser fixa.
+function isTriggerNode(n: WorkflowNode): n is TriggerWorkflowNode {
+  return n.type === "trigger";
+}
+function isAiNode(n: WorkflowNode): n is AiWorkflowNode {
+  return n.type === "ai";
+}
+function isHandoverNode(n: WorkflowNode): n is HandoverWorkflowNode {
+  return n.type === "handover";
+}
+
 export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
   // G71 (adendo de backlog de UI) — leitura fica aberta pra qualquer membro;
   // escrita (Salvar Fluxo) vira admin-gated na UI, espelhando o draft de RLS
@@ -180,6 +197,9 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
   const [simulating, setSimulating] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
+  // `|| nodes[0]` aqui é fallback de seleção inválida ("mostra algo em vez de
+  // nada"), não suposição de tipo por posição — revisado na rodada R2 e
+  // deixado como está de propósito, não esquecido.
   const activeNode = nodes.find(n => n.id === selectedNodeId) || nodes[0];
 
   const loadSettings = useCallback(async () => {
@@ -233,13 +253,13 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
 
           const updated = [...nodesRef.current];
           // Update trigger
-          const triggerNode = updated[0];
-          if (triggerNode.type === "trigger") {
+          const triggerNode = updated.find(isTriggerNode);
+          if (triggerNode) {
             triggerNode.properties.respondAll = legacyRespondAll;
           }
           // Update AI
-          const aiNode = updated[1];
-          if (aiNode.type === "ai") {
+          const aiNode = updated.find(isAiNode);
+          if (aiNode) {
             aiNode.properties = {
               instruction: legacyInstruction,
               model: legacyModel === "custom" ? "custom" : legacyModel,
@@ -373,9 +393,9 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
   };
 
   const handleSaveSettings = async () => {
-    const triggerNode = nodes[0];
-    const aiNode = nodes[1];
-    if (triggerNode.type !== "trigger" || aiNode.type !== "ai") return;
+    const triggerNode = nodes.find(isTriggerNode);
+    const aiNode = nodes.find(isAiNode);
+    if (!triggerNode || !aiNode) return;
 
     setSaving(true);
 
@@ -467,8 +487,8 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
     setSimulating(true);
 
     try {
-      const aiNode = nodes[1];
-      if (aiNode.type !== "ai") return;
+      const aiNode = nodes.find(isAiNode);
+      if (!aiNode) return;
       const activeModelName = aiNode.properties.model === "custom"
         ? aiNode.properties.customModelName 
         : aiNode.properties.model;
@@ -497,8 +517,8 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
         setSimMessages(prev => [...prev, { role: "model", text: data.reply }]);
         
         // Simulation of Human Handover node action
-        const handoverNode = nodes[3];
-        if (handoverNode.enabled && userText.toLowerCase().includes("atendente")) {
+        const handoverNode = nodes.find(isHandoverNode);
+        if (handoverNode?.enabled && userText.toLowerCase().includes("atendente")) {
           setSimMessages(prev => [...prev, { 
             role: "model", 
             text: "🔀 [Simulação de Transbordo] Fluxo encaminhado para a fila de atendimento humano. Robô pausado." 
