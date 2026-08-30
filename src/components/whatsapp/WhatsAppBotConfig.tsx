@@ -20,18 +20,18 @@ import { toastError } from "@/lib/supabase/errors";
 type BotSettings = Database["public"]["Tables"]["whatsapp_bot_settings"]["Row"];
 type BotSettingsInsert = Database["public"]["Tables"]["whatsapp_bot_settings"]["Insert"];
 
-interface WorkflowNodeBase {
+export interface WorkflowNodeBase {
   id: string;
   title: string;
   enabled: boolean;
 }
 
-interface TriggerWorkflowNode extends WorkflowNodeBase {
+export interface TriggerWorkflowNode extends WorkflowNodeBase {
   type: "trigger";
   properties: { respondAll: boolean };
 }
 
-interface AiWorkflowNode extends WorkflowNodeBase {
+export interface AiWorkflowNode extends WorkflowNodeBase {
   type: "ai";
   properties: {
     instruction: string;
@@ -45,17 +45,66 @@ interface AiWorkflowNode extends WorkflowNodeBase {
   };
 }
 
-interface SendWorkflowNode extends WorkflowNodeBase {
+export interface SendWorkflowNode extends WorkflowNodeBase {
   type: "send";
   properties: { template: string };
 }
 
-interface HandoverWorkflowNode extends WorkflowNodeBase {
+export interface HandoverWorkflowNode extends WorkflowNodeBase {
   type: "handover";
   properties: { assignTo: string };
 }
 
-type WorkflowNode = TriggerWorkflowNode | AiWorkflowNode | SendWorkflowNode | HandoverWorkflowNode;
+// Etapa 9 · Item 4 (construtor de fluxo scriptado), fatia R1 — fundação de
+// dados (docs/qa/etapa-9-bot-fluxo-scriptado-r1-fundacao.md). Decisão do
+// operador ("Opção B-Kora"): árvore 100% montável pelo usuário — cada
+// opção do menu aponta pra outro nó via `nextNodeId` (mesmo padrão de
+// `PipelineStage.id` do CRM, string livre, não um enum fixo, porque quem
+// monta a árvore é o próprio usuário). Fallback default é RE-PROMPT
+// ("responda com uma opção válida", reapresenta o mesmo menu) — nunca um
+// transbordo automático no primeiro erro; só depois de `maxTentativas`
+// esgotado é que decide entre reprompt indefinido ou pular pra outro nó
+// (tipicamente um `HandoverWorkflowNode`, mas `fallbackNodeId` aceita
+// qualquer nó — a árvore não impõe destino fixo). Nó "menu" é uma
+// alternativa ao nó "ai" na árvore (mensagem scriptada, sem custo de IA),
+// nunca uma dependência dele — a IA continua um nó OPCIONAL na árvore
+// inteira, nunca obrigatório em nenhum caminho.
+//
+// ZERO mudança de runtime/UI nesta rodada — o tipo existe na união, mas
+// `nodes` (estado inicial do componente) e o inspector/renderer (`activeNode.type
+// === "..."`) não ganham nenhum caso "menu" ainda; isso é fatia futura,
+// quando o construtor visual de árvore for desenhado.
+export interface MenuWorkflowNodeOption {
+  numero: number;
+  rotulo: string;
+  /** Id de outro nó da árvore (`WorkflowNode.id`) — string livre, montada pelo usuário. */
+  nextNodeId: string;
+}
+
+export interface MenuWorkflowNodeFallback {
+  /** Quantas respostas inválidas em sequência antes de aplicar `acao`. */
+  maxTentativas: number;
+  /** "reprompt" reapresenta o mesmo menu (default do produto); "node" pula pra `fallbackNodeId`. */
+  acao: "reprompt" | "node";
+  /** Obrigatório quando `acao === "node"` — não validado em tipo (união discriminada faria o node perder a forma comum), validar em runtime quando a fatia de execução existir. */
+  fallbackNodeId?: string;
+}
+
+export interface MenuWorkflowNode extends WorkflowNodeBase {
+  type: "menu";
+  properties: {
+    mensagem: string;
+    opcoes: MenuWorkflowNodeOption[];
+    fallback: MenuWorkflowNodeFallback;
+  };
+}
+
+export type WorkflowNode =
+  | TriggerWorkflowNode
+  | AiWorkflowNode
+  | SendWorkflowNode
+  | HandoverWorkflowNode
+  | MenuWorkflowNode;
 
 export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
   // G71 (adendo de backlog de UI) — leitura fica aberta pra qualquer membro;
