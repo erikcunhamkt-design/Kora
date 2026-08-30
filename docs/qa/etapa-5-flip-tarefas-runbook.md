@@ -1,66 +1,83 @@
-# Etapa 5 · G1/Tarefas · Pacote do Flip — Runbook das Fases C/D (esqueleto)
+# Etapa 5 · G1/Tarefas · Pacote do Flip — Runbook das Fases C/D (fechado — pronto pra execução)
 
-> **Escopo desta rodada: doc-only, zero código.** Este doc NÃO executa nada —
-> é um **esqueleto**, não o runbook fechado (diferente do estado em que
-> [`etapa-5-flip-financeiro-runbook.md`](etapa-5-flip-financeiro-runbook.md)
-> está hoje, já com Fase B fechada e casos resolvidos contra código real).
-> Mesmo molde daquele doc (estrutura, formato de caso, critério de
-> vermelho/ressalva), adaptado ao que
-> [`etapa-5-flip-tarefas-pacote.md`](etapa-5-flip-tarefas-pacote.md) já
-> desenhou — **nasce ANTES de B4/B5 mesclarem**, por instrução explícita
-> desta rodada (o próprio pacote, §7.2, linha B6, já antecipa e pede pra
-> checar se este arquivo existe antes de criar; ele não existia).
+> **Escopo desta rodada: doc-only, zero código.** Este doc resolve TODOS os
+> `[completar pós-B4]`/`[completar pós-B4-Parte2]`/`[completar pós-B5]` do
+> esqueleto original contra o código REAL mesclado — mesmo movimento que o
+> runbook de Financeiro passou ("Atualização — Fase B FECHADA"). B1-B5 e a
+> Fase C inteira já estão em `main`; o gate de migrations do §1 foi
+> confirmado SATISFEITO pelo operador nesta mesma sessão (§8-b, 5/5
+> aplicadas e provadas). **A partir daqui o runbook está pronto pra
+> execução real da Fase D** — o revisor guia o operador caso a caso em
+> cima dos 10 casos abaixo.
 >
-> **Convenção de placeholder, mesmo precedente do runbook de Financeiro**:
-> todo trecho que depender de código que só B4 (bifurcação dos 8
-> consumidores) ou B5 (escrita nativa em `Tarefas.tsx`) vão escrever está
-> marcado `[completar pós-B]` — a ser resolvido numa rodada seguinte,
-> contra o merge real, exatamente como aquele runbook nasceu com
-> placeholders e teve todos resolvidos numa "Atualização (rodada
-> seguinte) — Fase B FECHADA".
->
-> **Atualização (rebase desta rodada) — B1/B2/B3 fechados, B4 quase
-> completo.** `main` avançou pra `16ca588` desde a abertura: B1 já
-> mesclado (`696a589`); B2+B3 (`tasksRepository.listTasks`,
-> `useSupabaseTasksAll`, `useBifurcatedTasks`, flag
-> `kora.tasks.dataSource.v1`) mesclados em `44f0ff9`; B4 fechou 2 das 3
-> fatias — `ProjectDetailDrawer.tsx`+`ClientActivitiesTab.tsx` (`7c1ae42`)
-> e `Tarefas.tsx` + **G73** (`16ca588`, deep link corrigido — ver Caso
-> 4-bis abaixo, deixa de ser placeholder). **Falta só a fatia de
-> `DayCenter.tsx`/`useDayCenterActions.ts`/`useDayCenterData.ts`/
-> `useTaskReminders.ts` + `QuoteToProjectDialog.tsx`** — destravada nesta
-> mesma rodada (Parte 2), ver nota inline nos Casos 1/7. B5 (escrita
-> nativa em `Tarefas.tsx`) **ainda não mesclada** — segue justificando os
-> `[completar pós-B5]` abaixo.
+> **2 achados de honestidade, registrados aqui pra não serem descobertos só
+> na hora de executar:**
+> 1. **Migrations aplicadas ≠ mapper atualizado.** As 5 migrations do §1
+>    (scope/tags/recurrence/reminders + CHECK de status/priority) já
+>    existem como colunas reais em `public.tasks` — mas `tasksMapper.ts`
+>    (`mapSupabaseTaskToLocal`/`mapLocalTaskToSupabase`/`splitTaskUpdatePatch`)
+>    **ainda não foi atualizado pra ler/escrever essas 4 colunas** — o
+>    código continua hardcodando `scope: "work"`, `tags: []`,
+>    `recurrence: "none"`, `reminderAt: undefined` na leitura, e nunca
+>    inclui esses campos no payload de escrita. Ver Caso 9 abaixo — isso
+>    NÃO bloqueia nem quebra nada (as colunas simplesmente ficam sempre
+>    `NULL`/default), mas significa que usar esses 4 campos em modo
+>    Supabase continua 100% local-only na prática, apesar da infra de
+>    banco já existir. Recomendação: rodada de acompanhamento pra ligar o
+>    mapper às 4 colunas novas — sem isso, aplicar as migrations não muda
+>    o comportamento observável pro usuário.
+> 2. **G78 (novo, catalogado nesta rodada)**: `ProjectDetailDrawer.tsx:88-101`
+>    tem um comentário desatualizado (G29-classe) afirmando que a escrita
+>    nativa de Tarefas "ainda não existe" — falso desde B5. Não corrigido
+>    aqui (doc-only); ver Caso 8.
 
 ## Abertura (§16/§17)
 
 - Worktree: `orbit-designer-hub-qualidade-lint` (confirmado isolado via
-  `git worktree list` — 5 worktrees ativos, nenhuma colisão de path/branch
-  nesta abertura: `Kora-laneA` em `etapa-5-vendas-quotetoproject-bifurca`,
-  `Kora-laneC` em `etapa-5-flip-tarefas-fase-b-plano`, `Kora-laneD` em
-  `etapa-5-varredura-g72-minas-calendario`, `Kora-laneE` em
-  `tarefas-b4-projectdetail-clientactivities`).
-- Branch: `etapa-5-flip-tarefas-runbook`, criada a partir de `origin/main`.
-- Hash confirmado por `git log origin/main -1`: **`6cb30de`**
-  (`docs(qa): G72 - fixture de data fixa + new Date() real = teste apodrece com o calendario`).
-- **Paralelismo confirmado nesta abertura**: Lane C planejando a Fase B de
-  Tarefas (`etapa-5-flip-tarefas-fase-b-plano`), Lane D varrendo G72
-  (calendário), Lane E em B4 (`ProjectDetailDrawer`/`ClientActivitiesTab`),
-  Lane A em Vendas/`QuoteToProjectDialog`. Este runbook não toca nenhum
-  arquivo de código — só `docs/qa/etapa-5-flip-tarefas-runbook.md` (novo).
-- **Rebase desta rodada (merge)**: "vai" recebido para `bb5a597`; `git fetch`
-  mostrou `origin/main` avançado pra `16ca588` (B2/B3 `44f0ff9`, B4
-  `7c1ae42`+`16ca588`/G73). `git rebase origin/main` — limpo, sem conflito
-  (só doc novo, nenhum arquivo em comum com os commits de B2-B4).
+  `git worktree list` nesta abertura — `Kora-laneA` em
+  `etapa-5-materiais-g75-mitigacao`, `Kora-laneC` em
+  `etapa-5-flip-fichas-f3-consumidores`, `Kora-laneD` em
+  `etapa-5-tarefas-migrations-drafts-arquivos`, `Kora-laneE` em
+  `g71-ui-role-gate` — nenhuma colisão de path/branch com esta rodada).
+- Branch: `etapa-5-flip-tarefas-runbook-homologacao`, criada a partir de
+  `origin/main`.
+- Hash confirmado por `git log origin/main -1`: **`f1fe83f`**
+  (`docs(tarefas): G77 fechado por fb4d508 (Lane B - completeTask nativo em 3 caminhos)`).
+- **Estado do ciclo de código de Tarefas, confirmado por leitura direta do
+  código em `main` (não por citação de doc)**:
+  - B1 (5 migrations, drafts): `696a589`.
+  - B2/B3 (`tasksRepository.listTasks`, `useSupabaseTasksAll`,
+    `useBifurcatedTasks`, flag `kora.tasks.dataSource.v1`): `44f0ff9`.
+  - B4 (8 consumidores): `ProjectDetailDrawer.tsx`+`ClientActivitiesTab.tsx`
+    → `7c1ae42`; `Tarefas.tsx` + G73 (deep link) → `16ca588`;
+    `DayCenter.tsx`/`useDayCenterActions.ts`/`useTaskReminders.ts` + G76
+    (guarda contra `Number(uuid)=NaN`) → `54a5ce5`.
+  - B5 (escrita nativa em `Tarefas.tsx`): `5e1829d` (caminho nativo) +
+    `1dea136` (patch misto, `splitTaskUpdatePatch`).
+  - Fase C (flip dos 2 defaults — `dataSource`→`supabase`,
+    `supabaseWrite`→opt-out): `25f46ac`.
+  - G77 (fix pré-flip do gate fóssil de `completeTask`): `fb4d508`
+    (código) + `f1fe83f` (fechamento do catálogo, cita o hash da B).
+  - **Migrations do §1 — SATISFEITO**: aplicadas pelo operador na sessão
+    §8-b de hoje, 5/5 confirmadas (colunas + CHECKs existem em
+    `public.tasks`). Nota: os arquivos `.sql` correspondentes ainda não
+    foram promovidos de `docs/qa/etapa-5-flip-tarefas-migrations-drafts.md`
+    pra `supabase/migrations/*.sql` no `main` (Lane D trabalha nisso
+    separadamente, `etapa-5-tarefas-migrations-drafts-arquivos`,
+    `98644bf`, não mesclado) — irrelevante pro gate deste runbook, que é
+    sobre o estado do BANCO (protocolo §0/§6/§8-b: Code nunca verifica
+    isso sozinho, só registra a confirmação do operador).
+  - `QuoteToProjectDialog.tsx` (STARTER_TASKS) — **gap conhecido, não
+    fechado em nenhuma rodada**: `addTask` (linha 128) continua vindo só
+    de `useTasks()` local, sem espelho G22 nenhum pra nuvem. Ver Caso 7.
 
 ## Referências (com o porquê de cada uma)
 
-- [`etapa-5-flip-financeiro-runbook.md`](etapa-5-flip-financeiro-runbook.md) — molde direto de estrutura, formato de caso, critério de vermelho/ressalva/achado, e a convenção `[completar pós-B]`.
-- [`etapa-5-flip-tarefas-pacote.md`](etapa-5-flip-tarefas-pacote.md) — fonte primária: §6.2 (os 9 casos), §5 (decisão (a) Fundir), §7.2 (tabela B1-B6, dependências e classes de risco por rodada), §4.1 (os 8 consumidores a bifurcar, achado do deep link).
-- [`etapa-5-flip-tarefas-migrations-drafts.md`](etapa-5-flip-tarefas-migrations-drafts.md) — os 5 drafts de migration (§1 abaixo), já mesclados como drafts (`696a589`), nenhum aplicado.
-- [`docs/architecture/kora-hub-auditoria-e-plano.md`](../architecture/kora-hub-auditoria-e-plano.md) — G29 (banner desatualizado), G30 (cache de mutação via `setQueryData`), G32 (fetch paralelo, design da casa), G37 (payload de espelho + passthrough de UUID), G40 (vocabulário cloud incompleto), G49 (vocabulário de `createProjectBaseTasks`, pré-requisito do CHECK), G56 (colisão de idempotência entre 2 produtores), G67/G67-ext/G67-ext-2 (`Number(uuid)` = `NaN`), **G73** (mesma classe, deep link `?task=id` de `Tarefas.tsx`, resolvido em `16ca588`).
-- [`docs/qa/protocolo-homologacao.md`](protocolo-homologacao.md) — §0/§6 (Code não acessa banco/localStorage do operador), §16/§17 (isolamento de worktree, prova de build por hash), §18 (merge condicionado a "vai"), §1/§2 (EXPORT MANUAL, PRINT PRÉ-CLIQUE).
+- [`etapa-5-flip-financeiro-runbook.md`](etapa-5-flip-financeiro-runbook.md) — molde de estrutura, formato de caso, critério de vermelho/ressalva/achado, e o movimento "placeholder → resolvido contra código real" que este runbook repete.
+- [`etapa-5-flip-tarefas-pacote.md`](etapa-5-flip-tarefas-pacote.md) — fonte primária: §1.1 (4 campos bloqueantes + SQL), §1.2 (subtasks/comments, aviso recomendado nunca implementado), §5 (decisão (a) Fundir), §6.2 (os 9 casos originais), §7.2 (tabela B1-B6).
+- [`etapa-5-flip-tarefas-migrations-drafts.md`](etapa-5-flip-tarefas-migrations-drafts.md) — as 5 SQLs exatas aplicadas pelo operador (§1 abaixo reproduz as 2 mais sensíveis).
+- [`docs/architecture/kora-hub-auditoria-e-plano.md`](../architecture/kora-hub-auditoria-e-plano.md) — G29 (banner desatualizado, inclusive o novo G78), G30 (cache de mutação via `setQueryData`), G32 (fetch paralelo, design da casa), G37 (payload de espelho + passthrough de UUID), G40 (vocabulário cloud incompleto), G49 (vocabulário de `createProjectBaseTasks`), G56 (colisão de idempotência entre 2 produtores), G67/G73 (`Number(uuid)=NaN`), G76 (guarda de `completeTask`), G77 (guarda vira gate fóssil no flip, fechado antes do flip valer), G78 (comentário desatualizado em `ProjectDetailDrawer.tsx`).
+- [`docs/qa/protocolo-homologacao.md`](protocolo-homologacao.md) — §0/§6 (Code não acessa banco/localStorage do operador), §16/§17 (isolamento de worktree, prova de build por hash), §18 (merge condicionado a "vai"), §1/§2 (EXPORT MANUAL, PRINT PRÉ-CLIQUE), §8-b (sessão de DDL do operador).
 
 ---
 
@@ -68,241 +85,243 @@
 
 ### 1.1 Gate EXPORT MANUAL (protocolo §1) — antes de qualquer coisa
 
-**Diferente de Financeiro** (que já tinha dado de produção real em `financial_transactions` na abertura daquele runbook): `public.tasks` está **vazia hoje** (mesa vazia confirmada pelo pacote §6.4/§7.1, decisão (a) Fundir sem backfill). O export manual aqui é preventivo — protege o `orbyt.tasks.v1` local de cada usuário (que continua com dado real, ativamente usado) antes de qualquer flip de leitura. Operador exporta `tasks` (mesmo que vazia hoje, é o procedimento padrão) antes de qualquer escrita nova desta fatia. Confirmação por escrito do operador ("exportei") é o gate — Code não executa isto, só verifica que a confirmação chegou antes de prosseguir.
+`public.tasks` estava vazia na quantificação de 15/ago (8 SELECTs, `tarefas-r2-auditoria.md` §4) — mas **2 caminhos de escrita cloud-nativos já existiam desde antes desta fatia** (`createProjectBaseTasks`, `updateTaskStatus`) e continuam existindo (pacote §2.2, "congelados por contenção, não corrigidos"). Com o flip ligado, o volume real pode não ser mais zero. Operador exporta `tasks` (e `projects`/`clients` se o procedimento padrão já incluir tabelas relacionadas) antes de qualquer caso que grave na nuvem. Confirmação por escrito do operador ("exportei") é o gate — Code não executa isto, só verifica que a confirmação chegou.
 
 ### 1.2 Import assistido — reconferência, não estreia
 
-`useLocalTasksImport.ts` já foi lido diretamente nesta revalidação (pacote §6.4): "a migração suave e o `pendingLinks` persistido já estão no código", bug (g) do fan-out retroativo confirmado corrigido. **[completar pós-B]** — reconfirmar contra `main` real quando B4/B5 fecharem se o mapper mudou algo no payload que o import consome (mesmo cuidado que Financeiro teve no §1.2 daquele runbook: "reconfirmar", não reabrir do zero).
+`useLocalTasksImport.ts` já foi confirmado corrigido (bug do fan-out retroativo, pacote §6.4) e não foi tocado por B1-B5/Fase C. Reconfirmar no início da execução real que nenhuma mudança recente no mapper (payload de leitura/escrita) quebrou a reconciliação — mesma disciplina de "reconferência" que Financeiro usou.
 
-### 1.3 Gate — as 5 migrations do §1.1 do pacote (drafts já em `main`, nenhuma aplicada)
+### 1.3 Gate de migrations — **SATISFEITO**
 
-As 5 migrations, escritas na Fase B (Lane E, `696a589`), **ainda só drafts — nenhuma aplicada** (Code não roda DDL, protocolo §0/§6/§8-b):
-
-1. `tasks.scope` (`work`/`personal`) + CHECK.
-2. `tasks.tags` (`text[]`, sem CHECK, campo livre).
-3. `tasks.recurrence` (`none`/`daily`/`weekly`/`monthly`/`weekdays`) + CHECK.
-4. Lembretes: `reminder_at`/`reminder_enabled`/`reminder_sent_at`.
-5. CHECK preventivo de `status`/`priority` (vocabulário local: `a_fazer`/`em_andamento`/`revisao`/`concluido` e `alta`/`média`/`baixa`) — condicionado ao G49 já mesclado (`54f7fea`, confirmado) e à mesa vazia como-de-15/ago (**não é garantia permanente** — o próprio draft manda re-rodar as 2 SELECTs de verificação na hora de aplicar, não só na hora de escrever).
-
-Cada draft já embute sua própria SELECT de pré-checagem (`information_schema.columns`) no arquivo — reproduzir aqui as 2 mais sensíveis (draft 5, vocabulário), mesma disciplina do runbook de Financeiro (§1.3 daquele doc):
+As 5 migrations do pacote §1.1 (drafts em `etapa-5-flip-tarefas-migrations-drafts.md`, mesclado como `696a589`) foram **aplicadas pelo operador na sessão §8-b de hoje** — confirmação recebida: 5/5, com as 2 SELECTs de verificação do vocabulário (abaixo, reproduzidas do próprio draft) vindo vazias antes de aplicar o CHECK:
 
 ```sql
--- Rodar ANTES de aplicar o draft 5 (CHECK de status/priority). Expectativa é
--- ZERO linha fora do vocabulário — confirmar, não supor.
+-- Rodadas pelo operador, ANTES do CHECK de status/priority (migration 5).
+-- Confirmado: ZERO linha em qualquer uma das 2.
 SELECT DISTINCT status FROM public.tasks WHERE status NOT IN ('a_fazer','em_andamento','revisao','concluido');
 SELECT DISTINCT priority FROM public.tasks WHERE priority NOT IN ('alta','média','baixa');
 ```
 
-**Passo explícito do operador, ANTES do "vai" da Fase C:**
+Colunas confirmadas em `public.tasks`: `scope` (+ CHECK `work`/`personal`), `tags` (`text[]`, sem CHECK), `recurrence` (+ CHECK dos 5 valores), `reminder_at`/`reminder_enabled`/`reminder_sent_at`, e o CHECK preventivo de `status`/`priority`. **Nenhuma dessas colunas é lida/escrita pelo `tasksMapper.ts` ainda** — ver nota de honestidade #1 na abertura deste doc e Caso 9 abaixo. Este gate cobre só o schema (protocolo §0/§6/§8-b: Code não aplica DDL, só registra a confirmação) — não cobre o código consumir as colunas, que é um gap separado.
 
-1. Aplicar os drafts 1-4 (schema aditivo, sem dependência de dado).
-2. Rodar as 2 SELECTs acima. Se qualquer uma devolver linha: **PARAR** — decidir o que fazer com o dado fora do vocabulário antes do draft 5.
-3. Se zero linhas: aplicar o draft 5.
-4. **Confirmação por escrito do operador** ("apliquei os 5 drafts, as 2 SELECTs vieram vazias") é o gate — Code não aplica DDL, só verifica que a confirmação chegou antes de considerar a Fase C liberada.
-
-Sem este passo, a Fase C não pode abrir — mesma lógica de Financeiro §1.3: o código de escrita novo (B5) provavelmente já assume que essas colunas existem.
+Sem este passo, a Fase C não poderia ter aberto — como já abriu (`25f46ac`) e o gate está confirmado retroativamente, não há bloqueio pendente aqui.
 
 ---
 
-## 2. FASE C — flip dos defaults
+## 2. FASE C — flip dos defaults (JÁ EXECUTADA — `25f46ac`)
 
-### 2.1 Pré-requisito de ordem
+### 2.1 As duas flags — antes / depois, confirmado contra o código real
 
-Mesma lição de Financeiro/Projetos: não flipar `kora.tasks.dataSource.v1` antes do CRUD nativo (B5) estar pronto — regressão temporária desnecessária. **[completar pós-B]** — confirmar contra o código real de B5 se existe um `blockWrite()`-equivalente em `Tarefas.tsx` e qual o gate exato (nome da flag de escrita, se vier a existir separada do `dataSource`, ou se B5 nasce direto opt-in via `dataSource`).
-
-### 2.2 A flag — hoje (não existe) / depois (proposto)
-
-**Confirmado contra o código real (B3, `44f0ff9`)** — `TASKS_DATA_SOURCE_KEY = "kora.tasks.dataSource.v1"` (`src/config/flags.ts:154`):
+**Flag 1 — `kora.tasks.dataSource.v1`** (`src/config/flags.ts:154-259`):
 
 ```ts
-// HOJE (B3, em produção) — só "supabase" explícito seleciona nuvem.
+// ANTES (B3, pré-flip) — só "supabase" explícito selecionava nuvem.
 export function getTasksDataSource(): DataSource {
   return safeGet(TASKS_DATA_SOURCE_KEY) === "supabase" ? "supabase" : "local";
 }
 ```
 
 ```ts
-// DEPOIS (Fase C, proposto — mesmo padrão literal de getFinanceDataSource()/
-// getProjectsDataSource() pós-flip) — só "local" explícito seleciona local.
+// DEPOIS (Fase C, `25f46ac`, em produção) — só "local" explícito seleciona local.
 export function getTasksDataSource(): DataSource {
   return safeGet(TASKS_DATA_SOURCE_KEY) === "local" ? "local" : "supabase";
 }
 ```
 
-`[completar pós-B5]` — nenhuma flag de escrita separada existe ainda (`useBifurcatedTasks.ts` é read-only por desenho, comentário do arquivo confirma); confirmar se B5 nasce opt-in direto via `dataSource` ou ganha uma 2ª flag tipo `kora.tasks.supabaseWrite.enabled` (padrão de Financeiro) quando B5 mesclar.
+**Flag 2 — `kora.tasks.supabaseWrite.v1`** (`src/hooks/useSupabaseTasksWriteFlag.ts:33-40`):
+
+```ts
+// ANTES (B5, pré-flip) — opt-in, só "true" ligava.
+function readFlag(): boolean {
+  return localStorage.getItem(TASKS_SUPABASE_WRITE_FLAG_KEY) === "true";
+}
+```
+
+```ts
+// DEPOIS (Fase C, `25f46ac`, em produção) — opt-out, só "false" desliga.
+function readFlag(): boolean {
+  return localStorage.getItem(TASKS_SUPABASE_WRITE_FLAG_KEY) !== "false";
+}
+```
+
+**As duas flipam juntas, mesmo pacote (`25f46ac`)** — mesmo precedente dos 4 domínios irmãos. Sessões que já tinham valor explícito gravado (qualquer um dos dois) não são afetadas — só quem nunca tocou nos 2 seletores herda os novos defaults.
+
+### 2.2 G77 — o gate fóssil que o flip criaria, fechado ANTES de valer
+
+Confirmado por leitura de código (`25f46ac` é filho, no histórico, de `fb4d508`): `canCompleteTask` (`DayCenter.tsx:155`, duplicado em `useDayCenterActions.ts`) já é `getTasksDataSource() !== "supabase" || tasksWriteEnabled` — com os 2 defaults pós-flip (`dataSource="supabase"`, write flag ligada), a combinação DEFAULT cai no caminho nativo (`completeTask` → `moveTask` de `useSupabaseTasksAll()`), não no bloqueio. O botão "Concluir" da Central do Dia **continua aparecendo e funcionando por default** pra quem nunca tocou nenhum dos 2 seletores — o risco que o G77 documentou nunca chegou a se manifestar em produção.
 
 ### 2.3 Rollback nível 1 — override de flag, sem deploy
 
-Mesma garantia dos outros domínios (precedência de override — P5 do protocolo):
-
 ```js
 localStorage.setItem("kora.tasks.dataSource.v1", "local");
+localStorage.setItem("kora.tasks.supabaseWrite.v1", "false");
 ```
-seguido de F5. Tarefas criadas em modo Supabase não são apagadas — só somem da view local até o seletor voltar pra "supabase" (mesma semântica de Projetos/Financeiro).
+seguido de F5. Tarefas criadas/movidas em modo Supabase não são apagadas — só somem da view local até o seletor voltar (mesma semântica dos outros 4 domínios).
 
 ### 2.4 Rollback nível 2 — revert de código
 
-**[completar pós-B]** — baseline a citar é o hash de fechamento de B5 (escrita nativa), confirmado por `git log origin/main -1` na hora em que a Fase C realmente abrir — nunca citar de memória (mesma disciplina de Financeiro §2.4). **Nota específica de Tarefas** (pacote §6.3): se a opção (c) do §5 tivesse rodado backfill de dado real, o nível 2 reverteria só o código, não o backfill — **moot aqui**, porque a decisão fechada foi (a) Fundir, sem backfill (mesa vazia).
+Baseline: `25f46ac` é o commit de flip em si — `git revert 25f46ac --no-edit` reverte só o flip dos 2 defaults, preservando schema/mapper/B5 intactos (mesma disciplina de Financeiro/Projetos: nunca reverter o commit de FECHAMENTO da Fase B junto).
 
 ### 2.5 Critério de acionamento do rollback
 
-Qualquer caso do runbook de Fase D (§3) fechar **vermelho sem correção rápida** (critério em §4), ou relato do operador em uso real de tarefa sumida/duplicada — aciona nível 1 imediatamente; nível 2 só se o nível 1 não resolver.
+Qualquer caso da Fase D (§3) fechar **vermelho sem correção rápida** (critério §4), ou relato do operador em uso real de tarefa sumida/duplicada/lembrete repetindo — aciona nível 1 imediatamente; nível 2 só se o nível 1 não resolver.
 
 ---
 
-## 3. FASE D — Runbook de homologação (esqueleto — maioria dos casos `[completar pós-B]`)
+## 3. FASE D — Runbook de homologação (pronto pra execução)
 
 ### 3.0 Prova de servidor — protocolo §17, passo 0 obrigatório
 
-Antes de qualquer caso: declarar worktree + branch + URL do dev server, confirmar `[Kora] BUILD <hash> (<branch>)` no console batendo com o hash esperado da rodada — nunca inferir correspondência código↔servidor pelo comportamento observado (mesmo incidente de referência de Quotes Fatia 10, reafirmado em Projetos/Financeiro).
+Antes de qualquer caso: declarar worktree + branch + URL do dev server, confirmar `[Kora] BUILD <hash> (<branch>)` no console batendo com `f1fe83f` (ou o hash do momento da execução real, reconfirmado). Nunca inferir correspondência código↔servidor pelo comportamento observado.
 
 ### 3.1 Entidades sintéticas e workspace já conhecido
 
-Workspace reaproveitado, mesmo já usado em todas as homologações desta Etapa 5: `2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9`. Confirmar no início da Fase D que nenhum outro workspace de QA substituiu este como padrão vigente (protocolo §0/§6 — Code não tem acesso a sessão autenticada).
+Workspace: `2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9` (mesmo de todas as homologações desta Etapa 5). Confirmar no início que nenhum outro workspace de QA substituiu este como padrão vigente.
 
-Prefixo de entidades sintéticas: **`HOMOLOG-TAR-`** (não reaproveitar tarefas reais de nenhum projeto existente).
+Prefixo: **`HOMOLOG-TAR-`**.
 
 | Entidade sintética | Papel no runbook |
 |---|---|
-| `HOMOLOG-TAR-tarefa-A` | Tarefa criada nativa, direto na tela principal em modo Supabase — Casos 2, 3, 4, 9 |
-| `HOMOLOG-TAR-tarefa-base` | Tarefa gerada por `createProjectBaseTasks` (`source='project_template'`) — Caso 5 (coexistência) |
-| `HOMOLOG-TAR-tarefa-quote` | Tarefa criada via `QuoteToProjectDialog` (STARTER_TASKS) — Caso 7 (consumidores cruzados, Vendas) |
-| `HOMOLOG-TAR-tarefa-deeplink` | Tarefa usada para exercitar `?task=<id>` — prova do fix G73, ver Caso 4-bis abaixo |
+| `HOMOLOG-TAR-tarefa-A` | Tarefa criada nativa pela tela principal, em modo Supabase (default pós-flip) — Casos 2, 3, 4, 4-bis |
+| `HOMOLOG-TAR-tarefa-base` | Tarefa gerada por `createProjectBaseTasks` (`source='project_template'`) — Caso 5 |
+| `HOMOLOG-TAR-tarefa-quote` | Tarefa criada via `QuoteToProjectDialog` (STARTER_TASKS) — Caso 7, prova do gap conhecido (100% local) |
 
-### 3.2 Lições de Financeiro/Projetos incorporadas explicitamente (não re-derivar)
+### 3.2 Lições incorporadas explicitamente (não re-derivar)
 
-- **SELECT depois da ação, nunca antes** — mesma disciplina que já pegou G30/G37/G56 em outros domínios.
-- **Toast de espelho best-effort não é vermelho por si só** — se `QuoteToProjectDialog.tsx` (Caso 7) usa mirror G22 (padrão `addTask` write local + espelho best-effort, pacote §4.1), esperar propagação antes de marcar vermelho.
-- **Drawer/cache — lição G30.** Qualquer caso que edite uma tarefa já aberta (kanban, drawer) precisa confirmar que o PRÓPRIO ponto de origem reflete a mudança sem F5 — se a mutation nova seguir invalidate-only, reproduz o G30.
+- **SELECT depois da ação, nunca antes.**
+- **Toast de espelho best-effort não é vermelho por si só** — não se aplica a nenhum caso de escrita PRINCIPAL aqui (B5 é escrita DIRETA, `await moveSupabaseTask(...)`/`createSupabaseTask(...)`, não um mirror best-effort) — só relevante se algum dia `QuoteToProjectDialog.tsx` ganhar o espelho G22 que falta (Caso 7).
+- **Drawer/cache — lição G30.** Toda mutation nativa de B5 (`createMutation`/`updateMutation`/`moveMutation`/`deleteMutation` em `useSupabaseTasksAll.ts`) já grava a resposta via `setQueryData` (`onSuccess`) — confirmado por leitura de código, não assumido.
 - **`workspace_id` já conhecido** — `2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9`, sem placeholder.
-- **[G73, RESOLVIDO nesta rodada] Deep link `?task=id`.** Corrigido e catalogado — `Tarefas.tsx:236-243` (`16ca588`) trocou `Number(raw)`/`Number.isFinite` por comparação `String(t.id) === raw`, mesmo molde do fix já aplicado em `QuotesSection.tsx` (G67) e `CRM.tsx` (G64). Corrigido NA MESMA rodada que bifurcou a leitura de `Tarefas.tsx` — deixa de ser watch-item, vira caso executável (Caso 4-bis).
-- **[G56-classe] watch-item, não achado confirmado (pacote §7.2, linha B6).** Se um dia existir mais de 1 produtor nativo escrevendo em `public.tasks` sob a mesma constraint (`source_local_id`), replicar a checagem de colisão que Financeiro precisou (G56). Hoje só `createProjectBaseTasks` e o import geral escrevem, sem overlap de escopo conhecido — mas vale o runbook exercitar o cenário se for barato (ver Caso 5-bis).
+- **G73 (deep link) e G76/G77 (Central do Dia) já fechados e testados** (`Tarefas.test.tsx`, `useDayCenterActions.test.ts`, `useTaskReminders.test.ts`) — os Casos 4-bis e a homologação da Central do Dia abaixo são RECONFIRMAÇÃO ao vivo, não a primeira prova.
+- **[G56-classe] watch-item, ainda watch-item, não achado confirmado.** Só `createProjectBaseTasks` e o import geral escrevem em `public.tasks` sob `source_local_id` — sem overlap conhecido. Ver Caso 5-bis.
+- **[Achado de honestidade #1, ver abertura] scope/tags/recurrence/reminders têm coluna, mapper não usa.** Ver Caso 9 — não é vermelho (nada quebra), é uma expectativa a alinhar com o operador antes de declarar "flip completo" pro produto inteiro.
 
-### 3.3 Os 9 casos
+### 3.3 Os 10 casos
 
-Esqueleto herdado de `etapa-5-flip-tarefas-pacote.md` §6.2 (9 casos — herda os 8 já esboçados na Fase A §5, mais 1 novo). Print pré-clique obrigatório (protocolo §2) em todo passo que grava na nuvem.
-
----
-
-**Caso 1 — Leitura em modo Supabase** — executável hoje pra `Tarefas.tsx`/`ProjectDetailDrawer.tsx`/`ClientActivitiesTab.tsx` (B2/B3/B4 fechados); `[completar pós-B4-Parte2]` pros 5 consumidores restantes (Central do Dia, lembretes, `QuoteToProjectDialog`)
-
-Tarefas antes só locais aparecem oriundas de `public.tasks`, tratamento de `project_template` conforme a opção (a) Fundir (§5 do pacote — sem tratamento especial, funde direto).
-
-| Passo | Ação | Esperado | Prova |
-|---|---|---|---|
-| 1.1 | Console: `localStorage.setItem("kora.tasks.dataSource.v1", "supabase");` → F5, abrir tela de Tarefas | Seletor mostra "Supabase"; `tasks = useBifurcatedTasks()` alimenta a tela (`Tarefas.tsx:194`, `44f0ff9`/`16ca588`, confirmado por leitura direta) | Visual |
-| 1.2 | — | Tela mostra as tarefas já reais do workspace, sem duplicar as locais equivalentes | `SELECT count(*) FROM public.tasks WHERE workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' AND deleted_at IS NULL;` comparado com a contagem visual |
-| 1.3 | Conferir campos sem coluna cloud, se algum sobrar após os 5 drafts aplicados (§1.3) | `[completar pós-B5]` — depende de quais campos locais NÃO tiverem equivalente cloud mesmo após os 5 drafts (a confirmar contra `useSupabaseTasksAll`/mapper real) | Visual |
+Print pré-clique obrigatório (protocolo §2) em todo passo que grava na nuvem.
 
 ---
 
-**Caso 2 — Escrita nativa (criar tarefa manual em modo Supabase)** — `[completar pós-B5]`
+**Caso 1 — Leitura em modo Supabase (default pós-flip)** — pronto pra executar
 
-`source='manual'`, aparece sem reload.
+Com o flip já em produção, QUALQUER sessão que nunca tocou o seletor já está em modo Supabase — este caso valida o caminho que a maioria dos usuários usa desde já, não um opt-in raro.
 
 | Passo | Ação | Esperado | Prova |
 |---|---|---|---|
-| 2.1 | `[completar pós-B5]` Criar `HOMOLOG-TAR-tarefa-A` pela tela principal, em modo Supabase | `[completar pós-B5]` Toast de sucesso, aparece sem reload — citar hook/mutation real (padrão G30, `setQueryData` desde o primeiro commit, pacote §7.2 linha B5) | Visual |
-| 2.2 | — (SELECT depois da ação, §3.2) | Linha existe na nuvem com `source='manual'` | `SELECT title, source FROM public.tasks WHERE workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' AND title = 'HOMOLOG-TAR-tarefa-A';` → 1 linha |
+| 1.1 | Abrir a tela de Tarefas numa sessão limpa (sem override de `localStorage`) | Seletor de fonte (se existir na UI) mostra "Supabase", OU — não havendo seletor visível hoje — `tasks = useBifurcatedTasks()` (`Tarefas.tsx:194`) já devolve as tarefas da nuvem por default | Visual — comparar contagem exibida com a SELECT abaixo |
+| 1.2 | — | Tela mostra as tarefas reais do workspace, sem duplicar locais equivalentes | `SELECT count(*) FROM public.tasks WHERE workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' AND deleted_at IS NULL;` |
+| 1.3 | Conferir uma tarefa com `scope`/`tags`/`recurrence`/lembrete gravados só localmente antes do flip (se existir) | Aparece com `scope="work"` (neutro), `tags=[]`, `recurrence="none"` — mapper ainda não lê as colunas novas (achado de honestidade #1) | Visual — não é vermelho, é o comportamento documentado |
 
 ---
 
-**Caso 3 — Transição de status refletida na própria mutação (G30)** — `[completar pós-B5]`
+**Caso 2 — Escrita nativa (criar tarefa manual em modo Supabase, default pós-flip)** — pronto pra executar
 
-Mover entre colunas do kanban — mesmo cuidado do achado §3.5 do pacote (a mutation nova não pode repetir o padrão invalidate-only que `useSupabaseProjectTasks.updateStatus` tem hoje).
+`source='manual'`, aparece sem reload. Mecanismo real: `addTask` (`Tarefas.tsx:236-239`) → `cloudWriteMode` true por default → `createSupabaseTask(data)` → `useSupabaseTasksAll.createMutation` → `tasksRepository.importTask` com `buildNativeSourceLocalId()`.
 
 | Passo | Ação | Esperado | Prova |
 |---|---|---|---|
-| 3.1 | `[completar pós-B5]` Mover `HOMOLOG-TAR-tarefa-A` entre colunas do kanban, em modo Supabase | `[completar pós-B5]` O próprio card reflete a nova coluna sem F5 — citar se a mutation nova usa `setQueryData` (esperado) ou reproduz o invalidate-only já catalogado como achado do §3.5 | Visual |
-| 3.2 | — | Update gravado de verdade | `SELECT status FROM public.tasks WHERE title = 'HOMOLOG-TAR-tarefa-A';` → coluna alvo |
+| 2.1 | Criar `HOMOLOG-TAR-tarefa-A` pela tela principal, sessão limpa (default pós-flip, sem tocar em nenhum seletor) | Toast de sucesso, aparece sem reload (`createMutation.onSuccess`, `setQueryData`) | Visual |
+| 2.2 | — (SELECT depois da ação) | Linha existe na nuvem com `source='manual'` | `SELECT title, source FROM public.tasks WHERE workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' AND title = 'HOMOLOG-TAR-tarefa-A';` → 1 linha |
+| **2.3** | **Prova obrigatória do equivalente-O12 — não pode fechar como "assumido correto"** (mesma disciplina do Caso 2.3 de Financeiro) | Tentar gravar um valor FORA do vocabulário direto por SQL | `UPDATE public.tasks SET status = 'valor-invalido' WHERE title = 'HOMOLOG-TAR-tarefa-A';` → **DEVE FALHAR** com violação do CHECK de status (migration 5, aplicada §1.3) |
+
+O passo 2.3 é vermelho automático se o UPDATE inválido NÃO falhar — prova de que o CHECK aplicado pelo operador hoje é real, não só uma linha em um doc de draft.
 
 ---
 
-**Caso 4 — Status "revisão" sobrevive à escrita cloud** — parcialmente executável hoje (via `updateTaskStatus`)
+**Caso 3 — Transição de status refletida na própria mutação (G30)** — pronto pra executar
 
-Já resolvido pelo G40 pro caminho `updateTaskStatus` (`tasksRepository.ts:87-106`, vocabulário local de 4 valores, confirmado por leitura de código nesta rodada). `[completar pós-B5]` — confirmar que o caminho de escrita novo da tela principal (se distinto de `updateTaskStatus`) também preserva os 4 valores, não regride pra vocabulário em inglês.
+Mover `HOMOLOG-TAR-tarefa-A` entre colunas do kanban. Mecanismo real: `moveTask` (`Tarefas.tsx:241-244`) → `cloudWriteMode` → `moveSupabaseTask(String(id), status)` → `useSupabaseTasksAll.moveMutation` → `tasksRepository.updateTaskStatus` → `onSuccess` grava a resposta via `setQueryData` (`useSupabaseTasksAll.ts:104-109`), nunca invalidate-only.
 
 | Passo | Ação | Esperado | Prova |
 |---|---|---|---|
-| 4.1 | Definir `HOMOLOG-TAR-tarefa-A` como "revisão" pelo caminho que já existe hoje (`updateTaskStatus`) | Grava `status='revisao'`, vocabulário local, sem tradução | `SELECT status FROM public.tasks WHERE title = 'HOMOLOG-TAR-tarefa-A';` → `'revisao'` |
-| 4.2 | `[completar pós-B5]` Repetir pelo caminho de escrita novo da tela principal, se for distinto de 4.1 | Mesmo resultado — vocabulário preservado | Mesma SELECT |
+| 3.1 | Mover `HOMOLOG-TAR-tarefa-A` entre colunas do kanban | O próprio card reflete a nova coluna sem F5 (`setQueryData`) | Visual |
+| 3.2 | — | Update gravado de verdade, vocabulário local preservado (sem tradução, R1) | `SELECT status FROM public.tasks WHERE title = 'HOMOLOG-TAR-tarefa-A';` → coluna alvo, valor em português |
 
 ---
 
-**Caso 4-bis — Deep link `?task=id` não quebra em silêncio (G73, RESOLVIDO — executável)**
+**Caso 4 — Status "revisão" sobrevive à escrita cloud** — pronto pra executar
 
-Corrigido e catalogado nesta rodada — `Tarefas.tsx:236-243` (`16ca588`), comparação por `String(t.id) === raw`, mesmo molde de G67 (`QuotesSection.tsx`)/G64 (`CRM.tsx`). Teste automatizado já cobre o cenário (`src/pages/__tests__/Tarefas.test.tsx`, caso (b) uuid + caso (c) regressão id numérico local, `16ca588`) — o caso abaixo é a homologação ao vivo, não a primeira prova.
+Já fechado pelo G40 (`updateTaskStatus`) e reconfirmado pelo caminho de escrita novo de B5 (`updateTask`/`splitTaskUpdatePatch`, mesmo vocabulário, sem tradução — `tasksMapper.ts` topo do arquivo).
 
 | Passo | Ação | Esperado | Prova |
 |---|---|---|---|
-| 4-bis.1 | Em modo Supabase, abrir a URL `?task=<uuid-de-HOMOLOG-TAR-tarefa-A>` | A tarefa correspondente abre/destaca — comparação por `String(id)` (`Tarefas.tsx:239`), não `Number(id)` | Visual |
-| 4-bis.2 | Regressão — em modo local, repetir com um `id` numérico local | Continua funcionando (caso (c) do teste automatizado, `16ca588`) | Visual |
+| 4.1 | Definir `HOMOLOG-TAR-tarefa-A` como "revisão" via drag-and-drop (kanban) | Grava `status='revisao'`, vocabulário local | `SELECT status FROM public.tasks WHERE title = 'HOMOLOG-TAR-tarefa-A';` → `'revisao'` |
+| 4.2 | Editar prioridade/descrição da mesma tarefa pelo detail sheet (patch com campo cloud, `updateTask` → `splitTaskUpdatePatch`) | Patch vai só o `cloudPatch` (title/description/priority/dueDate) pro `updateSupabaseTask`; `status` "revisao" não é sobrescrito | Mesma SELECT, `status` continua `'revisao'` |
 
 ---
 
-**Caso 5 — Tarefas-base coexistindo com tarefas locais migradas** — `[completar pós-B5]`, decisão (a) já fechada
+**Caso 4-bis — Deep link `?task=id` não quebra em silêncio (G73, já fechado — reconfirmação ao vivo)**
 
-Caso central do §5 do pacote — comportamento esperado é o da opção (a) Fundir (sem tratamento especial). Como a mesa está vazia hoje, este caso só terá dado real pra exercitar depois que alguém gerar tarefas-base em produção — vale rodar mesmo assim como prova do comportamento, não só assumir pelo desenho (texto do próprio pacote §6.2 item 5).
+`Tarefas.tsx:328-339`, comparação por `String(t.id) === raw`, sem `Number()`. Teste automatizado já cobre (`Tarefas.test.tsx`).
 
 | Passo | Ação | Esperado | Prova |
 |---|---|---|---|
-| 5.1 | Gerar `HOMOLOG-TAR-tarefa-base` via `createProjectBaseTasks` (fluxo real de criação de projeto com tarefas-base), em modo Supabase | Aparece fundida com as demais, sem seção/tratamento separado (opção (a), sem backfill a testar — mesa já nasce vazia) | Visual |
+| 4-bis.1 | Abrir a URL `?task=<uuid-de-HOMOLOG-TAR-tarefa-A>`, sessão em modo Supabase (default) | A tarefa correspondente abre/destaca | Visual |
+| 4-bis.2 | Regressão — em modo local explícito (`kora.tasks.dataSource.v1=local`), repetir com um `id` numérico local | Continua funcionando | Visual |
+
+---
+
+**Caso 5 — Tarefas-base coexistindo com tarefas locais migradas** — pronto pra executar, decisão (a) Fundir já fechada
+
+| Passo | Ação | Esperado | Prova |
+|---|---|---|---|
+| 5.1 | Gerar `HOMOLOG-TAR-tarefa-base` via fluxo real de criação de projeto com tarefas-base (`createProjectBaseTasks`), sessão em modo Supabase | Aparece fundida com as demais, sem seção/tratamento separado (opção (a), sem backfill — mesa nasceu vazia) | Visual |
 | 5.2 | — | `source='project_template'` gravado corretamente | `SELECT source FROM public.tasks WHERE title = 'HOMOLOG-TAR-tarefa-base';` → `'project_template'` |
 
 ---
 
-**Caso 5-bis — Watch-item de colisão G56-classe** — exercitável hoje (só 1 produtor real, resultado esperado: sem colisão)
+**Caso 5-bis — Watch-item de colisão G56-classe** — pronto pra executar, resultado esperado: sem colisão
 
-Não é achado confirmado — é o watch-item do pacote §7.2 (linha B6): hoje só `createProjectBaseTasks` e o import geral escrevem em `public.tasks`, sem overlap de escopo conhecido sob a constraint `source_local_id`. Rodar mesmo assim, barato, pra deixar registrado que o cenário foi ao menos verificado uma vez.
+Não é achado confirmado — só 1 produtor real (`createProjectBaseTasks`) e o import geral escrevem em `public.tasks`, sem overlap de escopo conhecido sob `source_local_id`.
 
 | Passo | Ação | Esperado | Prova |
 |---|---|---|---|
-| 5-bis.1 | Gerar `HOMOLOG-TAR-tarefa-base` (Caso 5) e, separadamente, importar uma tarefa local homônima via import geral | Sem colisão de `source_local_id` — os 2 vocabulários de `source` (`project_template` vs. import geral) não competem pelo mesmo `source_local_id` (mesma garantia já documentada em `tasksRepository.ts:26-30`) | `SELECT count(*) FROM public.tasks WHERE title = 'HOMOLOG-TAR-tarefa-base';` → exatamente 1 (nenhuma linha duplicada/mesclada por engano) |
+| 5-bis.1 | Gerar `HOMOLOG-TAR-tarefa-base` (Caso 5) e, separadamente, importar uma tarefa local homônima via import geral | Sem colisão de `source_local_id` — os 2 vocabulários de `source` não competem pelo mesmo `source_local_id` (`tasksRepository.ts:26-30`) | `SELECT count(*) FROM public.tasks WHERE title = 'HOMOLOG-TAR-tarefa-base';` → exatamente 1 |
 
 ---
 
-**Caso 6 — Exclusão, soft vs. hard delete** — `[completar pós-B5]`
+**Caso 6 — Exclusão, soft vs. hard delete** — pronto pra executar
 
-`deleted_at` preenchido, leitura filtra `deleted_at IS NULL`.
+Mecanismo real: `deleteTask` (`Tarefas.tsx:246-249`) → `cloudWriteMode` → `deleteSupabaseTask(String(id))` → `tasksRepository.softDeleteTask` (`deleted_at`, não hard delete).
 
 | Passo | Ação | Esperado | Prova |
 |---|---|---|---|
-| 6.1 | `[completar pós-B5]` Excluir `HOMOLOG-TAR-tarefa-A` pela tela, em modo Supabase | Some da lista sem reload | Visual |
-| 6.2 | — | `deleted_at` preenchido, não é hard delete | `SELECT deleted_at FROM public.tasks WHERE title = 'HOMOLOG-TAR-tarefa-A';` → timestamp não-nulo, linha ainda existe |
+| 6.1 | Excluir `HOMOLOG-TAR-tarefa-A` pela tela, em modo Supabase | Some da lista sem reload | Visual |
+| 6.2 | — | `deleted_at` preenchido, linha continua existindo | `SELECT deleted_at FROM public.tasks WHERE title = 'HOMOLOG-TAR-tarefa-A';` → timestamp não-nulo |
 
 ---
 
-**Caso 7 — Consumidores cruzados** — `ProjectDetailDrawer.tsx`/`ClientActivitiesTab.tsx` executáveis hoje (`7c1ae42`); Central do Dia + `QuoteToProjectDialog.tsx` `[completar pós-B4-Parte2]` (destravado nesta rodada)
-
-`ClientActivitiesTab.tsx` (3 domínios, atenção redobrada — pacote §4.2, coordenação com Financeiro/Lane C em voo no mesmo arquivo) e `ProjectDetailDrawer.tsx` já bifurcados (`tasks = useBifurcatedTasks()`, `ProjectDetailDrawer.tsx:103` / `ClientActivitiesTab.tsx:134`, `7c1ae42`) — decisão de convergência das 2 leituras de `public.tasks` (nova bifurcada vs. `useSupabaseProjectTasks` já existente) ainda `[completar pós-B4-Parte2]`, não resolvida nesse commit. Central do Dia e `QuoteToProjectDialog.tsx` seguem cru — fatia destravada nesta mesma rodada (Parte 2).
+**Caso 7 — Consumidores cruzados** — 3 de 4 prontos; `QuoteToProjectDialog.tsx` é gap conhecido, não fechado
 
 | Passo | Ação | Esperado | Prova |
 |---|---|---|---|
-| 7.1 | `[completar pós-B4-Parte2]` Abrir Central do Dia com `HOMOLOG-TAR-tarefa-A` pendente, em modo Supabase | Aparece corretamente; escrita (`completeTask`) — confirmar se ficou local-only por decisão (recomendação do pacote §4.1) ou se ganhou caminho cloud | Visual |
-| 7.2 | `[completar pós-B4-Parte2]` Gerar `HOMOLOG-TAR-tarefa-quote` via `QuoteToProjectDialog` (STARTER_TASKS), em modo Supabase | Grava local + espelho best-effort (G22) — toast de espelho não é vermelho por si só (§3.2) | Visual + `SELECT source FROM public.tasks WHERE title = 'HOMOLOG-TAR-tarefa-quote';` |
-| 7.3 | Abrir `ProjectDetailDrawer.tsx` de um projeto com tarefas em modo Supabase | Leitura bifurcada (`useBifurcatedTasks`, `:103`) funciona; confirmar se ainda coexiste em paralelo com `useSupabaseProjectTasks` ou se já convergiram — leitura de código não achou convergência explícita nesta rodada, marcar visualmente | Visual |
-| 7.4 | Abrir ficha de um cliente sintético vinculado a `HOMOLOG-TAR-tarefa-A` → aba Atividades (`ClientActivitiesTab.tsx`) | Timeline mostra o evento de tarefa corretamente (`useBifurcatedTasks`, `:134`), coexistindo com os domínios já bifurcados (projetos) e o que estiver em voo (finanças, Lane C) | Visual |
+| 7.1 | Abrir Central do Dia com `HOMOLOG-TAR-tarefa-A` pendente, em modo Supabase (default) | Aparece corretamente; "Concluir" funciona por default (G77 — caminho nativo, `moveTask` de `useSupabaseTasksAll`) | Visual + `SELECT status FROM public.tasks WHERE title = 'HOMOLOG-TAR-tarefa-A';` → `'concluido'` após clicar |
+| 7.2 | **Gerar `HOMOLOG-TAR-tarefa-quote` via `QuoteToProjectDialog` (STARTER_TASKS), em modo Supabase** | **Grava SÓ local — `addTask` (linha 128) vem de `useTasks()` cru, sem `cloudWriteMode`, sem espelho G22 nenhum.** Isto é o comportamento REAL, não um bug desta rodada — gap conhecido, nunca fechado em nenhuma fatia | Visual (aparece na tela local) + `SELECT count(*) FROM public.tasks WHERE title = 'HOMOLOG-TAR-tarefa-quote';` → **0** (nunca chega na nuvem) — **não é vermelho, é o gap documentado na Abertura** |
+| 7.3 | Abrir `ProjectDetailDrawer.tsx` de um projeto com tarefas em modo Supabase | Leitura bifurcada funciona (`tasks = useBifurcatedTasks()`, linha 103); criar/mover tarefa por aqui grava só local (comentário do arquivo, G78 — desatualizado sobre o PORQUÊ, mas o comportamento em si está correto) | Visual |
+| 7.4 | Abrir ficha de um cliente sintético vinculado a `HOMOLOG-TAR-tarefa-A` → aba Atividades (`ClientActivitiesTab.tsx:135`) | Timeline mostra o evento de tarefa corretamente, coexistindo com projetos/finanças já bifurcados | Visual |
 
 ---
 
-**Caso 8 — Banner/texto desatualizado (G29)** — `Tarefas.tsx` já auditado (comentário `:187-189` já reflete o estado real, `16ca588`); `useDayCenterData.ts` `[completar pós-B4-Parte2]`
-
-Auditar o comentário de `useDayCenterData.ts` (linhas 15-20, pacote §4.1: hoje lista `tasks` explicitamente como "100% local, fora de escopo") por copy que sobreviva ao ponto em que a leitura bifurcada chegar nesse arquivo — parte do escopo da Parte 2 desta mesma rodada.
+**Caso 8 — Banner/texto desatualizado (G29/G78)** — achado confirmado nesta rodada, não corrigido (doc-only)
 
 | Passo | Ação | Esperado | Prova |
 |---|---|---|---|
-| 8.1 | `[completar pós-B4-Parte2]` Ler `useDayCenterData.ts:15-20` contra `main` pós-Parte 2 | Nenhum texto/comentário afirma "só local"/"fora de escopo" se a leitura cloud já estiver ativa — mesma lição G29 que Financeiro/Projetos já pegaram | Leitura de código |
+| 8.1 | Ler `ProjectDetailDrawer.tsx:88-101` contra o `main` atual | **Achado (G78, catalogado)**: comentário duplicado afirma "escrita nativa em modo Supabase pra Tarefas é a B5 do plano, ainda não existe" — FALSO desde `5e1829d`. Não corrigido nesta rodada (doc-only); recomendação registrada no catálogo | Leitura de código |
+| 8.2 | Ler `Tarefas.tsx`/`useDayCenterData.ts`/`DayCenter.tsx` por copy remanescente de "100% local" | Nenhum encontrado — `useDayCenterData.ts` já corrigido (rodada B4), `Tarefas.tsx` nunca teve banner de fonte de dados | Leitura de código |
 
 ---
 
-**Caso 9 — Campos pós-flip não bloqueiam nem perdem silenciosamente** — `[completar pós-B5]`
+**Caso 9 — Campos pós-flip (scope/tags/recurrence/reminders) não bloqueiam, mas também NÃO sincronizam ainda (achado de honestidade #1)**
 
-Abrir checklist/comentários de uma tarefa em modo Supabase — aviso explícito aparece, tarefa em si não é bloqueada.
+**Diferente do texto original do pacote §6.2 item 9** ("aviso explícito aparece") — não existe nenhum aviso na UI hoje (`grep` por "aviso"/texto equivalente em `Tarefas.tsx` → zero resultados). O comportamento real é: os 4 campos gravam e persistem **localmente**, mesmo em modo Supabase, sem nenhuma indicação visual de que não vão pra nuvem — nem bloqueiam, nem avisam, simplesmente não têm efeito cloud (mesma classe do padrão "campo local-only" dos outros domínios, mas sem o "aviso explícito" que Financeiro eventualmente construiu pra `notes`/`recurrence`/etc.).
 
 | Passo | Ação | Esperado | Prova |
 |---|---|---|---|
-| 9.1 | `[completar pós-B5]` Em modo Supabase, tentar usar `scope`/`tags`/`recurrence`/lembretes em `HOMOLOG-TAR-tarefa-A`, ANTES dos 5 drafts (§1.3) aplicados | Aviso explícito aparece (UX final decidida na Fase B), tarefa salva mesmo assim — nunca bloqueia, nunca perde silenciosamente | Visual |
-| 9.2 | Repetir DEPOIS dos 5 drafts aplicados | Os 4 campos agora persistem de verdade (colunas existem) | `SELECT scope, tags, recurrence, reminder_at FROM public.tasks WHERE title = 'HOMOLOG-TAR-tarefa-A';` → preenchidos conforme testado |
+| 9.1 | Em modo Supabase, definir `scope`/`tags`/`recorrência`/lembrete em `HOMOLOG-TAR-tarefa-A` pelo detail sheet | Salva normalmente na tela (via `updateTaskLocal`, ramo `localPatch` de `splitTaskUpdatePatch`) — **sem nenhum aviso visual** de que é local-only | Visual — nenhum toast/badge de aviso aparece (comportamento real, não um bug a corrigir aqui) |
+| 9.2 | — | Nenhuma das 4 colunas novas recebe o valor, apesar de existirem no schema (mapper não lê/escreve ainda) | `SELECT scope, tags, recurrence, reminder_at FROM public.tasks WHERE title = 'HOMOLOG-TAR-tarefa-A';` → todas `NULL`/`{}` mesmo após o passo 9.1 |
+| 9.3 | Reabrir a tarefa em OUTRO navegador/sessão (mesmo workspace, mesmo modo Supabase) | `scope`/`tags`/`recorrência`/lembrete definidos no passo 9.1 **NÃO aparecem** — ficam presos ao `localStorage` da sessão de origem | Visual — confirma que não há sincronização, mesmo com a coluna disponível |
+
+**Não é vermelho** — é o comportamento correto dado o estado real do código (mapper não lê as colunas). É uma **decisão de produto a alinhar com o operador antes do sign-off**: aplicar as migrations sem atualizar o mapper não muda nada pro usuário — só existe infraestrutura de banco esperando um follow-up de código.
 
 ---
 
@@ -310,31 +329,29 @@ Abrir checklist/comentários de uma tarefa em modo Supabase — aviso explícito
 
 | Passo | Ação | Esperado | Prova |
 |---|---|---|---|
-| 10.1 | Soft-delete/arquivar todas as tarefas sintéticas (`HOMOLOG-TAR-tarefa-A/base/quote/deeplink`), limpar chaves de `localStorage` setadas manualmente | Estado volta a "usuário novo" | — |
+| 10.1 | Soft-delete/arquivar todas as tarefas sintéticas (`HOMOLOG-TAR-tarefa-A/base/quote`), limpar chaves de `localStorage` setadas manualmente (incluindo os 2 overrides de flag do §2.3, se usados) | Estado volta a "usuário novo" | — |
 | 10.2 | — | Resíduo zero | `SELECT count(*) FROM public.tasks WHERE workspace_id = '2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9' AND title LIKE 'HOMOLOG-TAR-%' AND deleted_at IS NULL;` → 0 |
 
 ---
 
 ## 4. Critérios de vermelho vs. ressalva vs. achado
 
-Mesmo critério operacional dos runbooks de Projetos/Financeiro:
-
-- **Vermelho (para a homologação):** o comportamento observado ao vivo diverge do comportamento desenhado/documentado. Aciona: diagnóstico → correção → novo commit → **PARADO** → aguardar novo "vai". **O Caso 4-bis (deep link) é vermelho automático** se a tarefa não abrir/destacar em modo Supabase e nenhum erro visível aparecer — mesma classe de prova obrigatória que o Caso 2.3 (equivalente-O12) teve em Financeiro.
-- **Ressalva (não bloqueia):** mecanismo já provado correto por outra via (ex.: import geral, já com fan-out retroativo confirmado corrigido por leitura de código nesta rodada) e só uma recaptura específica não foi refeita. Decisão de não reabrir deve ser registrada explicitamente.
-- **Achado catalogado, não é bug:** algo encontrado durante a homologação que não afeta o caminho testado — registra no catálogo mestre (`kora-hub-auditoria-e-plano.md`, próximo ID livre a confirmar na hora — não assumir de memória, mesma disciplina do runbook de Financeiro §4).
-- **Placar de fechamento:** formato herdado — `N/N casos verdes, com o Caso 4-bis obrigatoriamente incluindo prova de que o deep link sobrevive a um id uuid (não `Number(uuid)`=NaN) — não pode fechar como "assumido correto"`.
+- **Vermelho (para a homologação):** o comportamento observado ao vivo diverge do comportamento desenhado/documentado. Aciona: diagnóstico → correção → novo commit → **PARADO** → aguardar novo "vai". **O Caso 2.3 (CHECK de status) é vermelho automático** se o UPDATE inválido não falhar. **O Caso 4-bis é vermelho automático** se o deep link não abrir/destacar em modo Supabase.
+- **Ressalva (não bloqueia):** mecanismo já provado correto por outra via e só uma recaptura específica não foi refeita. Decisão de não reabrir deve ser registrada explicitamente.
+- **Achado catalogado, não é bug:** o Caso 7.2 (`QuoteToProjectDialog` 100% local) e o Caso 9 (campos pós-flip sem sincronização) são exatamente isso — comportamento real, documentado, não incidente. Não fecham a homologação como vermelho; fecham como decisão de produto pendente, registrada explicitamente no sign-off.
+- **Placar de fechamento:** formato herdado — `N/10 casos verdes, com o Caso 2.3 obrigatoriamente incluindo prova SQL do CHECK e o Caso 4-bis obrigatoriamente incluindo prova do deep link uuid — nenhum dos dois pode fechar como "assumido correto"; Casos 7.2 e 9 fecham como achado/decisão pendente, não como vermelho nem como verde pleno`.
 
 ---
 
 ## 5. O que este doc NÃO faz
 
-- Não executa nenhum caso — é esqueleto de preparação. Casos 1/4-bis/5-bis/7 (parcial)/8 (parcial) já executáveis contra código real (B1/B2/B3/B4 fechados); os demais seguem `[completar pós-B4-Parte2]`/`[completar pós-B5]`.
-- Não aplica os 5 drafts de migration do §1.3 nem confirma que foram aplicados — ação do operador.
-- Não cita hash de B5 nem do commit de flip da Fase C — nenhum dos dois mesclado em `origin/main` nesta rodada; `[completar pós-B5]` marca exatamente onde cada um entra. Hashes de B1 (`696a589`), B2/B3 (`44f0ff9`), B4 (`7c1ae42`/`16ca588`) já confirmados e citados inline.
-- Não resolve a decisão em aberto do pacote §4.1 sobre `completeTask` (Central do Dia) ficar local-only ou ganhar caminho cloud — fica pro revisor decidir, registrado aqui só como dependência do Caso 7 (Parte 2 desta rodada).
-- Não resolve a decisão em aberto do pacote §4.1 sobre `ProjectDetailDrawer.tsx` convergir as 2 leituras de `public.tasks` ou continuar paralelas — mesma situação, registrada como dependência do Caso 7.3 (leitura de código nesta rodada não achou convergência).
-- Não substitui os gates permanentes do protocolo (EXPORT MANUAL, PRINT PRÉ-CLIQUE, prova de servidor §17) — só aponta onde cada um entra nesta fatia.
+- Não executa nenhum caso — é o runbook PRONTO, a execução real é do operador guiado pelo revisor.
+- Não corrige o mapper (`tasksMapper.ts`) pra ler/escrever `scope`/`tags`/`recurrence`/`reminder_*` — recomendação registrada (achado de honestidade #1), não implementada.
+- Não corrige o comentário desatualizado de `ProjectDetailDrawer.tsx` (G78) — catalogado, não corrigido (doc-only).
+- Não constrói o espelho G22 de `QuoteToProjectDialog.tsx` pra tasks — gap conhecido, registrado, fora de escopo desta rodada.
+- Não promove os 5 drafts de migration a arquivos `.sql` versionados — isso é trabalho da Lane D (`etapa-5-tarefas-migrations-drafts-arquivos`), independente do gate de banco já satisfeito.
+- Não substitui os gates permanentes do protocolo (EXPORT MANUAL, PRINT PRÉ-CLIQUE, prova de servidor §17).
 
 ---
 
-**PARADO aqui — este é um esqueleto, não o runbook fechado. B1-B4 já mesclados e refletidos contra código real nesta rodada (rebase pós-`16ca588`); falta ainda a fatia de Central do Dia/lembretes/`QuoteToProjectDialog` (parte de B4, destravada nesta mesma rodada) e B5 (escrita nativa). Fica pra uma rodada seguinte resolver os `[completar pós-B4-Parte2]`/`[completar pós-B5]` restantes contra o código real mesclado, mesmo movimento que o runbook de Financeiro já passou. Execução real da Fase C/Fase D só com um novo "vai" que autorize especificamente abrir cada fase — e só depois do gate do §1.3 (os 5 drafts aplicados pelo operador, com confirmação por escrito) fechar. §18.**
+**PARADO aqui — runbook fechado e pronto pra execução real da Fase D. §18: aguardando "vai" específico do revisor pra abrir a homologação ao vivo, caso a caso, com o operador.**
