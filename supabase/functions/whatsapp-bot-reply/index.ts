@@ -9,6 +9,11 @@ import { fetchWithRetry } from "../_shared/retry.ts";
 import { buildAnthropicMessages, parseAnthropicReply } from "../_shared/anthropicParser.ts";
 import { composeSystemInstruction } from "../_shared/brainComposer.ts";
 import { resolveAiConfig } from "../_shared/botCredentials.ts";
+import {
+  extractMenuNodes,
+  parseBotFlowState,
+  resolveMenuTurn,
+} from "../_shared/botFlowMenu.ts";
 
 interface BotFlowNodeProperties {
   respondAll?: boolean;
@@ -21,11 +26,18 @@ interface BotFlowNodeProperties {
   gcpServiceAccount?: string;
   template?: string;
   assignTo?: string;
+  // Etapa 9 · item 4, R3 (motor de runtime do nó "menu") — docs/qa/
+  // etapa-9-bot-fluxo-scriptado-r1-fundacao.md/-r3-motor-runtime-menu.md.
+  // Mesmo bag plano dos outros tipos de nó neste arquivo (não uma união
+  // discriminada) — extractMenuNodes() valida a forma em runtime.
+  mensagem?: string;
+  opcoes?: unknown;
+  fallback?: unknown;
 }
 
 interface BotFlowNode {
   id: string;
-  type: "trigger" | "ai" | "send" | "handover";
+  type: "trigger" | "ai" | "send" | "handover" | "menu";
   enabled: boolean;
   properties?: BotFlowNodeProperties;
 }
@@ -48,6 +60,11 @@ interface ConversationRow {
   instance_id: string;
   contact_phone: string;
   assigned_to: string | null;
+  // Coluna PROPOSTA, ainda não aplicada (draft §2 de docs/qa/etapa-9-bot-
+  // fluxo-scriptado-r1-fundacao.md) — optional pra refletir que `select("*")`
+  // simplesmente não a traz enquanto a migration não for aplicada pelo
+  // operador (§8-b). parseBotFlowState() degrada pra null nesse caso.
+  bot_flow_state?: unknown;
 }
 
 interface InstanceRow {
@@ -431,13 +448,10 @@ Deno.serve(async (req) => {
         return json({ ok: true, skipped: "assigned and respond_all is false" });
       }
 
-      // Check if AI node is disabled in custom flow
-      const hasFlowData = flowNodes.length > 0;
-      if (hasFlowData && !aiNode) {
-        return json({ ok: true, skipped: "AI node disabled in visual flow" });
-      }
-
-      // Instance
+      // Instance (movido pra antes do gate "AI node disabled" abaixo: o
+      // motor do nó "menu", logo a seguir, também precisa dela pra
+      // responder diretamente, e um fluxo só-menu — sem "ai" — não pode
+      // ser barrado por aquele gate).
       const { data: instData, error: instErr } = await adminClient
         .from("whatsapp_instances")
         .select("instance_token, status, subdomain")
@@ -451,6 +465,115 @@ Deno.serve(async (req) => {
       }
       if (!instance || instance.status !== "connected") {
         return json({ ok: true, skipped: "instance not connected or missing" });
+      }
+
+      // Etapa 9 · item 4, R3 — motor de runtime do nó "menu" (docs/qa/
+      // etapa-9-bot-fluxo-scriptado-r3-motor-runtime-menu.md). Roda ANTES
+      // do gate "AI node disabled" logo abaixo de propósito: "menu" é uma
+      // ALTERNATIVA ao nó "ai" (R1 §0 item 3), nunca uma dependência dele
+      // — uma árvore só com "menu" (sem "ai") precisa continuar sendo um
+      // fluxo válido. Nó "menu" ausente/desabilitado no flow_data =
+      // extractMenuNodes() devolve [] = zero código deste bloco roda,
+      // comportamento atual 100% intocado.
+      const menuNodes = extractMenuNodes(flowNodes);
+      if (menuNodes.length > 0) {
+        const currentFlowState = parseBotFlowState(conv.bot_flow_state);
+
+        // Mensagem do usuário nesta virada — busca isolada e mínima (não
+        // reordena nem reusa o histórico maior carregado abaixo pra
+        // geração de IA, que já é lógica existente e coberta à parte).
+        const { data: lastInboundRows } = await adminClient
+          .from("whatsapp_messages")
+          .select("content, body")
+          .eq("conversation_id", conversationId)
+          .eq("direction", "inbound")
+          .order("timestamp", { ascending: false, nullsFirst: false })
+          .limit(1);
+        const lastInboundText = String(lastInboundRows?.[0]?.content || lastInboundRows?.[0]?.body || "");
+
+        const turn = resolveMenuTurn(menuNodes, currentFlowState, lastInboundText);
+
+        if (turn.kind === "present" || turn.kind === "reprompt") {
+          const activeUazBase = baseForStoredSubdomain(instance.subdomain);
+          const sendRes = await fetch(`${activeUazBase}/send/text`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", token: instance.instance_token },
+            body: JSON.stringify({ number: conv.contact_phone, text: turn.message }),
+          });
+
+          if (sendRes.ok) {
+            await adminClient.from("whatsapp_messages").insert({
+              workspace_id: workspaceId,
+              instance_id: conv.instance_id,
+              conversation_id: conversationId,
+              direction: "outbound",
+              type: "text",
+              content: turn.message,
+              body: turn.message,
+              status: "sent",
+              timestamp: new Date().toISOString(),
+            });
+
+            await adminClient.from("whatsapp_conversations").update({
+              last_message: turn.message,
+              last_message_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              unread_count: 1,
+            }).eq("id", conversationId);
+          } else {
+            console.error("[bot-reply] failed to send menu message via uazapi:", sendRes.status, await sendRes.text());
+          }
+
+          // Update SEPARADO do de cima de propósito: se `bot_flow_state`
+          // ainda não existir como coluna real (migration §8-b pendente),
+          // o erro fica isolado aqui — nunca derruba o update de
+          // last_message/updated_at acima, que já é comportamento
+          // existente (protocolo de degradação desta rodada).
+          const { error: flowStateErr } = await adminClient
+            .from("whatsapp_conversations")
+            .update({ bot_flow_state: turn.state })
+            .eq("id", conversationId);
+          if (flowStateErr) {
+            console.warn(
+              "[bot-reply] failed to persist bot_flow_state (coluna pode ainda não existir — §8-b — degradando sem quebrar o fluxo):",
+              flowStateErr.message,
+            );
+          }
+
+          return json({ ok: true, menu: turn.kind });
+        }
+
+        if (turn.kind === "advanced-away" || turn.kind === "handover-fallback") {
+          // R3 não executa outro tipo de nó nem o handover real — só
+          // encerra o acompanhamento scriptado de forma limpa (prompt
+          // desta rodada). Ponto de encaixe pra rodada futura (R4 da Lane
+          // E, handover real): o id do próximo nó só vai pro log, nenhum
+          // estado é persistido apontando pra ele — quem implementar o
+          // encaixe decide de onde partir. Segue pro fluxo normal abaixo
+          // (IA/handover por palavra-chave/etc.) sem retorno antecipado.
+          console.log(
+            `[bot-reply] menu flow ended for conversation ${conversationId}:`,
+            turn.kind === "advanced-away"
+              ? `advanced to non-menu node ${turn.nextNodeId}`
+              : `attempts exhausted, fallback to node ${turn.fallbackNodeId}`,
+          );
+          const { error: flowStateErr } = await adminClient
+            .from("whatsapp_conversations")
+            .update({ bot_flow_state: null })
+            .eq("id", conversationId);
+          if (flowStateErr) {
+            console.warn(
+              "[bot-reply] failed to clear bot_flow_state (coluna pode ainda não existir — §8-b — degradando sem quebrar o fluxo):",
+              flowStateErr.message,
+            );
+          }
+        }
+      }
+
+      // Check if AI node is disabled in custom flow
+      const hasFlowData = flowNodes.length > 0;
+      if (hasFlowData && !aiNode) {
+        return json({ ok: true, skipped: "AI node disabled in visual flow" });
       }
 
       // Load recent message history
