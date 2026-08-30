@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { 
+import {
   Bot, Save, AlertCircle, Loader2, Server, Key, BrainCircuit,
   Sparkles, MessageSquareCode, Settings2, HelpCircle, Send,
   RefreshCw, CheckCircle2, ShieldAlert, UserCog, Network,
-  ArrowRight, ToggleLeft, ToggleRight, Play, Eye, Lock
+  ArrowRight, ToggleLeft, ToggleRight, Play, Eye, Lock,
+  Plus, Trash2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -272,7 +273,15 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [simMessages]);
 
-  const updateNodeProperty = (nodeId: string, key: string, value: string | boolean) => {
+  // Item 4 · R5 — o valor aceito ganhou number/array/objeto pra servir as
+  // propriedades do nó "menu" (opções, fallback), além de string/boolean
+  // já usados pelos 4 nós existentes. Mesmo mutator genérico, tipo mais
+  // largo — nenhum call site existente muda de comportamento.
+  const updateNodeProperty = (
+    nodeId: string,
+    key: string,
+    value: string | boolean | number | MenuWorkflowNodeOption[] | MenuWorkflowNodeFallback,
+  ) => {
     setNodes(prev => prev.map(node => {
       if (node.id === nodeId) {
         return {
@@ -296,6 +305,71 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
       }
       return node;
     }));
+  };
+
+  // Item 4 · R5 (etapa-9-bot-fluxo-scriptado-r1-fundacao.md, UI do nó
+  // "menu") — id gerado, mesmo padrão de `usePipelines.ts` (`newStageId`,
+  // id de nó customizado é string livre, montada pelo usuário/app, não um
+  // enum fixo).
+  const generateMenuNodeId = () => `node-menu-${Math.random().toString(36).slice(2, 9)}`;
+
+  // Novos nós SEMPRE vão pro FIM do array — handleSaveSettings/
+  // handleSimulateMessage/loadSettings (rehydration legada) leem os 4 nós
+  // fixos por índice (nodes[0..3]); manter o append no fim preserva essa
+  // suposição sem precisar tocar nenhum desses 3 pontos nesta rodada.
+  const addMenuNode = () => {
+    const menuCount = nodes.filter(n => n.type === "menu").length;
+    const newNode: MenuWorkflowNode = {
+      id: generateMenuNodeId(),
+      type: "menu",
+      title: `Menu ${menuCount + 1}`,
+      enabled: true,
+      properties: {
+        mensagem: "",
+        opcoes: [],
+        fallback: { maxTentativas: 3, acao: "reprompt" },
+      },
+    };
+    setNodes(prev => [...prev, newNode]);
+    setSelectedNodeId(newNode.id);
+  };
+
+  // Só nós "menu" (criados pelo usuário nesta rodada) ganham título
+  // editável — os 4 nós fixos nunca tiveram esse campo na UI, e mudar
+  // título deles está fora do escopo desta rodada.
+  const updateMenuNodeTitle = (nodeId: string, title: string) => {
+    setNodes(prev => prev.map(node => (node.id === nodeId ? { ...node, title } : node)));
+  };
+
+  const addMenuOption = (menuNode: MenuWorkflowNode) => {
+    const nextNumero = menuNode.properties.opcoes.reduce((max, o) => Math.max(max, o.numero), 0) + 1;
+    const opcoes: MenuWorkflowNodeOption[] = [
+      ...menuNode.properties.opcoes,
+      { numero: nextNumero, rotulo: "", nextNodeId: "" },
+    ];
+    updateNodeProperty(menuNode.id, "opcoes", opcoes);
+  };
+
+  const updateMenuOption = (
+    menuNode: MenuWorkflowNode,
+    index: number,
+    patch: Partial<MenuWorkflowNodeOption>,
+  ) => {
+    const opcoes = menuNode.properties.opcoes.map((o, i) => (i === index ? { ...o, ...patch } : o));
+    updateNodeProperty(menuNode.id, "opcoes", opcoes);
+  };
+
+  const removeMenuOption = (menuNode: MenuWorkflowNode, index: number) => {
+    const opcoes = menuNode.properties.opcoes.filter((_, i) => i !== index);
+    updateNodeProperty(menuNode.id, "opcoes", opcoes);
+  };
+
+  const updateMenuFallback = (menuNode: MenuWorkflowNode, patch: Partial<MenuWorkflowNodeFallback>) => {
+    const fallback: MenuWorkflowNodeFallback = { ...menuNode.properties.fallback, ...patch };
+    // "reprompt" nunca usa fallbackNodeId — limpa pra não deixar um valor
+    // órfão de uma seleção anterior de "node" escondido no estado.
+    if (fallback.acao === "reprompt") delete fallback.fallbackNodeId;
+    updateNodeProperty(menuNode.id, "fallback", fallback);
   };
 
   const handleSaveSettings = async () => {
@@ -544,6 +618,11 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
                     iconBg = "bg-orange-500/10";
                     iconCol = "text-orange-400";
                     shadowCol = isSelected ? "shadow-[0_0_15px_-3px_rgba(249,115,22,0.2)]" : "";
+                  } else if (node.type === "menu") {
+                    borderCol = isSelected ? "border-pink-500 ring-1 ring-pink-500" : "border-pink-500/30";
+                    iconBg = "bg-pink-500/10";
+                    iconCol = "text-pink-400";
+                    shadowCol = isSelected ? "shadow-[0_0_15px_-3px_rgba(236,72,153,0.2)]" : "";
                   }
                 } else {
                   borderCol = "border-dashed border-border/40 opacity-50";
@@ -551,7 +630,18 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
 
                 return (
                   <div key={node.id} className="relative flex items-center">
-                    {/* SVG Connector Line */}
+                    {/* SVG Connector Line — achado a reportar (Item 4 · R5,
+                        pedir ID ao revisor, não numerado por conta própria):
+                        esta seta sempre liga node[index] a node[index+1] por
+                        POSIÇÃO NO ARRAY, nunca pela aresta real de um nó
+                        "menu" (`opcoes[].nextNodeId`). Com a árvore 100%
+                        montável do operador, um nó "menu" pode apontar pra
+                        qualquer outro nó, não necessariamente o próximo do
+                        array — a partir de agora esta seta pode mostrar uma
+                        sequência que não corresponde ao fluxo real montado
+                        pelo usuário. Não corrigido nesta rodada (fora de
+                        escopo — R5 é só CRUD de nó "menu", não um redesenho
+                        do canvas pra grafo real). */}
                     {index < nodes.length - 1 && (
                       <div className="hidden md:block absolute left-full top-1/2 w-6 h-[2px] bg-border/40 -translate-y-1/2 z-0">
                         <div className={`h-full bg-gradient-to-r from-primary to-transparent transition-all duration-300 ${nodes[index+1].enabled ? "opacity-100" : "opacity-20"}`} />
@@ -570,12 +660,13 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
                           {node.type === "ai" && <BrainCircuit className="h-4.5 w-4.5" />}
                           {node.type === "send" && <Send className="h-4.5 w-4.5" />}
                           {node.type === "handover" && <UserCog className="h-4.5 w-4.5" />}
+                          {node.type === "menu" && <MessageSquareCode className="h-4.5 w-4.5" />}
                         </div>
-                        
+
                         {/* Switch for toggleable nodes */}
                         {node.type !== "trigger" && node.type !== "send" && (
-                          <Switch 
-                            checked={node.enabled} 
+                          <Switch
+                            checked={node.enabled}
                             onCheckedChange={() => toggleNodeEnabled(node.id)}
                             className="scale-75"
                             onClick={(e) => e.stopPropagation()}
@@ -590,12 +681,32 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
                           {node.type === "ai" && `Provedor: ${node.properties.provider}`}
                           {node.type === "send" && node.properties.template}
                           {node.type === "handover" && (node.enabled ? "Fila Humana Ativa" : "Desativado")}
+                          {node.type === "menu" && (
+                            node.properties.opcoes.length === 0
+                              ? "Sem opções"
+                              : `${node.properties.opcoes.length} opç${node.properties.opcoes.length === 1 ? "ão" : "ões"}`
+                          )}
                         </p>
                       </div>
                     </div>
                   </div>
                 );
               })}
+
+              {/* Item 4 · R5 — único jeito de criar nó nesta rodada: um
+                  tile "+" no fim da grade. Sem exclusão de nó ainda (fora
+                  do escopo pedido — "criar/editar", não "excluir"); um nó
+                  "menu" criado por engano só pode ser desabilitado (toggle
+                  já genérico pra qualquer nó exceto trigger/send), não
+                  removido da árvore. */}
+              <button
+                type="button"
+                onClick={addMenuNode}
+                className="w-full min-h-[135px] rounded-xl border border-dashed border-pink-500/40 hover:border-pink-500 hover:bg-pink-500/5 transition-all duration-200 flex flex-col items-center justify-center gap-2 text-pink-400"
+              >
+                <MessageSquareCode className="h-5 w-5" />
+                <span className="text-[11px] font-bold">+ Adicionar nó de menu</span>
+              </button>
             </div>
 
             <div className="flex justify-between items-center bg-violet-950/10 border border-violet-500/20 rounded-xl p-3 relative z-10">
@@ -838,6 +949,160 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
                   <p className="text-xs text-muted-foreground leading-relaxed">
                     Se ativado, quando o cliente demonstrar urgência ou solicitar atendimento com um humano (ex: palavras como "falar com atendente", "humano"), a IA encaminhará a conversa e pausará a automação.
                   </p>
+                </div>
+              )}
+
+              {/* MENU INSPECTOR (Item 4 · R5 — construtor de fluxo scriptado,
+                  etapa-9-bot-fluxo-scriptado-r1-fundacao.md) */}
+              {activeNode.type === "menu" && (
+                <div className="space-y-5">
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Mensagem scriptada com opções numeradas — sem custo de IA. Cada opção aponta pra outro nó da árvore.
+                  </p>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">
+                      Título do nó
+                    </label>
+                    <Input
+                      value={activeNode.title}
+                      onChange={(e) => updateMenuNodeTitle(activeNode.id, e.target.value)}
+                      placeholder="Ex: Menu principal"
+                      className="h-9 text-xs bg-background/30"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">
+                      Mensagem
+                    </label>
+                    <Textarea
+                      value={activeNode.properties.mensagem}
+                      onChange={(e) => updateNodeProperty(activeNode.id, "mensagem", e.target.value)}
+                      placeholder={"Escolha uma opção:\n1 - Suporte\n2 - Vendas"}
+                      className="min-h-[90px] text-xs bg-background/30"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                        Opções
+                      </label>
+                      <Button
+                        type="button" size="sm" variant="outline"
+                        onClick={() => addMenuOption(activeNode)}
+                        className="h-7 text-[11px] gap-1"
+                      >
+                        <Plus className="h-3 w-3" /> Adicionar opção
+                      </Button>
+                    </div>
+
+                    {activeNode.properties.opcoes.length === 0 ? (
+                      <p className="text-[11px] text-muted-foreground/70 italic">Nenhuma opção ainda.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {activeNode.properties.opcoes.map((opcao, index) => (
+                          <div key={index} className="flex items-center gap-2 bg-background/30 p-2.5 rounded-lg border border-border/40">
+                            <span className="h-7 w-7 rounded-md bg-pink-500/10 text-pink-400 text-xs font-bold flex items-center justify-center shrink-0">
+                              {opcao.numero}
+                            </span>
+                            <Input
+                              value={opcao.rotulo}
+                              onChange={(e) => updateMenuOption(activeNode, index, { rotulo: e.target.value })}
+                              placeholder="Rótulo (ex: Suporte)"
+                              className="h-8 text-xs bg-background/40 flex-1"
+                            />
+                            <Select
+                              value={opcao.nextNodeId || undefined}
+                              onValueChange={(val) => updateMenuOption(activeNode, index, { nextNodeId: val })}
+                            >
+                              <SelectTrigger className="h-8 text-xs bg-background/40 w-[180px] shrink-0">
+                                <SelectValue placeholder="Ir para..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {nodes.map((n) => (
+                                  <SelectItem key={n.id} value={n.id}>{n.title}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Button
+                              type="button" size="icon" variant="ghost"
+                              onClick={() => removeMenuOption(activeNode, index)}
+                              aria-label="Remover opção"
+                              className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-3 bg-background/30 p-3.5 rounded-lg border border-border/40">
+                    <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                      <HelpCircle className="h-3.5 w-3.5 text-pink-400" /> Resposta inválida
+                    </p>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
+                          Tentativas antes de decidir
+                        </label>
+                        <Input
+                          type="number"
+                          min={1}
+                          value={activeNode.properties.fallback.maxTentativas}
+                          onChange={(e) => updateMenuFallback(activeNode, { maxTentativas: Math.max(1, Number(e.target.value) || 1) })}
+                          className="h-9 text-xs bg-background/40"
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
+                          Depois de esgotar
+                        </label>
+                        <Select
+                          value={activeNode.properties.fallback.acao}
+                          onValueChange={(val: "reprompt" | "node") => updateMenuFallback(activeNode, { acao: val })}
+                        >
+                          <SelectTrigger className="h-9 text-xs bg-background/40">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="reprompt">Reapresentar o menu (padrão)</SelectItem>
+                            <SelectItem value="node">Pular para outro nó</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    {activeNode.properties.fallback.acao === "node" && (
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
+                          Nó de destino
+                        </label>
+                        <Select
+                          value={activeNode.properties.fallback.fallbackNodeId || undefined}
+                          onValueChange={(val) => updateMenuFallback(activeNode, { fallbackNodeId: val })}
+                        >
+                          <SelectTrigger className="h-9 text-xs bg-background/40">
+                            <SelectValue placeholder="Selecione um nó" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {nodes.filter(n => n.id !== activeNode.id).map((n) => (
+                              <SelectItem key={n.id} value={n.id}>{n.title}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+
+                    <p className="text-[10px] text-muted-foreground/70 leading-relaxed">
+                      Uma resposta que não bate com nenhuma opção sempre reapresenta o menu primeiro — isto só decide o que fazer depois de {activeNode.properties.fallback.maxTentativas} tentativa{activeNode.properties.fallback.maxTentativas === 1 ? "" : "s"} inválida{activeNode.properties.fallback.maxTentativas === 1 ? "" : "s"} seguida{activeNode.properties.fallback.maxTentativas === 1 ? "" : "s"}.
+                    </p>
+                  </div>
                 </div>
               )}
 
