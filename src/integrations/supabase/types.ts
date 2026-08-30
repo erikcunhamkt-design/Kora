@@ -709,6 +709,7 @@ export type Database = {
           archived: boolean | null
           budget: number | null
           client_id: string | null
+          completed_at: string | null
           created_at: string | null
           deleted_at: string | null
           deliverables: Json
@@ -730,6 +731,7 @@ export type Database = {
           archived?: boolean | null
           budget?: number | null
           client_id?: string | null
+          completed_at?: string | null
           created_at?: string | null
           deleted_at?: string | null
           deliverables?: Json
@@ -751,6 +753,7 @@ export type Database = {
           archived?: boolean | null
           budget?: number | null
           client_id?: string | null
+          completed_at?: string | null
           created_at?: string | null
           deleted_at?: string | null
           deliverables?: Json
@@ -966,10 +969,16 @@ export type Database = {
           priority: string
           project_id: string | null
           quote_id: string | null
+          recurrence: string | null
+          reminder_at: string | null
+          reminder_enabled: boolean
+          reminder_sent_at: string | null
+          scope: string | null
           sort_order: number
           source: string
           source_local_id: string | null
           status: string
+          tags: string[] | null
           title: string
           updated_at: string
           workspace_id: string
@@ -987,10 +996,16 @@ export type Database = {
           priority?: string
           project_id?: string | null
           quote_id?: string | null
+          recurrence?: string | null
+          reminder_at?: string | null
+          reminder_enabled?: boolean
+          reminder_sent_at?: string | null
+          scope?: string | null
           sort_order?: number
           source?: string
           source_local_id?: string | null
           status?: string
+          tags?: string[] | null
           title: string
           updated_at?: string
           workspace_id: string
@@ -1008,10 +1023,16 @@ export type Database = {
           priority?: string
           project_id?: string | null
           quote_id?: string | null
+          recurrence?: string | null
+          reminder_at?: string | null
+          reminder_enabled?: boolean
+          reminder_sent_at?: string | null
+          scope?: string | null
           sort_order?: number
           source?: string
           source_local_id?: string | null
           status?: string
+          tags?: string[] | null
           title?: string
           updated_at?: string
           workspace_id?: string

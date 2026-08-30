@@ -28,6 +28,17 @@ export interface SupabaseTask {
    * (source='project_template') — vocabulário disjunto do import geral, os dois
    * nunca competem (ver docs/qa/etapa-5-fatia-7-projects.md §7.3). */
   source_local_id?: string | null;
+  // Etapa 5 · Fatia B1 (4 colunas bloqueantes, aplicadas pelo operador via
+  // §8-b — docs/qa/etapa-5-flip-tarefas-migrations-drafts.md §1-4). Mapeadas
+  // em tasksMapper.ts (mapLocalTaskToSupabase/mapSupabaseTaskToLocal/
+  // splitTaskUpdatePatch) — `reminder_sent_at` existe na coluna mas NUNCA é
+  // escrito pelo client (é do servidor); só leitura defensiva.
+  scope?: string | null;
+  tags?: string[] | null;
+  recurrence?: string | null;
+  reminder_at?: string | null;
+  reminder_enabled?: boolean;
+  reminder_sent_at?: string | null;
 }
 
 export const tasksRepository = {

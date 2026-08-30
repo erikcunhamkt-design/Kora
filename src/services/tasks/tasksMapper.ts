@@ -16,7 +16,7 @@
 // "project_template" (usado só pelo gerador de tarefas base, Etapa 3) — os dois
 // vocabulários são disjuntos por construção (§7.3). status/priority também são
 // passagem direta — colunas TEXT livres, sem CHECK constraint.
-import type { Task, TaskPriority, TaskSource, TaskStatus } from "@/hooks/useTasks";
+import type { Task, TaskPriority, TaskRecurrence, TaskScope, TaskSource, TaskStatus } from "@/hooks/useTasks";
 import type { SupabaseTask } from "@/repositories/tasksRepository";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -96,6 +96,19 @@ export function mapLocalTaskToSupabase(
     sort_order: 0,
     is_demo: false,
     archived: false,
+    // Fatia B1 (4 colunas bloqueantes) — mesmo vocabulário local/cloud,
+    // sem tradução (scope: work/personal; recurrence: none/daily/weekly/
+    // monthly/weekdays — os 2 CHECKs do banco usam os MESMOS literais que
+    // TaskScope/TaskRecurrence já usam, confirmado contra
+    // etapa-5-flip-tarefas-migrations-drafts.md §1/§3). Gravados explícitos
+    // sempre (nunca depende do DEFAULT da coluna), mesma disciplina de
+    // status/priority acima. `reminder_sent_at` NUNCA é escrito pelo client
+    // (é do servidor) — omitido de propósito, não um campo esquecido.
+    scope: task.scope ?? "work",
+    tags: task.tags ?? [],
+    recurrence: task.recurrence ?? "none",
+    reminder_at: task.reminderAt || null,
+    reminder_enabled: task.reminderEnabled ?? false,
   };
 }
 
@@ -175,6 +188,37 @@ export function normalizeCloudTaskPriority(priority: string): CloudTaskPriority 
   return LEGACY_CLOUD_TASK_PRIORITY[priority] ?? priority;
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// Fatia B1 (4 colunas bloqueantes, `etapa-5-flip-tarefas-migrations-drafts.md`
+// §1/§3) — diferente do status/priority acima, `scope`/`recurrence` NUNCA
+// tiveram um 2º dialeto: colunas novas, vocabulário local/cloud IDÊNTICO
+// desde o desenho (confirmado nos 2 drafts de migration — os CHECKs usam os
+// MESMOS literais de `TaskScope`/`TaskRecurrence`). Os 2 normalizadores
+// abaixo não traduzem nada — só protegem contra um valor fora do
+// vocabulário (NULL de linha legada, ou um valor nunca prancheado) sem
+// nunca mascará-lo com um `as` cru: `Task.scope`/`Task.recurrence` são
+// união estrita, um passthrough sem guarda quebraria o tipo em silêncio se
+// o banco algum dia tiver um valor inesperado.
+// ─────────────────────────────────────────────────────────────────────────
+
+/** Normaliza um `scope` bruto de `public.tasks` — NULL (linha legada, coluna
+ * nova) ou qualquer valor fora do vocabulário cai no default "work" (mesmo
+ * default já usado em toda a UI local, `Tarefas.tsx`/`useTasks.ts`). */
+export function normalizeCloudTaskScope(scope: string | null | undefined): TaskScope {
+  return scope === "personal" ? "personal" : "work";
+}
+
+const KNOWN_CLOUD_TASK_RECURRENCE: ReadonlySet<string> = new Set<TaskRecurrence>([
+  "none", "daily", "weekly", "monthly", "weekdays",
+]);
+
+/** Normaliza uma `recurrence` bruta de `public.tasks` — NULL (linha legada,
+ * coluna nova) ou qualquer valor fora do vocabulário cai no default "none"
+ * (mesmo default já usado em toda a UI local, `useTasks.ts:96,106,135`). */
+export function normalizeCloudTaskRecurrence(recurrence: string | null | undefined): TaskRecurrence {
+  return recurrence && KNOWN_CLOUD_TASK_RECURRENCE.has(recurrence) ? (recurrence as TaskRecurrence) : "none";
+}
+
 // G53 (fundações de Fase B, independentes da decisão de convivência com
 // `public.tasks` — `etapa-5-flip-tarefas-pacote.md` §3.4) — direção nuvem ->
 // local (leitura). Mesmo molde de `mapSupabaseTransactionToLocal`
@@ -195,30 +239,30 @@ const KNOWN_LOCAL_TASK_SOURCE: ReadonlySet<string> = new Set<TaskSource>(["manua
 /**
  * Converte um `SupabaseTask` pro formato `Task` local.
  *
- * Tratamento campo a campo dos campos SEM contraparte cloud (7 gaps da
- * triagem do pacote, §1 — nenhuma migration deste pacote foi aplicada, então
- * NENHUM desses tem coluna hoje, incluindo os 4 que a triagem propõe como
- * bloqueantes):
- *   - `scope`/`recurrence` (enum) → membro NEUTRO (`"work"`/`"none"`), mesmo
- *     tratamento que `recurrence: "none"` já recebe em
- *     `mapSupabaseTransactionToLocal`.
- *   - `tags`/`subtasks`/`comments` (coleção) → array vazio (`[]`), mesmo
- *     espírito do membro neutro, aplicado a uma coleção em vez de um enum.
+ * `scope`/`tags`/`recurrence`/`reminderAt`/`reminderEnabled`/`reminderSentAt`
+ * GANHARAM coluna real na fatia B1 (`etapa-5-flip-tarefas-migrations-drafts.md`
+ * §1-4, aplicadas pelo operador via §8-b) — o comentário original desta
+ * função (16/ago/2026) os tratava como "gaps sem coluna cloud" porque
+ * NENHUMA migration do pacote tinha sido aplicada ainda; ficou estruturalmente
+ * MORTO (select que não persiste, revertendo na UI) até esta rodada ligar o
+ * mapper às colunas reais — mantido aqui só como histórico do porquê o
+ * hardcode existia, não como estado atual:
+ *   - `scope`/`recurrence`: `normalizeCloudTaskScope`/`normalizeCloudTaskRecurrence`
+ *     (acima) — vocabulário local/cloud IDÊNTICO (sem tradução), só protege
+ *     contra NULL de linha legada/coluna nova.
+ *   - `tags`: `st.tags ?? []` — coluna `text[]` livre, sem CHECK, sem
+ *     tradução — mesmo shape local/cloud.
+ *   - `reminderAt`/`reminderEnabled`: leitura direta (`st.reminder_at`/
+ *     `st.reminder_enabled`) — mesmo shape local/cloud, sem tradução.
+ *   - `reminderSentAt`: leitura direta (`st.reminder_sent_at`) — a coluna
+ *     existe e é lida por completude (G37), mas **nenhum caminho de escrita
+ *     do client grava nela** (`mapLocalTaskToSupabase`/`splitTaskUpdatePatch`
+ *     a omitem de propósito) — é um campo reservado pro lado servidor, não
+ *     um round-trip local↔cloud como os outros 3.
  *   - `taskProjectId`/`milestoneId` (FK-shaped, apontam pra entidades sem
  *     representação cloud — `TaskProject`/`Milestone`) → `undefined`, mesmo
- *     tratamento de `supplierId`/`cashAccountId` em `mapSupabaseTransactionToLocal`.
- *   - `reminderAt`/`reminderSentAt` (string opcional, sem sentido semântico
- *     de "rótulo" como `category`) → `undefined`, mesmo tratamento de
- *     `notes` em `mapSupabaseTransactionToLocal` (nem todo gap de string
- *     vira um placeholder rotulado — só os que são campo de classificação
- *     exibido, como `category` era antes de ganhar coluna).
- *   - `reminderEnabled` (boolean) → `false`, o default neutro/seguro já
- *     usado em `useTaskReminders.ts:109` pro mesmo campo quando ausente.
- *   - Nenhum gap desta rodada é uma string livre "tipo `category`" (o único
- *     candidato a placeholder rotulado — não há um campo de classificação
- *     textual sem coluna em Tarefas hoje), por isso a categoria "placeholder
- *     rotulado p/ string" do padrão do financeMapper não se aplica a nenhum
- *     campo aqui; registrado explicitamente, não por omissão.
+ *     tratamento de `supplierId`/`cashAccountId` em `mapSupabaseTransactionToLocal`
+ *     — ESTES continuam sem coluna, gap genuíno, não coberto pela fatia B1.
  *
  * Campo CLOUD sem contraparte local (direção oposta dos gaps acima) — decisão
  * registrada (rodada de verificação do backlog da auditoria de leitura,
@@ -287,24 +331,26 @@ export function mapSupabaseTaskToLocal(
     client: st.client_id ? (clientNameById[st.client_id] ?? "") : "",
     project: "",
     projectId: st.project_id ?? undefined,
-    // Gaps sem coluna cloud (§1 da triagem) — membro neutro / coleção vazia / undefined.
+    // Gap genuíno, sem coluna cloud — TaskProject não tem representação nuvem.
     taskProjectId: undefined,
-    scope: "work",
+    scope: normalizeCloudTaskScope(st.scope),
     priority: normalizeCloudTaskPriority(st.priority) as TaskPriority,
     deadline: "",
     dueDate: st.due_date ?? undefined,
     status: normalizeCloudTaskStatus(st.status) as TaskStatus,
     createdAt: st.created_at,
     updatedAt: st.updated_at ?? undefined,
-    tags: [],
+    tags: st.tags ?? [],
     subtasks: [],
     comments: [],
-    recurrence: "none",
+    recurrence: normalizeCloudTaskRecurrence(st.recurrence),
     archived: st.archived,
     isDemo: st.is_demo ?? false,
-    reminderAt: undefined,
-    reminderEnabled: false,
-    reminderSentAt: undefined,
+    reminderAt: st.reminder_at ?? undefined,
+    reminderEnabled: st.reminder_enabled ?? false,
+    // Lido por completude (G37) — nenhum caminho de escrita do client grava
+    // aqui, ver nota da função acima.
+    reminderSentAt: st.reminder_sent_at ?? undefined,
     clientId: st.client_id ? (st.client_id as unknown as number) : undefined,
     quoteId: st.quote_id ?? undefined,
     milestoneId: undefined,
@@ -314,19 +360,39 @@ export function mapSupabaseTaskToLocal(
 
 /**
  * B5 (`Tarefas.tsx`, escrita nativa) — divide um patch parcial de `Task` em 2:
- * `cloudPatch` (os 4 campos com coluna real em `SupabaseTask` — title/
- * description/priority/due_date) e `localPatch` (todo o resto, sem coluna
- * cloud). Vive aqui, não em `Tarefas.tsx`, pelo mesmo motivo de
- * `mapLocalTaskToSupabase`/`mapSupabaseTaskToLocal` — é o mapper quem sabe
- * quais campos locais têm contraparte cloud, não a página.
+ * `cloudPatch` (campos com coluna real em `SupabaseTask`) e `localPatch`
+ * (todo o resto, sem coluna cloud). Vive aqui, não em `Tarefas.tsx`, pelo
+ * mesmo motivo de `mapLocalTaskToSupabase`/`mapSupabaseTaskToLocal` — é o
+ * mapper quem sabe quais campos locais têm contraparte cloud, não a página.
  *
  * Achado na rodada de merge (revisor): a versão anterior do wrapper
  * `updateTask` em `Tarefas.tsx` tinha `if (cloudPatch tem entradas) { chama
  * nativo; return; }` — um `return` antecipado que descartaria em silêncio
- * qualquer campo local-only vindo JUNTO num patch misto (nenhum call site
- * real produz isso hoje, ver comentário de `updateTask` em `Tarefas.tsx`
- * pra a lista completa). Esta função nunca descarta nenhum dos 2 lados —
- * quem decide o que fazer com cada metade é o chamador.
+ * qualquer campo local-only vindo JUNTO num patch misto. Esta função nunca
+ * descarta nenhum dos 2 lados — quem decide o que fazer com cada metade é o
+ * chamador.
+ *
+ * Fatia B1 (4 colunas bloqueantes) — `scope`/`tags`/`recurrence` migraram do
+ * `localPatch` implícito pro `cloudPatch` explícito (tinham coluna cloud
+ * desde sempre nesta fatia, só não estavam ligados — era exatamente o "select
+ * reverte na UI" que motivou esta rodada).
+ *
+ * `reminderAt`/`reminderEnabled` — campos-companheiros (G52-classe): os 2
+ * call sites reais de `Tarefas.tsx` (setar um novo lembrete: os 2 juntos;
+ * alternar liga/desliga: só `reminderEnabled`, `reminderAt` fica como já
+ * está no servidor) já produzem exatamente o corte certo tratando cada um
+ * independentemente — não existe uma combinação real onde só `reminderAt`
+ * muda sem `reminderEnabled` também estar no patch, mas tratar os 2 como
+ * campos independentes (em vez de exigir os 2 sempre juntos) cobre esse
+ * caso hipotético sem quebrar nenhum dos 2 reais.
+ *
+ * `reminderSentAt` — **NUNCA entra em `cloudPatch`, de propósito.** Não tem
+ * `if (patch.reminderSentAt...)` nenhum aqui — fica em `localPatch` por
+ * omissão (é um controle 100% local do disparo da notificação NESTE
+ * dispositivo, `useTaskReminders.ts`, não um dado do servidor; a coluna
+ * cloud homônima existe pra um produtor server-side futuro, não pro
+ * client). Qualquer PR que adicione esse `if` aqui está reabrindo uma
+ * decisão de produto já tomada, não corrigindo um campo esquecido.
  */
 export function splitTaskUpdatePatch(
   patch: Partial<Task>,
@@ -337,5 +403,10 @@ export function splitTaskUpdatePatch(
   if (patch.description !== undefined) { cloudPatch.description = patch.description || null; delete localPatch.description; }
   if (patch.priority !== undefined) { cloudPatch.priority = patch.priority; delete localPatch.priority; }
   if (patch.dueDate !== undefined) { cloudPatch.due_date = patch.dueDate || null; delete localPatch.dueDate; }
+  if (patch.scope !== undefined) { cloudPatch.scope = patch.scope; delete localPatch.scope; }
+  if (patch.tags !== undefined) { cloudPatch.tags = patch.tags; delete localPatch.tags; }
+  if (patch.recurrence !== undefined) { cloudPatch.recurrence = patch.recurrence; delete localPatch.recurrence; }
+  if (patch.reminderAt !== undefined) { cloudPatch.reminder_at = patch.reminderAt || null; delete localPatch.reminderAt; }
+  if (patch.reminderEnabled !== undefined) { cloudPatch.reminder_enabled = patch.reminderEnabled; delete localPatch.reminderEnabled; }
   return { cloudPatch, localPatch };
 }

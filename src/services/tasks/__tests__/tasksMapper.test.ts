@@ -8,6 +8,8 @@ import {
   resolveTaskFk,
   normalizeCloudTaskStatus,
   normalizeCloudTaskPriority,
+  normalizeCloudTaskScope,
+  normalizeCloudTaskRecurrence,
   splitTaskUpdatePatch,
 } from "@/services/tasks/tasksMapper";
 import type { Task } from "@/hooks/useTasks";
@@ -115,6 +117,47 @@ describe("mapLocalTaskToSupabase — fan-out incl. o 4º map (projects), sem tra
     const payload = mapLocalTaskToSupabase(makeTask({ source: undefined }));
     expect(payload.source).toBe("manual");
   });
+
+  // Fatia B1 (etapa-5-flip-tarefas-migrations-drafts.md §1-4) — os 4 campos
+  // bloqueantes agora são gravados explícitos no payload de criação/import
+  // (mesmo caminho usado por useSupabaseTasksAll.createMutation e
+  // useLocalTasksImport.ts — os 2 compartilham esta função). Sem tradução:
+  // vocabulário local/cloud idêntico pra scope/recurrence.
+  describe("fatia B1 — os 4 campos bloqueantes vão explícitos no payload, nunca dependem do DEFAULT da coluna", () => {
+    it("scope/tags/recurrence presentes na Task local passam direto, sem tradução", () => {
+      const payload = mapLocalTaskToSupabase(makeTask({
+        scope: "personal", tags: ["urgente"], recurrence: "weekly",
+      }));
+      expect(payload.scope).toBe("personal");
+      expect(payload.tags).toEqual(["urgente"]);
+      expect(payload.recurrence).toBe("weekly");
+    });
+
+    it("scope/recurrence ausentes na Task local caem no default explícito (work/none), nunca omitidos do payload", () => {
+      const payload = mapLocalTaskToSupabase(makeTask({ scope: undefined, recurrence: undefined }));
+      expect(payload.scope).toBe("work");
+      expect(payload.recurrence).toBe("none");
+    });
+
+    it("reminderAt/reminderEnabled presentes passam direto", () => {
+      const payload = mapLocalTaskToSupabase(makeTask({
+        reminderAt: "2026-09-01T10:00:00.000Z", reminderEnabled: true,
+      }));
+      expect(payload.reminder_at).toBe("2026-09-01T10:00:00.000Z");
+      expect(payload.reminder_enabled).toBe(true);
+    });
+
+    it("reminderAt ausente/vazio vira null, nunca undefined; reminderEnabled ausente vira false explícito", () => {
+      const payload = mapLocalTaskToSupabase(makeTask({ reminderAt: undefined, reminderEnabled: undefined }));
+      expect(payload.reminder_at).toBeNull();
+      expect(payload.reminder_enabled).toBe(false);
+    });
+
+    it("[invariante] reminder_sent_at NUNCA aparece no payload — é do servidor, não do client", () => {
+      const payload = mapLocalTaskToSupabase(makeTask({ reminderSentAt: "2026-08-30T09:00:00.000Z" }));
+      expect(payload).not.toHaveProperty("reminder_sent_at");
+    });
+  });
 });
 
 // R1 (docs/qa/tarefas-r2-auditoria.md §2.2) — updateTaskStatus só aceitava
@@ -161,6 +204,47 @@ describe("normalizeCloudTaskPriority — G49, alinha CreateProjectBaseTasksDialo
 
   it("valor desconhecido passa intocado — nunca mascara, nunca inventa", () => {
     expect(normalizeCloudTaskPriority("priority-bizarra")).toBe("priority-bizarra");
+  });
+});
+
+// Fatia B1 (etapa-5-flip-tarefas-migrations-drafts.md §1) — diferente de
+// status/priority acima, `scope` nunca teve um 2º dialeto (coluna nova,
+// vocabulário local/cloud IDÊNTICO desde o desenho) — este normalizador só
+// protege contra NULL/valor fora do vocabulário, não traduz nada.
+describe("normalizeCloudTaskScope — coluna nova, sem tradução, só proteção contra NULL/valor desconhecido", () => {
+  it("os 2 valores locais passam intocados", () => {
+    expect(normalizeCloudTaskScope("work")).toBe("work");
+    expect(normalizeCloudTaskScope("personal")).toBe("personal");
+  });
+
+  it("NULL/undefined (linha legada, coluna nova) cai no default 'work'", () => {
+    expect(normalizeCloudTaskScope(null)).toBe("work");
+    expect(normalizeCloudTaskScope(undefined)).toBe("work");
+  });
+
+  it("valor fora do vocabulário cai no default 'work' — nunca mascara com um cast cru", () => {
+    expect(normalizeCloudTaskScope("scope-bizarro")).toBe("work");
+  });
+});
+
+// Fatia B1 — mesma classe de `normalizeCloudTaskScope` acima, agora pra
+// `recurrence` (5 valores).
+describe("normalizeCloudTaskRecurrence — coluna nova, sem tradução, só proteção contra NULL/valor desconhecido", () => {
+  it("os 5 valores locais passam intocados", () => {
+    expect(normalizeCloudTaskRecurrence("none")).toBe("none");
+    expect(normalizeCloudTaskRecurrence("daily")).toBe("daily");
+    expect(normalizeCloudTaskRecurrence("weekly")).toBe("weekly");
+    expect(normalizeCloudTaskRecurrence("monthly")).toBe("monthly");
+    expect(normalizeCloudTaskRecurrence("weekdays")).toBe("weekdays");
+  });
+
+  it("NULL/undefined (linha legada, coluna nova) cai no default 'none'", () => {
+    expect(normalizeCloudTaskRecurrence(null)).toBe("none");
+    expect(normalizeCloudTaskRecurrence(undefined)).toBe("none");
+  });
+
+  it("valor fora do vocabulário cai no default 'none' — nunca mascara com um cast cru", () => {
+    expect(normalizeCloudTaskRecurrence("recurrence-bizarra")).toBe("none");
   });
 });
 
@@ -245,33 +329,82 @@ describe("mapSupabaseTaskToLocal — payload completo desde o dia 1 (lição G37
     expect(task.dueDate).toBe("2026-08-20");
   });
 
-  // "Reportar, não inventar" — os 7 gaps de schema da triagem (§1 do pacote,
-  // nenhuma migration aplicada ainda): membro neutro pro enum, coleção vazia
-  // pra array, undefined pra campo FK-shaped/sem sentido de placeholder.
-  describe("gaps de schema (§1 da triagem) — membro neutro / coleção vazia / undefined, nunca um valor inventado", () => {
-    it("scope/recurrence caem no membro neutro do enum", () => {
+  // Fatia B1 (etapa-5-flip-tarefas-migrations-drafts.md §1-4) — scope/tags/
+  // recurrence/reminder GANHARAM coluna real; linha LEGADA (coluna nova,
+  // NULL) continua caindo no mesmo default neutro de antes (nada mudou pra
+  // quem já existia antes da migration). O que mudou: quando a coluna TEM
+  // valor, ele agora é lido de verdade (round-trip), não mais ignorado.
+  describe("fatia B1 — linha legada (colunas NULL) cai no mesmo default neutro de sempre", () => {
+    it("scope/recurrence caem no membro neutro do enum quando a coluna é NULL", () => {
       const task = mapSupabaseTaskToLocal(makeSupabaseTask());
       expect(task.scope).toBe("work");
       expect(task.recurrence).toBe("none");
     });
 
-    it("tags/subtasks/comments ficam como coleção vazia", () => {
+    it("tags/subtasks/comments ficam como coleção vazia quando a coluna é NULL", () => {
       const task = mapSupabaseTaskToLocal(makeSupabaseTask());
       expect(task.tags).toEqual([]);
       expect(task.subtasks).toEqual([]);
       expect(task.comments).toEqual([]);
     });
 
-    it("taskProjectId/milestoneId/reminderAt/reminderSentAt ficam undefined — nunca um valor inventado", () => {
+    it("taskProjectId/milestoneId (gap genuíno, sem coluna cloud) ficam undefined — nunca um valor inventado", () => {
       const task = mapSupabaseTaskToLocal(makeSupabaseTask());
       expect(task.taskProjectId).toBeUndefined();
       expect(task.milestoneId).toBeUndefined();
+    });
+
+    it("reminderAt/reminderSentAt ficam undefined quando a coluna é NULL", () => {
+      const task = mapSupabaseTaskToLocal(makeSupabaseTask());
       expect(task.reminderAt).toBeUndefined();
       expect(task.reminderSentAt).toBeUndefined();
     });
 
-    it("reminderEnabled cai no default neutro/seguro false (mesmo default de useTaskReminders.ts)", () => {
+    it("reminderEnabled cai no default neutro/seguro false quando a coluna é NULL (mesmo default de useTaskReminders.ts)", () => {
       expect(mapSupabaseTaskToLocal(makeSupabaseTask()).reminderEnabled).toBe(false);
+    });
+  });
+
+  // Achado #1 da homologação, agravado: scope/tags/recorrência/lembrete
+  // estavam MORTOS em tarefa da nuvem (hardcode ignorava a coluna real).
+  // Estes testes provam o round-trip de verdade — valor presente na coluna
+  // chega ao Task local, não só o fallback de linha legada acima.
+  describe("fatia B1 — round-trip: valor real da coluna chega ao Task local", () => {
+    it("scope='personal' round-trips (não fica preso em 'work')", () => {
+      expect(mapSupabaseTaskToLocal(makeSupabaseTask({ scope: "personal" })).scope).toBe("personal");
+    });
+
+    it("scope fora do vocabulário conhecido cai no default 'work' — nunca mascara, nunca quebra o tipo", () => {
+      expect(mapSupabaseTaskToLocal(makeSupabaseTask({ scope: "scope-bizarro" })).scope).toBe("work");
+    });
+
+    it("recurrence não-'none' round-trips (os 4 valores reais, não só o default)", () => {
+      expect(mapSupabaseTaskToLocal(makeSupabaseTask({ recurrence: "daily" })).recurrence).toBe("daily");
+      expect(mapSupabaseTaskToLocal(makeSupabaseTask({ recurrence: "weekly" })).recurrence).toBe("weekly");
+      expect(mapSupabaseTaskToLocal(makeSupabaseTask({ recurrence: "monthly" })).recurrence).toBe("monthly");
+      expect(mapSupabaseTaskToLocal(makeSupabaseTask({ recurrence: "weekdays" })).recurrence).toBe("weekdays");
+    });
+
+    it("recurrence fora do vocabulário conhecido cai no default 'none' — nunca mascara, nunca quebra o tipo", () => {
+      expect(mapSupabaseTaskToLocal(makeSupabaseTask({ recurrence: "recurrence-bizarra" })).recurrence).toBe("none");
+    });
+
+    it("tags round-trips (array real, não [] hardcoded)", () => {
+      const task = mapSupabaseTaskToLocal(makeSupabaseTask({ tags: ["urgente", "cliente-x"] }));
+      expect(task.tags).toEqual(["urgente", "cliente-x"]);
+    });
+
+    it("reminderAt/reminderEnabled round-trip juntos", () => {
+      const task = mapSupabaseTaskToLocal(makeSupabaseTask({
+        reminder_at: "2026-09-01T10:00:00.000Z", reminder_enabled: true,
+      }));
+      expect(task.reminderAt).toBe("2026-09-01T10:00:00.000Z");
+      expect(task.reminderEnabled).toBe(true);
+    });
+
+    it("reminderSentAt é lido por completude (G37) mesmo sem nenhum produtor client-side gravando nele", () => {
+      const task = mapSupabaseTaskToLocal(makeSupabaseTask({ reminder_sent_at: "2026-08-30T09:00:00.000Z" }));
+      expect(task.reminderSentAt).toBe("2026-08-30T09:00:00.000Z");
     });
   });
 
@@ -283,11 +416,11 @@ describe("mapSupabaseTaskToLocal — payload completo desde o dia 1 (lição G37
 });
 
 // B5 (Tarefas.tsx, escrita nativa) — PATCH MISTO (campo cloud + campo
-// local-only no mesmo patch). Nenhum call site real de `updateTask` em
-// Tarefas.tsx produz um patch misto hoje (ver comentário do wrapper) —
-// estes testes provam o comportamento CORRETO caso um call site futuro
-// venha a produzir um: os 2 lados sempre são preservados, nunca um
-// `return` antecipado descarta o outro.
+// local-only no mesmo patch). Desde a fatia B1 (scope/tags/recurrence/
+// reminder ligados às colunas reais), 3 call sites reais de `updateTask`
+// em Tarefas.tsx produzem patch misto TODO DIA (ver comentário do
+// wrapper) — estes testes provam que os 2 lados sempre são preservados,
+// nunca um `return` antecipado descarta o outro.
 describe("splitTaskUpdatePatch (B5, PATCH MISTO)", () => {
   it("patch só com campos cloud → cloudPatch completo, localPatch vazio", () => {
     const { cloudPatch, localPatch } = splitTaskUpdatePatch({ title: "Novo título", priority: "alta" });
@@ -295,16 +428,16 @@ describe("splitTaskUpdatePatch (B5, PATCH MISTO)", () => {
     expect(localPatch).toEqual({});
   });
 
-  it("patch só com campos locais-only → localPatch completo, cloudPatch vazio", () => {
-    const { cloudPatch, localPatch } = splitTaskUpdatePatch({ scope: "personal", recurrence: "weekly" });
+  it("patch só com campos locais-only (sem coluna cloud) → localPatch completo, cloudPatch vazio", () => {
+    const { cloudPatch, localPatch } = splitTaskUpdatePatch({ taskProjectId: "tp-1", milestoneId: "m-1" });
     expect(cloudPatch).toEqual({});
-    expect(localPatch).toEqual({ scope: "personal", recurrence: "weekly" });
+    expect(localPatch).toEqual({ taskProjectId: "tp-1", milestoneId: "m-1" });
   });
 
   it("PATCH MISTO (1 campo cloud + 1 campo local-only na mesma chamada) → divide corretamente os 2, nenhum se perde", () => {
-    const { cloudPatch, localPatch } = splitTaskUpdatePatch({ priority: "alta", scope: "personal" });
+    const { cloudPatch, localPatch } = splitTaskUpdatePatch({ priority: "alta", taskProjectId: "tp-1" });
     expect(cloudPatch).toEqual({ priority: "alta" });
-    expect(localPatch).toEqual({ scope: "personal" });
+    expect(localPatch).toEqual({ taskProjectId: "tp-1" });
   });
 
   it("dueDate vazio (limpar prazo) vira due_date: null no cloudPatch, nunca undefined; dueDate ausente não entra no patch", () => {
@@ -313,5 +446,68 @@ describe("splitTaskUpdatePatch (B5, PATCH MISTO)", () => {
 
     const cleared = splitTaskUpdatePatch({ dueDate: "" });
     expect(cleared.cloudPatch).toEqual({ due_date: null });
+  });
+
+  // Fatia B1 (etapa-5-flip-tarefas-migrations-drafts.md §1-4) — achado #1 da
+  // homologação: scope/tags/recorrência/lembrete estavam MORTOS em tarefa da
+  // nuvem porque splitTaskUpdatePatch os mandava pro localPatch (sem efeito
+  // nenhum pra uma task que só existe em useSupabaseTasksAll). Estes testes
+  // provam que os 4 campos bloqueantes agora vão pro cloudPatch.
+  describe("fatia B1 — scope/tags/recurrence/reminder agora vão pro cloudPatch", () => {
+    it("scope sozinho → cloudPatch (era localPatch antes desta fatia)", () => {
+      const { cloudPatch, localPatch } = splitTaskUpdatePatch({ scope: "personal" });
+      expect(cloudPatch).toEqual({ scope: "personal" });
+      expect(localPatch).toEqual({});
+    });
+
+    it("recurrence sozinho → cloudPatch (era localPatch antes desta fatia)", () => {
+      const { cloudPatch, localPatch } = splitTaskUpdatePatch({ recurrence: "weekly" });
+      expect(cloudPatch).toEqual({ recurrence: "weekly" });
+      expect(localPatch).toEqual({});
+    });
+
+    it("tags sozinho → cloudPatch", () => {
+      const { cloudPatch, localPatch } = splitTaskUpdatePatch({ tags: ["urgente", "cliente-x"] });
+      expect(cloudPatch).toEqual({ tags: ["urgente", "cliente-x"] });
+      expect(localPatch).toEqual({});
+    });
+
+    it("PATCH MISTO real: { taskProjectId, scope } — taskProjectId fica local, scope vai pra nuvem (2 call sites reais de Tarefas.tsx)", () => {
+      const { cloudPatch, localPatch } = splitTaskUpdatePatch({ taskProjectId: "tp-2", scope: "work" });
+      expect(cloudPatch).toEqual({ scope: "work" });
+      expect(localPatch).toEqual({ taskProjectId: "tp-2" });
+    });
+
+    it("[G52-classe] reminderAt + reminderEnabled juntos (setar lembrete novo) → os 2 vão pro cloudPatch", () => {
+      const { cloudPatch, localPatch } = splitTaskUpdatePatch({
+        reminderAt: "2026-09-01T10:00:00.000Z",
+        reminderEnabled: true,
+        reminderSentAt: undefined,
+      });
+      expect(cloudPatch).toEqual({ reminder_at: "2026-09-01T10:00:00.000Z", reminder_enabled: true });
+      // reminderSentAt (undefined) permanece no localPatch, mesmo estando
+      // no mesmo patch que 2 campos cloud — PATCH MISTO real.
+      expect(localPatch).toEqual({ reminderSentAt: undefined });
+    });
+
+    it("[G52-classe] só reminderEnabled (alternar liga/desliga) → só ele vai pro cloudPatch, reminderAt intocado", () => {
+      const { cloudPatch, localPatch } = splitTaskUpdatePatch({
+        reminderEnabled: false,
+        reminderSentAt: undefined,
+      });
+      expect(cloudPatch).toEqual({ reminder_enabled: false });
+      expect(localPatch).toEqual({ reminderSentAt: undefined });
+    });
+
+    it("reminderAt vazio (limpar lembrete) vira reminder_at: null no cloudPatch, nunca undefined", () => {
+      const { cloudPatch } = splitTaskUpdatePatch({ reminderAt: "", reminderEnabled: false });
+      expect(cloudPatch).toEqual({ reminder_at: null, reminder_enabled: false });
+    });
+
+    it("[invariante] reminderSentAt NUNCA aparece no cloudPatch, mesmo sozinho no patch", () => {
+      const { cloudPatch, localPatch } = splitTaskUpdatePatch({ reminderSentAt: "2026-08-30T12:00:00.000Z" });
+      expect(cloudPatch).toEqual({});
+      expect(localPatch).toEqual({ reminderSentAt: "2026-08-30T12:00:00.000Z" });
+    });
   });
 });

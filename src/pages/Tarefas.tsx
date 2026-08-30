@@ -248,29 +248,32 @@ const Tarefas = () => {
     deleteTaskLocal(id);
   }, [cloudWriteMode, deleteSupabaseTask, deleteTaskLocal, reportCloudWriteError]);
 
-  // Pendência do "vai" condicional (rodada de merge) — PATCH MISTO (campo
-  // cloud + campo local-only no mesmo patch). Levantamento por leitura de
-  // TODOS os call sites de `onUpdate`/`updateTask` no arquivo (confirmado
-  // hoje, nenhum produz patch misto):
-  //   - reminderSentAt sozinho (useTaskReminders — não tocado)
-  //   - { taskProjectId, scope } (2 call sites) — os 2 locais-only
+  // PATCH MISTO (campo cloud + campo local-only no mesmo patch). Levantamento
+  // por leitura de TODOS os call sites de `onUpdate`/`updateTask` no arquivo —
+  // ATUALIZADO na rodada que ligou scope/tags/recurrence/reminder às colunas
+  // reais (`tasksMapper.ts` §B1): 3 desses viraram MISTOS, o que ANTES era
+  // hipotético agora é real, todo dia:
+  //   - reminderSentAt sozinho (useTaskReminders — não tocado, continua local)
+  //   - { taskProjectId, scope } (2 call sites) — MISTO: taskProjectId local,
+  //     scope cloud
   //   - { taskProjectId } sozinho (limpeza ao excluir projeto) — local-only
   //   - { dueDate } sozinho (input de prazo do detail sheet) — cloud
   //   - { priority } sozinho (Select de prioridade) — cloud
-  //   - { recurrence } sozinho (Select de recorrência) — local-only
-  //   - { scope } sozinho (Select de tipo) — local-only
-  //   - { reminderAt, reminderEnabled, reminderSentAt } — os 3 locais-only
-  //   - { reminderEnabled, reminderSentAt } — os 2 locais-only
-  // Nenhum hoje mistura um campo com coluna cloud (title/description/
-  // priority/dueDate) com um campo local-only na MESMA chamada. Mesmo assim,
-  // a versão anterior deste wrapper tinha um bug latente pra quando isso
-  // acontecesse: `if (cloudPatch tem entradas) { chama nativo; return; }`
-  // — o `return` pulava o `updateTaskLocal`, perdendo em silêncio qualquer
-  // campo local-only que viesse JUNTO num patch misto futuro. Fix (sugestão
-  // do revisor): `splitTaskUpdatePatch` divide o patch em 2 — cloud vai pro
-  // nativo, local-only vai pro local, os 2 SEMPRE que cada um tiver
-  // conteúdo, na MESMA chamada — nunca um `return` antecipado que descarte
-  // o outro lado.
+  //   - { recurrence } sozinho (Select de recorrência) — cloud (era local-only)
+  //   - { scope } sozinho (Select de tipo) — cloud (era local-only)
+  //   - { reminderAt, reminderEnabled, reminderSentAt } — MISTO: os 2
+  //     primeiros cloud, reminderSentAt local (era "os 3 locais-only")
+  //   - { reminderEnabled, reminderSentAt } — MISTO: reminderEnabled cloud,
+  //     reminderSentAt local (era "os 2 locais-only")
+  // Exatamente por isso a versão anterior deste wrapper tinha um bug latente
+  // à espreita: `if (cloudPatch tem entradas) { chama nativo; return; }` — o
+  // `return` pulava o `updateTaskLocal`, perdendo em silêncio qualquer campo
+  // local-only que viesse JUNTO num patch misto. Fix (sugestão do revisor,
+  // aplicado ANTES de patches mistos reais existirem — provou-se necessário
+  // exatamente nesta rodada): `splitTaskUpdatePatch` divide o patch em 2 —
+  // cloud vai pro nativo, local-only vai pro local, os 2 SEMPRE que cada um
+  // tiver conteúdo, na MESMA chamada — nunca um `return` antecipado que
+  // descarte o outro lado.
   const updateTask = useCallback((id: number, patch: Partial<Task>) => {
     if (cloudWriteMode) {
       const { cloudPatch, localPatch } = splitTaskUpdatePatch(patch);
