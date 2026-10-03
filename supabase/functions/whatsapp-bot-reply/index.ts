@@ -23,6 +23,11 @@ import {
   matchesHandoverKeyword,
   type HandoverReason,
 } from "../_shared/botHandover.ts";
+import {
+  simulateFlowTurn,
+  wantsFlowSimulation,
+  type SimulationInfo,
+} from "../_shared/botFlowSimulation.ts";
 
 interface BotFlowNodeProperties {
   respondAll?: boolean;
@@ -138,6 +143,11 @@ interface BotReplyRequestBody {
   history?: BotReplyHistoryItem[];
   messageText?: string;
   flowData?: unknown;
+  // Cobertura do simulador (docs/qa/etapa-9-bot-simulador-fluxo-cobertura.md):
+  // OPT-IN — só o simulador novo manda este campo (`null` na primeira
+  // mensagem). Ausente (`undefined`) = comportamento de antes, byte a byte.
+  // Forma: { botFlowState: {currentNodeId, attempts} | null, handedOver: boolean }.
+  simState?: unknown;
 }
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -445,6 +455,7 @@ Deno.serve(async (req) => {
     let conv: ConversationRow | null = null;
     let instance: InstanceRow | null = null;
     let flowNodes: BotFlowNode[] = [];
+    let simulation: SimulationInfo | null = null;
 
     if (isTest) {
       // Direct testing mode from UI playground
@@ -489,6 +500,24 @@ Deno.serve(async (req) => {
           role: "user",
           parts: [{ text: body.messageText || "Olá, tudo bem?" }]
         }];
+      }
+
+      // Cobertura do simulador (opt-in via `simState`): roda o MESMO motor de
+      // menu (R3) + handover (R4) do ramo de produção, com o estado carregado
+      // pelo cliente (o simulador não tem conversa nem banco). Decisão toda em
+      // _shared/botFlowSimulation.ts (a ordem espelha o ramo abaixo — mudar lá
+      // junto). Curto-circuita SEM chamar IA quando o menu/handover/silêncio
+      // responde; `continue` segue pro caminho de IA e a resposta leva o estado.
+      // Sem `simState` nada disto roda — simulador antigo intacto.
+      if (wantsFlowSimulation(body.simState)) {
+        const lastUserText = body.messageText
+          ?? [...(body.history ?? [])].reverse().find((h) => h.role === "user")?.text
+          ?? "";
+        const simTurn = simulateFlowTurn(flowNodes, body.simState, lastUserText);
+        if (simTurn.kind === "respond") {
+          return json({ ok: true, reply: simTurn.reply, simulation: simTurn.simulation });
+        }
+        simulation = simTurn.simulation;
       }
     } else {
       // Normal execution mode triggered by webhook
@@ -576,6 +605,12 @@ Deno.serve(async (req) => {
         return json({ ok: true, skipped: "instance not connected or missing" });
       }
 
+      // ATENÇÃO — ORDEM ESPELHADA NO SIMULADOR: a sequência (silêncio → menu →
+      // gate "AI node disabled" → palavra-chave → IA) é reproduzida em
+      // _shared/botFlowSimulation.ts (simulateFlowTurn, ramo `isTest` com
+      // `simState`). Se a ordem dos gates mudar aqui, mudar lá junto — senão o
+      // simulador volta a divergir do que o robô de verdade faz.
+      //
       // Etapa 9 · item 4, R3 — motor de runtime do nó "menu" (docs/qa/
       // etapa-9-bot-fluxo-scriptado-r3-motor-runtime-menu.md). Roda ANTES
       // do gate "AI node disabled" logo abaixo de propósito: "menu" é uma
@@ -950,7 +985,7 @@ Deno.serve(async (req) => {
     const finalReply = applySendTemplate(flowNodes, reply);
 
     if (isTest) {
-      return json({ ok: true, reply: finalReply });
+      return json({ ok: true, reply: finalReply, ...(simulation ? { simulation } : {}) });
     }
 
     // Send via uazapi
