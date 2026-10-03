@@ -11,14 +11,14 @@
 
 ## 1. O que FOI espelhado
 
-### `20260816000100_etapa5_flip_projetos_completed_at.sql`
+### `20260830000700_etapa5_flip_projetos_completed_at.sql`
 
 | | |
 |---|---|
 | **Draft de origem** | `docs/qa/etapa-5-flip-projetos-pacote.md` §7 |
 | **Prova de aplicação** | `projects.completed_at` presente em `src/integrations/supabase/types.ts` (Row/Insert/Update, regenerado por introspecção real do schema) **e** já consumido por `src/services/projects/projectsMapper.ts`/`src/hooks/useSupabaseProjects.ts` (ver `docs/qa/etapa-5-projects-completed-at.md`: "coluna já existe no banco; aplicada pelo operador; nenhuma DDL nesta rodada") |
-| **Data exata da aplicação** | **Não registrada em nenhum doc dedicado** — achado incidental (byproduct de uma regeneração de `types.ts` feita por outro motivo, `docs/qa/etapa-5-tarefas-mapper-4colunas.md` §1). Não inventei uma data — o cabeçalho do arquivo reflete isso honestamente. |
-| **Passo do operador** | `supabase migration repair --status applied 20260816000100` (registra esta versão como já aplicada no histórico do CLI, sem rodar o SQL de novo) |
+| **Data exata da aplicação** | **2026-08-30, sessão §8-b** — confirmação do revisor nesta rodada (prova fora do repo: sessão executada ao vivo com o operador, resultados no SQL Editor). Arquivo renomeado de `20260816000100` (placeholder da rodada anterior, data não confirmada) pra `20260830000700`, série real de aplicação. |
+| **Passo do operador** | `supabase migration repair --status applied 20260830000700` (registra esta versão como já aplicada no histórico do CLI, sem rodar o SQL de novo) |
 
 Sem CHECK (coluna é timestamp livre, não vocabulário fechado) — SQL idempotente (`ADD COLUMN IF NOT EXISTS`).
 
@@ -67,7 +67,7 @@ Sem CHECK (coluna é timestamp livre, não vocabulário fechado) — SQL idempot
 Só 1 comando, pro único arquivo realmente espelhado:
 
 ```bash
-supabase migration repair --status applied 20260816000100
+supabase migration repair --status applied 20260830000700
 ```
 
 Isso registra a versão no histórico do CLI **sem rodar o SQL de novo** (a coluna já existe). As outras 4 categorias não têm arquivo nenhum pra registrar nesta rodada — ver §2 acima pra cada uma precisar de confirmação (Clientes/CRM/G71 RLS) ou coordenação com a Lane D (Tasks) antes de qualquer arquivo novo.
