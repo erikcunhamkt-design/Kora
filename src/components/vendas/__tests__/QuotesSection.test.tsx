@@ -15,6 +15,8 @@ import { useClients } from "@/hooks/useClients";
 import { useClientsDataSource } from "@/hooks/useClientsDataSource";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { useBifurcatedFinance } from "@/hooks/useBifurcatedFinance";
+import { useSupabaseProjects } from "@/hooks/useSupabaseProjects";
+import { useSupabaseTasksAll } from "@/hooks/useSupabaseTasksAll";
 import { useLeads } from "@/hooks/useLeads";
 import { financeRepository } from "@/repositories/financeRepository";
 import { QUOTES_DATA_SOURCE_KEY } from "@/config/flags";
@@ -44,6 +46,15 @@ vi.mock("@/hooks/useCurrentWorkspace", () => ({ useCurrentWorkspace: vi.fn() }))
 // QueryClientProvider na árvore de teste — mesma razão do mock de
 // useClientsDataSource acima (G44).
 vi.mock("@/hooks/useBifurcatedFinance", () => ({ useBifurcatedFinance: vi.fn() }));
+// Caso 7.2 (cutover total do "Gerar projeto") — QuoteToProjectDialog
+// (filho de QuotesSection) passou a chamar useSupabaseProjects()/
+// useSupabaseTasksAll() (createProject/createTask nativos) mesmo quando o
+// dialog está fechado (hooks rodam incondicionalmente no corpo do
+// componente, antes do `if (!quote) return null`). Sem mock, os dois
+// disparam useQuery()/useQueryClient() sem QueryClientProvider na árvore
+// de teste — mesma razão do mock de useClientsDataSource (G44) acima.
+vi.mock("@/hooks/useSupabaseProjects", () => ({ useSupabaseProjects: vi.fn() }));
+vi.mock("@/hooks/useSupabaseTasksAll", () => ({ useSupabaseTasksAll: vi.fn() }));
 // G56 — QuoteToReceivableDialog (filho de QuotesSection) chama
 // financeRepository.createReceivableFromQuote no espelho; sem mock, o teste
 // de ponta a ponta (menu -> diálogo -> confirmar -> espelho) bateria no
@@ -139,6 +150,8 @@ function setupCommonMocks() {
   vi.mocked(useLeads).mockReturnValue({ leads: [], updateLead: vi.fn() } as never);
   vi.mocked(useCurrentWorkspace).mockReturnValue({ workspace: { id: "ws1" } } as never);
   vi.mocked(useBifurcatedFinance).mockReturnValue([] as never);
+  vi.mocked(useSupabaseProjects).mockReturnValue({ createProject: vi.fn() } as never);
+  vi.mocked(useSupabaseTasksAll).mockReturnValue({ createTask: vi.fn() } as never);
 }
 
 beforeEach(() => {

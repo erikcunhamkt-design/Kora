@@ -15,6 +15,10 @@ import { useTasks } from "@/hooks/useTasks";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { PROJECTS_SUPABASE_WRITE_FLAG_KEY } from "@/hooks/useSupabaseProjectsWriteFlag";
 import { mirrorProjectToSupabase } from "@/services/projects/projectsCloudMirror";
+import { PROJECTS_DATA_SOURCE_KEY } from "@/config/flags";
+import { useSupabaseProjects } from "@/hooks/useSupabaseProjects";
+import { useSupabaseTasksAll } from "@/hooks/useSupabaseTasksAll";
+import { useSupabaseTasksWriteFlag } from "@/hooks/useSupabaseTasksWriteFlag";
 import type { Quote } from "@/hooks/useQuotes";
 
 vi.mock("@/hooks/useProjects", async () => {
@@ -24,6 +28,9 @@ vi.mock("@/hooks/useProjects", async () => {
 vi.mock("@/hooks/useTasks", () => ({ useTasks: vi.fn(), formatPtBr: (iso: string) => iso }));
 vi.mock("@/hooks/useCurrentWorkspace", () => ({ useCurrentWorkspace: vi.fn() }));
 vi.mock("@/services/projects/projectsCloudMirror", () => ({ mirrorProjectToSupabase: vi.fn() }));
+vi.mock("@/hooks/useSupabaseProjects", () => ({ useSupabaseProjects: vi.fn() }));
+vi.mock("@/hooks/useSupabaseTasksAll", () => ({ useSupabaseTasksAll: vi.fn() }));
+vi.mock("@/hooks/useSupabaseTasksWriteFlag", () => ({ useSupabaseTasksWriteFlag: vi.fn() }));
 vi.mock("sonner", () => ({
   toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), warning: vi.fn() }),
 }));
@@ -51,8 +58,17 @@ function makeCreatedProject(overrides: Partial<Project> = {}): Project {
 beforeEach(() => {
   localStorage.clear();
   vi.clearAllMocks();
+  // Caso 7.2 (cutover) — getProjectsDataSource() default virou "supabase"
+  // (opt-out, Pacote do Flip). Este describe inteiro é sobre o caminho
+  // LOCAL+espelho (padrão G22) — força "local" explícito pra preservar o
+  // comportamento já provado, agora que local deixou de ser o default
+  // incondicional do componente. Describes novos (cloud/cutover) sobrescrevem.
+  localStorage.setItem(PROJECTS_DATA_SOURCE_KEY, "local");
   vi.mocked(useTasks).mockReturnValue({ addTask: vi.fn() } as never);
   vi.mocked(useCurrentWorkspace).mockReturnValue({ workspace: { id: "ws1" } } as never);
+  vi.mocked(useSupabaseProjects).mockReturnValue({ createProject: vi.fn() } as never);
+  vi.mocked(useSupabaseTasksAll).mockReturnValue({ createTask: vi.fn() } as never);
+  vi.mocked(useSupabaseTasksWriteFlag).mockReturnValue({ enabled: true, setEnabled: vi.fn(), toggle: vi.fn() } as never);
 });
 
 function renderDialog(quote: Quote) {
