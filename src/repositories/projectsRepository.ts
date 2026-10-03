@@ -31,7 +31,7 @@ export interface SupabaseProject {
   /** Etapa 5 · Flip Projetos (item 3-b): coluna da migration 20260811000100,
    * aplicada em produção (kit de verificação 3/3 verde). */
   deliverables?: ProjectDeliverable[] | null;
-  /** §8-b: coluna `completed_at timestamptz`, aplicada pelo operador em produção (DDL fora do escopo desta rodada — só o wiring de aplicação). Mesmo padrão de `deliverables` acima: hand-rolled aqui porque `types.ts` (gerado) ainda não foi regenerado pra incluir a coluna. */
+  /** §8-b: coluna `completed_at timestamptz`, aplicada pelo operador em produção. Já presente em `types.ts` (regenerado pela rodada G81); declarada aqui só porque `SupabaseProject` é a interface hand-rolled que os mappers/hooks consomem. */
   completed_at?: string | null;
 }
 
