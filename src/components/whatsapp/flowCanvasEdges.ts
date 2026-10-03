@@ -15,13 +15,14 @@
 // está — "sequence" entre nós FIXOS vizinhos no array. Nenhum modelo novo de
 // aresta pros fixos (não inventado nesta rodada).
 //
-// DÍVIDA DE DESENHO registrada (R3 da lane D, NÃO resolvida aqui): hoje o
-// motor entra no PRIMEIRO menu habilitado porque o trigger não tem aresta
-// própria pro menu. O tipo abaixo já reserva `"entry"` (trigger → menu de
-// entrada) pra quando essa aresta existir — basta esta função passar a
-// emiti-la; o renderer é genérico sobre `CanvasEdgeKind` (Record
-// exaustivo), então um novo emissor não exige redesenhar o canvas. Nenhum
-// `"entry"` é emitido hoje.
+// ARESTA DE ENTRADA (fecha a dívida de design da R3 da lane D + o "entry"
+// reservado no G80): `trigger.properties.nextNodeId` aponta o menu por onde o
+// fluxo começa; esta função emite a aresta `"entry"` trigger → destino quando
+// o campo está preenchido. Ausente = sem aresta (o motor cai no primeiro menu
+// habilitado — compat total com flow_data já salvo; ver
+// `resolveEntryMenu` em supabase/functions/_shared/botFlowMenu.ts). A aresta
+// é emitida mesmo com destino inválido (id removido / nó que não é menu
+// habilitado) — o renderer sinaliza, nunca esconde.
 import type { WorkflowNode } from "@/components/whatsapp/WhatsAppBotConfig";
 
 export type CanvasEdgeKind = "sequence" | "option" | "fallback" | "entry";
@@ -33,6 +34,8 @@ export interface CanvasEdge {
   fromNodeId: string;
   /** `null` = aresta sem destino definido (opção recém-criada, ainda sem "Ir para..."). */
   toNodeId: string | null;
+  /** Só pra "option": índice em `opcoes[]` (identifica a opção ao editar/apagar a aresta). */
+  optionIndex?: number;
   /** Só pra "option": o número da opção que leva a esta aresta. */
   optionNumero?: number;
   /** Só pra "option": rótulo da opção. */
@@ -50,6 +53,7 @@ export function computeCanvasEdges(nodes: WorkflowNode[]): CanvasEdge[] {
           kind: "option",
           fromNodeId: node.id,
           toNodeId: opcao.nextNodeId || null,
+          optionIndex,
           optionNumero: opcao.numero,
           optionRotulo: opcao.rotulo,
         });
@@ -63,6 +67,16 @@ export function computeCanvasEdges(nodes: WorkflowNode[]): CanvasEdge[] {
         });
       }
       return;
+    }
+
+    // Aresta de entrada: só o trigger a emite, e só quando preenchida.
+    if (node.type === "trigger" && node.properties.nextNodeId) {
+      edges.push({
+        id: `${node.id}:entry`,
+        kind: "entry",
+        fromNodeId: node.id,
+        toNodeId: node.properties.nextNodeId,
+      });
     }
 
     // Nós fixos: sequência atual preservada — só entre vizinhos que SÃO

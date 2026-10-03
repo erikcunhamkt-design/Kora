@@ -136,12 +136,35 @@ export type MenuTurnResult =
   // o que fazer é o chamador (botHandover.ts → entrega a humano).
   | { kind: "exhausted" };
 
+// Aresta de ENTRADA (Etapa 9 · item 4, fecha a dívida de design da R3 +
+// o "entry" reservado no G80): `trigger.properties.nextNodeId` aponta o menu
+// por onde o fluxo começa. Ausente → comportamento anterior (primeiro menu
+// habilitado), 100% compatível com flow_data já salvo. Presente mas inválido
+// (id inexistente, nó não é "menu", ou menu desabilitado/malformado — ou
+// seja, fora de `menuNodes`) → MESMO fallback automático, com
+// reason "invalid-edge" pro chamador logar. Nunca lança, nunca trava o fluxo.
+export type EntryMenuReason = "automatic" | "trigger-edge" | "invalid-edge";
+
+export function resolveEntryMenu(
+  menuNodes: MenuNode[],
+  entryNodeId?: unknown,
+): { node: MenuNode; reason: EntryMenuReason } | null {
+  if (menuNodes.length === 0) return null;
+  if (typeof entryNodeId !== "string" || entryNodeId === "") {
+    return { node: menuNodes[0], reason: "automatic" };
+  }
+  const chosen = menuNodes.find((n) => n.id === entryNodeId);
+  if (chosen) return { node: chosen, reason: "trigger-edge" };
+  return { node: menuNodes[0], reason: "invalid-edge" };
+}
+
 // Motor de 1 turno: dado o conjunto de nós "menu" habilitados, o estado
 // atual da conversa (ou null) e a mensagem recebida, decide o que fazer.
 export function resolveMenuTurn(
   menuNodes: MenuNode[],
   state: BotFlowState | null,
   messageText: string,
+  entryNodeId?: unknown,
 ): MenuTurnResult {
   if (menuNodes.length === 0) return { kind: "none" };
 
@@ -151,8 +174,9 @@ export function resolveMenuTurn(
   if (!activeNode) {
     // Sem estado (primeira mensagem), ou estado aponta pra um nó que não é
     // mais um "menu" habilitado (desabilitado/removido entre uma virada e
-    // outra) — (re)apresenta o primeiro "menu" habilitado da árvore.
-    const entryNode = menuNodes[0];
+    // outra) — (re)apresenta o menu de ENTRADA: o apontado por
+    // trigger.nextNodeId quando válido, senão o primeiro "menu" habilitado.
+    const entryNode = resolveEntryMenu(menuNodes, entryNodeId)!.node;
     return {
       kind: "present",
       message: renderMenuPrompt(entryNode),

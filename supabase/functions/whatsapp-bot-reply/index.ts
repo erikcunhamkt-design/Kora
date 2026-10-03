@@ -12,6 +12,7 @@ import { resolveAiConfig } from "../_shared/botCredentials.ts";
 import {
   extractMenuNodes,
   parseBotFlowState,
+  resolveEntryMenu,
   resolveMenuTurn,
 } from "../_shared/botFlowMenu.ts";
 import {
@@ -25,6 +26,9 @@ import {
 
 interface BotFlowNodeProperties {
   respondAll?: boolean;
+  // Aresta de entrada (trigger → menu): id do menu por onde o fluxo começa.
+  // Ausente = primeiro menu habilitado (comportamento anterior).
+  nextNodeId?: string;
   instruction?: string;
   provider?: string;
   model?: string;
@@ -596,7 +600,19 @@ Deno.serve(async (req) => {
           .limit(1);
         const lastInboundText = String(lastInboundRows?.[0]?.content || lastInboundRows?.[0]?.body || "");
 
-        const turn = resolveMenuTurn(menuNodes, currentFlowState, lastInboundText);
+        // Aresta de entrada: trigger.nextNodeId (opcional). Só vale quando o
+        // trigger está habilitado (`triggerNode` já filtra por enabled).
+        // Inválido → resolveEntryMenu cai no primeiro menu habilitado; aqui
+        // só LOGA (diagnóstico de fluxo mal montado), nunca muda o fluxo.
+        const entryNodeId = triggerNode?.properties?.nextNodeId;
+        const entryInUse = !currentFlowState || !menuNodes.some((n) => n.id === currentFlowState.currentNodeId);
+        if (entryInUse && resolveEntryMenu(menuNodes, entryNodeId)?.reason === "invalid-edge") {
+          console.warn(
+            `[bot-reply] trigger.nextNodeId="${entryNodeId}" não é um menu habilitado — usando o primeiro menu habilitado (fallback automático).`,
+          );
+        }
+
+        const turn = resolveMenuTurn(menuNodes, currentFlowState, lastInboundText, entryNodeId);
         const outbound: OutboundContext = {
           workspaceId: workspaceId as string,
           conversationId: conversationId as string,

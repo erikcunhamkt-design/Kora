@@ -9,6 +9,7 @@ import {
   parseBotFlowState,
   renderMenuPrompt,
   matchMenuOption,
+  resolveEntryMenu,
   resolveMenuTurn,
   type MenuNode,
   type RawFlowNode,
@@ -248,5 +249,89 @@ describe("resolveMenuTurn", () => {
     const node = makeMenuNode({ fallback: { maxTentativas: 1, acao: "node" } });
     const result = resolveMenuTurn([node], { currentNodeId: "menu-1", attempts: 3 }, "abc");
     expect(result).toEqual({ kind: "exhausted" });
+  });
+});
+
+// R6 — aresta de ENTRADA (trigger.properties.nextNodeId): o motor entra no
+// menu apontado quando ele é um menu habilitado e válido (está em
+// `menuNodes`); ausente → primeiro menu habilitado (comportamento anterior,
+// compat com flow_data salvo); inválido → MESMO fallback automático, com
+// reason "invalid-edge" pro chamador logar. Zero mudança pro fluxo sem menu.
+describe("resolveEntryMenu (R6 — aresta de entrada)", () => {
+  const a = makeMenuNode({ id: "menu-a" });
+  const b = makeMenuNode({ id: "menu-b" });
+
+  it("sem menus -> null (fluxo sem menu: nada muda)", () => {
+    expect(resolveEntryMenu([], "menu-a")).toBeNull();
+    expect(resolveEntryMenu([], undefined)).toBeNull();
+  });
+
+  it("nextNodeId ausente/vazio/não-string -> primeiro menu habilitado (reason automatic)", () => {
+    for (const v of [undefined, null, "", 42, {}]) {
+      const r = resolveEntryMenu([a, b], v);
+      expect(r?.node.id).toBe("menu-a");
+      expect(r?.reason).toBe("automatic");
+    }
+  });
+
+  it("nextNodeId aponta pra menu habilitado -> entra nele (reason trigger-edge), mesmo que não seja o primeiro", () => {
+    const r = resolveEntryMenu([a, b], "menu-b");
+    expect(r?.node.id).toBe("menu-b");
+    expect(r?.reason).toBe("trigger-edge");
+  });
+
+  it("destino inválido (id inexistente, nó que não é menu, menu desabilitado/malformado — fora de menuNodes) -> fallback atual + reason invalid-edge", () => {
+    for (const id of ["nao-existe", "node-ai", "menu-desabilitado"]) {
+      const r = resolveEntryMenu([a, b], id);
+      expect(r?.node.id).toBe("menu-a");
+      expect(r?.reason).toBe("invalid-edge");
+    }
+  });
+
+  it("integra com extractMenuNodes: menu DESABILITADO apontado pelo trigger cai no fallback", () => {
+    const menus = extractMenuNodes([
+      makeRawMenuNode({ id: "menu-x", enabled: false }),
+      makeRawMenuNode({ id: "menu-y" }),
+    ]);
+    expect(resolveEntryMenu(menus, "menu-x")).toMatchObject({ reason: "invalid-edge", node: { id: "menu-y" } });
+  });
+});
+
+describe("resolveMenuTurn com aresta de entrada (R6)", () => {
+  const a = makeMenuNode({ id: "menu-a" });
+  const b = makeMenuNode({ id: "menu-b", mensagem: "Menu B" });
+
+  it("primeira mensagem + entryNodeId válido -> apresenta O MENU APONTADO, attempts=0", () => {
+    const result = resolveMenuTurn([a, b], null, "oi", "menu-b");
+    expect(result).toEqual({
+      kind: "present",
+      message: renderMenuPrompt(b),
+      state: { currentNodeId: "menu-b", attempts: 0 },
+    });
+  });
+
+  it("sem entryNodeId (compat) -> primeiro menu habilitado, exatamente como antes do R6", () => {
+    expect(resolveMenuTurn([a, b], null, "oi")).toEqual(resolveMenuTurn([a, b], null, "oi", undefined));
+    expect((resolveMenuTurn([a, b], null, "oi") as { state: { currentNodeId: string } }).state.currentNodeId).toBe("menu-a");
+  });
+
+  it("entryNodeId inválido -> fallback atual (primeiro menu habilitado), sem lançar", () => {
+    const result = resolveMenuTurn([a, b], null, "oi", "nao-existe");
+    expect((result as { state: { currentNodeId: string } }).state.currentNodeId).toBe("menu-a");
+  });
+
+  it("estado ainda aponta pra um menu habilitado -> a entrada NÃO é reaplicada (conversa em andamento segue)", () => {
+    const result = resolveMenuTurn([a, b], { currentNodeId: "menu-a", attempts: 0 }, "abc", "menu-b");
+    expect(result.kind).toBe("reprompt");
+    expect((result as { state: { currentNodeId: string } }).state.currentNodeId).toBe("menu-a");
+  });
+
+  it("estado aponta pra menu removido -> reentra pela aresta de entrada (não pelo primeiro)", () => {
+    const result = resolveMenuTurn([a, b], { currentNodeId: "menu-removido", attempts: 2 }, "1", "menu-b");
+    expect((result as { state: { currentNodeId: string; attempts: number } }).state).toEqual({ currentNodeId: "menu-b", attempts: 0 });
+  });
+
+  it("sem nenhum menu, com entryNodeId -> 'none' (fluxo sem menu intocado)", () => {
+    expect(resolveMenuTurn([], null, "oi", "menu-b")).toEqual({ kind: "none" });
   });
 });

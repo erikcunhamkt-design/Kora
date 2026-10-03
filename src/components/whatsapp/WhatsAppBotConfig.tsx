@@ -17,7 +17,8 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Database, Json } from "@/integrations/supabase/types";
 import { useWorkspaceRole } from "@/hooks/useWorkspaceRole";
 import { toastError } from "@/lib/supabase/errors";
-import { computeCanvasEdges, type CanvasEdge, type CanvasEdgeKind } from "@/components/whatsapp/flowCanvasEdges";
+import { FlowCanvas } from "@/components/whatsapp/FlowCanvas";
+import { findDanglingEdges, gridPosition, withAutoLayout, type FlowPosition } from "@/components/whatsapp/flowCanvasModel";
 
 type BotSettings = Database["public"]["Tables"]["whatsapp_bot_settings"]["Row"];
 type BotSettingsInsert = Database["public"]["Tables"]["whatsapp_bot_settings"]["Insert"];
@@ -26,11 +27,16 @@ export interface WorkflowNodeBase {
   id: string;
   title: string;
   enabled: boolean;
+  /** R6 — posição no canvas. Ausente (flow_data salvo antes do R6) → auto-layout em grade no load; salvar grava a posição. */
+  position?: { x: number; y: number };
 }
 
 export interface TriggerWorkflowNode extends WorkflowNodeBase {
   type: "trigger";
-  properties: { respondAll: boolean };
+  // `nextNodeId` = aresta de ENTRADA (trigger → menu): id do menu por onde o
+  // fluxo começa. Ausente = comportamento anterior (motor entra no primeiro
+  // menu habilitado) — compat total com flow_data já salvo.
+  properties: { respondAll: boolean; nextNodeId?: string };
 }
 
 export interface AiWorkflowNode extends WorkflowNodeBase {
@@ -126,49 +132,9 @@ function isHandoverNode(n: WorkflowNode): n is HandoverWorkflowNode {
   return n.type === "handover";
 }
 
-// G80 — arestas REAIS de um nó "menu" no canvas: uma por opção
-// (opcoes[].nextNodeId) + a de fallback quando acao="node". Cada item expõe
-// data-edge-kind/from/to (fonte de verdade dos testes de render). Destino
-// vazio / id que não existe mais na árvore são sinalizados — nunca
-// escondidos nem "consertados" em silêncio.
-const EDGE_KIND_STYLE: Record<CanvasEdgeKind, { dot: string; prefix: string }> = {
-  option: { dot: "text-pink-400", prefix: "" },
-  fallback: { dot: "text-amber-400", prefix: "⚠ inválida → " },
-  sequence: { dot: "text-border", prefix: "" },
-  entry: { dot: "text-emerald-400", prefix: "entrada → " },
-};
-
-function MenuNodeEdges({ node, nodes, edges }: { node: MenuWorkflowNode; nodes: WorkflowNode[]; edges: CanvasEdge[] }) {
-  if (edges.length === 0) return null;
-  return (
-    <ul aria-label={`Arestas de ${node.title}`} className="mt-2 space-y-0.5">
-      {edges.map((edge) => {
-        const target = edge.toNodeId ? nodes.find((n) => n.id === edge.toNodeId) : undefined;
-        const style = EDGE_KIND_STYLE[edge.kind];
-        const label = edge.toNodeId === null
-          ? "(sem destino)"
-          : target
-            ? target.title
-            : "(nó removido)";
-        return (
-          <li
-            key={edge.id}
-            data-edge-kind={edge.kind}
-            data-edge-from={edge.fromNodeId}
-            data-edge-to={edge.toNodeId ?? ""}
-            className="flex items-center gap-1 text-[9px] text-muted-foreground"
-          >
-            <ArrowRight className={`h-2.5 w-2.5 shrink-0 ${style.dot}`} />
-            <span className="truncate">
-              {edge.kind === "option" ? `${edge.optionNumero} → ` : style.prefix}
-              <span className={target ? "text-foreground/80" : "text-destructive/80"}>{label}</span>
-            </span>
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
+// Valor do item "Automático" do Select "Começar por" (Radix Select não aceita
+// value ""); ausente em trigger.properties.nextNodeId.
+const ENTRY_AUTOMATIC = "__automatico__";
 
 export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
   // G71 (adendo de backlog de UI) — leitura fica aberta pra qualquer membro;
@@ -185,7 +151,7 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
   const [isActive, setIsActive] = useState(false);
 
   // Workflow nodes state (JSON representation)
-  const [nodes, setNodes] = useState<WorkflowNode[]>([
+  const [nodes, setNodes] = useState<WorkflowNode[]>(() => withAutoLayout([
     {
       id: "node-trigger",
       type: "trigger",
@@ -223,7 +189,7 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
       enabled: false,
       properties: { assignTo: "" }
     }
-  ]);
+  ]));
 
   // Latest ref (padrão useTaskReminders.ts:22-23) — loadSettings lê o valor
   // atual de `nodes` no fallback legado sem precisar de `nodes` no dep array
@@ -248,8 +214,9 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
   // deixado como está de propósito, não esquecido.
   const activeNode = nodes.find(n => n.id === selectedNodeId) || nodes[0];
 
-  // G80 — arestas reais do canvas (flowCanvasEdges.ts). Só render.
-  const canvasEdges = computeCanvasEdges(nodes);
+  // R6 — avisos de aresta com destino vazio/removido (a aresta NÃO é
+  // desenhada no canvas; o aviso aparece no inspector do nó de origem).
+  const danglingEdges = findDanglingEdges(nodes);
 
   const loadSettings = useCallback(async () => {
     setLoading(true);
@@ -288,7 +255,7 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
                 }
               : node,
           );
-          setNodes(rehydrated);
+          setNodes(withAutoLayout(rehydrated));
         } else {
           // Fallback legacy conversion
           const legacyInstruction = data.system_instruction || "Você é o atendente virtual do KORA Hub. Seja prestativo, educado e conciso.";
@@ -320,7 +287,7 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
               customModelName: !["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"].includes(legacyModel) && legacyModel !== "custom" ? legacyModel : ""
             };
           }
-          setNodes(updated);
+          setNodes(withAutoLayout(updated));
         }
       }
     } catch (e) {
@@ -365,7 +332,9 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
     }));
   };
 
-  const toggleNodeEnabled = (nodeId: string) => {
+  // useCallback (identidade estável): o FlowCanvas deriva os nós do React Flow
+  // a partir deste callback.
+  const toggleNodeEnabled = useCallback((nodeId: string) => {
     // Trigger and Send are core nodes, shouldn't be disabled
     if (nodeId === "node-trigger" || nodeId === "node-send") return;
     setNodes(prev => prev.map(node => {
@@ -374,7 +343,7 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
       }
       return node;
     }));
-  };
+  }, []);
 
   // Item 4 · R5 (etapa-9-bot-fluxo-scriptado-r1-fundacao.md, UI do nó
   // "menu") — id gerado, mesmo padrão de `usePipelines.ts` (`newStageId`,
@@ -386,13 +355,15 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
   // handleSimulateMessage/loadSettings (rehydration legada) leem os 4 nós
   // fixos por índice (nodes[0..3]); manter o append no fim preserva essa
   // suposição sem precisar tocar nenhum desses 3 pontos nesta rodada.
-  const addMenuNode = () => {
+  const addMenuNode = (position?: FlowPosition) => {
     const menuCount = nodes.filter(n => n.type === "menu").length;
     const newNode: MenuWorkflowNode = {
       id: generateMenuNodeId(),
       type: "menu",
       title: `Menu ${menuCount + 1}`,
       enabled: true,
+      // R6: "+ Nó de menu" cria no centro do viewport (FlowCanvas passa a posição).
+      position: position ?? gridPosition(nodes.length),
       properties: {
         mensagem: "",
         opcoes: [],
@@ -401,6 +372,17 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
     };
     setNodes(prev => [...prev, newNode]);
     setSelectedNodeId(newNode.id);
+  };
+
+  // Aresta de entrada: grava/limpa trigger.properties.nextNodeId. "Automático"
+  // REMOVE a chave (não grava string vazia) — flow_data sem a chave é
+  // idêntico ao salvo antes desta rodada.
+  const setTriggerEntryNode = (nodeId: string, entryNodeId: string | undefined) => {
+    setNodes(prev => prev.map(node => {
+      if (node.id !== nodeId || node.type !== "trigger") return node;
+      const { nextNodeId: _removed, ...rest } = node.properties;
+      return { ...node, properties: entryNodeId ? { ...rest, nextNodeId: entryNodeId } : rest };
+    }));
   };
 
   // Só nós "menu" (criados pelo usuário nesta rodada) ganham título
@@ -645,143 +627,22 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
         {/* Left: Canvas & Inspector Area (8/12) */}
         <div className="lg:col-span-8 flex flex-col gap-6">
           
-          {/* Workflow Canvas */}
-          <div className="rounded-xl border border-border/40 bg-card/60 p-6 shadow-md relative min-h-[380px] overflow-hidden flex flex-col justify-between"
-               style={{
-                 backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.035) 1px, transparent 1px)",
-                 backgroundSize: "20px 20px"
-               }}>
-            
-            <div className="absolute top-4 left-4 flex items-center gap-2">
+          {/* Workflow Canvas — R6: React Flow (nós soltos, arrastar, ligar com
+              linha). A edição de campos continua no inspector abaixo. */}
+          <div className="rounded-xl border border-border/40 bg-card/60 p-4 shadow-md relative flex flex-col gap-4">
+            <div className="flex items-center gap-2">
               <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
               <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Visual Canvas</span>
             </div>
 
-            {/* Nodes Layout Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-center my-auto pt-8 pb-4 relative z-10">
-              {nodes.map((node, index) => {
-                const isSelected = selectedNodeId === node.id;
-                let borderCol = "border-border/60";
-                let shadowCol = "";
-                let iconBg = "bg-muted";
-                let iconCol = "text-muted-foreground";
-
-                if (node.enabled) {
-                  if (node.type === "trigger") {
-                    borderCol = isSelected ? "border-emerald-500 ring-1 ring-emerald-500" : "border-emerald-500/30";
-                    iconBg = "bg-emerald-500/10";
-                    iconCol = "text-emerald-400";
-                    shadowCol = isSelected ? "shadow-[0_0_15px_-3px_rgba(16,185,129,0.2)]" : "";
-                  } else if (node.type === "ai") {
-                    borderCol = isSelected ? "border-violet-500 ring-1 ring-violet-500" : "border-violet-500/30";
-                    iconBg = "bg-violet-500/10";
-                    iconCol = "text-violet-400";
-                    shadowCol = isSelected ? "shadow-[0_0_15px_-3px_rgba(139,92,246,0.2)]" : "";
-                  } else if (node.type === "send") {
-                    borderCol = isSelected ? "border-blue-500 ring-1 ring-blue-500" : "border-blue-500/30";
-                    iconBg = "bg-blue-500/10";
-                    iconCol = "text-blue-400";
-                    shadowCol = isSelected ? "shadow-[0_0_15px_-3px_rgba(59,130,246,0.2)]" : "";
-                  } else if (node.type === "handover") {
-                    borderCol = isSelected ? "border-orange-500 ring-1 ring-orange-500" : "border-orange-500/30";
-                    iconBg = "bg-orange-500/10";
-                    iconCol = "text-orange-400";
-                    shadowCol = isSelected ? "shadow-[0_0_15px_-3px_rgba(249,115,22,0.2)]" : "";
-                  } else if (node.type === "menu") {
-                    borderCol = isSelected ? "border-pink-500 ring-1 ring-pink-500" : "border-pink-500/30";
-                    iconBg = "bg-pink-500/10";
-                    iconCol = "text-pink-400";
-                    shadowCol = isSelected ? "shadow-[0_0_15px_-3px_rgba(236,72,153,0.2)]" : "";
-                  }
-                } else {
-                  borderCol = "border-dashed border-border/40 opacity-50";
-                }
-
-                return (
-                  <div key={node.id} className="relative flex items-center">
-                    {/* G80 — seta sequencial só entre nós FIXOS vizinhos
-                        (computeCanvasEdges emite "sequence" apenas aí). Nunca
-                        mais liga a um nó menu por posição no array: as
-                        arestas do menu são as opções/fallback, listadas no
-                        próprio nó abaixo. */}
-                    {canvasEdges.some(e => e.kind === "sequence" && e.fromNodeId === node.id) && (
-                      <div
-                        data-edge-kind="sequence"
-                        data-edge-from={node.id}
-                        data-edge-to={nodes[index + 1]?.id ?? ""}
-                        className="hidden md:block absolute left-full top-1/2 w-6 h-[2px] bg-border/40 -translate-y-1/2 z-0"
-                      >
-                        <div className={`h-full bg-gradient-to-r from-primary to-transparent transition-all duration-300 ${nodes[index+1].enabled ? "opacity-100" : "opacity-20"}`} />
-                        <ArrowRight className="h-3 w-3 absolute -right-1.5 -top-[5px] text-border/60" />
-                      </div>
-                    )}
-
-                    {/* Node Box */}
-                    <div 
-                      onClick={() => setSelectedNodeId(node.id)}
-                      className={`w-full rounded-xl border p-4 bg-background/80 hover:scale-[1.02] cursor-pointer transition-all duration-200 backdrop-blur-sm z-10 flex flex-col justify-between gap-3 min-h-[135px] ${borderCol} ${shadowCol}`}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${iconBg} ${iconCol}`}>
-                          {node.type === "trigger" && <Sparkles className="h-4.5 w-4.5" />}
-                          {node.type === "ai" && <BrainCircuit className="h-4.5 w-4.5" />}
-                          {node.type === "send" && <Send className="h-4.5 w-4.5" />}
-                          {node.type === "handover" && <UserCog className="h-4.5 w-4.5" />}
-                          {node.type === "menu" && <MessageSquareCode className="h-4.5 w-4.5" />}
-                        </div>
-
-                        {/* Switch for toggleable nodes */}
-                        {node.type !== "trigger" && node.type !== "send" && (
-                          <Switch
-                            checked={node.enabled}
-                            onCheckedChange={() => toggleNodeEnabled(node.id)}
-                            className="scale-75"
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        )}
-                      </div>
-
-                      <div>
-                        <h4 className="text-xs font-bold text-foreground">{node.title}</h4>
-                        <p className="text-[9px] text-muted-foreground truncate mt-0.5">
-                          {node.type === "trigger" && (node.properties.respondAll ? "Irrestrito" : "Apenas Novos")}
-                          {node.type === "ai" && `Provedor: ${node.properties.provider}`}
-                          {node.type === "send" && node.properties.template}
-                          {node.type === "handover" && (node.enabled ? "Fila Humana Ativa" : "Desativado")}
-                          {node.type === "menu" && (
-                            node.properties.opcoes.length === 0
-                              ? "Sem opções"
-                              : `${node.properties.opcoes.length} opç${node.properties.opcoes.length === 1 ? "ão" : "ões"}`
-                          )}
-                        </p>
-                        {node.type === "menu" && (
-                          <MenuNodeEdges
-                            node={node}
-                            nodes={nodes}
-                            edges={canvasEdges.filter(e => e.fromNodeId === node.id)}
-                          />
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-
-              {/* Item 4 · R5 — único jeito de criar nó nesta rodada: um
-                  tile "+" no fim da grade. Sem exclusão de nó ainda (fora
-                  do escopo pedido — "criar/editar", não "excluir"); um nó
-                  "menu" criado por engano só pode ser desabilitado (toggle
-                  já genérico pra qualquer nó exceto trigger/send), não
-                  removido da árvore. */}
-              <button
-                type="button"
-                onClick={addMenuNode}
-                className="w-full min-h-[135px] rounded-xl border border-dashed border-pink-500/40 hover:border-pink-500 hover:bg-pink-500/5 transition-all duration-200 flex flex-col items-center justify-center gap-2 text-pink-400"
-              >
-                <MessageSquareCode className="h-5 w-5" />
-                <span className="text-[11px] font-bold">+ Adicionar nó de menu</span>
-              </button>
-            </div>
+            <FlowCanvas
+              nodes={nodes}
+              selectedNodeId={selectedNodeId}
+              onSelectNode={setSelectedNodeId}
+              onNodesModelChange={setNodes}
+              onToggleEnabled={toggleNodeEnabled}
+              onAddMenuNode={addMenuNode}
+            />
 
             <div className="flex justify-between items-center bg-violet-950/10 border border-violet-500/20 rounded-xl p-3 relative z-10">
               <span className="text-[10px] text-muted-foreground flex items-center gap-1.5 leading-normal">
@@ -858,6 +719,46 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
                         O robô responderá apenas se não houver um atendente humano atribuído à conversa no painel.
                       </p>
                     </div>
+                  </div>
+
+                  {/* R6 — aresta de ENTRADA (trigger → menu). Mesmo campo que a
+                      linha do canvas edita (trigger.properties.nextNodeId).
+                      "Automático" = comportamento anterior: o motor entra no
+                      primeiro menu habilitado. */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">
+                      Começar por
+                    </label>
+                    <Select
+                      value={activeNode.properties.nextNodeId ?? ENTRY_AUTOMATIC}
+                      onValueChange={(val) => setTriggerEntryNode(activeNode.id, val === ENTRY_AUTOMATIC ? undefined : val)}
+                    >
+                      <SelectTrigger className="h-9 text-xs bg-background/30">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={ENTRY_AUTOMATIC}>Automático (primeiro menu habilitado)</SelectItem>
+                        {nodes.filter((n): n is MenuWorkflowNode => n.type === "menu").map((m) => (
+                          <SelectItem key={m.id} value={m.id}>{m.enabled ? m.title : `${m.title} (desabilitado)`}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {danglingEdges.filter((e) => e.fromNodeId === activeNode.id).map((e) => (
+                      <p key={e.id} role="alert" className="text-[10px] text-destructive/90">
+                        ⚠ A entrada aponta pra um nó que não existe mais — o motor usa o primeiro menu habilitado.
+                      </p>
+                    ))}
+                    {(() => {
+                      const chosen = nodes.find((n) => n.id === activeNode.properties.nextNodeId);
+                      return chosen && !(chosen.type === "menu" && chosen.enabled) ? (
+                        <p role="alert" className="text-[10px] text-destructive/90">
+                          ⚠ “{chosen.title}” não é um menu habilitado — a entrada é ignorada e o motor usa o primeiro menu habilitado.
+                        </p>
+                      ) : null;
+                    })()}
+                    <p className="text-[10px] text-muted-foreground/70 leading-relaxed">
+                      Sem escolha, o fluxo começa no primeiro menu habilitado. Você também pode ligar o ponto “Início do fluxo” do gatilho a um menu no canvas.
+                    </p>
                   </div>
                 </div>
               )}
@@ -1113,6 +1014,18 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
                       </div>
                     )}
                   </div>
+
+                  {/* R6 — arestas com destino vazio/removido NÃO são desenhadas no
+                      canvas; o aviso aparece aqui (e o campo continua editável
+                      pelos selects abaixo). */}
+                  {danglingEdges.filter((e) => e.fromNodeId === activeNode.id).map((e) => (
+                    <p key={e.id} role="alert" className="text-[10px] text-destructive/90">
+                      ⚠ {e.kind === "option" ? `Opção ${e.optionNumero}` : "Resposta inválida"}:{" "}
+                      {e.problem === "removido"
+                        ? "o nó de destino não existe mais — escolha outro."
+                        : "sem destino — escolha pra onde leva."}
+                    </p>
+                  ))}
 
                   <div className="space-y-3 bg-background/30 p-3.5 rounded-lg border border-border/40">
                     <p className="text-xs font-bold text-foreground flex items-center gap-1.5">

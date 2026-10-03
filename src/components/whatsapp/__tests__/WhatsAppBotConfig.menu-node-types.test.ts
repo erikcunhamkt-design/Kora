@@ -69,6 +69,17 @@ describe("WorkflowNode · tipo 'menu' (Item 4, R1 — fundação de dados)", () 
     expect(fallback.fallbackNodeId).toBeUndefined();
   });
 
+  it("R6: trigger aceita nextNodeId OPCIONAL (aresta de entrada) e todo nó aceita position OPCIONAL — flow_data antigo (sem os 2) continua válido", () => {
+    const legacy: WorkflowNode = { id: "t", title: "G", enabled: true, type: "trigger", properties: { respondAll: true } };
+    const withEntry: WorkflowNode = {
+      id: "t", title: "G", enabled: true, type: "trigger",
+      properties: { respondAll: true, nextNodeId: "node-menu-1" }, position: { x: 10, y: 20 },
+    };
+    expect(legacy.position).toBeUndefined();
+    expect(withEntry.type === "trigger" && withEntry.properties.nextNodeId).toBe("node-menu-1");
+    expect(withEntry.position).toEqual({ x: 10, y: 20 });
+  });
+
   it("fallback 'node' aceita fallbackNodeId apontando pra qualquer nó da árvore (não só handover)", () => {
     const node = makeMenuNode({
       fallback: { maxTentativas: 2, acao: "node", fallbackNodeId: "node-ai" },

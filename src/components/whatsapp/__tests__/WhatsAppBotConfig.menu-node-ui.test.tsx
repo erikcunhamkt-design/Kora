@@ -94,9 +94,12 @@ describe("WhatsAppBotConfig · nó 'menu' (Item 4, R5) — opções numeradas", 
 
     fireEvent.click(screen.getByRole("button", { name: /Adicionar opção/i }));
     expect(screen.queryByText("Nenhuma opção ainda.")).not.toBeInTheDocument();
-    expect(screen.getByText("1")).toBeInTheDocument(); // numero auto-atribuído
-
     const rotuloInput = screen.getByPlaceholderText("Rótulo (ex: Suporte)");
+    // numero auto-atribuído (R6: o "1" também aparece no card do canvas, então
+    // a asserção é escopada à linha da opção no inspector).
+    expect(within(rotuloInput.closest("div") as HTMLElement).getByText("1")).toBeInTheDocument();
+    // …e o card do canvas ganha a linha da opção (handle de saída por opção).
+    expect(screen.getByText("(sem rótulo)")).toBeInTheDocument();
     fireEvent.change(rotuloInput, { target: { value: "Suporte técnico" } });
     expect((rotuloInput as HTMLInputElement).value).toBe("Suporte técnico");
   });
