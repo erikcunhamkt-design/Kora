@@ -188,6 +188,14 @@ POST /functions/v1/whatsapp-instance
   fingir sucesso.
 - **400** sem `conversationId`; **403** não-membro (gate pré-existente).
 
+> **ATUALIZAÇÃO — UI implementada na rodada seguinte** (branch
+> `etapa-9-item4-r4-ui-atendimento-handover`, aguardando "vai"): ver
+> [`etapa-9-bot-fluxo-scriptado-r4-ui-atendimento-handover.md`](etapa-9-bot-fluxo-scriptado-r4-ui-atendimento-handover.md).
+> Banner + botão "Devolver ao robô" no cabeçalho da conversa, badge "Humano"
+> na lista, 409 tratado como "migration pendente". O parágrafo abaixo
+> permanece como o contrato original (o handler ficou com o nome
+> `handleEndHandover`).
+
 **Ponto de encaixe pra UI (rodada separada — NÃO implementado):** em
 `src/pages/WhatsApp.tsx`, ao lado de `handleAssign` (~`:405`), um
 `handleEndHumanHandover(conversationId)` com o mesmo molde

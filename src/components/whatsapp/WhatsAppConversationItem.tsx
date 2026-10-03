@@ -1,7 +1,8 @@
-import { Camera, FileText, Headphones, Mic, Sticker, Video } from "lucide-react";
+import { Camera, FileText, Headphones, Headset, Mic, Sticker, Video } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { formatMessagePreview } from "@/lib/whatsapp/formatMessagePreview";
+import { getHandoverAt } from "@/lib/whatsapp/handover";
 import { formatDate as intlDate, formatDateTime as intlDateTime } from "@/lib/format";
 
 export interface WAConvLike {
@@ -13,6 +14,9 @@ export interface WAConvLike {
   last_message_at: string | null;
   unread_count: number;
   status?: string | null;
+  // Etapa 9 · Item 4, R4 — coluna PROPOSTA (migration §8-b pendente): ausente
+  // do schema/types reais hoje, então é opcional e lida via getHandoverAt().
+  handover_at?: string | null;
 }
 
 function initials(name: string | null, phone: string) {
@@ -120,6 +124,16 @@ export function WhatsAppConversationItem({
           {Icon && <Icon className="h-3 w-3 flex-shrink-0 opacity-70" />}
             <span className="truncate">{cleanPreview}</span>
           </div>
+          {getHandoverAt(c) && (
+            <Badge
+              variant="outline"
+              className="h-4 px-1.5 gap-0.5 text-[9px] flex-shrink-0 border-amber-500/40 text-amber-700 dark:text-amber-400 bg-amber-500/10 rounded-full"
+              title="Entregue a atendimento humano — o robô está em silêncio nesta conversa"
+            >
+              <Headset className="h-2.5 w-2.5" aria-hidden="true" />
+              Humano
+            </Badge>
+          )}
           {showWaitingTime && c.unread_count > 0 && c.last_message_at && (
             <Badge
               variant="outline"

@@ -51,6 +51,8 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { WhatsAppMessageBubble } from "@/components/whatsapp/WhatsAppMessageBubble";
 import { WhatsAppConversationItem } from "@/components/whatsapp/WhatsAppConversationItem";
+import { WhatsAppHandoverBanner } from "@/components/whatsapp/WhatsAppHandoverBanner";
+import { END_HANDOVER_MIGRATION_PENDING_MESSAGE, endHumanHandover, getHandoverAt } from "@/lib/whatsapp/handover";
 import { WhatsAppStatusBadge } from "@/components/whatsapp/WhatsAppStatusBadge";
 import { WhatsAppChatInput } from "@/components/whatsapp/WhatsAppChatInput";
 import { WhatsAppContactPanel } from "@/components/whatsapp/WhatsAppContactPanel";
@@ -94,6 +96,7 @@ export default function WhatsAppPage() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [sending, setSending] = useState(false);
+  const [returningHandoverId, setReturningHandoverId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [showContext, setShowContext] = useState(false);
   const [contextSheetOpen, setContextSheetOpen] = useState(false);
@@ -413,6 +416,35 @@ export default function WhatsAppPage() {
       toast.success(userId ? "Conversa atribuída" : "Atribuição removida");
     } catch (e) {
       toast.error("Falha", { description: (e as Error).message });
+    }
+  };
+
+  // Etapa 9 · Item 4, R4 (UI de Atendimento) — "Devolver ao robô": chama a ação
+  // `end_human_handover` de whatsapp-instance (contrato em docs/qa/etapa-9-bot-
+  // fluxo-scriptado-r4-handover-real.md §4). O banner some via realtime (UPDATE
+  // da conversa traz `handover_at: null`), mesmo caminho do handleAssign.
+  // O 409 (coluna `handover_at` ainda não existe — migration §8-b pendente) NÃO
+  // é um erro genérico: ganha mensagem honesta, não o toast "Falha" padrão.
+  const handleEndHandover = async (conversationId: string) => {
+    if (!workspace || returningHandoverId) return;
+    setReturningHandoverId(conversationId);
+    try {
+      const result = await endHumanHandover(
+        (name, options) => supabase.functions.invoke(name, options),
+        workspace.id,
+        conversationId,
+      );
+      if (result.kind === "ok") {
+        toast.success("Conversa devolvida ao robô", {
+          description: "O robô volta a responder a próxima mensagem do cliente.",
+        });
+      } else if (result.kind === "migration_pending") {
+        toast.error("Migration pendente", { description: END_HANDOVER_MIGRATION_PENDING_MESSAGE });
+      } else {
+        toast.error("Falha ao devolver ao robô", { description: result.message });
+      }
+    } finally {
+      setReturningHandoverId(null);
     }
   };
 
@@ -766,6 +798,13 @@ export default function WhatsAppPage() {
                       </DropdownMenu>
                     </div>
                   </header>
+
+                  {/* Etapa 9 · Item 4, R4 — conversa entregue a humano (handover_at); coluna ausente → não renderiza */}
+                  <WhatsAppHandoverBanner
+                    handedOverAt={getHandoverAt(selected)}
+                    returning={returningHandoverId === selected.id}
+                    onReturn={() => handleEndHandover(selected.id)}
+                  />
 
                   {/* In-conversation search bar */}
                   {searchOpen && (
