@@ -14,6 +14,14 @@ import {
   parseBotFlowState,
   resolveMenuTurn,
 } from "../_shared/botFlowMenu.ts";
+import {
+  HANDOVER_COURTESY_TEXT,
+  buildHandoverEntryUpdates,
+  decideHandoverFromMenuTurn,
+  isHandedOver,
+  matchesHandoverKeyword,
+  type HandoverReason,
+} from "../_shared/botHandover.ts";
 
 interface BotFlowNodeProperties {
   respondAll?: boolean;
@@ -65,6 +73,13 @@ interface ConversationRow {
   // simplesmente não a traz enquanto a migration não for aplicada pelo
   // operador (§8-b). parseBotFlowState() degrada pra null nesse caso.
   bot_flow_state?: unknown;
+  // Etapa 9 · item 4, R4 — coluna PROPOSTA, ainda não aplicada (draft §2 de
+  // docs/qa/etapa-9-bot-fluxo-scriptado-r4-handover-real.md). timestamptz:
+  // preenchida = conversa entregue a humano, o bot fica em silêncio nela.
+  // Optional pelo mesmo motivo de `bot_flow_state`: `select("*")` não a traz
+  // enquanto a migration não for aplicada (§8-b) — isHandedOver() trata
+  // `undefined` como "não entregue".
+  handover_at?: unknown;
 }
 
 interface InstanceRow {
@@ -171,6 +186,85 @@ function normalizeGoogleModel(modelName: string, provider: string): string {
     "gemini-2.5-pro-001": "gemini-2.5-pro",
   };
   return supportedAliases[model] || model;
+}
+
+interface OutboundContext {
+  workspaceId: string;
+  conversationId: string;
+  conv: ConversationRow;
+  instance: InstanceRow;
+}
+
+// Envia um texto scriptado (menu, reprompt, cortesia de handover) pelo
+// uazapi e registra a mensagem + atualiza a conversa — o mesmo trio que o
+// branch de handover por palavra-chave e o motor de menu (R3) já faziam
+// inline; centralizado na R4 pra os 4 gatilhos de handover e o menu dizerem
+// e gravarem exatamente a mesma coisa. Devolve se o envio deu certo (falha
+// de envio é logada, nunca lançada — quem chama decide o que fazer).
+async function sendBotText(admin: SupabaseClient, ctx: OutboundContext, text: string): Promise<boolean> {
+  const { workspaceId, conversationId, conv, instance } = ctx;
+  const activeUazBase = baseForStoredSubdomain(instance.subdomain);
+  const sendRes = await fetch(`${activeUazBase}/send/text`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", token: instance.instance_token },
+    body: JSON.stringify({ number: conv.contact_phone, text }),
+  });
+  if (!sendRes.ok) {
+    console.error("[bot-reply] failed to send scripted text via uazapi:", sendRes.status, await sendRes.text());
+    return false;
+  }
+
+  await admin.from("whatsapp_messages").insert({
+    workspace_id: workspaceId,
+    instance_id: conv.instance_id,
+    conversation_id: conversationId,
+    direction: "outbound",
+    type: "text",
+    content: text,
+    body: text,
+    status: "sent",
+    timestamp: new Date().toISOString(),
+  });
+
+  await admin.from("whatsapp_conversations").update({
+    last_message: text,
+    last_message_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    unread_count: 1,
+  }).eq("id", conversationId);
+  return true;
+}
+
+// Etapa 9 · item 4, R4 — handover REAL (docs/qa/etapa-9-bot-fluxo-scriptado-
+// r4-handover-real.md; fecha o G48): avisa o cliente e persiste o estado
+// "entregue a humano" — a partir daí o handler responde `skipped` a toda
+// mensagem dessa conversa até alguém devolver (`end_human_handover`).
+//
+// A decisão de entregar já foi tomada por quem chama; persistir NÃO depende
+// do envio da cortesia ter dado certo (um humano é necessário de qualquer
+// forma). Cada coluna num UPDATE separado (buildHandoverEntryUpdates): se
+// `handover_at` ainda não existir (migration §8-b pendente) o erro vira só um
+// warn — o bot degrada pro comportamento de antes da R4 (volta a responder),
+// nunca quebra o fluxo.
+async function enterHumanHandover(
+  admin: SupabaseClient,
+  ctx: OutboundContext,
+  reason: HandoverReason,
+): Promise<void> {
+  console.log(`[bot-reply] human handover for conversation ${ctx.conversationId} (reason: ${reason})`);
+  await sendBotText(admin, ctx, HANDOVER_COURTESY_TEXT);
+  for (const update of buildHandoverEntryUpdates(new Date().toISOString())) {
+    const { error } = await admin
+      .from("whatsapp_conversations")
+      .update(update)
+      .eq("id", ctx.conversationId);
+    if (error) {
+      console.warn(
+        `[bot-reply] failed to persist handover state ${JSON.stringify(Object.keys(update))} (coluna pode ainda não existir — §8-b — degradando sem quebrar o fluxo):`,
+        error.message,
+      );
+    }
+  }
 }
 
 function json(b: unknown, s = 200) {
@@ -425,6 +519,17 @@ Deno.serve(async (req) => {
         return json({ error: "conversation not found" }, 404);
       }
 
+      // Etapa 9 · item 4, R4 — conversa ENTREGUE a humano: o bot fica em
+      // silêncio (nem menu, nem IA, nem handover de novo) até alguém
+      // devolver via `end_human_handover` (whatsapp-instance). Vem ANTES de
+      // toda lógica de fluxo — inclusive do respond_all — porque "entregue"
+      // é uma decisão já tomada por esta conversa, não uma preferência do
+      // fluxo. Coluna `handover_at` ausente (migration §8-b pendente) →
+      // `undefined` → isHandedOver() = false → comportamento de antes da R4.
+      if (isHandedOver(conv.handover_at)) {
+        return json({ ok: true, skipped: "conversation handed over to human" });
+      }
+
       // Respect respond_all setting (parsed from trigger node if available)
       try {
         if (bot.flow_data) {
@@ -492,39 +597,17 @@ Deno.serve(async (req) => {
         const lastInboundText = String(lastInboundRows?.[0]?.content || lastInboundRows?.[0]?.body || "");
 
         const turn = resolveMenuTurn(menuNodes, currentFlowState, lastInboundText);
+        const outbound: OutboundContext = {
+          workspaceId: workspaceId as string,
+          conversationId: conversationId as string,
+          conv,
+          instance,
+        };
 
         if (turn.kind === "present" || turn.kind === "reprompt") {
-          const activeUazBase = baseForStoredSubdomain(instance.subdomain);
-          const sendRes = await fetch(`${activeUazBase}/send/text`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", token: instance.instance_token },
-            body: JSON.stringify({ number: conv.contact_phone, text: turn.message }),
-          });
+          await sendBotText(adminClient, outbound, turn.message);
 
-          if (sendRes.ok) {
-            await adminClient.from("whatsapp_messages").insert({
-              workspace_id: workspaceId,
-              instance_id: conv.instance_id,
-              conversation_id: conversationId,
-              direction: "outbound",
-              type: "text",
-              content: turn.message,
-              body: turn.message,
-              status: "sent",
-              timestamp: new Date().toISOString(),
-            });
-
-            await adminClient.from("whatsapp_conversations").update({
-              last_message: turn.message,
-              last_message_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-              unread_count: 1,
-            }).eq("id", conversationId);
-          } else {
-            console.error("[bot-reply] failed to send menu message via uazapi:", sendRes.status, await sendRes.text());
-          }
-
-          // Update SEPARADO do de cima de propósito: se `bot_flow_state`
+          // Update SEPARADO do de dentro de sendBotText de propósito: se `bot_flow_state`
           // ainda não existir como coluna real (migration §8-b pendente),
           // o erro fica isolado aqui — nunca derruba o update de
           // last_message/updated_at acima, que já é comportamento
@@ -543,14 +626,25 @@ Deno.serve(async (req) => {
           return json({ ok: true, menu: turn.kind });
         }
 
+        // Etapa 9 · item 4, R4 — handover REAL. Os 3 gatilhos do menu (opção
+        // que leva a um nó handover; estouro com acao "node" apontando pra um
+        // handover; estouro sem destino de nó utilizável) entregam a
+        // conversa a humano: cortesia + estado persistido + bot mudo daqui em
+        // diante (gate `isHandedOver` lá em cima). Fecha a aresta que a R3
+        // deixou registrada ("a próxima mensagem reentra no menu").
+        const handoverDecision = decideHandoverFromMenuTurn(turn, flowNodes);
+        if (handoverDecision.handover && handoverDecision.reason) {
+          await enterHumanHandover(adminClient, outbound, handoverDecision.reason);
+          return json({ ok: true, handover: true, reason: handoverDecision.reason });
+        }
+
         if (turn.kind === "advanced-away" || turn.kind === "handover-fallback") {
-          // R3 não executa outro tipo de nó nem o handover real — só
-          // encerra o acompanhamento scriptado de forma limpa (prompt
-          // desta rodada). Ponto de encaixe pra rodada futura (R4 da Lane
-          // E, handover real): o id do próximo nó só vai pro log, nenhum
-          // estado é persistido apontando pra ele — quem implementar o
-          // encaixe decide de onde partir. Segue pro fluxo normal abaixo
-          // (IA/handover por palavra-chave/etc.) sem retorno antecipado.
+          // Destino que NÃO é um nó handover habilitado: a R3 segue valendo —
+          // só encerra o acompanhamento scriptado de forma limpa (não executa
+          // outro tipo de nó; dispatcher genérico é fora de escopo). O id do
+          // próximo nó só vai pro log, nenhum estado é persistido apontando
+          // pra ele. Segue pro fluxo normal abaixo (IA/handover por
+          // palavra-chave/etc.) sem retorno antecipado.
           console.log(
             `[bot-reply] menu flow ended for conversation ${conversationId}:`,
             turn.kind === "advanced-away"
@@ -586,42 +680,19 @@ Deno.serve(async (req) => {
 
       const ordered = ((history ?? []) as MessageHistoryRow[]).slice().reverse();
 
-      // Check for human handover condition if handover node is enabled
+      // Check for human handover condition if handover node is enabled.
+      // R4 (fecha o G48): além da cortesia, agora PERSISTE o estado "entregue a
+      // humano" — o bot fica mudo nessa conversa até alguém devolver (gate
+      // `isHandedOver` lá em cima). Lista de palavras-chave e texto de cortesia
+      // vivem em _shared/botHandover.ts (mesmos valores de antes).
       if (handoverNode) {
         const lastMsg = ordered.findLast((m) => m.direction === "inbound")?.content || "";
-        const handoverKeywords = ["atendente", "humano", "pessoa", "falar com", "suporte", "ajuda", "atendimento"];
-        if (handoverKeywords.some(keyword => lastMsg.toLowerCase().includes(keyword))) {
-          const handoverText = "Encaminhando o seu contato para o atendimento humano. Um de nossos colaboradores irá te atender em instantes! Obrigado por aguardar.";
-          console.log(`[bot-reply] Handover triggered. Sending text to ${conv.contact_phone}...`);
-          
-          const activeUazBase = baseForStoredSubdomain(instance.subdomain);
-          const sendRes = await fetch(`${activeUazBase}/send/text`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", token: instance.instance_token },
-            body: JSON.stringify({ number: conv.contact_phone, text: handoverText }),
-          });
-
-          if (sendRes.ok) {
-            await adminClient.from("whatsapp_messages").insert({
-              workspace_id: workspaceId,
-              instance_id: conv.instance_id,
-              conversation_id: conversationId,
-              direction: "outbound",
-              type: "text",
-              content: handoverText,
-              body: handoverText,
-              status: "sent",
-              timestamp: new Date().toISOString(),
-            });
-
-            await adminClient.from("whatsapp_conversations").update({
-              last_message: handoverText,
-              last_message_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-              unread_count: 1
-            }).eq("id", conversationId);
-          }
-          
+        if (matchesHandoverKeyword(lastMsg)) {
+          await enterHumanHandover(
+            adminClient,
+            { workspaceId: workspaceId as string, conversationId: conversationId as string, conv, instance },
+            "keyword",
+          );
           return json({ ok: true, handover: true });
         }
       }

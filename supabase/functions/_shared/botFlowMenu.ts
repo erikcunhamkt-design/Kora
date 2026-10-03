@@ -15,8 +15,10 @@
 // hoje — R1 §0, "os 4 nós existentes não têm esse conceito"). Mesmo
 // tratamento pro estouro de `maxTentativas` com `acao: "node"` — o
 // `fallbackNodeId` é tipicamente mas não necessariamente um nó de
-// handover (R1 §1), e o handover REAL (atribuir a um atendente, etc.) é a
-// R4 da Lane E — aqui só marca/encerra o fluxo de forma limpa.
+// handover (R1 §1). Este módulo só DECIDE (devolve `handover-fallback`/
+// `exhausted`); o handover REAL (estado persistido "entregue a humano",
+// bot em silêncio) é da R4 — botHandover.ts, que interpreta esses
+// resultados.
 
 export interface MenuNodeOption {
   numero: number;
@@ -129,7 +131,10 @@ export type MenuTurnResult =
   | { kind: "present"; message: string; state: BotFlowState }
   | { kind: "reprompt"; message: string; state: BotFlowState }
   | { kind: "advanced-away"; nextNodeId: string }
-  | { kind: "handover-fallback"; fallbackNodeId: string };
+  | { kind: "handover-fallback"; fallbackNodeId: string }
+  // R4: estourou `maxTentativas` sem destino de nó utilizável. Quem decide
+  // o que fazer é o chamador (botHandover.ts → entrega a humano).
+  | { kind: "exhausted" };
 
 // Motor de 1 turno: dado o conjunto de nós "menu" habilitados, o estado
 // atual da conversa (ou null) e a mensagem recebida, decide o que fazer.
@@ -174,15 +179,20 @@ export function resolveMenuTurn(
   const attempts = state.attempts + 1;
   const { maxTentativas, acao, fallbackNodeId } = activeNode.fallback;
 
-  if (attempts >= maxTentativas && acao === "node" && fallbackNodeId) {
-    return { kind: "handover-fallback", fallbackNodeId };
+  if (attempts >= maxTentativas) {
+    if (acao === "node" && fallbackNodeId) {
+      return { kind: "handover-fallback", fallbackNodeId };
+    }
+    // R4: sem destino de nó utilizável (`acao: "reprompt"`, ou `"node"` sem
+    // `fallbackNodeId` — não validado em tipo, R1 §1) esgotar as tentativas
+    // vira "exhausted" (o chamador entrega a humano) em vez do "reprompt
+    // indefinido" da R3/R1 §0 item 2 — instrução explícita da R4, ver
+    // docs/qa/etapa-9-bot-fluxo-scriptado-r4-handover-real.md §3.
+    return { kind: "exhausted" };
   }
 
-  // Default do produto (R1 §0 item 2): reprompt — reapresenta o mesmo
-  // menu com um aviso. Também o destino seguro quando `acao === "node"`
-  // mas sem `fallbackNodeId` configurado (não validado em tipo — R1 §1) e
-  // quando `acao === "reprompt"` mesmo após esgotar `maxTentativas`
-  // ("reprompt indefinido", a própria definição do produto pra esse caso).
+  // Abaixo do limite: reprompt — reapresenta o mesmo menu com um aviso
+  // (R1 §0 item 2, "nunca pula direto pra transbordo no primeiro erro").
   return {
     kind: "reprompt",
     message: `Resposta inválida. Responda com uma opção válida.\n\n${renderMenuPrompt(activeNode)}`,

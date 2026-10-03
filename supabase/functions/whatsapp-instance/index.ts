@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { buildHandoverReturnUpdates } from "../_shared/botHandover.ts";
 
 const ADMIN_TOKEN = Deno.env.get("UAZAPI_ADMIN_TOKEN")!;
 const SUBDOMAIN = Deno.env.get("UAZAPI_SUBDOMAIN")!;
@@ -861,6 +862,38 @@ Deno.serve(async (req) => {
         .eq("id", conversationId)
         .eq("workspace_id", workspaceId);
       return json({ ok: true });
+    }
+
+    // Etapa 9 · item 4, R4 — "Encerrar atendimento humano" (devolve a
+    // conversa ao robô; docs/qa/etapa-9-bot-fluxo-scriptado-r4-handover-real.md
+    // §4, contrato pra UI do Atendimento). Zera `handover_at` (o bot volta a
+    // responder) e `bot_flow_state` (volta do zero — a próxima mensagem
+    // re-apresenta o menu, não retoma um fluxo antigo). Cada coluna num UPDATE
+    // próprio: ação EXPLÍCITA, então diferente do bot (que degrada em
+    // silêncio) aqui o resultado é reportado — se `handover_at` ainda não
+    // existir (migration §8-b pendente) devolve 409 em vez de fingir sucesso.
+    if (action === "end_human_handover") {
+      const { conversationId } = body as { conversationId?: string };
+      if (!conversationId) return json({ error: "conversationId is required" }, 400);
+
+      const cleared: Record<string, boolean> = {};
+      for (const update of buildHandoverReturnUpdates(new Date().toISOString())) {
+        const column = Object.keys(update).find((k) => k !== "updated_at") ?? "unknown";
+        const { error } = await admin
+          .from("whatsapp_conversations")
+          .update(update)
+          .eq("id", conversationId)
+          .eq("workspace_id", workspaceId);
+        cleared[column] = !error;
+        if (error) {
+          console.warn(`[whatsapp-instance] end_human_handover: failed to clear ${column} (coluna pode ainda não existir — §8-b):`, error.message);
+        }
+      }
+
+      if (!cleared.handover_at) {
+        return json({ ok: false, error: "handover state unavailable (migration pending)", cleared }, 409);
+      }
+      return json({ ok: true, cleared });
     }
 
     if (action === "update_conversation_tags") {

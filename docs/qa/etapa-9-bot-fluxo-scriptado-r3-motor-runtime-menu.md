@@ -101,6 +101,17 @@ o revisor validar ou corrigir:
    validado em tipo — R1 §1): degrada pro reprompt em vez de travar o
    usuário sem resposta.
 
+   > **SUPERADO pela R4** (`etapa-9-bot-fluxo-scriptado-r4-handover-real.md`
+   > §3, decisão #1): esgotar `maxTentativas` sem destino de nó utilizável
+   > agora devolve `exhausted` e entrega a conversa a humano em vez de
+   > reprompt indefinido. Mantido acima como registro do que a R3 entregou.
+
+> **Aresta FECHADA pela R4 (código)** — o parágrafo abaixo descreve o que a
+> R3 deixou em aberto; a R4 persiste o estado "entregue a humano"
+> (`handover_at`, draft de migration no doc da R4 §2) e o bot fica em
+> silêncio até alguém devolver. Efeito depende do operador aplicar a
+> migration (§8-b).
+
 **Consequência aceita, não resolvida aqui:** depois de um `advanced-away`
 ou `handover-fallback`, `bot_flow_state` é limpo — a PRÓXIMA mensagem do
 mesmo contato, se nenhum humano assumiu a conversa (`conv.assigned_to`

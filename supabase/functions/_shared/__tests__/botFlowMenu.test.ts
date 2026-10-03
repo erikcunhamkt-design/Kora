@@ -226,16 +226,27 @@ describe("resolveMenuTurn", () => {
     expect(result).toEqual({ kind: "handover-fallback", fallbackNodeId: "node-handover-humano" });
   });
 
-  it("estoura maxTentativas com acao \"reprompt\" -> continua reprompt (indefinido, nunca sai)", () => {
+  // R4 — DIVERGÊNCIA DELIBERADA vs R3 (que testava "reprompt indefinido"
+  // aqui): por instrução explícita da R4, esgotar `maxTentativas` com
+  // `acao: "reprompt"` agora devolve "exhausted" (o chamador entrega a
+  // humano — botHandover.ts) em vez de reprompt pra sempre.
+  it("estoura maxTentativas com acao \"reprompt\" -> \"exhausted\" (R4: entrega a humano, não reprompt indefinido)", () => {
     const node = makeMenuNode({ fallback: { maxTentativas: 1, acao: "reprompt" } });
     const result = resolveMenuTurn([node], { currentNodeId: "menu-1", attempts: 5 }, "abc");
-    expect(result.kind).toBe("reprompt");
-    expect((result as { state: { attempts: number } }).state.attempts).toBe(6);
+    expect(result).toEqual({ kind: "exhausted" });
   });
 
-  it("acao \"node\" sem fallbackNodeId configurado (não validado em tipo) degrada pra reprompt em vez de quebrar", () => {
+  it("acao \"reprompt\": a tentativa que ATINGE maxTentativas já é \"exhausted\"; a anterior ainda reprompta", () => {
+    const node = makeMenuNode({ fallback: { maxTentativas: 3, acao: "reprompt" } });
+    expect(resolveMenuTurn([node], { currentNodeId: "menu-1", attempts: 1 }, "abc").kind).toBe("reprompt"); // 2ª inválida
+    expect(resolveMenuTurn([node], { currentNodeId: "menu-1", attempts: 2 }, "abc")).toEqual({ kind: "exhausted" }); // 3ª inválida
+  });
+
+  // R4 — DIVERGÊNCIA DELIBERADA vs R3 (que degradava pra reprompt aqui):
+  // sem destino de nó utilizável, esgotar também é "exhausted".
+  it("acao \"node\" sem fallbackNodeId configurado (não validado em tipo) -> \"exhausted\" (R4), não reprompt eterno", () => {
     const node = makeMenuNode({ fallback: { maxTentativas: 1, acao: "node" } });
     const result = resolveMenuTurn([node], { currentNodeId: "menu-1", attempts: 3 }, "abc");
-    expect(result.kind).toBe("reprompt");
+    expect(result).toEqual({ kind: "exhausted" });
   });
 });
