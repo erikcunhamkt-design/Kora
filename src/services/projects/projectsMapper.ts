@@ -151,6 +151,11 @@ export function mapLocalProjectToSupabase(
     due_date: project.dueDate || null,
     budget: roundMoney(project.budget ?? 0),
     deliverables: project.deliverables ?? [],
+    // §8-b (G52, campo-companheiro do status): passthrough puro de
+    // `completedAt` — nunca fabrica data (linha legada "delivered" sem
+    // completedAt grava NULL, não "agora") e nunca limpa ao sair de
+    // "delivered" (valor histórico, mesma política de `useProjects.ts`).
+    completed_at: project.completedAt ?? null,
     source: resolveCloudProjectSource(project.source, quote_id),
     is_demo: false,
     archived,
@@ -276,5 +281,6 @@ export function mapSupabaseProjectToLocal(
     source: resolveLocalProjectSource(sp.source),
     deliverables,
     updatedAt: sp.updated_at ?? undefined,
+    completedAt: sp.completed_at ?? undefined,
   };
 }

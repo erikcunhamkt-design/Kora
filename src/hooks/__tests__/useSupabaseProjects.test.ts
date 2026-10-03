@@ -136,3 +136,84 @@ describe("useSupabaseProjects · G30 (G60) — createProject escreve o cache com
     await waitFor(() => expect(result.current.projects[0]?.id).toBe("sp-2"));
   });
 });
+
+// §8-b — ProjectDetailDrawer.tsx:179-183 (handleStatus) monta o patch só com
+// {status, archived} (translateLocalProjectStatusToCloud) — nunca passa por
+// mapLocalProjectToSupabase, o único produtor de projects que não passava.
+// Sem esta injeção no wrapper de updateProject, mudar o status pra
+// "delivered" em modo Supabase nativo nunca gravaria completed_at, mesmo
+// com a coluna existindo.
+describe("useSupabaseProjects · §8-b — updateProject injeta completed_at ao entrar em 'delivered'", () => {
+  it("projeto sem completed_at anterior: patch enviado ao repository ganha completed_at (now)", async () => {
+    vi.mocked(projectsRepository.listProjects).mockResolvedValue([baseRow({ id: "sp-1" })]);
+    vi.mocked(projectsRepository.updateProject).mockResolvedValue(
+      baseRow({ id: "sp-1", status: "delivered", completed_at: "2026-08-20T00:00:00.000Z" }),
+    );
+
+    const { result } = renderHook(() => useSupabaseProjects(), { wrapper });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.updateProject("sp-1", { status: "delivered" });
+    });
+
+    const [, , patch] = vi.mocked(projectsRepository.updateProject).mock.calls[0];
+    expect(patch.status).toBe("delivered");
+    expect(patch.completed_at).toEqual(expect.any(String));
+  });
+
+  it("projeto que JÁ tem completed_at: patch enviado NÃO sobrescreve (nunca reseta na 2ª entrega)", async () => {
+    vi.mocked(projectsRepository.listProjects).mockResolvedValue([
+      baseRow({ id: "sp-1", status: "delivered", completed_at: "2026-01-01T00:00:00.000Z" }),
+    ]);
+    vi.mocked(projectsRepository.updateProject).mockResolvedValue(
+      baseRow({ id: "sp-1", status: "delivered", completed_at: "2026-01-01T00:00:00.000Z" }),
+    );
+
+    const { result } = renderHook(() => useSupabaseProjects(), { wrapper });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.updateProject("sp-1", { status: "delivered" });
+    });
+
+    const [, , patch] = vi.mocked(projectsRepository.updateProject).mock.calls[0];
+    expect(patch.completed_at).toBeUndefined();
+  });
+
+  it("regressão: sair de 'delivered' (ex.: voltar pra 'in_progress') NUNCA limpa completed_at — decisão de manter valor histórico", async () => {
+    vi.mocked(projectsRepository.listProjects).mockResolvedValue([
+      baseRow({ id: "sp-1", status: "delivered", completed_at: "2026-01-01T00:00:00.000Z" }),
+    ]);
+    vi.mocked(projectsRepository.updateProject).mockResolvedValue(
+      baseRow({ id: "sp-1", status: "in_progress", completed_at: "2026-01-01T00:00:00.000Z" }),
+    );
+
+    const { result } = renderHook(() => useSupabaseProjects(), { wrapper });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.updateProject("sp-1", { status: "in_progress" });
+    });
+
+    const [, , patch] = vi.mocked(projectsRepository.updateProject).mock.calls[0];
+    expect(patch).not.toHaveProperty("completed_at");
+  });
+
+  it("caller pode sobrescrever completed_at explicitamente — a injeção nunca substitui um valor já presente no patch", async () => {
+    vi.mocked(projectsRepository.listProjects).mockResolvedValue([baseRow({ id: "sp-1" })]);
+    vi.mocked(projectsRepository.updateProject).mockResolvedValue(
+      baseRow({ id: "sp-1", status: "delivered", completed_at: "2020-01-01T00:00:00.000Z" }),
+    );
+
+    const { result } = renderHook(() => useSupabaseProjects(), { wrapper });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.updateProject("sp-1", { status: "delivered", completed_at: "2020-01-01T00:00:00.000Z" });
+    });
+
+    const [, , patch] = vi.mocked(projectsRepository.updateProject).mock.calls[0];
+    expect(patch.completed_at).toBe("2020-01-01T00:00:00.000Z");
+  });
+});

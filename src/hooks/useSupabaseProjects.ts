@@ -110,7 +110,21 @@ export function useSupabaseProjects() {
     refresh,
 
     createProject: (input: NewProjectInput) => createMutation.mutateAsync(input),
-    updateProject: (projectId: string, patch: Partial<SupabaseProject>) =>
-      updateMutation.mutateAsync({ projectId, patch }),
+    // §8-b (G52) — único produtor de projects que NÃO passa por
+    // mapLocalProjectToSupabase: ProjectDetailDrawer.handleStatus envia só
+    // {status, archived}. Ao entrar em "delivered", injeta completed_at=agora
+    // se a linha ainda não tem (nunca reseta numa 2ª entrega) e se o caller
+    // não passou um valor explícito. Sair de "delivered" NUNCA limpa
+    // (valor histórico — espelha useProjects.ts e o precedente paid_at).
+    updateProject: (projectId: string, patch: Partial<SupabaseProject>) => {
+      const finalPatch = { ...patch };
+      if (patch.status === "delivered" && finalPatch.completed_at === undefined) {
+        const current = (query.data ?? EMPTY_PROJECTS).find((p) => p.id === projectId);
+        if (!current?.completed_at) {
+          finalPatch.completed_at = new Date().toISOString();
+        }
+      }
+      return updateMutation.mutateAsync({ projectId, patch: finalPatch });
+    },
   };
 }

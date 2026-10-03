@@ -196,6 +196,30 @@ describe("mapLocalProjectToSupabase — fan-out dos 3 import-maps + tradução d
     const payload = mapLocalProjectToSupabase(makeProject({ deliverables: undefined }));
     expect(payload.deliverables).toEqual([]);
   });
+
+  // §8-b — completed_at é passthrough puro de Project.completedAt (já decidido
+  // pelo produtor local, useProjects.ts:updateProject). O mapper NUNCA
+  // reconstrói a data a partir de `status` sozinho.
+  describe("§8-b — completed_at (passthrough, nunca fabricado)", () => {
+    it("completedAt preenchido -> completed_at passa direto, sem transformação", () => {
+      const payload = mapLocalProjectToSupabase(makeProject({
+        status: "delivered", completedAt: "2026-08-15T10:00:00.000Z",
+      }));
+      expect(payload.completed_at).toBe("2026-08-15T10:00:00.000Z");
+    });
+
+    it("status 'delivered' SEM completedAt (dado legado/demo) -> null, NUNCA uma data fabricada", () => {
+      const payload = mapLocalProjectToSupabase(makeProject({
+        status: "delivered", completedAt: undefined,
+      }));
+      expect(payload.completed_at).toBeNull();
+    });
+
+    it("status diferente de 'delivered' sem completedAt -> null (regressão, caso comum)", () => {
+      const payload = mapLocalProjectToSupabase(makeProject({ status: "in_progress" }));
+      expect(payload.completed_at).toBeNull();
+    });
+  });
 });
 
 describe("translateLocalProjectStatusToCloud — item 1 da Fase B, resolve O12", () => {
@@ -350,5 +374,26 @@ describe("projectsMapper — mapSupabaseProjectToLocal (leitura, item 2)", () =>
     const project = mapSupabaseProjectToLocal(sp, {});
     expect(project.source).toBe("orçamento");
     expect(project.quoteId).toBe("uuid-quote-1");
+  });
+
+  // §8-b — roundtrip completo (write -> read) + leitura de linha legada com
+  // completed_at NULL (coluna aplicada depois de linhas já existentes).
+  describe("§8-b — completed_at (leitura)", () => {
+    it("completed_at preenchido -> completedAt local (roundtrip com a escrita)", () => {
+      const sp = makeSupabaseProject({ status: "delivered", completed_at: "2026-08-15T10:00:00.000Z" });
+      expect(mapSupabaseProjectToLocal(sp, {}).completedAt).toBe("2026-08-15T10:00:00.000Z");
+    });
+
+    it("completed_at NULL (linha legada, coluna aplicada depois do dado existir) -> completedAt undefined, nunca uma data inventada", () => {
+      const sp = makeSupabaseProject({ status: "delivered", completed_at: null });
+      expect(mapSupabaseProjectToLocal(sp, {}).completedAt).toBeUndefined();
+    });
+
+    it("roundtrip local -> supabase -> local preserva completedAt", () => {
+      const original = makeProject({ status: "delivered", completedAt: "2026-08-10T00:00:00.000Z" });
+      const payload = mapLocalProjectToSupabase(original);
+      const sp = makeSupabaseProject({ status: payload.status, completed_at: payload.completed_at });
+      expect(mapSupabaseProjectToLocal(sp, {}).completedAt).toBe("2026-08-10T00:00:00.000Z");
+    });
   });
 });

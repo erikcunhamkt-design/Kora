@@ -650,8 +650,7 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
 
                 return (
                   <div key={node.id} className="relative flex items-center">
-                    {/* SVG Connector Line — achado a reportar (Item 4 · R5,
-                        pedir ID ao revisor, não numerado por conta própria):
+                    {/* SVG Connector Line — G80 (kora-hub-auditoria-e-plano.md):
                         esta seta sempre liga node[index] a node[index+1] por
                         POSIÇÃO NO ARRAY, nunca pela aresta real de um nó
                         "menu" (`opcoes[].nextNodeId`). Com a árvore 100%
@@ -661,7 +660,8 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
                         sequência que não corresponde ao fluxo real montado
                         pelo usuário. Não corrigido nesta rodada (fora de
                         escopo — R5 é só CRUD de nó "menu", não um redesenho
-                        do canvas pra grafo real). */}
+                        do canvas pra grafo real; correção real — renderizar
+                        o grafo de verdade — pendente de rodada própria). */}
                     {index < nodes.length - 1 && (
                       <div className="hidden md:block absolute left-full top-1/2 w-6 h-[2px] bg-border/40 -translate-y-1/2 z-0">
                         <div className={`h-full bg-gradient-to-r from-primary to-transparent transition-all duration-300 ${nodes[index+1].enabled ? "opacity-100" : "opacity-20"}`} />
