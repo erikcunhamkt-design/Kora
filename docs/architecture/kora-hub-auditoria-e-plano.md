@@ -1250,7 +1250,7 @@ Achado durante a varredura de gates fósseis desta rodada (Fase C do flip de Tar
 
 ---
 
-**G78 — Comentário de `ProjectDetailDrawer.tsx:88-101` afirma "escrita nativa em modo Supabase pra Tarefas é a B5 do plano, ainda não existe" — falso desde `5e1829d`/`1dea136` (B5 fechou em `Tarefas.tsx`). [BAIXO — confirmado, NÃO corrigido nesta rodada (doc-only, preparação de homologação), mesma classe G29]**
+**G78 — Comentário de `ProjectDetailDrawer.tsx:88-101` afirma "escrita nativa em modo Supabase pra Tarefas é a B5 do plano, ainda não existe" — falso desde `5e1829d`/`1dea136` (B5 fechou em `Tarefas.tsx`). [BAIXO — FECHADO por `86bbc03` (Lane B, comentário reescrito), mesma classe G29]**
 
 Achado durante a preparação do runbook de Fase D desta rodada (leitura de código pra confirmar o estado real dos 8 consumidores antes de fechar os `[completar pós-B]` do runbook).
 
@@ -1258,10 +1258,11 @@ Achado durante a preparação do runbook de Fase D desta rodada (leitura de cód
 - **Por que é G29, não um bug funcional**: o comportamento em si (criar/mover tarefa de projeto aqui grava só local, mesmo em modo Supabase) não mudou e não é incorreto por si — é a mesma classe (b) "escrita local-only por decisão do desenho" que várias fatias já trataram assim de propósito (ex.: Central do Dia, G76/G77 antes de virar prioridade). O que ficou errado é só a JUSTIFICATIVA escrita — cita uma causa ("B5 não existe") que não é mais verdade, podendo levar quem ler a subestimar o esforço de fechar o gap (parece exigir "fazer a B5", quando na real exige só "estender o wiring de B5 pra este arquivo").
 - **NÃO corrigido nesta rodada** — escopo autorizado é o runbook de homologação (doc-only), não código. Fix sugerido pra rodada de acompanhamento: atualizar o texto pra refletir a causa real ("addTask/moveTask aqui não foram estendidos ao cloudWriteMode que Tarefas.tsx já usa — decisão de escopo, não limitação técnica") e — se o produto quiser — estender o mesmo wiring de `cloudWriteMode` (dataSource+flag) que `Tarefas.tsx` já tem pra criar/mover tarefas de dentro do drawer de projeto também em modo nativo.
 - **Referência:** `src/components/projects/ProjectDetailDrawer.tsx:88-101` (comentário duplicado e desatualizado), `Tarefas.tsx:218-286` (B5 real, `cloudWriteMode`), G29 (classe-mãe), `docs/qa/etapa-5-flip-tarefas-runbook.md` Caso 8 (onde este achado foi encontrado).
+- **FECHADO por `86bbc03` (Lane B, 2026-10-02):** comentário de `ProjectDetailDrawer.tsx` reescrito pra causa real — este arquivo nunca recebeu o wiring de `cloudWriteMode` da B5 (decisão de escopo, não "B5 não existe"). Zero mudança de comportamento. Estender o wiring de B5 ao drawer continua decisão de produto em aberto, fora deste fechamento.
 
 ---
 
-**G79 — Nenhum caminho de UI vincula cliente↔tarefa ou cliente↔projeto de forma real em modo Supabase — formulário de projeto captura `clientName` como texto livre (nunca resolvido pra `client_id`), e o seletor de cliente de Tarefas usa uma lista hardcoded/mock. Perda silenciosa com sucesso falso, mesma família do G75. [MÉDIO — confirmado ao vivo na homologação, NÃO corrigido nesta rodada, recomendação registrada]**
+**G79 — Nenhum caminho de UI vincula cliente↔tarefa ou cliente↔projeto de forma real em modo Supabase — formulário de projeto captura `clientName` como texto livre (nunca resolvido pra `client_id`), e o seletor de cliente de Tarefas usa uma lista hardcoded/mock. Perda silenciosa com sucesso falso, mesma família do G75. [MÉDIO — corrigido em código por `86bbc03`; verificação ao vivo PENDENTE (re-execução do Caso 7.4 da homologação de Tarefas)]**
 
 Achado ao vivo durante o Caso 7.4 da execução da Fase D de Tarefas (`docs/qa/etapa-5-flip-tarefas-homologacao-fase-d.md`) — tentativa de vincular uma tarefa/projeto a um cliente sintético pra testar a timeline de `ClientActivitiesTab.tsx` ("Histórico de Relacionamento").
 
@@ -1271,6 +1272,7 @@ Achado ao vivo durante o Caso 7.4 da execução da Fase D de Tarefas (`docs/qa/e
 - **Mesma família do G75** (perda silenciosa de dado com sucesso falso — lá era `Client.assets`/Biblioteca do cliente; aqui é o vínculo cliente↔projeto/tarefa): UI aceita a entrada, o mapper de escrita não tem onde persistir (ou não resolve o texto livre pra FK), e o app confirma sucesso sem indicar a perda.
 - **NÃO corrigido nesta rodada** (achado de execução de homologação, doc-only). Recomendação: (a) `Tarefas.tsx` — trocar `clientsList` hardcoded por clientes reais do workspace, via `useClientsDataSource` (já usado em outros domínios); (b) formulário de criação de projeto — resolver `clientName` digitado pra um `client_id` real (autocomplete contra clientes existentes, ou seletor estruturado em vez de texto livre) antes de persistir.
 - **Referência:** G75 acima (mesma classe, perda silenciosa com sucesso falso), `Tarefas.tsx:86,580,1212` (mock hardcoded), `docs/qa/etapa-5-flip-tarefas-runbook.md` Caso 7.4 e `docs/qa/etapa-5-flip-tarefas-homologacao-fase-d.md` (onde este achado foi confirmado ao vivo).
+- **Corrigido em código por `86bbc03` (Lane B, 2026-10-02) — verificação ao vivo PENDENTE:** `ProjectsSection.tsx` ganhou Select de clientes reais (`useClientsDataSource`) + input com datalist, preenchendo `clientId` (que `resolveProjectFk` já persiste como `client_id`); `Tarefas.tsx` perdeu o `clientsList` mock — `NewTaskDialog` e o filtro usam clientes reais, `clientId` persiste via `resolveTaskFk`, tarefa Pessoal nunca envia `clientId`. Fallback digitável ("cliente novo") mantido nos 2 modos, mesmo padrão de G44/`QuotesSection`. 6 testes novos, fail→fix→pass por patch. **Falta:** re-executar o Caso 7.4 da homologação ao vivo (projeto/tarefa com cliente real → timeline do cliente) pra confirmar o critério de aceite fim a fim; só então marcar FECHADO.
 
 ---
 
