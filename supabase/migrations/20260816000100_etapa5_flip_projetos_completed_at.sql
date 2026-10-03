@@ -1,0 +1,26 @@
+-- Etapa 5 · Projetos — espelho de migration JÁ APLICADA (docs/qa/migrations-espelho-8b.md).
+--
+-- APLICADA MANUALMENTE PELO OPERADOR EM SESSÃO §8-b (data exata não
+-- registrada em nenhum doc dedicado desta coluna especificamente — achado
+-- incidental, confirmado por introspecção de schema via `supabase gen
+-- types typescript`, não por um runbook próprio). Este arquivo é SÓ
+-- ESPELHO — não roda nada novo contra produção, só para supabase/migrations/
+-- parar de divergir do banco real. NÃO reaplicar via `supabase db push`
+-- sem primeiro registrar esta versão como já aplicada
+-- (`supabase migration repair --status applied <timestamp>`, passo do
+-- operador — ver docs/qa/migrations-espelho-8b.md).
+--
+-- Prova de aplicação: `projects.completed_at` já consta em
+-- src/integrations/supabase/types.ts (Row/Insert/Update, regenerado por
+-- introspecção read-only) e é lido/escrito por
+-- src/services/projects/projectsMapper.ts (mapLocalProjectToSupabase/
+-- mapSupabaseProjectToLocal) e src/hooks/useSupabaseProjects.ts
+-- (updateProject injeta completed_at ao entrar em "delivered") — ver
+-- docs/qa/etapa-5-projects-completed-at.md ("coluna já existe no banco;
+-- aplicada pelo operador; nenhuma DDL nesta rodada").
+--
+-- ADD COLUMN IF NOT EXISTS: idempotente de propósito, já que a coluna
+-- JÁ EXISTE em produção — rodar este arquivo contra um banco que já tem a
+-- coluna é um no-op seguro, não um erro.
+ALTER TABLE public.projects
+  ADD COLUMN IF NOT EXISTS completed_at timestamptz NULL;
