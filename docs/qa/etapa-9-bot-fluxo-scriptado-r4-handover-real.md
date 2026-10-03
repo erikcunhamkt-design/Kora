@@ -97,9 +97,17 @@ Atendimento vai querer o campo tipado).
 
 ## 3. Decisões e por quê
 
-1. **⚠ CONFLITO SINALIZADO — `acao: "reprompt"` esgotada agora entrega a
-   humano.** Esta é uma instrução EXPLÍCITA do prompt da R4 ("…ou com
-   `acao="reprompt"` esgotada"), mas contradiz duas coisas já em `main`:
+1. **✅ DECISÃO DO OPERADOR (confirmada no "vai" do merge): "reprompt
+   esgotado (`maxTentativas`) → entrega a humano" é o comportamento
+   OFICIAL.** A implementação desta rodada fica como está. A correção do doc
+   R1 §0 item 2 e do rótulo/ajuda da UI do R5 ("Reapresentar o menu
+   (padrão)") ficam com a **Lane C** (adendo já enviado) — nenhum dos dois
+   foi tocado aqui. O registro abaixo é o conflito como foi sinalizado ANTES
+   da decisão, mantido pra rastreabilidade.
+
+   **(Registro original) `acao: "reprompt"` esgotada agora entrega a
+   humano.** Instrução EXPLÍCITA do prompt da R4 ("…ou com
+   `acao="reprompt"` esgotada"), que contradizia duas coisas já em `main`:
    - R1 §0 item 2 (decisão do operador): "limite de tentativas configurável
      decide o que acontece depois de esgotado: **reprompt indefinido** OU
      pular pra outro nó";
@@ -114,11 +122,9 @@ Atendimento vai querer o campo tipado).
    seguida entrega a conversa a um humano (antes: reapresentava o menu pra
    sempre). O rótulo da UI "Reapresentar o menu" passa a não descrever o
    comportamento — **UI não tocada** (arquivo da Lane C, fora do escopo
-   desta rodada); se a decisão for mantida, o rótulo/ajuda precisam de
-   ajuste numa rodada de UI. **Reverter é 1 trecho**: em
-   `botFlowMenu.ts#resolveMenuTurn`, trocar o `return { kind: "exhausted" }`
-   por cair no `reprompt` (e os 3 testes da lista abaixo voltam ao que a R3
-   afirmava). Nada vai pra `main` sem o "vai" do revisor (§18).
+   desta rodada); com a decisão mantida pelo operador, o rótulo/ajuda
+   precisam de ajuste (Lane C). (Reverter teria sido 1 trecho em
+   `botFlowMenu.ts#resolveMenuTurn` — não aplicável: decisão confirmada.)
 2. **`assigned_to` intocado.** "Pra quem atribuir" é pergunta de produto
    em aberto (G48/Fase A §2.3, sem fila/rodízio hoje). `handover_at` é
    independente: a conversa fica "entregue" mesmo sem ninguém atribuído.
