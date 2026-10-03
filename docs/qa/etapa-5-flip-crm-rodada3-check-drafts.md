@@ -1,6 +1,8 @@
 # Etapa 5 — CRM (crm_opportunities) — drafts de migration CHECK
 
-> **Nada aplicado.** Extensão natural do draft de Clientes
+> **STATUS (2026-08-30): APLICADO** (status/temperature/priority — `stage` continua deliberadamente SEM CHECK, ver §1). Aplicado pelo operador em sessão §8-b de 2026-08-30 (confirmação do revisor) — espelho em `supabase/migrations/20260830000600_etapa5_flip_clientes_crm_known_chk.sql`, detalhe em `docs/qa/migrations-espelho-8b.md`. O texto original abaixo ("Nada aplicado") é o registro correto do estado até essa data — preservado, não reescrito.
+
+> **Nada aplicado (até 2026-08-30 — ver status acima).** Extensão natural do draft de Clientes
 > ([`etapa-5-flip-clientes-rodada3-check-drafts.md`](etapa-5-flip-clientes-rodada3-check-drafts.md)
 > — mesma classe de achado, §2.2 daquele pacote, "fora de escopo" ali,
 > investigado aqui). `public.crm_opportunities` tem 4 colunas de

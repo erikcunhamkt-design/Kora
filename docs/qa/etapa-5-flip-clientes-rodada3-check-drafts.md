@@ -1,6 +1,8 @@
 # Etapa 5 — Clientes — Rodada 3 (pré-preparação) — drafts de migration CHECK
 
-> **Nada aplicado.** Este doc guarda os DRAFTS de migration da Rodada 3 do
+> **STATUS (2026-08-30): APLICADO.** O draft de `clients_status_known_chk`/`clients_temperature_known_chk` abaixo foi aplicado pelo operador em sessão §8-b de 2026-08-30 (confirmação do revisor) — espelho em `supabase/migrations/20260830000600_etapa5_flip_clientes_crm_known_chk.sql`, detalhe em `docs/qa/migrations-espelho-8b.md`. O texto original abaixo ("Nada aplicado") é o registro correto do estado até essa data — preservado, não reescrito.
+
+> **Nada aplicado (até 2026-08-30 — ver status acima).** Este doc guarda os DRAFTS de migration da Rodada 3 do
 > Pacote do Flip de Clientes ([`etapa-5-flip-clientes-pacote.md`](etapa-5-flip-clientes-pacote.md)
 > §2.2/§4), preparados enquanto a Rodada 2b esperava os 2 fósseis do par G59
 > aterrissarem (ambos já aterrissaram — ver addendum de §4 daquele pacote,

@@ -1,6 +1,8 @@
 # G71 — Credenciais de terceiros com proteção mais fraca que o precedente do próprio repo — pacote do operador
 
-> **Nada aplicado.** Este doc guarda os 3 artefatos que dependem de ação do
+> **STATUS (2026-08-30): os 3 itens foram executados pelo operador em sessão §8-b** (confirmação do revisor) — §1 (SELECT de exposição) rodado; §2 (UPDATE de remediação) rodado, confirmado count 0 depois (§2.4); §3 (RLS) aplicado nos 2 drafts — espelho em `supabase/migrations/20260830000800_...sql`/`20260830000900_...sql`, detalhe em `docs/qa/migrations-espelho-8b.md`. §2 é DML pontual, nunca virou migration. O texto original abaixo ("Nada aplicado") é o registro correto do estado até essa data — preservado, não reescrito.
+
+> **Nada aplicado (até 2026-08-30 — ver status acima).** Este doc guarda os 3 artefatos que dependem de ação do
 > operador contra o banco de produção, gerados a partir do achado G71
 > (`docs/architecture/kora-hub-auditoria-e-plano.md`), catalogado a partir de
 > `docs/qa/varredura-seguranca-classe-g63.md` §1 (achado #2) e §2 (achados
