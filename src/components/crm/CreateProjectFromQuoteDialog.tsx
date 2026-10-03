@@ -14,6 +14,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { useProjects } from "@/hooks/useProjects";
 import { projectsRepository } from "@/repositories/projectsRepository";
+import { useSupabaseProjects } from "@/hooks/useSupabaseProjects";
+import { getProjectsDataSource } from "@/config/flags";
+import { getFriendlyMessage } from "@/lib/supabase/errors";
 
 interface CreateProjectFromQuoteDialogProps {
   open: boolean;
@@ -47,6 +50,16 @@ export function CreateProjectFromQuoteDialog({
   onSuccess,
 }: CreateProjectFromQuoteDialogProps) {
   const { addProject } = useProjects();
+  // Cutover do irmão de CRM (mesma decisão de produto do Caso 7.2 de Vendas,
+  // `QuoteToProjectDialog.tsx`, 5be5c3d): em modo Supabase o projeto é criado
+  // NATIVAMENTE na nuvem (createSupabaseProject, mesmo caminho de
+  // ProjectsSection.tsx pós-flip), não mais "local + espelho best-effort" —
+  // em modo Supabase o local nem é lido pela tela Projetos (leitura
+  // bifurcada), então o projeto gerado aqui ficava invisível. Mesmo gate de
+  // ProjectsSection (getProjectsDataSource, sem flag extra). Modo local:
+  // intocado (addProject + espelho G22 abaixo, byte a byte).
+  const cloudMode = getProjectsDataSource() === "supabase";
+  const { createProject: createSupabaseProject } = useSupabaseProjects();
   const [submitting, setSubmitting] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -89,6 +102,53 @@ export function CreateProjectFromQuoteDialog({
     }
 
     setSubmitting(true);
+    if (cloudMode) {
+      try {
+        // Vínculos REAIS (G37, payload completo): quote_id/client_id/
+        // opportunity_id chegam aqui já como uuid (props string vindas de
+        // cotações da nuvem). Project.clientId/opportunityId são tipados
+        // `number` (uuid "contrabandeado", useClientsDataSource.ts:9) —
+        // cast, NUNCA Number() (G67: Number(uuid) = NaN). resolveProjectFk
+        // (projectsMapper.ts) tem passthrough de uuid; source "orçamento" +
+        // quote_id resolvido => "quote" na nuvem, e importProject já roteia
+        // esse caso por createProjectFromQuote (idempotente contra
+        // ux_projects_from_quote: repetir "Gerar projeto" na mesma cotação
+        // devolve o projeto existente em vez de duplicar).
+        const created = await createSupabaseProject({
+          name: title,
+          clientName,
+          clientId: (clientId ?? undefined) as unknown as number | undefined,
+          quoteId,
+          quoteTitle,
+          opportunityId: (opportunityId ?? undefined) as unknown as number | undefined,
+          description: description || undefined,
+          budget,
+          startDate,
+          dueDate,
+          status: "planning",
+          priority: "medium",
+          source: "orçamento",
+          tags: [],
+        });
+        try {
+          const logParsed = JSON.parse(localStorage.getItem("kora.quotes.supabaseProjects.v1") || "[]");
+          logParsed.push({ quoteTitle, projectId: created.id, title, budget, createdAt: new Date().toISOString(), gravadoLocal: false });
+          localStorage.setItem("kora.quotes.supabaseProjects.v1", JSON.stringify(logParsed));
+        } catch (logErr) {
+          console.error("Erro ao registrar log de projeto:", logErr);
+        }
+        toast.success("Projeto criado. Veja em Projetos.");
+        onSuccess();
+        onOpenChange(false);
+      } catch (err: unknown) {
+        console.error("Falha ao criar projeto no Supabase:", err);
+        toast.error("Erro ao gerar projeto no Supabase.", { description: getFriendlyMessage(err) });
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
     try {
       // F5-equivalente (padrão F5-b): grava LOCAL (useProjects().addProject()),
       // nivelado ao mesmo caminho que QuoteToProjectDialog.tsx (Vendas) já usa em
@@ -170,7 +230,7 @@ export function CreateProjectFromQuoteDialog({
         <DialogHeader>
           <DialogTitle className="text-foreground text-sm font-semibold">Gerar projeto?</DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground leading-normal">
-            Esta ação criará um projeto local, visível na tela Projetos, a partir deste orçamento aprovado. Tarefas, cronogramas e automações não serão criados nesta etapa.
+            Esta ação criará um projeto {cloudMode ? "na nuvem (Supabase)" : "local"}, visível na tela Projetos, a partir deste orçamento aprovado. Tarefas, cronogramas e automações não serão criados nesta etapa.
           </DialogDescription>
         </DialogHeader>
 
