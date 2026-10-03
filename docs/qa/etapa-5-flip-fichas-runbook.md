@@ -80,7 +80,7 @@
 
 ## Casos
 
-### Caso 0 — Vínculo cliente→uuid (prova do achado A; pré-requisito dos demais)
+### Caso 0 — Vínculo cliente→uuid (prova do G82, achado A; pré-requisito dos demais)
 
 Cliente `HOMOLOG-FIC-cliente-A` (nuvem). **Hoje (pré-FP0) o resultado esperado é o defeito**: fecha vermelho = prova do achado.
 
@@ -115,7 +115,7 @@ Cliente `HOMOLOG-FIC-cliente-A` (nuvem). **Hoje (pré-FP0) o resultado esperado 
 | 3.2 | — | Continua **1** linha por cliente; as 4 seções presentes | `SELECT count(*), bool_and(persona<>'{}'::jsonb) FROM public.client_technical_sheets t JOIN public.clients c ON c.id=t.client_id WHERE c.name='HOMOLOG-FIC-cliente-A';` → `1 | t` |
 | 3.3 | Salvar uma seção, **imediatamente** abrir outra aba do navegador na mesma ficha e salvar outra seção diferente | Ficha final contém as duas (ou o resultado é registrado como last-write-wins, **ressalva** — não há versão/updated_at condicional) | SELECT das duas colunas |
 
-### Caso 4 — Round-trip de Concorrentes (achado B) **[completar pós-FP1]**
+### Caso 4 — Round-trip de Concorrentes (achado B — G83) **[completar pós-FP1]**
 
 | Passo | Ação | Esperado | Prova |
 |---|---|---|---|
@@ -123,7 +123,7 @@ Cliente `HOMOLOG-FIC-cliente-A` (nuvem). **Hoje (pré-FP0) o resultado esperado 
 | 4.2 | F5 | Concorrente **continua listado** | Visual |
 | 4.3 | — | Persistiu (em `raw_payload.competitors` ou coluna, conforme decisão FP1) | `SELECT raw_payload->'competitors' FROM public.client_technical_sheets t JOIN public.clients c ON c.id=t.client_id WHERE c.name='HOMOLOG-FIC-cliente-A';` **[completar: ajustar se coluna dedicada]** |
 
-**Vermelho hoje:** o concorrente some no F5 com o badge "Salvo" — prova do achado B.
+**Vermelho hoje:** o concorrente some no F5 com o badge "Salvo" — prova do achado B (G83).
 
 ### Caso 5 — Acessos: a senha NUNCA vai pra nuvem (G63) + comportamento da seção **[completar pós-FP2]**
 

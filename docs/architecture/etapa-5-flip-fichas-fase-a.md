@@ -50,7 +50,7 @@
 | G63 | `256950c` | `accesses` fora do `raw_payload`; 3 flags viraram opt-in; banner bifurcado; auto-promote removido | [confirmado por leitura] `technicalSheetMapper.ts:45`, `flags.ts:195-211,291-294` |
 | 2b-fichas | `c637770` | `ClientTechnicalSheet.tsx` acha o cliente por `useClientsDataSource()` | [confirmado por leitura] `:244` |
 
-**Leitura de F3 que o pacote não registrou:** `ClientTechnicalSheetDialog` (o componente
+**Leitura de F3 que o pacote não registrou (G84):** `ClientTechnicalSheetDialog` (o componente
 `<ClientTechnicalSheetDialog>`, ~1780 linhas) **não é montado em nenhum lugar** da aplicação — só
 em `ClientTechnicalSheetDialog.test.tsx`. O arquivo sobrevive como biblioteca de seções
 (`ClientTechnicalSheet.tsx:66` importa dele). Logo, 1 dos "4 consumidores" do G74 era código
@@ -121,10 +121,10 @@ tem efeito após recarregar a ficha. Aceitável; vira item de runbook (§ runboo
 
 ## 3. Achados novos (todos sem número de G — numeração a cargo do revisor)
 
-> "Reportar, não inventar": não atribuí IDs. Chamo-os de **A…E** só neste documento. Nenhum foi
+> IDs atribuídos pelo revisor após esta Fase A: **A = G82**, **B = G83**, **Dialog órfão (§2.1) = G84**, **C = adendo ao G29**; D e E seguem sem ID (decisões de produto). Entradas no catálogo mestre. Nenhum foi
 > corrigido (doc-only). A e B são pré-requisitos do F4; C–E entram como fatias do F4 ou limpeza.
 
-### A. Vínculo cliente→uuid quebrado pelo flip de Clientes (classe G67 + G74) — **ALTO se confirmado**
+### A — **G82**. Vínculo cliente→uuid quebrado pelo flip de Clientes (classe G67 + G74) — **ALTO se confirmado**
 
 **Mecanismo [confirmado por leitura]:**
 1. `useClientsDataSource` devolve a lista **cloud** sempre que há workspace (`source = workspaceLoading
@@ -160,7 +160,7 @@ específico de "workspace ativo + cliente cloud" — o estado normal pós-G58.
 esperado pela leitura de código: "Este cliente ainda não está vinculado ao Supabase." no Painel
 Versão Supabase, botão "Supabase experimental" desabilitado (cadeado).
 
-### B. Round-trip assimétrico — perda silenciosa com "Salvo no Supabase" (classe G37 + G75)
+### B — **G83**. Round-trip assimétrico — perda silenciosa com "Salvo no Supabase" (classe G37 + G75)
 
 | Campo | Escrita | Leitura (`mapSupabaseToLocalSheet`) | Efeito em fonte nuvem |
 |---|---|---|---|
@@ -174,7 +174,7 @@ Versão Supabase, botão "Supabase experimental" desabilitado (cadeado).
 Hoje isso é contido porque a fonte nuvem exige 3 opt-ins. Com os defaults invertidos, vira o
 caminho principal — por isso **B é pré-requisito do F4** (não do F2/F3).
 
-### C. Textos de UI que viram falsos no flip (classe G29) — lista fechada
+### C — **G29 (adendo, sem ID novo)**. Textos de UI que viram falsos no flip (classe G29) — lista fechada
 
 `ClientTechnicalSheet.tsx`: `:469` ("Tudo é salvo automaticamente neste dispositivo…"), `:571` +
 `:577` (selo "Somente Leitura"/"A edição principal desta página ainda usa dados locais…"),
