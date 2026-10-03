@@ -134,14 +134,37 @@ describe("WhatsAppBotConfig · nó 'menu' (Item 4, R5) — fallback (resposta in
   it("default é 'reprompt' (reapresentar o menu) — sem seletor de nó de destino visível", async () => {
     await renderAndAddMenuNode();
 
-    expect(screen.getByText("Reapresentar o menu (padrão)")).toBeInTheDocument();
+    // Texto da UI = comportamento real (G80 adendo, decisão do operador, R4
+    // da lane D): reprompt esgotado ENTREGA A HUMANO — não "reprompt indefinido".
+    expect(screen.getByText("Reapresentar o menu (até 3x, depois entrega a humano) — padrão")).toBeInTheDocument();
     expect(screen.queryByText("Nó de destino")).not.toBeInTheDocument();
+    expect(screen.queryByText(/indefinid/i)).not.toBeInTheDocument();
+  });
+
+  it("[G80 adendo] o rótulo do reprompt acompanha o limite de tentativas e o texto de ajuda diz que a conversa é entregue a um humano", async () => {
+    await renderAndAddMenuNode();
+
+    fireEvent.change(screen.getByDisplayValue("3"), { target: { value: "5" } });
+
+    expect(screen.getByText("Reapresentar o menu (até 5x, depois entrega a humano) — padrão")).toBeInTheDocument();
+    expect(screen.getByText(/depois de 5 tentativas inválidas seguidas: a conversa é entregue a um atendente humano\./)).toBeInTheDocument();
+  });
+
+  it("[G80 adendo] com 'Pular para outro nó' o texto de ajuda passa a descrever o nó de destino, não a entrega a humano", async () => {
+    await renderAndAddMenuNode();
+
+    const fallbackTrigger = screen.getByText(/Reapresentar o menu \(até 3x/).closest('button[role="combobox"]') as HTMLElement;
+    fireEvent.click(fallbackTrigger);
+    fireEvent.click(within(await screen.findByRole("listbox")).getByText("Pular para outro nó"));
+
+    expect(screen.getByText(/o fluxo segue para o nó de destino escolhido\./)).toBeInTheDocument();
+    expect(screen.queryByText(/entregue a um atendente humano/)).not.toBeInTheDocument();
   });
 
   it("trocar pra 'Pular para outro nó' revela o seletor de nó de destino, excluindo o próprio nó menu", async () => {
     await renderAndAddMenuNode();
 
-    const fallbackTrigger = screen.getByText("Reapresentar o menu (padrão)").closest('button[role="combobox"]') as HTMLElement;
+    const fallbackTrigger = screen.getByText(/Reapresentar o menu \(até 3x/).closest('button[role="combobox"]') as HTMLElement;
     fireEvent.click(fallbackTrigger);
     const listbox = await screen.findByRole("listbox");
     fireEvent.click(within(listbox).getByText("Pular para outro nó"));

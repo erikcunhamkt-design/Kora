@@ -14,8 +14,10 @@
    - nó **menu** → 1 aresta `"option"` por opção (`opcoes[].nextNodeId`;
      `toNodeId: null` quando a opção ainda não tem "Ir para...") + 1 aresta
      `"fallback"` quando `fallback.acao === "node"` (`fallbackNodeId`, `null`
-     se não escolhido); fallback `"reprompt"` não gera aresta (reapresenta o
-     próprio menu, não sai dele);
+     se não escolhido); fallback `"reprompt"` não gera aresta no canvas — ao
+     esgotar `maxTentativas` ele ENTREGA A HUMANO (decisão do operador, R4
+     da lane D), e a entrega a humano é uma AÇÃO do motor, não um nó da
+     árvore com id pra apontar (o rótulo do select descreve isso);
    - nós **fixos** (trigger/ai/send/handover) → `"sequence"` entre vizinhos
      fixos, exatamente como antes — nenhum modelo novo de aresta pros fixos;
    - nó menu **nunca** recebe nem emite `"sequence"`.

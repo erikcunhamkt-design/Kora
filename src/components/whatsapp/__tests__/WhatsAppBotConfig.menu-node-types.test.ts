@@ -61,7 +61,7 @@ describe("WorkflowNode · tipo 'menu' (Item 4, R1 — fundação de dados)", () 
     expect(typeof opts[0].nextNodeId).toBe("string");
   });
 
-  it("fallback default do produto é 'reprompt' (reapresenta o menu) — não um transbordo automático", () => {
+  it("fallback default do produto é 'reprompt' (reapresenta o menu até maxTentativas, depois entrega a humano) — nunca transbordo no primeiro erro", () => {
     const node = makeMenuNode();
     const fallback: MenuWorkflowNodeFallback = node.properties.fallback;
     expect(fallback.acao).toBe("reprompt");

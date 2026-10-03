@@ -19,10 +19,18 @@
    pra suportar pipelines customizados).
 2. **Fallback default = re-prompt** — resposta inválida reapresenta o
    mesmo menu ("responda com uma opção válida"), nunca pula direto pra
-   transbordo. Um limite de tentativas **configurável** decide o que
-   acontece depois de esgotado: reprompt indefinido OU pular pra outro nó
-   (`fallbackNodeId`, tipicamente mas não necessariamente um nó
-   `handover`).
+   transbordo no primeiro erro. Um limite de tentativas **configurável**
+   (`maxTentativas`) decide o que acontece depois de esgotado:
+   - `acao: "reprompt"` (default) → **ENTREGA A HUMANO** (decisão do
+     operador, confirmada pelo revisor, implementada na R4 da lane D).
+     **Correção (G80, adendo):** a redação original deste item dizia
+     "reprompt indefinido" — estava errada em relação à decisão do
+     operador; reprompt NÃO é infinito, só reapresenta o menu até
+     `maxTentativas` e então entrega a humano. (Nota: o motor da R3, como
+     mergeado antes da R4, ainda reapresentava indefinidamente; o texto da
+     UI descreve o comportamento da R4 — mergear junto/depois dela.)
+   - `acao: "node"` → pular pra outro nó (`fallbackNodeId`, tipicamente mas
+     não necessariamente um nó `handover`).
 3. **IA é nó OPCIONAL, nunca obrigatório** — o nó `menu` é uma alternativa
    ao nó `ai` na árvore (mensagem scriptada, zero custo de IA, resposta
    determinística), nunca uma dependência dele. Uma árvore inteira sem
@@ -69,7 +77,7 @@ export interface MenuWorkflowNodeOption {
 export interface MenuWorkflowNodeFallback {
   /** Quantas respostas inválidas em sequência antes de aplicar `acao`. */
   maxTentativas: number;
-  /** "reprompt" reapresenta o mesmo menu (default do produto); "node" pula pra `fallbackNodeId`. */
+  /** "reprompt" reapresenta o mesmo menu até `maxTentativas` e então ENTREGA A HUMANO (default do produto); "node" pula pra `fallbackNodeId`. */
   acao: "reprompt" | "node";
   /** Obrigatório quando `acao === "node"` — não validado em tipo, validar em runtime na fatia de execução. */
   fallbackNodeId?: string;

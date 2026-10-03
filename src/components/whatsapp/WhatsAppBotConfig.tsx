@@ -65,7 +65,8 @@ export interface HandoverWorkflowNode extends WorkflowNodeBase {
 // monta a árvore é o próprio usuário). Fallback default é RE-PROMPT
 // ("responda com uma opção válida", reapresenta o mesmo menu) — nunca um
 // transbordo automático no primeiro erro; só depois de `maxTentativas`
-// esgotado é que decide entre reprompt indefinido ou pular pra outro nó
+// esgotado é que decide entre entregar a humano (acao "reprompt", decisão do
+// operador implementada na R4 da lane D — NÃO é reprompt indefinido) ou pular pra outro nó
 // (tipicamente um `HandoverWorkflowNode`, mas `fallbackNodeId` aceita
 // qualquer nó — a árvore não impõe destino fixo). Nó "menu" é uma
 // alternativa ao nó "ai" na árvore (mensagem scriptada, sem custo de IA),
@@ -86,7 +87,7 @@ export interface MenuWorkflowNodeOption {
 export interface MenuWorkflowNodeFallback {
   /** Quantas respostas inválidas em sequência antes de aplicar `acao`. */
   maxTentativas: number;
-  /** "reprompt" reapresenta o mesmo menu (default do produto); "node" pula pra `fallbackNodeId`. */
+  /** "reprompt" reapresenta o mesmo menu até `maxTentativas` e então ENTREGA A HUMANO (default do produto); "node" pula pra `fallbackNodeId`. */
   acao: "reprompt" | "node";
   /** Obrigatório quando `acao === "node"` — não validado em tipo (união discriminada faria o node perder a forma comum), validar em runtime quando a fatia de execução existir. */
   fallbackNodeId?: string;
@@ -1144,7 +1145,13 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="reprompt">Reapresentar o menu (padrão)</SelectItem>
+                            {/* Texto da UI = comportamento real (G40/G49): decisão do
+                                operador, implementada na R4 da lane D — reprompt com
+                                maxTentativas esgotado ENTREGA A HUMANO (não é mais
+                                "reprompt indefinido"). */}
+                            <SelectItem value="reprompt">
+                              Reapresentar o menu (até {activeNode.properties.fallback.maxTentativas}x, depois entrega a humano) — padrão
+                            </SelectItem>
                             <SelectItem value="node">Pular para outro nó</SelectItem>
                           </SelectContent>
                         </Select>
@@ -1173,7 +1180,10 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
                     )}
 
                     <p className="text-[10px] text-muted-foreground/70 leading-relaxed">
-                      Uma resposta que não bate com nenhuma opção sempre reapresenta o menu primeiro — isto só decide o que fazer depois de {activeNode.properties.fallback.maxTentativas} tentativa{activeNode.properties.fallback.maxTentativas === 1 ? "" : "s"} inválida{activeNode.properties.fallback.maxTentativas === 1 ? "" : "s"} seguida{activeNode.properties.fallback.maxTentativas === 1 ? "" : "s"}.
+                      Uma resposta que não bate com nenhuma opção sempre reapresenta o menu primeiro — isto só decide o que fazer depois de {activeNode.properties.fallback.maxTentativas} tentativa{activeNode.properties.fallback.maxTentativas === 1 ? "" : "s"} inválida{activeNode.properties.fallback.maxTentativas === 1 ? "" : "s"} seguida{activeNode.properties.fallback.maxTentativas === 1 ? "" : "s"}:{" "}
+                      {activeNode.properties.fallback.acao === "reprompt"
+                        ? "a conversa é entregue a um atendente humano."
+                        : "o fluxo segue para o nó de destino escolhido."}
                     </p>
                   </div>
                 </div>
