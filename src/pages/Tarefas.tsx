@@ -35,10 +35,12 @@ import {
   toIsoDate, formatPtBr,
 } from "@/hooks/useTasks";
 import { useBifurcatedTasks } from "@/hooks/useBifurcatedTasks";
+import { useClientsDataSource } from "@/hooks/useClientsDataSource";
 import { useSupabaseTasksAll } from "@/hooks/useSupabaseTasksAll";
 import { useSupabaseTasksWriteFlag } from "@/hooks/useSupabaseTasksWriteFlag";
 import { getTasksDataSource } from "@/config/flags";
 import type { SupabaseTask } from "@/repositories/tasksRepository";
+import type { Client } from "@/types/domain";
 import { splitTaskUpdatePatch } from "@/services/tasks/tasksMapper";
 import { useTaskProjects, type TaskProject, type TaskProjectType } from "@/hooks/useTaskProjects";
 import {
@@ -82,8 +84,6 @@ const priorityMeta: Record<TaskPriority, { label: string; short: string; badge: 
 const recurrenceLabels: Record<TaskRecurrence, string> = {
   none: "Sem recorrência", daily: "Diária", weekly: "Semanal", monthly: "Mensal", weekdays: "Dias úteis",
 };
-
-const clientsList = ["Acme Corp", "Studio Zen", "Nova Design", "FitTrack", "Café & Arte", "Brand Co", "StartUp X"];
 
 const TODAY_ISO = toIsoDate(new Date());
 
@@ -207,6 +207,13 @@ const Tarefas = () => {
     toggleSubtask, addSubtask, duplicateTask, archiveTask, deleteTask: deleteTaskLocal,
   } = useTasks();
   const tasks = useBifurcatedTasks();
+  // G79 (kora-hub-auditoria-e-plano.md) — clientsList era um mock hardcoded
+  // ("Acme Corp", ...), nunca clientes reais do workspace; nenhum caminho de
+  // UI vinculava clientId de verdade a uma tarefa. useClientsDataSource() é
+  // a mesma fonte bifurcada já usada por ProjectsSection.tsx/QuotesSection.tsx
+  // (G44) — resolveTaskFk (tasksMapper.ts) já sabe resolver clientId pra
+  // client_id, só faltava esta tela alimentar um clientId de verdade.
+  const { clients: dsClients } = useClientsDataSource();
 
   // B5 — [G32] useSupabaseTasksAll já busca sempre em paralelo (via
   // useBifurcatedTasks acima); chamar de novo aqui só assina o MESMO cache
@@ -577,10 +584,10 @@ const Tarefas = () => {
           </SelectContent>
         </Select>
         <Select value={filterClient} onValueChange={setFilterClient}>
-          <SelectTrigger className="w-[140px] bg-muted/40 h-10"><SelectValue placeholder="Cliente" /></SelectTrigger>
+          <SelectTrigger className="w-[140px] bg-muted/40 h-10" aria-label="Filtrar por cliente"><SelectValue placeholder="Cliente" /></SelectTrigger>
           <SelectContent className="max-h-[280px]">
             <SelectItem value="all">Clientes</SelectItem>
-            {clientsList.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+            {dsClients.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={filterTag} onValueChange={setFilterTag}>
@@ -653,6 +660,7 @@ const Tarefas = () => {
         onOpenChange={setNewTaskOpen}
         onCreate={addTask}
         taskProjects={taskProjects}
+        dsClients={dsClients}
       />
       <TaskDetailSheet
         task={selectedTask}
@@ -1130,17 +1138,22 @@ const KanbanView = ({ tasks, taskProjects, draggedId, setDraggedId, onSelect, on
 /*  Dialog: nova tarefa                                               */
 /* ------------------------------------------------------------------ */
 
-const NewTaskDialog = ({ open, onOpenChange, onCreate, taskProjects }: {
+const NewTaskDialog = ({ open, onOpenChange, onCreate, taskProjects, dsClients }: {
   open: boolean; onOpenChange: (v: boolean) => void;
   onCreate: (data: Omit<Task, "id" | "isDemo" | "createdAt">) => void;
   taskProjects: TaskProject[];
+  dsClients: Client[];
 }) => {
   const [scope, setScope] = useState<TaskScope>("work");
   const [reminderPreset, setReminderPreset] = useState<ReminderPreset>("none");
+  // G79 — Select de cliente real (era clientsList mock); clientId persiste
+  // via resolveTaskFk (tasksMapper.ts), já pronto pra receber isso.
+  const [clientId, setClientId] = useState<number | undefined>(undefined);
+  const [clientNameInput, setClientNameInput] = useState("");
   const visibleProjects = taskProjects.filter(p => !p.archived && (scope === "personal" ? p.type === "personal" : p.type === "work"));
 
   // Reset scope-dependent fields when dialog opens
-  useEffect(() => { if (open) { setScope("work"); setReminderPreset("none"); } }, [open]);
+  useEffect(() => { if (open) { setScope("work"); setReminderPreset("none"); setClientId(undefined); setClientNameInput(""); } }, [open]);
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -1157,7 +1170,8 @@ const NewTaskDialog = ({ open, onOpenChange, onCreate, taskProjects }: {
     onCreate({
       title,
       description: (fd.get("description") as string) || "",
-      client: scope === "personal" ? "" : ((fd.get("client") as string) || ""),
+      client: scope === "personal" ? "" : clientNameInput,
+      clientId: scope === "personal" ? undefined : clientId,
       project: scope === "personal" ? projectName : projectName,
       taskProjectId,
       scope,
@@ -1210,10 +1224,37 @@ const NewTaskDialog = ({ open, onOpenChange, onCreate, taskProjects }: {
           {scope === "work" && (
             <div className="space-y-2">
               <Label className="text-sm text-muted-foreground">Cliente</Label>
-              <Select name="client">
-                <SelectTrigger className="bg-muted/40"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                <SelectContent>{clientsList.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+              <Select
+                value={clientId !== undefined ? String(clientId) : "__novo__"}
+                onValueChange={(v) => {
+                  if (v === "__novo__") { setClientId(undefined); return; }
+                  const c = dsClients.find(cl => String(cl.id) === v);
+                  if (!c) return;
+                  setClientId(c.id);
+                  setClientNameInput(c.name);
+                }}
+              >
+                <SelectTrigger className="bg-muted/40" aria-label="Cliente"><SelectValue placeholder="Selecionar cliente cadastrado..." /></SelectTrigger>
+                <SelectContent className="max-h-[280px]">
+                  <SelectItem value="__novo__">— Cliente novo (digitar abaixo) —</SelectItem>
+                  {dsClients.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
+                </SelectContent>
               </Select>
+              <Input
+                list="task-clients"
+                placeholder="Nome do cliente"
+                value={clientNameInput}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setClientNameInput(v);
+                  const c = dsClients.find(cl => cl.name === v);
+                  setClientId(c?.id);
+                }}
+                className="bg-muted/40"
+              />
+              <datalist id="task-clients">
+                {dsClients.map(c => <option key={c.id} value={c.name} />)}
+              </datalist>
             </div>
           )}
           <div className={cn("space-y-2", scope === "personal" && "sm:col-span-2")}>

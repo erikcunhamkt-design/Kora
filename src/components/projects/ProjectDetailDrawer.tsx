@@ -86,19 +86,15 @@ export function ProjectDetailDrawer({ project, open, onOpenChange, dataSource = 
   const { updateProject: updateLocalProject } = useProjects();
   const { updateProject: updateSupabaseProject } = useSupabaseProjects();
   // B4 (etapa-5-flip-tarefas-pacote.md §7) — leitura bifurcada
-  // (useBifurcatedTasks). addTask/moveTask continuam de useTasks (local): a
-  // escrita nativa em modo Supabase pra Tarefas é a B5 do plano, ainda não
-  // existe — mover/criar uma tarefa lida da nuvem por aqui é um no-op no
-  // array local, mesma classe de limitação conhecida do "ler bifurcado,
-  // escrever só local" que o resto da casa já tem enquanto a fase de
-  // escrita de um domínio não chega.
-  // B4 (etapa-5-flip-tarefas-pacote.md §7) — leitura bifurcada
-  // (useBifurcatedTasks). addTask/moveTask continuam de useTasks (local): a
-  // escrita nativa em modo Supabase pra Tarefas é a B5 do plano, ainda não
-  // existe — mover/criar uma tarefa lida da nuvem por aqui é um no-op no
-  // array local, mesma classe de limitação conhecida do "ler bifurcado,
-  // escrever só local" que o resto da casa já tem enquanto a fase de
-  // escrita de um domínio não chega.
+  // (useBifurcatedTasks). G78 (kora-hub-auditoria-e-plano.md, correção
+  // desta rodada): B5 (escrita nativa de Tarefas) já EXISTE no repo desde
+  // `5e1829d`/`1dea136` (`Tarefas.tsx`, `cloudWriteMode`) — a razão de
+  // addTask/moveTask aqui continuarem vindo de useTasks() (local) não é
+  // "B5 não existe", é que este arquivo nunca recebeu o mesmo wiring
+  // (dataSource+flag de escrita) que `Tarefas.tsx` já tem. Decisão de
+  // escopo, não limitação técnica — mover/criar uma tarefa lida da nuvem
+  // por aqui continua sendo um no-op no array local até (se) alguém
+  // estender o wiring de B5 pra este arquivo também.
   const { addTask, moveTask } = useTasks();
   const tasks = useBifurcatedTasks();
   const { clients } = useClients();

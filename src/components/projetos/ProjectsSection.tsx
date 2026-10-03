@@ -85,6 +85,24 @@ export function ProjectsSection() {
   const [detailId, setDetailId] = useState<string | null>(null);
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
+  // G79 (kora-hub-auditoria-e-plano.md) — o form de criação capturava
+  // cliente como texto livre, e o mapper de escrita (`resolveProjectFk`,
+  // projectsMapper.ts:144) só persiste `clientId` resolvido — nunca havia
+  // resolução nome→id aqui, então `client_id` nunca era preenchido em modo
+  // Supabase (sucesso falso, vínculo nunca existiu). Fix: `Select` de
+  // clientes REAIS (useClientsDataSource — mesma fonte bifurcada do resto
+  // do app), mesmo padrão já auditado em QuotesSection.tsx (G44,
+  // NewQuoteWizard) — Select + input digitável com datalist de
+  // autocomplete, cliente novo (sem match) continua permitido nos 2 modos
+  // (local e Supabase): a decisão de produto de "cliente precisa existir
+  // antes de criar projeto" não foi tomada em nenhum domínio irmão, não é
+  // este fix que deve introduzi-la.
+  const [clientId, setClientId] = useState<number | undefined>(undefined);
+  const [clientNameInput, setClientNameInput] = useState("");
+  useEffect(() => {
+    if (open) { setClientId(undefined); setClientNameInput(""); }
+  }, [open]);
+
   // Deep-link: ?projectId=X — opens drawer, scrolls into view, then clears URL.
   useEffect(() => {
     const pid = searchParams.get("projectId");
@@ -142,12 +160,16 @@ export function ProjectsSection() {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     const name = (fd.get("name") as string).trim();
-    const clientName = (fd.get("clientName") as string).trim();
+    const clientName = clientNameInput.trim();
     if (!name) { toast({ title: "Informe o nome do projeto", variant: "destructive" }); return; }
     if (!clientName) { toast({ title: "Informe o cliente", variant: "destructive" }); return; }
     const projectData = {
       name,
       clientName,
+      // G79 — clientId só vai preenchido quando o texto bate um cliente
+      // REAL (selecionado no Select ou digitado igual a um nome existente,
+      // ver datalist abaixo); "cliente novo" continua permitido, sem FK.
+      clientId,
       description: (fd.get("description") as string) || "",
       serviceType: (fd.get("serviceType") as string) || "Outro",
       status: (fd.get("status") as ProjectStatus) || "planning",
@@ -223,7 +245,46 @@ export function ProjectsSection() {
             <DialogHeader><DialogTitle>Novo Projeto</DialogTitle></DialogHeader>
             <form onSubmit={handleCreate} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="sm:col-span-2"><Label>Nome do projeto*</Label><Input name="name" required className="mt-1.5" /></div>
-              <div><Label>Cliente*</Label><Input name="clientName" required className="mt-1.5" /></div>
+              <div>
+                <Label>Cliente existente</Label>
+                <Select
+                  value={clientId !== undefined ? String(clientId) : "__novo__"}
+                  onValueChange={(v) => {
+                    if (v === "__novo__") { setClientId(undefined); return; }
+                    const c = dsClients.find((cl) => String(cl.id) === v);
+                    if (!c) return;
+                    setClientId(c.id);
+                    setClientNameInput(c.name);
+                  }}
+                >
+                  <SelectTrigger className="mt-1.5" aria-label="Cliente existente"><SelectValue placeholder="Selecionar cliente cadastrado..." /></SelectTrigger>
+                  <SelectContent className="max-h-[280px]">
+                    <SelectItem value="__novo__">— Cliente novo (digitar abaixo) —</SelectItem>
+                    {dsClients.map((c) => (
+                      <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Cliente*</Label>
+                <Input
+                  name="clientName"
+                  list="project-clients"
+                  required
+                  value={clientNameInput}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setClientNameInput(v);
+                    const c = dsClients.find((cl) => cl.name === v);
+                    setClientId(c?.id);
+                  }}
+                  className="mt-1.5"
+                />
+                <datalist id="project-clients">
+                  {dsClients.map((c) => <option key={c.id} value={c.name} />)}
+                </datalist>
+              </div>
               <div><Label>Serviço</Label>
                 <Select name="serviceType" defaultValue="Branding">
                   <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>

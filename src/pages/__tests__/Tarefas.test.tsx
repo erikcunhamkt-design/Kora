@@ -13,12 +13,18 @@ import { useSupabaseTasksAll } from "@/hooks/useSupabaseTasksAll";
 import { useSupabaseTasksWriteFlag } from "@/hooks/useSupabaseTasksWriteFlag";
 import { useTaskProjects } from "@/hooks/useTaskProjects";
 import { useTaskReminders } from "@/hooks/useTaskReminders";
+import { useClientsDataSource } from "@/hooks/useClientsDataSource";
 import { usePlan } from "@/contexts/plan-context-value";
 import { TASKS_DATA_SOURCE_KEY } from "@/config/flags";
 
 beforeEach(() => {
   localStorage.clear();
   vi.clearAllMocks();
+  // jsdom não implementa scrollIntoView/hasPointerCapture — o <Select>
+  // (Radix) de cliente precisa dos dois pra abrir via interação real. Mesmo
+  // polyfill já usado em ProjectsSection.test.tsx/QuotesSection.test.tsx.
+  Element.prototype.hasPointerCapture = Element.prototype.hasPointerCapture || (() => false);
+  Element.prototype.scrollIntoView = Element.prototype.scrollIntoView || (() => {});
 });
 
 vi.mock("@/hooks/useTasks", async () => {
@@ -35,6 +41,12 @@ vi.mock("@/hooks/useBifurcatedTasks", () => ({ useBifurcatedTasks: vi.fn() }));
 vi.mock("@/hooks/useSupabaseTasksAll", () => ({ useSupabaseTasksAll: vi.fn() }));
 vi.mock("@/hooks/useSupabaseTasksWriteFlag", () => ({ useSupabaseTasksWriteFlag: vi.fn() }));
 vi.mock("@/hooks/useTaskProjects", () => ({ useTaskProjects: vi.fn() }));
+// G79 (kora-hub-auditoria-e-plano.md) — Tarefas.tsx passou a chamar
+// useClientsDataSource() (Select de cliente real, era clientsList mock).
+// Mesma razão do mock de useSupabaseTasksAll acima: sem mock,
+// useClientsDataSource() -> useSupabaseClients() -> useCurrentWorkspace()
+// quebra por falta de AuthProvider na árvore de teste.
+vi.mock("@/hooks/useClientsDataSource", () => ({ useClientsDataSource: vi.fn() }));
 vi.mock("@/hooks/useTaskReminders", async () => {
   const actual = await vi.importActual<typeof import("@/hooks/useTaskReminders")>("@/hooks/useTaskReminders");
   return { ...actual, useTaskReminders: vi.fn() };
@@ -77,6 +89,8 @@ const SUPABASE_TASK_WRITES = {
   deleteTask: vi.fn().mockResolvedValue(undefined),
 };
 
+const DS_CLIENTS = [{ id: "uuid-client-1", name: "Acme Corp" }, { id: "uuid-client-2", name: "Studio Zen" }];
+
 function setup(tasks: Task[], initialEntries: string[] = ["/tarefas"], writeEnabled = false) {
   vi.mocked(useTasks).mockReturnValue({ tasks, ...LOCAL_TASK_WRITES } as never);
   vi.mocked(useBifurcatedTasks).mockReturnValue(tasks as never);
@@ -86,6 +100,7 @@ function setup(tasks: Task[], initialEntries: string[] = ["/tarefas"], writeEnab
     projects: [], addProject: vi.fn(), renameProject: vi.fn(), archiveProject: vi.fn(), deleteProject: vi.fn(),
   } as never);
   vi.mocked(useTaskReminders).mockReturnValue({ permission: "default", requestPermission: vi.fn(), supported: false } as never);
+  vi.mocked(useClientsDataSource).mockReturnValue({ clients: DS_CLIENTS } as never);
   vi.mocked(usePlan).mockReturnValue({
     plan: "pro", isPro: true,
     limits: { maxClients: Infinity, maxProjects: Infinity, maxTasks: Infinity, maxLeads: Infinity },
@@ -115,6 +130,7 @@ describe("Tarefas · B4 — leitura via useBifurcatedTasks (etapa-5-flip-tarefas
       projects: [], addProject: vi.fn(), renameProject: vi.fn(), archiveProject: vi.fn(), deleteProject: vi.fn(),
     } as never);
     vi.mocked(useTaskReminders).mockReturnValue({ permission: "default", requestPermission: vi.fn(), supported: false } as never);
+    vi.mocked(useClientsDataSource).mockReturnValue({ clients: DS_CLIENTS } as never);
     vi.mocked(usePlan).mockReturnValue({
       plan: "pro", isPro: true,
       limits: { maxClients: Infinity, maxProjects: Infinity, maxTasks: Infinity, maxLeads: Infinity },
@@ -246,6 +262,60 @@ describe("Tarefas · B5 — escrita nativa em modo Supabase (etapa-5-flip-tarefa
   // scrollIntoView/pointer capture, fragilidade desnecessária); coberto de
   // forma direta e precisa pelo describe "splitTaskUpdatePatch" abaixo, que
   // testa a mesma função pura que o wrapper `updateTask` usa por trás.
+});
+
+// G79 (kora-hub-auditoria-e-plano.md) — clientsList era um mock hardcoded
+// ("Acme Corp", ...), nunca clientes reais do workspace; nenhum caminho de
+// UI vinculava clientId de verdade a uma tarefa. Fix: useClientsDataSource()
+// (mesma fonte bifurcada de ProjectsSection.tsx/QuotesSection.tsx, G44) —
+// resolveTaskFk (tasksMapper.ts) já sabe resolver clientId pra client_id.
+describe("Tarefas · G79 — Select de cliente real (era clientsList mock)", () => {
+  it("selecionar um cliente real no NewTaskDialog inclui clientId no payload de criação", async () => {
+    setup([], ["/tarefas"], false);
+
+    fireEvent.click(screen.getByRole("button", { name: /Nova tarefa/i }));
+    const titleInput = await screen.findByPlaceholderText(/Criar logo principal/i);
+    fireEvent.change(titleInput, { target: { value: "Tarefa com cliente" } });
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Cliente" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Acme Corp" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Criar tarefa" }));
+
+    await waitFor(() => expect(LOCAL_TASK_WRITES.addTask).toHaveBeenCalledWith(
+      expect.objectContaining({ client: "Acme Corp", clientId: "uuid-client-1" }),
+    ));
+  });
+
+  it("filtro de cliente na lista principal mostra clientes REAIS (useClientsDataSource), não o mock antigo", async () => {
+    setup([makeTask({ title: "Tarefa qualquer" })]);
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Filtrar por cliente" }));
+
+    expect(await screen.findByRole("option", { name: "Acme Corp" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Studio Zen" })).toBeInTheDocument();
+    // "Nova Design"/"FitTrack"/etc. eram só nomes do mock antigo — nunca
+    // fazem parte de DS_CLIENTS, não devem aparecer mais.
+    expect(screen.queryByRole("option", { name: "Nova Design" })).not.toBeInTheDocument();
+  });
+
+  it("tarefa 'Pessoal' nunca envia clientId, mesmo com um cliente selecionado antes de trocar o tipo", async () => {
+    setup([], ["/tarefas"], false);
+
+    fireEvent.click(screen.getByRole("button", { name: /Nova tarefa/i }));
+    const titleInput = await screen.findByPlaceholderText(/Criar logo principal/i);
+    fireEvent.change(titleInput, { target: { value: "Tarefa pessoal" } });
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Cliente" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Acme Corp" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Pessoal" }));
+    fireEvent.click(screen.getByRole("button", { name: "Criar tarefa" }));
+
+    await waitFor(() => expect(LOCAL_TASK_WRITES.addTask).toHaveBeenCalledWith(
+      expect.objectContaining({ client: "", clientId: undefined }),
+    ));
+  });
 });
 
 // splitTaskUpdatePatch (PATCH MISTO) — testado em

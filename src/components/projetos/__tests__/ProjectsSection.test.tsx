@@ -394,6 +394,86 @@ describe("ProjectsSection · Fase D — \"Todos status\" não inclui projeto arq
 // que a própria lista mostra sob o mesmo filtro "todos". Precedente: nenhuma
 // KPI de QuotesSection.tsx conta "arquivado" (todas são filtros de status
 // específico que o excluem estruturalmente).
+// G79 (kora-hub-auditoria-e-plano.md) — o form de criação capturava cliente
+// só como texto livre; o mapper (resolveProjectFk) já resolvia clientId ->
+// client_id, mas nada aqui preenchia clientId. Fix: Select de clientes REAIS
+// (useClientsDataSource) + input digitável com datalist — selecionar (ou
+// digitar um nome que bate) preenche clientId; "cliente novo" continua
+// permitido, sem FK.
+describe("ProjectsSection · G79 — Select de cliente real preenche clientId", () => {
+  it("selecionar um cliente real no Select inclui clientId no payload de criação (modo Supabase)", async () => {
+    const createProject = vi.fn().mockResolvedValue({ id: "cloud-uuid-new" });
+    vi.mocked(useProjects).mockReturnValue({ projects: [], addProject: vi.fn() } as never);
+    mockSupabaseProjects({ createProject });
+
+    renderSection();
+    fireEvent.click(screen.getByText("Supabase experimental"));
+    await screen.findByText("Projetos operacionais (Supabase)");
+
+    fireEvent.click(screen.getByText("Novo projeto"));
+    const nameInput = document.body.querySelector('input[name="name"]') as HTMLInputElement;
+    fireEvent.change(nameInput, { target: { value: "Projeto com cliente" } });
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Cliente existente" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Acme Corp" }));
+
+    fireEvent.click(screen.getByText("Criar projeto"));
+
+    await waitFor(() => expect(createProject).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "Projeto com cliente", clientName: "Acme Corp", clientId: "uuid-client-1" }),
+    ));
+  });
+
+  it("digitar um nome que NÃO bate nenhum cliente real (\"cliente novo\") continua funcionando, sem clientId", async () => {
+    const addProject = vi.fn().mockReturnValue(makeLocalProject({ id: "pj-new" }));
+    vi.mocked(useProjects).mockReturnValue({ projects: [], addProject } as never);
+    localStorage.setItem(PROJECTS_DATA_SOURCE_KEY, "local");
+
+    renderSection();
+    fireEvent.click(screen.getByText("Novo projeto"));
+    fillCreateForm("Projeto novo cliente", "Cliente Inédito Ltda");
+    fireEvent.click(screen.getByText("Criar projeto"));
+
+    await waitFor(() => expect(addProject).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "Projeto novo cliente", clientName: "Cliente Inédito Ltda", clientId: undefined }),
+    ));
+  });
+
+  it("digitar (sem usar o Select) um nome que bate um cliente real também resolve clientId — datalist/autocomplete", async () => {
+    const createProject = vi.fn().mockResolvedValue({ id: "cloud-uuid-new" });
+    vi.mocked(useProjects).mockReturnValue({ projects: [], addProject: vi.fn() } as never);
+    mockSupabaseProjects({ createProject });
+
+    renderSection();
+    fireEvent.click(screen.getByText("Supabase experimental"));
+    await screen.findByText("Projetos operacionais (Supabase)");
+
+    fireEvent.click(screen.getByText("Novo projeto"));
+    fillCreateForm("Projeto X", "Acme Corp");
+    fireEvent.click(screen.getByText("Criar projeto"));
+
+    await waitFor(() => expect(createProject).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "Projeto X", clientName: "Acme Corp", clientId: "uuid-client-1" }),
+    ));
+  });
+
+  it("dialog reabre limpo — clientId de uma criação anterior não vaza pra próxima abertura", async () => {
+    const addProject = vi.fn().mockReturnValue(makeLocalProject({ id: "pj-new" }));
+    vi.mocked(useProjects).mockReturnValue({ projects: [], addProject } as never);
+    localStorage.setItem(PROJECTS_DATA_SOURCE_KEY, "local");
+
+    renderSection();
+    fireEvent.click(screen.getByText("Novo projeto"));
+    fillCreateForm("Primeiro", "Acme Corp");
+    fireEvent.click(screen.getByText("Criar projeto"));
+    await waitFor(() => expect(addProject).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByText("Novo projeto"));
+    const clientInput = document.body.querySelector('input[name="clientName"]') as HTMLInputElement;
+    expect(clientInput.value).toBe("");
+  });
+});
+
 describe("ProjectsSection · addendum G39 — KPI \"Total\" não conta projeto arquivado", () => {
   it("card Total reflete só os projetos não-arquivados, igual à lista sob \"Todos status\"", async () => {
     localStorage.setItem(PROJECTS_DATA_SOURCE_KEY, "local");
