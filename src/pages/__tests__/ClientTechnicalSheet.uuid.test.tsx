@@ -116,7 +116,22 @@ describe("ClientTechnicalSheet — G82 (cliente só-nuvem, id uuid)", () => {
     expect(await screen.findByText("Salvo no Supabase")).toBeInTheDocument();
   });
 
-  it("[G75] editar Concorrentes numa ficha da nuvem avisa que o campo não persiste (sem caminho nativo) — não finge sucesso silencioso", async () => {
+  it("[G83] ficha acima do teto de 1 MB: NADA é gravado e o toast é honesto (validação antes de gravar)", async () => {
+    renderPage();
+    await screen.findByText("Ficha técnica");
+    await openSection("Briefing & Notas");
+
+    fireEvent.change(await screen.findByPlaceholderText(/Histórico, objetivos/i), {
+      target: { value: "x".repeat(1_100_000) },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Salvar seção/i }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(vi.mocked(toast.error).mock.calls[0][0]).toMatch(/limite para salvar na nuvem é 1 MB.*Nada foi gravado/);
+    expect(clientTechnicalSheetsRepository.upsertTechnicalSheet).not.toHaveBeenCalled();
+  });
+
+  it("[G83] Concorrentes agora persiste na nuvem (vai no payload) e NÃO dispara o aviso de campo sem persistência", async () => {
     renderPage();
     await screen.findByText("Ficha técnica");
     await openSection("Concorrentes");
@@ -126,8 +141,29 @@ describe("ClientTechnicalSheet — G82 (cliente só-nuvem, id uuid)", () => {
     fireEvent.change(within(dialog).getAllByRole("textbox")[0], { target: { value: "Rival S.A." } });
     fireEvent.click(within(dialog).getByRole("button", { name: /^Salvar$/ }));
 
-    await waitFor(() => expect(toast.warning).toHaveBeenCalledTimes(1));
-    expect(vi.mocked(toast.warning).mock.calls[0][0]).toMatch(/Concorrentes ainda não é salvo/);
+    await waitFor(() => expect(clientTechnicalSheetsRepository.upsertTechnicalSheet).toHaveBeenCalledTimes(1));
+    const [, , payload] = vi.mocked(clientTechnicalSheetsRepository.upsertTechnicalSheet).mock.calls[0];
+    const competitors = (payload as { raw_payload?: { competitors?: Array<{ name: string }> } }).raw_payload?.competitors;
+    expect(competitors?.[0]?.name).toBe("Rival S.A.");
+    expect(toast.warning).not.toHaveBeenCalled();
+  });
+
+  it("[G29/G75] seção Acessos avisa na tela que não sincroniza com a nuvem; salvar um acesso avisa de novo e a senha nunca vai no payload", async () => {
+    renderPage();
+    await screen.findByText("Ficha técnica");
+    await openSection("Acessos");
+
+    expect((await screen.findByRole("note")).textContent).toMatch(/Acessos não sincronizam com a nuvem/);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Novo acesso/i }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getAllByRole("textbox")[0], { target: { value: "Instagram" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: /^Salvar$/ }));
+
+    await waitFor(() => expect(toast.warning).toHaveBeenCalled());
+    expect(vi.mocked(toast.warning).mock.calls[0][0]).toMatch(/Acessos não são salvos na nuvem/);
+    const [, , payload] = vi.mocked(clientTechnicalSheetsRepository.upsertTechnicalSheet).mock.calls[0];
+    expect(JSON.stringify(payload)).not.toContain("accesses");
   });
 
   it("upload de logo resolve o vínculo (antes: Number(uuid)=NaN ⇒ 'Vínculo Supabase ou workspace ativo ausente.')", async () => {

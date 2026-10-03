@@ -5,7 +5,7 @@ import { useClients } from "@/hooks/useClients";
 import { clientTechnicalSheetsRepository, type SupabaseTechnicalSheetInput } from "@/repositories/clientTechnicalSheetsRepository";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { mapLocalToSupabaseSheet } from "@/services/technicalSheets/technicalSheetMapper";
+import { mapLocalToSupabaseSheet, SheetTooLargeError } from "@/services/technicalSheets/technicalSheetMapper";
 
 export interface TechnicalSheetCandidate {
   localClientId: number;
@@ -186,7 +186,9 @@ export function useLocalTechnicalSheetsImport() {
       toast.success(`${successLocalIds.length} fichas técnicas importadas com sucesso!`);
     } catch (err) {
       console.error("Error importing technical sheets:", err);
-      toast.error("Ocorreu um erro ao importar uma ou mais fichas técnicas.");
+      toast.error(
+        err instanceof SheetTooLargeError ? err.message : "Ocorreu um erro ao importar uma ou mais fichas técnicas.",
+      );
     } finally {
       setImporting(false);
     }

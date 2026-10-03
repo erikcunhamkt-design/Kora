@@ -176,3 +176,54 @@ describe("Clientes · G75 — aviso honesto ao editar a Biblioteca do cliente em
     expect(toast.warning).not.toHaveBeenCalled();
   });
 });
+
+// G86 (padrão G73) — o deep link `?client=<id>` fazia `Number(id)`; o id de um
+// cliente da nuvem é um uuid "contrabandeado" como number (useClientsDataSource.ts:9)
+// e Number(uuid) = NaN, então o drawer nunca abria (sem erro nenhum). Os testes
+// acima usam `?client=1` (id numérico) e por isso nunca pegariam a classe.
+// Fixtures com uuid REAL; a aba "Histórico de Relacionamento" só existe no drawer.
+describe("Clientes · G86 — deep link ?client= com id uuid abre o cliente certo", () => {
+  const UUID_A = "87ebd1d2-b17a-46f4-b0eb-70beac445221";
+  const UUID_B = "11111111-2222-4333-8444-555555555555";
+
+  function setupTwoCloudClients() {
+    const a = makeClient({ id: UUID_A as unknown as number, name: "Cliente A Nuvem", company: "Alfa Ltda" });
+    const b = makeClient({ id: UUID_B as unknown as number, name: "Cliente B Nuvem", company: "Beta Ltda" });
+    setupCommonMocks("supabase", a);
+    vi.mocked(useClientsDataSource).mockReturnValue({
+      source: "supabase",
+      clients: [a, b],
+      loading: false,
+      addClient: vi.fn(),
+      updateClient: vi.fn().mockResolvedValue(a),
+      archiveClient: vi.fn(),
+      deleteClient: vi.fn(),
+    } as never);
+  }
+
+  it("?client=<uuid> abre o drawer do cliente cujo id é esse uuid (antes: NaN, drawer nunca abria)", async () => {
+    setupTwoCloudClients();
+    renderClientesAt(`/clientes?client=${UUID_B}`);
+
+    expect(await screen.findByText("Histórico de Relacionamento")).toBeInTheDocument();
+    // o drawer é do cliente B (e não do A, o primeiro da lista)
+    const tabs = screen.getByText("Histórico de Relacionamento").closest('[role="dialog"]') as HTMLElement;
+    expect(within(tabs).getByText("Cliente B Nuvem")).toBeInTheDocument();
+    expect(within(tabs).queryByText("Cliente A Nuvem")).not.toBeInTheDocument();
+  });
+
+  it("uuid que não corresponde a nenhum cliente: nenhum drawer abre (sem lançar)", async () => {
+    setupTwoCloudClients();
+    renderClientesAt("/clientes?client=99999999-9999-4999-8999-999999999999");
+
+    await screen.findByText("Cliente A Nuvem");
+    expect(screen.queryByText("Histórico de Relacionamento")).not.toBeInTheDocument();
+  });
+
+  it("regressão: id numérico (modo local) continua abrindo o cliente", async () => {
+    setupCommonMocks("local", makeClient());
+    renderClientesAt("/clientes?client=1");
+
+    expect(await screen.findByText("Histórico de Relacionamento")).toBeInTheDocument();
+  });
+});

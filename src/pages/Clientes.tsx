@@ -309,9 +309,10 @@ const Clientes = () => {
 
   useEffect(() => {
     if (!queryClientId) return;
-    const idNum = Number(queryClientId);
-    if (!Number.isFinite(idNum)) return;
-    const found = clients.find((c) => c.id === idNum);
+    // G86 (padrão G73): comparação por string. O id de um cliente da nuvem é um
+    // uuid "contrabandeado" como number (useClientsDataSource.ts:9) e
+    // Number(uuid) vira NaN — o deep link nunca abria o drawer, sem erro nenhum.
+    const found = clients.find((c) => String(c.id) === queryClientId);
     if (found && (!selectedClient || selectedClient.id !== found.id)) {
       setSelectedClient(found);
     }

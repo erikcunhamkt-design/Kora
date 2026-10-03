@@ -26,7 +26,12 @@ import { useClientsDataSource } from "@/hooks/useClientsDataSource";
 import { cn } from "@/lib/utils";
 import { useSupabaseTechnicalSheet } from "@/hooks/useSupabaseTechnicalSheet";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
-import { mapLocalToSupabaseSheet } from "@/services/technicalSheets/technicalSheetMapper";
+import {
+  mapLocalToSupabaseSheet,
+  SheetTooLargeError,
+  describeUnsyncedBinary,
+  unsyncedBinaryMessage,
+} from "@/services/technicalSheets/technicalSheetMapper";
 import { mapSupabaseToLocalSheet } from "@/services/technicalSheets/supabaseTechnicalSheetToLocalMapper";
 import { findLocalClientForSheet } from "@/services/technicalSheets/resolveSheetClientId";
 import { clientTechnicalSheetsRepository } from "@/repositories/clientTechnicalSheetsRepository";
@@ -304,10 +309,14 @@ export default function ClientTechnicalSheetPage() {
         payload
       );
       toast.success("Cópia da Ficha Técnica salva com sucesso no Supabase!");
+      const binaryMsg = unsyncedBinaryMessage(describeUnsyncedBinary(sheet));
+      if (binaryMsg) toast.warning(binaryMsg);
       refreshSupabase();
     } catch (err) {
       console.error("Error saving technical sheet to Supabase:", err);
-      toast.error("Ocorreu um erro ao salvar a cópia no Supabase.");
+      toast.error(
+        err instanceof SheetTooLargeError ? err.message : "Ocorreu um erro ao salvar a cópia no Supabase.",
+      );
     } finally {
       setSavingToSupabase(false);
     }
@@ -336,21 +345,25 @@ export default function ClientTechnicalSheetPage() {
         );
         setSyncStatus("synced");
         refreshSupabase();
-        // G75: campos SEM caminho de persistência nativo na nuvem — "accesses"
-        // nunca é gravado (G63, decisão permanente) e "competitors" é escrito
-        // em raw_payload mas nunca lido de volta (G83). Não silenciar.
-        const unsynced: string[] = [];
-        if (next.accesses !== sheet.accesses) unsynced.push("Acessos");
-        if (next.competitors !== sheet.competitors) unsynced.push("Concorrentes");
-        if (unsynced.length > 0) {
+        // G75: "accesses" não tem caminho de persistência na nuvem (G63,
+        // decisão permanente; FP2 pendente) — não silenciar. (Concorrentes
+        // passou a voltar da nuvem — G83/FP1 —, então não entra mais aqui.)
+        if (next.accesses !== sheet.accesses) {
           toast.warning(
-            `${unsynced.join(" e ")} ainda não ${unsynced.length > 1 ? "são salvos" : "é salvo"} de forma persistente na nuvem — a alteração não será mantida ao recarregar.`,
+            "Acessos não são salvos na nuvem (por segurança) — a alteração não será mantida ao recarregar.",
           );
         }
+        // G83: binário local (logo/arquivo) NÃO é enviado — rejeição honesta.
+        const binaryMsg = unsyncedBinaryMessage(describeUnsyncedBinary(next));
+        if (binaryMsg) toast.warning(binaryMsg);
       } catch (err) {
         console.error("Autosave technical sheet to Supabase error:", err);
         setSyncStatus("error");
-        toast.error("Erro no salvamento automático. Modificações estão apenas locais até re-tentativa.");
+        if (err instanceof SheetTooLargeError) {
+          toast.error(err.message);
+        } else {
+          toast.error("Erro no salvamento automático. Modificações estão apenas locais até re-tentativa.");
+        }
         // Rollback visual
         if (supabaseSheet) {
           const mapped = mapSupabaseToLocalSheet(supabaseSheet);
@@ -917,7 +930,22 @@ export default function ClientTechnicalSheetPage() {
             <SocialSection value={sheet.socialLinks ?? {}} onSave={(v) => persist({ ...sheet, socialLinks: v })} />
           )}
           {view === "accesses" && (
-            <AccessesSection value={sheet.accesses ?? []} onChange={(v) => persist({ ...sheet, accesses: v })} />
+            <>
+              {activeDataSource === "supabase" && (
+                <div
+                  role="note"
+                  className="mb-4 flex items-start gap-2.5 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-foreground"
+                >
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+                  <p className="leading-normal text-muted-foreground">
+                    <strong className="text-foreground">Acessos não sincronizam com a nuvem.</strong> Por segurança,
+                    logins e senhas nunca são enviados ao Supabase — o que for digitado aqui não será mantido ao
+                    recarregar esta ficha. (Decisão de produto sobre onde guardá-los ainda pendente.)
+                  </p>
+                </div>
+              )}
+              <AccessesSection value={sheet.accesses ?? []} onChange={(v) => persist({ ...sheet, accesses: v })} />
+            </>
           )}
           {view === "competitors" && (
             <CompetitorsSection value={sheet.competitors ?? []} onChange={(v) => persist({ ...sheet, competitors: v })} />
