@@ -1,5 +1,3 @@
-import { useCallback, useEffect, useState } from "react";
-
 /**
  * Etapa 5 · Flip Projetos (item 4) — flag mestre de escrita de `projects` na
  * nuvem.
@@ -19,77 +17,25 @@ import { useCallback, useEffect, useState } from "react";
  * são independentes: `getProjectsDataSource()` (config/flags.ts) decide QUAL
  * fonte a tela lê; esta flag decide SE a escrita local (sempre autoritativa)
  * também tenta espelhar na nuvem, best-effort, sem nunca bloquear nem
- * desfazer o local.
+ * desfazer o local. Os 4 call sites do espelho (ProjectsSection,
+ * ProjectDetailDrawer, QuoteToProjectDialog, CreateProjectFromQuoteDialog —
+ * este último desde o G85) usam só o leitor imperativo abaixo.
+ *
+ * Hook reativo (`useSupabaseProjectsWriteFlag`) REMOVIDO (rodada G85,
+ * órfão): nenhum consumidor fora de teste — o rollback nível 1 documentado
+ * nos runbooks é um override de `localStorage` direto no console, que o
+ * leitor imperativo já lê a cada chamada.
  *
  * Stored in localStorage under `kora.projects.supabaseWrite.enabled`.
- * Synced across tabs via `storage`, e dentro da mesma aba via um evento
- * customizado `kora:projects-supabase-write-flag` — mesmo padrão de
- * `useSupabaseCrmWriteFlag.ts`/`useSupabaseQuotesWriteFlag.ts`.
  */
 
 export const PROJECTS_SUPABASE_WRITE_FLAG_KEY = "kora.projects.supabaseWrite.enabled";
-const FLAG_EVENT = "kora:projects-supabase-write-flag";
 
-function readFlag(): boolean {
+/** Imperative reader — só o literal "false" desliga (opt-out desde o Pacote do Flip). */
+export function isSupabaseProjectsWriteEnabled(): boolean {
   try {
-    // Opt-out desde o Pacote do Flip: só o literal "false" desliga.
     return localStorage.getItem(PROJECTS_SUPABASE_WRITE_FLAG_KEY) !== "false";
   } catch {
     return true;
   }
-}
-
-function writeFlag(value: boolean) {
-  try {
-    localStorage.setItem(PROJECTS_SUPABASE_WRITE_FLAG_KEY, String(value));
-  } catch {
-    /* ignore quota / disabled storage */
-  }
-  try {
-    window.dispatchEvent(new CustomEvent<boolean>(FLAG_EVENT, { detail: value }));
-  } catch {
-    /* ignore */
-  }
-}
-
-export function useSupabaseProjectsWriteFlag(): {
-  enabled: boolean;
-  setEnabled: (value: boolean) => void;
-  toggle: () => void;
-} {
-  const [enabled, setEnabledState] = useState<boolean>(() => readFlag());
-
-  useEffect(() => {
-    const onStorage = (event: StorageEvent) => {
-      if (event.key === PROJECTS_SUPABASE_WRITE_FLAG_KEY) {
-        setEnabledState(event.newValue !== "false");
-      }
-    };
-    const onCustom = (event: Event) => {
-      const value = (event as CustomEvent<boolean>).detail;
-      setEnabledState(Boolean(value));
-    };
-    window.addEventListener("storage", onStorage);
-    window.addEventListener(FLAG_EVENT, onCustom as EventListener);
-    return () => {
-      window.removeEventListener("storage", onStorage);
-      window.removeEventListener(FLAG_EVENT, onCustom as EventListener);
-    };
-  }, []);
-
-  const setEnabled = useCallback((value: boolean) => {
-    writeFlag(value);
-    setEnabledState(value);
-  }, []);
-
-  const toggle = useCallback(() => {
-    setEnabled(!readFlag());
-  }, [setEnabled]);
-
-  return { enabled, setEnabled, toggle };
-}
-
-/** Imperative reader for non-hook contexts. */
-export function isSupabaseProjectsWriteEnabled(): boolean {
-  return readFlag();
 }

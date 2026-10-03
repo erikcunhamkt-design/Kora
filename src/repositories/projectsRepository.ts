@@ -54,7 +54,10 @@ export const projectsRepository = {
       .from("projects")
       .insert({
         workspace_id: workspaceId,
-        status: "active",
+        // G85: default no vocabulário canônico ("active" era o alias legado —
+        // CLOUD_TO_LOCAL_PROJECT_STATUS). O payload do mapper sempre traz o
+        // status e prevalece (`...input` abaixo).
+        status: "planning",
         source: "quote",
         ...input,
       } as unknown as ProjectUpsert)

@@ -4,12 +4,12 @@
 // nenhum teste do estado antigo fica pra trás passando por acidente
 // (precisão 1 do revisor, mesmo critério já aplicado ao flip de quotes).
 import { describe, it, expect, beforeEach } from "vitest";
-import { renderHook, act } from "@testing-library/react";
 
+// Hook reativo removido na rodada G85 (órfão, sem consumidor fora de teste) —
+// só o leitor imperativo sobrevive.
 import {
   PROJECTS_SUPABASE_WRITE_FLAG_KEY,
   isSupabaseProjectsWriteEnabled,
-  useSupabaseProjectsWriteFlag,
 } from "@/hooks/useSupabaseProjectsWriteFlag";
 
 beforeEach(() => {
@@ -43,35 +43,5 @@ describe("useSupabaseProjectsWriteFlag · leitor imperativo (isSupabaseProjectsW
 
     localStorage.setItem(PROJECTS_SUPABASE_WRITE_FLAG_KEY, "");
     expect(isSupabaseProjectsWriteEnabled()).toBe(true);
-  });
-});
-
-describe("useSupabaseProjectsWriteFlag · hook", () => {
-  it("estado inicial é ON sem nenhum valor gravado", () => {
-    const { result } = renderHook(() => useSupabaseProjectsWriteFlag());
-    expect(result.current.enabled).toBe(true);
-  });
-
-  it("setEnabled(false) grava \"false\" e atualiza o estado", () => {
-    const { result } = renderHook(() => useSupabaseProjectsWriteFlag());
-    act(() => result.current.setEnabled(false));
-    expect(result.current.enabled).toBe(false);
-    expect(localStorage.getItem(PROJECTS_SUPABASE_WRITE_FLAG_KEY)).toBe("false");
-  });
-
-  it("toggle() a partir do default (true) desliga primeiro", () => {
-    const { result } = renderHook(() => useSupabaseProjectsWriteFlag());
-    expect(result.current.enabled).toBe(true);
-    act(() => result.current.toggle());
-    expect(result.current.enabled).toBe(false);
-    expect(localStorage.getItem(PROJECTS_SUPABASE_WRITE_FLAG_KEY)).toBe("false");
-  });
-
-  it("round-trip: o que grava é o que uma nova instância do hook lê", () => {
-    const { result: first } = renderHook(() => useSupabaseProjectsWriteFlag());
-    act(() => first.current.setEnabled(false));
-
-    const { result: second } = renderHook(() => useSupabaseProjectsWriteFlag());
-    expect(second.current.enabled).toBe(false);
   });
 });

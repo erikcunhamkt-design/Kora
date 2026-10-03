@@ -46,8 +46,10 @@ As funções estão implementadas em [projectsRepository.ts](../../../src/reposi
 ## Regra de Duplicidade
 Antes de efetuar a gravação, o sistema verifica se já existe um projeto com `quote_id` idêntico, `source = 'quote'` e `deleted_at IS NULL`. Se encontrado, o fluxo é cancelado e um toast de erro é disparado: *"Este orçamento já possui um projeto vinculado."*
 
-## Registro de Logs Locais
-Em caso de sucesso na transação real com o Supabase, o log é inserido no array do `localStorage`:
+## Registro de Logs Locais — REMOVIDO (rodada G85, 2026-10-02)
+> **O log abaixo morreu.** Era escrito por `CreateProjectFromQuoteDialog` e **nunca lido** por nenhum código (só citado em docs) — log write-only. Depois do cutover do dialog (projeto nativo na nuvem em modo Supabase) e do G85 (espelho do ramo local pelo caminho canônico), a nuvem é a fonte de verdade e nada mais grava essa chave. Entradas antigas que existam no `localStorage` de algum operador ficam inertes. O texto abaixo descreve o comportamento HISTÓRICO.
+
+Em caso de sucesso na transação real com o Supabase, o log era inserido no array do `localStorage`:
 * **Chave**: `kora.quotes.supabaseProjects.v1`
 * **Campos**: `quoteId`, `projectId`, `title`, `budget`, `createdAt`.
 

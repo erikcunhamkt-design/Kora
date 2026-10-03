@@ -304,7 +304,6 @@ export function LinkedQuotesSection({
           quoteTitle={projectQuote.title}
           quoteTotal={projectQuote.total}
           clientName={projectQuote.clientName}
-          workspaceId={workspaceId}
           quoteId={projectQuote.id}
           clientId={projectQuote.clientId ? String(projectQuote.clientId) : undefined}
           opportunityId={projectQuote.opportunityId ? String(projectQuote.opportunityId) : undefined}

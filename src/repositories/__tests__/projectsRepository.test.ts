@@ -16,10 +16,15 @@ const mocks = vi.hoisted(() => {
   const updateEqId = vi.fn(() => ({ eq: updateEqWorkspace }));
   const update = vi.fn(() => ({ eq: updateEqId }));
 
-  const from = vi.fn(() => ({ upsert, update }));
+  const insertSingle = vi.fn();
+  const insertSelect = vi.fn(() => ({ single: insertSingle }));
+  const insert = vi.fn(() => ({ select: insertSelect }));
+
+  const from = vi.fn(() => ({ upsert, update, insert }));
   return {
     upsertSingle, upsert, upsertSelect,
     updateSingle, update, updateSelect, updateEqId, updateEqWorkspace,
+    insertSingle, insert,
     from,
   };
 });
@@ -172,5 +177,33 @@ describe("projectsRepository.importProject — árvore de decisão: caminho QUOT
     expect(result).toEqual({ id: "pj-existente", quote_id: "quote-uuid-1", source_local_id: "install-x:outro-local-id" });
 
     findSpy.mockRestore();
+  });
+});
+
+// G85 — createProjectFromQuote carregava `status: "active"` como default
+// (alias legado, CLOUD_TO_LOCAL_PROJECT_STATUS). Depois do G85 nenhum caller
+// omite `status` (importProject sempre manda o do mapper), mas o default
+// continuava sendo um escritor latente do alias — agora é o vocabulário
+// canônico ("planning"). A coluna do banco ainda tem DEFAULT 'active'
+// (migration 20260601030000) — fora de escopo (DDL), não é alcançada por este
+// caminho porque o repository sempre envia status.
+describe("projectsRepository.createProjectFromQuote — vocabulário canônico (G85)", () => {
+  it('sem status no input: grava "planning", NUNCA o alias legado "active"', async () => {
+    mocks.insertSingle.mockResolvedValue({ data: { id: "pj-1" }, error: null });
+
+    await projectsRepository.createProjectFromQuote("ws1", { quote_id: "q1", title: "T" });
+
+    const written = (mocks.insert.mock.calls as unknown[][])[0][0] as Record<string, unknown>;
+    expect(written.status).toBe("planning");
+    expect(written.status).not.toBe("active");
+    expect(written).toMatchObject({ workspace_id: "ws1", source: "quote", quote_id: "q1" });
+  });
+
+  it("status explícito no input (payload do mapper) continua prevalecendo sobre o default", async () => {
+    mocks.insertSingle.mockResolvedValue({ data: { id: "pj-2" }, error: null });
+
+    await projectsRepository.createProjectFromQuote("ws1", { quote_id: "q2", title: "T", status: "in_progress" });
+
+    expect(((mocks.insert.mock.calls as unknown[][])[0][0] as Record<string, unknown>).status).toBe("in_progress");
   });
 });

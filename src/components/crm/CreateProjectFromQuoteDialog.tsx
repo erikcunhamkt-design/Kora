@@ -13,8 +13,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { useProjects } from "@/hooks/useProjects";
-import { projectsRepository } from "@/repositories/projectsRepository";
+import type { Project } from "@/hooks/useProjects";
 import { useSupabaseProjects } from "@/hooks/useSupabaseProjects";
+import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
+import { mirrorProjectToSupabase } from "@/services/projects/projectsCloudMirror";
+import { isSupabaseProjectsWriteEnabled } from "@/hooks/useSupabaseProjectsWriteFlag";
 import { getProjectsDataSource } from "@/config/flags";
 import { getFriendlyMessage } from "@/lib/supabase/errors";
 
@@ -24,7 +27,6 @@ interface CreateProjectFromQuoteDialogProps {
   quoteTitle: string;
   quoteTotal: number;
   clientName: string;
-  workspaceId: string;
   quoteId: string;
   clientId?: string | null;
   opportunityId?: string | null;
@@ -33,17 +35,19 @@ interface CreateProjectFromQuoteDialogProps {
 
 export function CreateProjectFromQuoteDialog({
   // G22 (Fase B, dashboard-g22-fix): dual-write — o projeto local continua sendo a
-  // fonte que a tela Projetos lê (invariante "local nunca refém da nuvem"), mas
-  // workspaceId/quoteId/clientId/opportunityId agora alimentam também um espelho em
-  // projectsRepository.createProjectFromQuote (nuvem), pra fechar o gap que deixava
-  // a reconciliação do dashboard Supabase sempre vendo 0 projetos pra orçamentos
-  // aprovados por aqui.
+  // fonte que a tela Projetos lê em modo local (invariante "local nunca refém da
+  // nuvem"), e quoteId/clientId/opportunityId alimentam também um espelho na
+  // nuvem. G85: esse espelho agora passa pelo MESMO caminho dos outros 3 call
+  // sites (mirrorProjectToSupabase → mapper → vocabulário canônico, gateado por
+  // isSupabaseProjectsWriteEnabled) — antes chamava
+  // projectsRepository.createProjectFromQuote direto, sem gate e gravando
+  // status "active" (alias legado). O workspace vem de useCurrentWorkspace()
+  // (como nos outros 3), então a prop `workspaceId` deixou de existir.
   open,
   onOpenChange,
   quoteTitle,
   quoteTotal,
   clientName,
-  workspaceId,
   quoteId,
   clientId,
   opportunityId,
@@ -60,6 +64,7 @@ export function CreateProjectFromQuoteDialog({
   // intocado (addProject + espelho G22 abaixo, byte a byte).
   const cloudMode = getProjectsDataSource() === "supabase";
   const { createProject: createSupabaseProject } = useSupabaseProjects();
+  const { workspace } = useCurrentWorkspace();
   const [submitting, setSubmitting] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -82,6 +87,18 @@ export function CreateProjectFromQuoteDialog({
       setDueDate(targetDate.toISOString().slice(0, 10));
     }
   }, [open, quoteTitle, quoteTotal]);
+
+  const mirrorCreateToSupabase = async (mirrored: Project) => {
+    if (!isSupabaseProjectsWriteEnabled() || !workspace) return;
+    try {
+      await mirrorProjectToSupabase(workspace.id, mirrored);
+    } catch (mirrorErr) {
+      console.error("Espelho nuvem do projeto falhou (local já gravado):", mirrorErr);
+      toast.warning("Projeto salvo localmente, mas o espelho no Supabase falhou.", {
+        description: "Rode a importação manual em Configurações → Dados quando possível.",
+      });
+    }
+  };
 
   const handleConfirm = async () => {
     if (!title.trim()) {
@@ -114,7 +131,7 @@ export function CreateProjectFromQuoteDialog({
         // esse caso por createProjectFromQuote (idempotente contra
         // ux_projects_from_quote: repetir "Gerar projeto" na mesma cotação
         // devolve o projeto existente em vez de duplicar).
-        const created = await createSupabaseProject({
+        await createSupabaseProject({
           name: title,
           clientName,
           clientId: (clientId ?? undefined) as unknown as number | undefined,
@@ -130,13 +147,6 @@ export function CreateProjectFromQuoteDialog({
           source: "orçamento",
           tags: [],
         });
-        try {
-          const logParsed = JSON.parse(localStorage.getItem("kora.quotes.supabaseProjects.v1") || "[]");
-          logParsed.push({ quoteTitle, projectId: created.id, title, budget, createdAt: new Date().toISOString(), gravadoLocal: false });
-          localStorage.setItem("kora.quotes.supabaseProjects.v1", JSON.stringify(logParsed));
-        } catch (logErr) {
-          console.error("Erro ao registrar log de projeto:", logErr);
-        }
         toast.success("Projeto criado. Veja em Projetos.");
         onSuccess();
         onOpenChange(false);
@@ -154,9 +164,7 @@ export function CreateProjectFromQuoteDialog({
       // nivelado ao mesmo caminho que QuoteToProjectDialog.tsx (Vendas) já usa em
       // produção — ProjectsSection.tsx só lê local hoje (ver
       // docs/qa/etapa-5-fatia-7-projects.md §2.4/§11), então é o único jeito do
-      // usuário ver este projeto na tela que realmente usa. O caminho nuvem
-      // (projectsRepository.createProjectFromQuote/findProjectByQuote) segue
-      // existindo, intocado — DESATIVADO ATÉ O CUTOVER, não abandonado.
+      // usuário ver este projeto na tela que realmente usa em modo local.
       const project = addProject({
         name: title,
         clientName,
@@ -171,47 +179,22 @@ export function CreateProjectFromQuoteDialog({
         tags: [],
       });
 
-      // G22 (Fase B) — espelho nuvem, best-effort: reusa createProjectFromQuote, já
-      // idempotente contra o UNIQUE PARCIAL ux_projects_from_quote via
-      // catch(23505)+re-consulta (precedente P8b, docs/architecture/espelho-reversivel.md
-      // §5) — nunca upsert direto contra um índice parcial. Falha aqui NUNCA desfaz
-      // nem bloqueia o projeto local acima (espelho nunca é refém, nem o local é
-      // refém dele).
-      try {
-        await projectsRepository.createProjectFromQuote(workspaceId, {
-          quote_id: quoteId,
-          client_id: clientId ?? null,
-          opportunity_id: opportunityId ?? null,
-          title,
-          description: description || undefined,
-          budget,
-          start_date: startDate,
-          due_date: dueDate,
-        });
-      } catch (mirrorErr) {
-        console.error("Espelho nuvem do projeto falhou (local já gravado):", mirrorErr);
-        toast.warning("Projeto salvo localmente, mas o espelho no Supabase falhou.", {
-          description: "Rode a importação manual em Configurações → Dados quando possível.",
-        });
-      }
-
-      // Log local de sucesso — sem quoteId de nuvem aqui de propósito (ver comentário
-      // acima do destructuring): a proveniência fica registrada pelo quoteTitle.
-      try {
-        const logRaw = localStorage.getItem("kora.quotes.supabaseProjects.v1") || "[]";
-        const logParsed = JSON.parse(logRaw);
-        logParsed.push({
-          quoteTitle,
-          projectId: project.id,
-          title,
-          budget,
-          createdAt: new Date().toISOString(),
-          gravadoLocal: true,
-        });
-        localStorage.setItem("kora.quotes.supabaseProjects.v1", JSON.stringify(logParsed));
-      } catch (logErr) {
-        console.error("Erro ao registrar log local de projeto:", logErr);
-      }
+      // G22 (Fase B) + G85 — espelho nuvem, best-effort, MESMO caminho dos
+      // outros 3 call sites do espelho de Projetos: gate de
+      // isSupabaseProjectsWriteEnabled() + mirrorProjectToSupabase → mapper
+      // (vocabulário canônico: status "planning", source "quote" quando há
+      // quote_id uuid) → importProject, que roteia o caso quote-linked por
+      // createProjectFromQuote (idempotente contra ux_projects_from_quote).
+      // O vínculo quote/cliente/oportunidade vai numa CÓPIA só do espelho —
+      // o projeto local fica byte a byte como antes. clientId/opportunityId
+      // são uuid tipados `number` (cast, nunca Number() — G67). Falha aqui
+      // NUNCA desfaz nem bloqueia o projeto local acima.
+      await mirrorCreateToSupabase({
+        ...project,
+        quoteId,
+        clientId: (clientId ?? undefined) as unknown as number | undefined,
+        opportunityId: (opportunityId ?? undefined) as unknown as number | undefined,
+      });
 
       toast.success("Projeto criado. Veja em Projetos.");
       onSuccess();

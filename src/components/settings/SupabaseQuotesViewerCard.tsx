@@ -341,7 +341,6 @@ export function SupabaseQuotesViewerCard() {
           quoteTitle={projectQuote.title}
           quoteTotal={projectQuote.total}
           clientName={projectQuote.clientName}
-          workspaceId={workspace.id}
           quoteId={projectQuote.id}
           clientId={projectQuote.clientId ? String(projectQuote.clientId) : undefined}
           opportunityId={projectQuote.opportunityId ? String(projectQuote.opportunityId) : undefined}

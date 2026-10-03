@@ -201,6 +201,7 @@ JSON.parse(localStorage.getItem("orbyt.tasks.v1"))
 // (20) Logs locais dos dois fluxos experimentais já existentes (Etapa 3, CRM) — contexto,
 //      NÃO é fonte de verdade (a fonte é a nuvem, queries 1/3/9/10). Se algum dos dois já
 //      tiver entradas, é sinal de que a rodada semeada de Fatia 7 não vai começar "a zero".
+// (G85, 2026-10-02: a chave kora.quotes.supabaseProjects.v1 deixou de ser escrita — log write-only removido; só entradas históricas.)
 console.log("projetos gerados via CRM:", JSON.parse(localStorage.getItem("kora.quotes.supabaseProjects.v1") || "[]"));
 console.log("tarefas base geradas via card operacional:", JSON.parse(localStorage.getItem("kora.projects.supabaseBaseTasks.v1") || "[]"));
 ```
@@ -427,7 +428,7 @@ oportunidade com `supabaseId` → botão "Gerar projeto" (visível para quotes `
 62-124): dedup via `findProjectByQuote`, depois **INSERT real** via
 `projectsRepository.createProjectFromQuote` (grava `client_id/quote_id/opportunity_id/title/
 budget/status:"active"/source:"quote"` em `public.projects`) → log de sucesso só em
-`localStorage["kora.quotes.supabaseProjects.v1"]` (não a entidade, só o log).
+`localStorage["kora.quotes.supabaseProjects.v1"]` (não a entidade, só o log). **[G85, 2026-10-02: log removido — nunca tinha leitor; `createProjectFromQuote` também deixou de ser chamado direto por este dialog e seu default de status passou de "active" pra "planning".]**
 
 Toggle em Configurações: `QuotesSupabaseProjectToggleCard.tsx`, título exato **"Orçamentos
 Supabase - Gerar Projeto Experimental"** — bate com o que o revisor recordou.
