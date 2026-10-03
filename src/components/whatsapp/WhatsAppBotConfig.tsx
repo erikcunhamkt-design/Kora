@@ -17,6 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Database, Json } from "@/integrations/supabase/types";
 import { useWorkspaceRole } from "@/hooks/useWorkspaceRole";
 import { toastError } from "@/lib/supabase/errors";
+import { computeCanvasEdges, type CanvasEdge, type CanvasEdgeKind } from "@/components/whatsapp/flowCanvasEdges";
 
 type BotSettings = Database["public"]["Tables"]["whatsapp_bot_settings"]["Row"];
 type BotSettingsInsert = Database["public"]["Tables"]["whatsapp_bot_settings"]["Insert"];
@@ -124,6 +125,50 @@ function isHandoverNode(n: WorkflowNode): n is HandoverWorkflowNode {
   return n.type === "handover";
 }
 
+// G80 — arestas REAIS de um nó "menu" no canvas: uma por opção
+// (opcoes[].nextNodeId) + a de fallback quando acao="node". Cada item expõe
+// data-edge-kind/from/to (fonte de verdade dos testes de render). Destino
+// vazio / id que não existe mais na árvore são sinalizados — nunca
+// escondidos nem "consertados" em silêncio.
+const EDGE_KIND_STYLE: Record<CanvasEdgeKind, { dot: string; prefix: string }> = {
+  option: { dot: "text-pink-400", prefix: "" },
+  fallback: { dot: "text-amber-400", prefix: "⚠ inválida → " },
+  sequence: { dot: "text-border", prefix: "" },
+  entry: { dot: "text-emerald-400", prefix: "entrada → " },
+};
+
+function MenuNodeEdges({ node, nodes, edges }: { node: MenuWorkflowNode; nodes: WorkflowNode[]; edges: CanvasEdge[] }) {
+  if (edges.length === 0) return null;
+  return (
+    <ul aria-label={`Arestas de ${node.title}`} className="mt-2 space-y-0.5">
+      {edges.map((edge) => {
+        const target = edge.toNodeId ? nodes.find((n) => n.id === edge.toNodeId) : undefined;
+        const style = EDGE_KIND_STYLE[edge.kind];
+        const label = edge.toNodeId === null
+          ? "(sem destino)"
+          : target
+            ? target.title
+            : "(nó removido)";
+        return (
+          <li
+            key={edge.id}
+            data-edge-kind={edge.kind}
+            data-edge-from={edge.fromNodeId}
+            data-edge-to={edge.toNodeId ?? ""}
+            className="flex items-center gap-1 text-[9px] text-muted-foreground"
+          >
+            <ArrowRight className={`h-2.5 w-2.5 shrink-0 ${style.dot}`} />
+            <span className="truncate">
+              {edge.kind === "option" ? `${edge.optionNumero} → ` : style.prefix}
+              <span className={target ? "text-foreground/80" : "text-destructive/80"}>{label}</span>
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
   // G71 (adendo de backlog de UI) — leitura fica aberta pra qualquer membro;
   // escrita (Salvar Fluxo) vira admin-gated na UI, espelhando o draft de RLS
@@ -201,6 +246,9 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
   // nada"), não suposição de tipo por posição — revisado na rodada R2 e
   // deixado como está de propósito, não esquecido.
   const activeNode = nodes.find(n => n.id === selectedNodeId) || nodes[0];
+
+  // G80 — arestas reais do canvas (flowCanvasEdges.ts). Só render.
+  const canvasEdges = computeCanvasEdges(nodes);
 
   const loadSettings = useCallback(async () => {
     setLoading(true);
@@ -650,20 +698,18 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
 
                 return (
                   <div key={node.id} className="relative flex items-center">
-                    {/* SVG Connector Line — G80 (kora-hub-auditoria-e-plano.md):
-                        esta seta sempre liga node[index] a node[index+1] por
-                        POSIÇÃO NO ARRAY, nunca pela aresta real de um nó
-                        "menu" (`opcoes[].nextNodeId`). Com a árvore 100%
-                        montável do operador, um nó "menu" pode apontar pra
-                        qualquer outro nó, não necessariamente o próximo do
-                        array — a partir de agora esta seta pode mostrar uma
-                        sequência que não corresponde ao fluxo real montado
-                        pelo usuário. Não corrigido nesta rodada (fora de
-                        escopo — R5 é só CRUD de nó "menu", não um redesenho
-                        do canvas pra grafo real; correção real — renderizar
-                        o grafo de verdade — pendente de rodada própria). */}
-                    {index < nodes.length - 1 && (
-                      <div className="hidden md:block absolute left-full top-1/2 w-6 h-[2px] bg-border/40 -translate-y-1/2 z-0">
+                    {/* G80 — seta sequencial só entre nós FIXOS vizinhos
+                        (computeCanvasEdges emite "sequence" apenas aí). Nunca
+                        mais liga a um nó menu por posição no array: as
+                        arestas do menu são as opções/fallback, listadas no
+                        próprio nó abaixo. */}
+                    {canvasEdges.some(e => e.kind === "sequence" && e.fromNodeId === node.id) && (
+                      <div
+                        data-edge-kind="sequence"
+                        data-edge-from={node.id}
+                        data-edge-to={nodes[index + 1]?.id ?? ""}
+                        className="hidden md:block absolute left-full top-1/2 w-6 h-[2px] bg-border/40 -translate-y-1/2 z-0"
+                      >
                         <div className={`h-full bg-gradient-to-r from-primary to-transparent transition-all duration-300 ${nodes[index+1].enabled ? "opacity-100" : "opacity-20"}`} />
                         <ArrowRight className="h-3 w-3 absolute -right-1.5 -top-[5px] text-border/60" />
                       </div>
@@ -707,6 +753,13 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
                               : `${node.properties.opcoes.length} opç${node.properties.opcoes.length === 1 ? "ão" : "ões"}`
                           )}
                         </p>
+                        {node.type === "menu" && (
+                          <MenuNodeEdges
+                            node={node}
+                            nodes={nodes}
+                            edges={canvasEdges.filter(e => e.fromNodeId === node.id)}
+                          />
+                        )}
                       </div>
                     </div>
                   </div>
