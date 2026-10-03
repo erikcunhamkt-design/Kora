@@ -42,7 +42,7 @@ function makeClient(overrides: Partial<Client> = {}): Client {
   return {
     // uuid da nuvem, cast-como-number — mesmo precedente de
     // useClientsDataSource.ts:9 (client em modo Supabase).
-    id: "client-uuid-1" as unknown as number,
+    id: "87ebd1d2-b17a-46f4-b0eb-70beac445221" as unknown as number,
     name: "Acme Corp", company: "", email: "", phone: "", whatsapp: "",
     instagram: "", site: "", serviceType: "", status: "ativo" as never,
     potentialValue: 0, lastProject: "", lastInteraction: "", observations: "",
@@ -76,7 +76,7 @@ function makeCloudReceivable(overrides: Partial<Transaction> = {}): Transaction 
     // client_id real, cast-como-number — exatamente o que
     // mapSupabaseTransactionToLocal produz pra uma linha gravada por
     // CreateReceivableDialog.tsx:114 (client_id: clientId ?? null).
-    clientId: "client-uuid-1" as unknown as number,
+    clientId: "87ebd1d2-b17a-46f4-b0eb-70beac445221" as unknown as number,
     ...overrides,
   };
 }
@@ -407,6 +407,9 @@ describe("ClientActivitiesTab · G54 caracterização — materiais (ficha técn
 
     expect(await screen.findByText("Material adicionado")).toBeInTheDocument();
     expect(screen.getByText("Manual da marca")).toBeInTheDocument();
+    // G82 — o consumidor repassa o id uuid do cliente INTACTO ao hook (nada de
+    // Number()/conversão que viraria NaN).
+    expect(useBifurcatedTechnicalSheet).toHaveBeenCalledWith("87ebd1d2-b17a-46f4-b0eb-70beac445221");
   });
 });
 

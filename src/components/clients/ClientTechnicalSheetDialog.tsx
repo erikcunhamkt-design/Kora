@@ -19,6 +19,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { useBifurcatedTechnicalSheet } from "@/hooks/useBifurcatedTechnicalSheet";
+import { resolveSheetSupabaseClientId } from "@/services/technicalSheets/resolveSheetClientId";
 import { clientAssetsStorage } from "@/services/storage/clientAssetsStorage";
 import type {
   Client, ClientTechnicalSheet, ClientBranding, ClientPersona,
@@ -268,7 +269,7 @@ export function BrandingSection({
 }: {
   value: ClientBranding;
   onSave: (v: ClientBranding) => void;
-  clientId?: number;
+  clientId?: string | number;
 }) {
   const [local, setLocal] = useState<ClientBranding>(value);
   const [colorHex, setColorHex] = useState("#F81040");
@@ -294,20 +295,8 @@ export function BrandingSection({
     }
   }, [local.logoStoragePath]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const supabaseClientId = useMemo(() => {
-    if (!clientId) return null;
-    try {
-      const raw = localStorage.getItem("kora.clients.supabaseImport.v1");
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        const map = parsed.importedMap || {};
-        return (map[String(clientId)] as string) || null;
-      }
-    } catch {
-      // Ignore
-    }
-    return null;
-  }, [clientId]);
+  // G82: uuid direto passa direto; o mapa local→uuid só resolve id numérico local.
+  const supabaseClientId = useMemo(() => resolveSheetSupabaseClientId(clientId), [clientId]);
 
   const [uploading, setUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<"idle" | "success" | "error" | "invalid" | "size_exceeded">("idle");
@@ -1242,7 +1231,7 @@ export function AssetsSection({
 }: {
   value: ClientAsset[];
   onChange: (v: ClientAsset[]) => void;
-  clientId?: number;
+  clientId?: string | number;
 }) {
   const [editing, setEditing] = useState<ClientAsset | null>(null);
   const [open, setOpen] = useState(false);
@@ -1250,20 +1239,8 @@ export function AssetsSection({
 
   const { workspace } = useCurrentWorkspace();
 
-  const supabaseClientId = useMemo(() => {
-    if (!clientId) return null;
-    try {
-      const raw = localStorage.getItem("kora.clients.supabaseImport.v1");
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        const map = parsed.importedMap || {};
-        return (map[String(clientId)] as string) || null;
-      }
-    } catch {
-      // Ignore
-    }
-    return null;
-  }, [clientId]);
+  // G82: uuid direto passa direto; o mapa local→uuid só resolve id numérico local.
+  const supabaseClientId = useMemo(() => resolveSheetSupabaseClientId(clientId), [clientId]);
 
   const [uploading, setUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<"idle" | "success" | "error" | "invalid" | "size_exceeded">("idle");

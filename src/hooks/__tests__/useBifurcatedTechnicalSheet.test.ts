@@ -97,3 +97,60 @@ describe("useBifurcatedTechnicalSheet — seletor Supabase (explícito, pós-G63
     expect(JSON.stringify(result.current)).not.toContain("s3nh4-secreta");
   });
 });
+
+// G82 — a lista de Clientes em nuvem entrega ids UUID. Os testes acima usam
+// `id: 1` (cliente local) e por isso nunca exercitaram o par (id uuid, mapa
+// local→uuid) — o buraco que deixava os 4 consumidores do G74 "vazios" para
+// qualquer cliente só-nuvem. Fixtures com uuid REAL.
+describe("useBifurcatedTechnicalSheet — G82 (id uuid vindo da lista em nuvem)", () => {
+  const UUID = "87ebd1d2-b17a-46f4-b0eb-70beac445221";
+
+  it("cliente só-nuvem (uuid, sem cliente local): lê da nuvem MESMO com todos os flags no default — não é mais 'vazio'", () => {
+    vi.mocked(useClients).mockReturnValue({ clients: [makeLocalClient()] } as never);
+    vi.mocked(useSupabaseTechnicalSheet).mockReturnValue({
+      sheet: { branding: { colors: ["#00ff00"] } },
+    } as never);
+
+    const { result } = renderHook(() => useBifurcatedTechnicalSheet(UUID));
+
+    expect(vi.mocked(useSupabaseTechnicalSheet)).toHaveBeenCalledWith(UUID);
+    expect(result.current.branding).toEqual({ colors: ["#00ff00"] });
+  });
+
+  it("cliente só-nuvem sem ficha na nuvem ⇒ objeto vazio (sem lançar)", () => {
+    vi.mocked(useClients).mockReturnValue({ clients: [] } as never);
+    vi.mocked(useSupabaseTechnicalSheet).mockReturnValue({ sheet: null } as never);
+
+    const { result } = renderHook(() => useBifurcatedTechnicalSheet(UUID));
+
+    expect(result.current).toEqual({});
+  });
+
+  it("cliente legado importado (local id 7 ↔ uuid no mapa), flags no default: devolve a ficha LOCAL do cliente 7 (modo local/legado preservado)", () => {
+    localStorage.setItem("kora.clients.supabaseImport.v1", JSON.stringify({ importedMap: { "7": UUID } }));
+    vi.mocked(useClients).mockReturnValue({
+      clients: [makeLocalClient({ id: 7, technicalSheet: { branding: { colors: ["#123456"] } } })],
+    } as never);
+    vi.mocked(useSupabaseTechnicalSheet).mockReturnValue({
+      sheet: { branding: { colors: ["#ff0000"] } },
+    } as never);
+
+    const { result } = renderHook(() => useBifurcatedTechnicalSheet(UUID));
+
+    expect(result.current.branding).toEqual({ colors: ["#123456"] });
+  });
+
+  it("[G63 — invariante] ficha só-nuvem por uuid também nunca devolve accesses/password", () => {
+    vi.mocked(useClients).mockReturnValue({ clients: [] } as never);
+    vi.mocked(useSupabaseTechnicalSheet).mockReturnValue({
+      sheet: {
+        branding: {},
+        raw_payload: { accesses: [{ id: "a1", platform: "WP", login: "admin", password: "s3nh4-secreta" }] },
+      },
+    } as never);
+
+    const { result } = renderHook(() => useBifurcatedTechnicalSheet(UUID));
+
+    expect(JSON.stringify(result.current)).not.toContain("s3nh4-secreta");
+  });
+});

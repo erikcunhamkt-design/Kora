@@ -18,6 +18,7 @@ import { useClients, type ClientTechnicalSheet } from "@/hooks/useClients";
 import { useSupabaseTechnicalSheet } from "@/hooks/useSupabaseTechnicalSheet";
 import { mapSupabaseToLocalSheet } from "@/services/technicalSheets/supabaseTechnicalSheetToLocalMapper";
 import { getTechnicalSheetExperimentalEnabled, getTechnicalSheetDataSource } from "@/config/flags";
+import { findLocalClientForSheet } from "@/services/technicalSheets/resolveSheetClientId";
 
 const EMPTY_SHEET: ClientTechnicalSheet = {};
 
@@ -30,9 +31,15 @@ export function useBifurcatedTechnicalSheet(
   return useMemo(() => {
     if (clientId === undefined) return EMPTY_SHEET;
 
+    // G82: o id vindo da lista de Clientes em nuvem é um uuid — o cliente
+    // LOCAL correspondente (se existir) é achado por id igual OU pelo mapa
+    // local→uuid (cliente legado importado). Sem cliente local, a única
+    // fonte que existe pra esta ficha é a nuvem, independente dos flags.
+    const localClient = findLocalClientForSheet(clients, clientId);
     const isSupabase =
-      getTechnicalSheetExperimentalEnabled() &&
-      getTechnicalSheetDataSource(clientId) === "supabase";
+      !localClient ||
+      (getTechnicalSheetExperimentalEnabled() &&
+        getTechnicalSheetDataSource(clientId) === "supabase");
 
     if (isSupabase) {
       return supabaseSheet ? mapSupabaseToLocalSheet(supabaseSheet) : EMPTY_SHEET;
@@ -43,7 +50,6 @@ export function useBifurcatedTechnicalSheet(
     // existe nesse storage, nunca em um `Client` vindo do mapper cloud
     // (useClientsDataSource.ts) — usar a lista bifurcada aqui reintroduziria
     // o mesmo buraco do G74 pro próprio caminho "local".
-    const localClient = clients.find((c) => String(c.id) === String(clientId));
     return localClient?.technicalSheet ?? EMPTY_SHEET;
   }, [clientId, supabaseSheet, clients]);
 }

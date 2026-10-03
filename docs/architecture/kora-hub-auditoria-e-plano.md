@@ -1306,7 +1306,7 @@ Achado na Fase A pós-F2/F3 do domínio Fichas Técnicas (`docs/architecture/eta
 - **G67 literal no domínio:** `ClientTechnicalSheet.tsx` passa `clientId={Number(clientId)}` para `BrandingSection` e `AssetsSection` ⇒ `NaN` com uuid ⇒ upload de logo/material sempre cai em "Vínculo Supabase ou workspace ativo ausente.".
 - **Por que os testes não pegavam:** fixtures com id numérico local e `useSupabaseTechnicalSheet` mockado — nenhum exercita o par (id uuid, mapa local→uuid).
 - **5º consumidor, mesma causa e mesma família do G74:** `KoraOnboarding.tsx` (passo "Preencher Ficha Técnica") lê `useClients()` local.
-- **Correção:** rodada FP0 (branch `etapa-5-fichas-fp0-g82`, doc da rodada em `docs/qa/`); este item continua ABERTO até a confirmação ao vivo.
+- **Correção:** rodada FP0 (branch `etapa-5-fichas-fp0-g82`, doc em `docs/qa/etapa-5-fichas-fp0-g82.md`); este item continua ABERTO até a confirmação ao vivo.
 - **Referência:** G67/G73 (mesmo `Number(uuid)=NaN`), G74 (consumidores cegos), G58 (cutover de Clientes), `resolveProjectFk`/`resolveTaskFk` (padrão de passthrough de uuid).
 
 **G83 — Ficha Técnica: o round-trip com a nuvem é assimétrico — `competitors` é escrito (em `raw_payload`) e nunca lido de volta; o placeholder de binário volta como material-fantasma; a coluna `branding` leva dataURL sem sanitizar. Perda silenciosa com badge "Salvo no Supabase". [MÉDIO — ABERTO, pré-requisito do flip F4; hoje contido pelo opt-in da fonte nuvem]**

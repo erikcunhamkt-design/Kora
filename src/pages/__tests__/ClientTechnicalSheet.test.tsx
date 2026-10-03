@@ -64,8 +64,12 @@ beforeEach(() => {
     workspace: { id: "ws1", name: "W", slug: "w", owner_id: "o", created_at: "", updated_at: "", currency: "BRL", locale: "pt-BR", timezone: null },
     membership: null, loading: false, error: null,
   } as never);
+  // G82: o cliente existe TAMBÉM no storage local (id numérico) — é o cenário
+  // "ficha local/legada" que estes testes do G63 cobrem. O cenário cliente
+  // só-nuvem (uuid) tem arquivo próprio: ClientTechnicalSheet.uuid.test.tsx.
   vi.mocked(useClients).mockReturnValue({
     updateClient: vi.fn(),
+    clients: [makeClientWithAccesses()],
   } as never);
   vi.mocked(useClientsDataSource).mockReturnValue({
     clients: [makeClientWithAccesses()],

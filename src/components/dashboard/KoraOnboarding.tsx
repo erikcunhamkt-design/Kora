@@ -7,6 +7,9 @@ import { useLeads } from "@/hooks/useLeads";
 import { useQuotes } from "@/hooks/useQuotes";
 import { useFinance } from "@/hooks/useFinance";
 import { useProjects } from "@/hooks/useProjects";
+import { useSupabaseTechnicalSheetsAll } from "@/hooks/useSupabaseTechnicalSheetsAll";
+import { mapSupabaseToLocalSheet } from "@/services/technicalSheets/supabaseTechnicalSheetToLocalMapper";
+import type { ClientTechnicalSheet } from "@/hooks/useClients";
 import { useNavigate } from "react-router-dom";
 
 export interface OnboardingState {
@@ -28,6 +31,15 @@ const DEFAULT_STATE: OnboardingState = {
   updatedAt: new Date().toISOString(),
 };
 
+// Mesmo critério de "ficha preenchida" pra fonte local e nuvem.
+function sheetHasContent(ts: ClientTechnicalSheet | undefined): boolean {
+  if (!ts) return false;
+  const hasBranding = ts.branding && (ts.branding.voiceTone || ts.branding.slogan || (ts.branding.colors && ts.branding.colors.length > 0));
+  const hasPersona = ts.persona && (ts.persona.name || ts.persona.desires || ts.persona.pains);
+  const hasAssets = ts.assets && ts.assets.length > 0;
+  return !!(hasBranding || hasPersona || hasAssets);
+}
+
 export function KoraOnboarding() {
   const navigate = useNavigate();
   
@@ -37,6 +49,9 @@ export function KoraOnboarding() {
   const { quotes } = useQuotes();
   const { transactions } = useFinance();
   const { projects } = useProjects();
+  // G82 (5º consumidor da ficha): clientes só-nuvem têm a ficha em
+  // client_technical_sheets, nunca em `client.technicalSheet` local.
+  const { sheets: cloudSheets } = useSupabaseTechnicalSheetsAll();
 
   const [state, setState] = useState<OnboardingState>(() => {
     try {
@@ -88,18 +103,10 @@ export function KoraOnboarding() {
 
   // 2. Preencher Ficha Técnica
   const step2 = useMemo(() => {
-    return clients.some((c) => {
-      if (c.isDemo) return false;
-      const ts = c.technicalSheet;
-      if (!ts) return false;
-      
-      const hasBranding = ts.branding && (ts.branding.voiceTone || ts.branding.slogan || (ts.branding.colors && ts.branding.colors.length > 0));
-      const hasPersona = ts.persona && (ts.persona.name || ts.persona.desires || ts.persona.pains);
-      const hasAssets = ts.assets && ts.assets.length > 0;
-      
-      return !!(hasBranding || hasPersona || hasAssets);
-    });
-  }, [clients]);
+    const localDone = clients.some((c) => !c.isDemo && sheetHasContent(c.technicalSheet));
+    if (localDone) return true;
+    return cloudSheets.some((s) => sheetHasContent(mapSupabaseToLocalSheet(s)));
+  }, [clients, cloudSheets]);
 
   // 3. Criar oportunidade
   const step3 = useMemo(() => {

@@ -29,6 +29,18 @@ export const clientTechnicalSheetsRepository = {
     return data;
   },
 
+  // G82 (5º consumidor — KoraOnboarding): lista todas as fichas do workspace
+  // numa só leitura, pra um consumidor que não tem um cliente por vez.
+  async listTechnicalSheets(workspaceId: string) {
+    const { data, error } = await supabase
+      .from("client_technical_sheets")
+      .select("*")
+      .eq("workspace_id", workspaceId);
+
+    if (error) throw normalizeSupabaseError(error);
+    return data ?? [];
+  },
+
   async upsertTechnicalSheet(
     workspaceId: string,
     clientId: string,

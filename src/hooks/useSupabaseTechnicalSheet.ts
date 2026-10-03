@@ -3,8 +3,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { clientTechnicalSheetsRepository } from "@/repositories/clientTechnicalSheetsRepository";
-
-const CLIENTS_IMPORT_META_KEY = "kora.clients.supabaseImport.v1";
+import { resolveSheetSupabaseClientId } from "@/services/technicalSheets/resolveSheetClientId";
 
 export interface SupabaseTechnicalSheetData {
   id: string;
@@ -26,21 +25,12 @@ export function useSupabaseTechnicalSheet(localClientId: string | number | undef
   const { workspace } = useCurrentWorkspace();
   const workspaceId = workspace?.id ?? "";
 
-  // Resolve the Supabase client UUID from the local→remote import map.
-  const supabaseClientId = useMemo(() => {
-    if (!localClientId) return null;
-    try {
-      const raw = localStorage.getItem(CLIENTS_IMPORT_META_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        const map = parsed.importedMap || {};
-        return (map[String(localClientId)] as string) || null;
-      }
-    } catch (err) {
-      console.error("Error reading clients importedMap in hook:", err);
-    }
-    return null;
-  }, [localClientId]);
+  // G82: uuid direto passa direto (lista de Clientes em nuvem); o mapa
+  // local→remoto só resolve o id numérico local (modo local/legado).
+  const supabaseClientId = useMemo(
+    () => resolveSheetSupabaseClientId(localClientId),
+    [localClientId],
+  );
 
   const query = useQuery({
     queryKey: ["supabase-technical-sheet", workspaceId, supabaseClientId],

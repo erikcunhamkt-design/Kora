@@ -28,6 +28,7 @@ import { useSupabaseTechnicalSheet } from "@/hooks/useSupabaseTechnicalSheet";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { mapLocalToSupabaseSheet } from "@/services/technicalSheets/technicalSheetMapper";
 import { mapSupabaseToLocalSheet } from "@/services/technicalSheets/supabaseTechnicalSheetToLocalMapper";
+import { findLocalClientForSheet } from "@/services/technicalSheets/resolveSheetClientId";
 import { clientTechnicalSheetsRepository } from "@/repositories/clientTechnicalSheetsRepository";
 import {
   getTechnicalSheetExperimentalEnabled,
@@ -232,7 +233,7 @@ function RestoreFromSupabaseDialog({
 export default function ClientTechnicalSheetPage() {
   const { clientId } = useParams<{ clientId: string }>();
   const navigate = useNavigate();
-  const { updateClient } = useClients();
+  const { updateClient, clients: localClients = [] } = useClients();
   // Rodada 2b-fichas (etapa-5-flip-clientes-pacote.md §2.3, consumidor
   // 3/3) — mesmo padrão do G66/G64: só a LEITURA (lista de clientes usada
   // pra achar o cliente por id) bifurca. `updateClient` continua vindo de
@@ -247,6 +248,17 @@ export default function ClientTechnicalSheetPage() {
     () => clients.find((c) => String(c.id) === String(clientId)) ?? null,
     [clients, clientId]
   );
+
+  // G82: a lista de Clientes em nuvem entrega ids uuid; o cliente LOCAL (onde a
+  // ficha local vive e onde `updateClient` acha alguém) é achado por id igual
+  // ou pelo mapa local→uuid. Sem ele, o cliente só existe na nuvem: não há
+  // onde gravar localmente — antes, `updateClient(uuid)` não achava ninguém e
+  // a edição sumia em silêncio.
+  const localClient = useMemo(
+    () => findLocalClientForSheet(localClients, clientId),
+    [localClients, clientId],
+  );
+  const cloudOnly = !localClient;
 
   const {
     supabaseClientId,
@@ -304,9 +316,12 @@ export default function ClientTechnicalSheetPage() {
   const persist = async (next: ClientTechnicalSheet) => {
     setSheet(next);
     if (activeDataSource === "local") {
-      if (!client) return;
-      updateClient(client.id, { technicalSheet: next });
-    } else if (activeDataSource === "supabase" && autosaveEnabled) {
+      if (!localClient) {
+        toast.error("Não foi possível salvar: este cliente não tem cópia local da ficha.");
+        return;
+      }
+      updateClient(localClient.id, { technicalSheet: next });
+    } else if (activeDataSource === "supabase" && writeThrough) {
       if (!workspace?.id || !supabaseClientId) {
         toast.error("Vínculo com o Supabase ou workspace ativo ausente.");
         return;
@@ -321,6 +336,17 @@ export default function ClientTechnicalSheetPage() {
         );
         setSyncStatus("synced");
         refreshSupabase();
+        // G75: campos SEM caminho de persistência nativo na nuvem — "accesses"
+        // nunca é gravado (G63, decisão permanente) e "competitors" é escrito
+        // em raw_payload mas nunca lido de volta (G83). Não silenciar.
+        const unsynced: string[] = [];
+        if (next.accesses !== sheet.accesses) unsynced.push("Acessos");
+        if (next.competitors !== sheet.competitors) unsynced.push("Concorrentes");
+        if (unsynced.length > 0) {
+          toast.warning(
+            `${unsynced.join(" e ")} ainda não ${unsynced.length > 1 ? "são salvos" : "é salvo"} de forma persistente na nuvem — a alteração não será mantida ao recarregar.`,
+          );
+        }
       } catch (err) {
         console.error("Autosave technical sheet to Supabase error:", err);
         setSyncStatus("error");
@@ -343,7 +369,12 @@ export default function ClientTechnicalSheetPage() {
     () => getTechnicalSheetDataSource(String(clientId)),
   );
 
-  const activeDataSource = isExperimentalEnabled ? dataSource : "local";
+  // G82: cliente só-nuvem não tem fonte local — a fonte ativa é a nuvem
+  // independente dos flags, e a gravação por seção (ação explícita do
+  // usuário) vai direto, sem depender do autosave (não há cópia local pra
+  // segurar a edição até o "Salvar versão atual no Supabase").
+  const activeDataSource = cloudOnly ? "supabase" : isExperimentalEnabled ? dataSource : "local";
+  const writeThrough = cloudOnly || autosaveEnabled;
 
   // G63 (16/ago/2026): o auto-promote pra "supabase" assim que o cliente
   // tinha supabaseClientId foi REMOVIDO — era exatamente o mecanismo que
@@ -354,6 +385,10 @@ export default function ClientTechnicalSheetPage() {
 
   const handleSourceChange = (newSource: "local" | "supabase") => {
     if (!isExperimentalEnabled) return;
+    if (newSource === "local" && cloudOnly) {
+      toast.error("Este cliente só existe na nuvem — não há cópia local da ficha.");
+      return;
+    }
     if (newSource === "supabase" && !supabaseClientId) {
       toast.error("Este cliente não possui vínculo com o Supabase.");
       return;
@@ -391,11 +426,11 @@ export default function ClientTechnicalSheetPage() {
         setSheet({});
       }
     } else {
-      if (client) {
-        setSheet(client.technicalSheet ?? {});
+      if (localClient) {
+        setSheet(localClient.technicalSheet ?? {});
       }
     }
-  }, [activeDataSource, supabaseSheet, supabaseLoading, client?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeDataSource, supabaseSheet, supabaseLoading, client?.id, localClient?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!client) {
     return (
@@ -437,7 +472,7 @@ export default function ClientTechnicalSheetPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {activeDataSource === "supabase" && autosaveEnabled && (
+            {activeDataSource === "supabase" && writeThrough && (
               <>
                 {syncStatus === "saving" && (
                   <Badge variant="outline" className="text-[10px] uppercase text-amber-500 border-amber-500/30 bg-amber-500/5 animate-pulse gap-1">
@@ -522,7 +557,7 @@ export default function ClientTechnicalSheetPage() {
             <div>
               <span className="font-semibold block">Modo Supabase experimental ativo</span>
               <p className="text-muted-foreground mt-0.5 leading-normal">
-                {autosaveEnabled ? (
+                {writeThrough ? (
                   <>
                     Você está visualizando a versão Supabase desta Ficha Técnica. Use com cuidado; o modo local continua disponível.
                     Autosave está <strong>ativado</strong> — as edições feitas aqui são gravadas automaticamente no Supabase a cada alteração.
@@ -867,7 +902,7 @@ export default function ClientTechnicalSheetPage() {
             <OverviewGrid sheet={sheet} onOpen={(id) => setView(id)} />
           )}
           {view === "branding" && (
-            <BrandingSection value={sheet.branding ?? {}} onSave={(v) => persist({ ...sheet, branding: v })} clientId={Number(clientId)} />
+            <BrandingSection value={sheet.branding ?? {}} onSave={(v) => persist({ ...sheet, branding: v })} clientId={clientId} />
           )}
           {view === "persona" && (
             <PersonaSection value={sheet.persona ?? {}} onSave={(v) => persist({ ...sheet, persona: v })} />
@@ -891,7 +926,7 @@ export default function ClientTechnicalSheetPage() {
             <BriefingSection value={sheet.briefing ?? {}} onSave={(v) => persist({ ...sheet, briefing: v })} />
           )}
           {view === "assets" && (
-            <AssetsSection value={sheet.assets ?? []} onChange={(v) => persist({ ...sheet, assets: v })} clientId={Number(clientId)} />
+            <AssetsSection value={sheet.assets ?? []} onChange={(v) => persist({ ...sheet, assets: v })} clientId={clientId} />
           )}
         </main>
       </div>
