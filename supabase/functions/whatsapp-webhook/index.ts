@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { shouldInvokeBotReply } from "../_shared/botTrigger.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -602,8 +603,12 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Trigger Gemini bot reply for inbound messages (except reactions)
-    if (!fromMe && internalKind !== "reaction") {
+    // Trigger Gemini bot reply for inbound messages (except reactions) — e,
+    // desde a dívida da R4, NÃO em conversa já entregue a humano
+    // (`handover_at` preenchido): whatsapp-bot-reply responderia `skipped`,
+    // mas a invocação em si contava no rate-limit. Coluna ausente →
+    // `existingConv.handover_at` undefined → comportamento de antes (invoca).
+    if (shouldInvokeBotReply({ fromMe, kind: internalKind, handoverAt: existingConv?.handover_at })) {
       try {
         const { data: bot } = await admin
           .from("whatsapp_bot_settings")
