@@ -111,6 +111,9 @@ describe("ClientTechnicalSheet — G82 (cliente só-nuvem, id uuid)", () => {
     expect((payload as { briefing?: { generalBriefing?: string } }).briefing?.generalBriefing).toBe("briefing de teste G82");
     expect(updateClient).not.toHaveBeenCalled();
     expect(toast.error).not.toHaveBeenCalled();
+    // G29 — a UI INDICA que foi pra nuvem (badge do cabeçalho), mesmo sem o
+    // seletor/banner do modo experimental (flags no default).
+    expect(await screen.findByText("Salvo no Supabase")).toBeInTheDocument();
   });
 
   it("[G75] editar Concorrentes numa ficha da nuvem avisa que o campo não persiste (sem caminho nativo) — não finge sucesso silencioso", async () => {
