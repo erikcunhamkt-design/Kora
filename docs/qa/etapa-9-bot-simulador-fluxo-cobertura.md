@@ -52,7 +52,10 @@ exercitado.
 
 1. conversa entregue (`handedOver`) → **silêncio**;
 2. nó menu habilitado → `present`/`reprompt` respondem o menu (sem IA); os 3 gatilhos
-   de handover do menu **entregam**; destino não-handover **sai do menu**;
+   de handover do menu **entregam**; destino não-handover **sai do menu**. A
+   **entrada** segue a aresta do R6: `trigger.properties.nextNodeId` (só com o trigger
+   HABILITADO, como em produção) é passado como 4º argumento de `resolveMenuTurn`;
+   ausente/inválido/menu desabilitado → primeiro menu habilitado;
 3. gate "AI node disabled": fluxo com nós mas sem "ai" habilitado → **skipped**;
 4. handover por palavra-chave (nó handover habilitado) → **entrega**;
 5. segue pra IA.
@@ -130,9 +133,19 @@ divergência de sequência virar problema.
 7. Se algum dia a UI **não** quiser o simulador do fluxo (modo legado), basta **não**
    mandar `simState` — comportamento antigo preservado.
 
+> **Pós-R6 (paridade de entrada):** `simulateFlowTurn` passou a repassar
+> `trigger.properties.nextNodeId` como 4º argumento de `resolveMenuTurn`, igual a
+> `whatsapp-bot-reply/index.ts` (que lê `triggerNode?.properties?.nextNodeId`). Antes
+> disso o simulador ignorava a aresta de entrada e sempre entrava pelo primeiro menu —
+> divergindo de produção num fluxo com a aresta apontando outro menu. Cobertura: 8
+> testes novos (entrada válida, ausente, inválida ×5 formas, menu desabilitado, trigger
+> desabilitado, re-entrada de estado órfão, estado válido não reaplica a entrada, fluxo
+> completo); fail→fix→pass por patch: 3 falham sem o 4º argumento (os que dependem da
+> entrada), os 5 de fallback valem nos dois estados por desenho.
+
 ## 5. Testes
 
-`supabase/functions/_shared/__tests__/botFlowSimulation.test.ts` — **22 testes**, mocks
+`supabase/functions/_shared/__tests__/botFlowSimulation.test.ts` — **30 testes**, mocks
 puros: contrato de opt-in (`undefined` não opta; `null` opta), `parseSimState`
 defensivo, motor do menu (1ª mensagem, encadeamento, reprompt com contador, saída
 pra nó não-handover), handover (3 gatilhos do menu, nó handover desabilitado, silêncio

@@ -205,6 +205,81 @@ describe("simulateFlowTurn — handover real (R4) no simulador", () => {
   });
 });
 
+// R6 — aresta de ENTRADA (trigger.properties.nextNodeId). Paridade com produção
+// (whatsapp-bot-reply/index.ts: `triggerNode?.properties?.nextNodeId`, trigger
+// só vale HABILITADO; inválido/ausente → primeiro menu habilitado).
+describe("simulateFlowTurn — entrada por trigger.nextNodeId (paridade com produção pós-R6)", () => {
+  const triggerWith = (nextNodeId: unknown, enabled = true): RawFlowNode => ({
+    id: "node-trigger",
+    type: "trigger",
+    enabled,
+    properties: { nextNodeId } as RawFlowNode["properties"],
+  });
+  // menu-1 é o PRIMEIRO da lista; menu-fin vem depois.
+  const flow = (trigger: RawFlowNode) => [trigger, menuRaw("menu-1"), MENU_FIN, HANDOVER_ON, AI_ON];
+
+  it("nextNodeId válido: a 1ª mensagem entra pelo menu APONTADO, não pelo primeiro da lista", () => {
+    const turn = simulateFlowTurn(flow(triggerWith("menu-fin")), FRESH, "oi");
+    expect(turn).toEqual({
+      kind: "respond",
+      reply: renderMenuPrompt(asMenuNode(MENU_FIN)),
+      simulation: { engine: "menu", botFlowState: { currentNodeId: "menu-fin", attempts: 0 }, handedOver: false },
+    });
+  });
+
+  it("sem nextNodeId: entra pelo primeiro menu habilitado (comportamento anterior à R6)", () => {
+    const turn = simulateFlowTurn(flow(triggerWith(undefined)), FRESH, "oi");
+    expect(turn).toMatchObject({ simulation: { botFlowState: { currentNodeId: "menu-1" } } });
+  });
+
+  it("nextNodeId INVÁLIDO (id inexistente / nó não-menu): mesmo fallback, primeiro menu habilitado", () => {
+    for (const bad of ["nao-existe", "node-ai", "", 42, null]) {
+      const turn = simulateFlowTurn(flow(triggerWith(bad)), FRESH, "oi");
+      expect(turn, `nextNodeId=${JSON.stringify(bad)}`).toMatchObject({
+        simulation: { botFlowState: { currentNodeId: "menu-1" } },
+      });
+    }
+  });
+
+  it("nextNodeId aponta pra um menu DESABILITADO: fora de menuNodes → fallback pro primeiro habilitado", () => {
+    const disabledFin = { ...MENU_FIN, enabled: false };
+    const turn = simulateFlowTurn([triggerWith("menu-fin"), menuRaw("menu-1"), disabledFin, HANDOVER_ON, AI_ON], FRESH, "oi");
+    expect(turn).toMatchObject({ simulation: { botFlowState: { currentNodeId: "menu-1" } } });
+  });
+
+  it("trigger DESABILITADO: o nextNodeId é ignorado (produção só lê o trigger habilitado)", () => {
+    const turn = simulateFlowTurn(flow(triggerWith("menu-fin", false)), FRESH, "oi");
+    expect(turn).toMatchObject({ simulation: { botFlowState: { currentNodeId: "menu-1" } } });
+  });
+
+  it("re-entrada: estado ÓRFÃO (aponta pra menu que sumiu) volta a entrar pelo menu da aresta de entrada", () => {
+    const turn = simulateFlowTurn(
+      flow(triggerWith("menu-fin")),
+      { botFlowState: { currentNodeId: "menu-removido", attempts: 3 }, handedOver: false },
+      "1",
+    );
+    expect(turn).toMatchObject({ simulation: { botFlowState: { currentNodeId: "menu-fin", attempts: 0 } } });
+  });
+
+  it("depois da 1ª mensagem o estado manda: com estado válido a aresta de entrada NÃO é reaplicada", () => {
+    // Está em menu-1 (não é o de entrada): resposta "1" deve seguir a opção do menu-1, não voltar à entrada.
+    const turn = simulateFlowTurn(
+      flow(triggerWith("menu-fin")),
+      { botFlowState: { currentNodeId: "menu-1", attempts: 0 }, handedOver: false },
+      "1",
+    );
+    expect(turn).toMatchObject({ simulation: { engine: "menu", botFlowState: { currentNodeId: "menu-fin", attempts: 0 } } });
+  });
+
+  it("fluxo completo entrando por nextNodeId: entrada -> opção válida -> próximo nó", () => {
+    const f = flow(triggerWith("menu-fin")); // menu-fin: opção 1 -> node-ai
+    const first = simulateFlowTurn(f, FRESH, "oi");
+    if (first.kind !== "respond") throw new Error("esperava respond");
+    const second = simulateFlowTurn(f, { botFlowState: first.simulation.botFlowState, handedOver: false }, "1");
+    expect(second).toEqual({ kind: "continue", simulation: { engine: "ai", botFlowState: null, handedOver: false } });
+  });
+});
+
 describe("simulateFlowTurn — fluxo SÓ com menu (sem nó ai) e os gates de produção", () => {
   it("menu-only: apresenta o menu e entrega a humano sem nunca precisar de IA", () => {
     const menuOnly = [menuRaw("menu-1"), HANDOVER_ON];

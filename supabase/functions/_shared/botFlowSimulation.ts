@@ -18,7 +18,8 @@
 // A ORDEM espelha o handler de produção (whatsapp-bot-reply/index.ts, ramo
 // não-teste). Se aquela ordem mudar, mudar aqui junto:
 //   1. conversa entregue a humano → silêncio            (gate `isHandedOver`)
-//   2. motor do menu (se há nó "menu" habilitado):      (bloco R3/R4)
+//   2. motor do menu (se há nó "menu" habilitado):      (bloco R3/R4/R6)
+//        entrada: trigger.nextNodeId (R6, só com trigger habilitado)
 //        present/reprompt → responde o menu, sem IA
 //        handover (3 gatilhos do menu) → entrega
 //        advanced-away/handover-fallback p/ nó não-handover → sai do menu
@@ -102,7 +103,13 @@ export function simulateFlowTurn(
   // 2. Motor do menu (R3) + handover real (R4).
   const menuNodes = extractMenuNodes(nodes);
   if (menuNodes.length > 0) {
-    const turn = resolveMenuTurn(menuNodes, botFlowState, messageText);
+    // Aresta de ENTRADA (R6): `trigger.properties.nextNodeId` aponta o menu por
+    // onde o fluxo começa. Paridade com produção (whatsapp-bot-reply/index.ts):
+    // só vale com o trigger HABILITADO (`triggerNode` lá filtra por enabled);
+    // ausente/inválido → resolveEntryMenu cai no primeiro menu habilitado.
+    const triggerNode = nodes.find((n) => n.type === "trigger" && n.enabled);
+    const entryNodeId = (triggerNode?.properties as { nextNodeId?: unknown } | undefined)?.nextNodeId;
+    const turn = resolveMenuTurn(menuNodes, botFlowState, messageText, entryNodeId);
 
     if (turn.kind === "present" || turn.kind === "reprompt") {
       return {
