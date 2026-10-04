@@ -1323,13 +1323,35 @@ Achado da Fase A de Fichas (`etapa-5-flip-fichas-fase-a.md` §2.1). O arquivo so
 
 ---
 
-**G85 — Espelho local→nuvem do `CreateProjectFromQuoteDialog.tsx` (CRM, ramo local) chama `projectsRepository.createProjectFromQuote` direto: sem o gate de `isSupabaseProjectsWriteEnabled()` que os outros 3 call sites do espelho de Projetos têm, e grava `status: "active"` (alias legado) — único escritor restante do alias. [BAIXO — ABERTO, classe G40/G49 (vocabulário cloud incompleto/legado) + G60/G68 (fix aplicado a um produtor, o gêmeo ficou de fora)]**
+**G85 — Espelho local→nuvem do `CreateProjectFromQuoteDialog.tsx` (CRM, ramo local) chama `projectsRepository.createProjectFromQuote` direto: sem o gate de `isSupabaseProjectsWriteEnabled()` que os outros 3 call sites do espelho de Projetos têm, e grava `status: "active"` (alias legado) — único escritor restante do alias. [BAIXO — FECHADO por `50a811a` (Lane B), classe G40/G49 (vocabulário cloud incompleto/legado) + G60/G68 (fix aplicado a um produtor, o gêmeo ficou de fora)]**
 
 Achado pelo levantamento read-only da Lane B (rodada pós-cutover dos 2 dialogs de "Gerar projeto", 2026-10-02), ao mapear quais caminhos do espelho G22 de Projetos seguem vivos.
 
 - **Mecanismo:** os 3 call sites de `mirrorProjectToSupabase` (`ProjectsSection` criar, `QuoteToProjectDialog` ramo local, `ProjectDetailDrawer.mirrorUpdateToSupabase`) passam por `isSupabaseProjectsWriteEnabled()` e pelo mapper (`mapLocalProjectToSupabase` → vocabulário canônico, `translateLocalProjectStatusToCloud`). O ramo local do CRM não: chama `projectsRepository.createProjectFromQuote(workspaceId, {...})` direto com um payload montado à mão, que não inclui `status` — então vale o default do repository (`status: "active"`, alias legado de `CLOUD_TO_LOCAL_PROJECT_STATUS`). Na rota nativa (cutover) o `status` do payload sobrescreve o default (`...input` por último), então este é o único escritor restante do alias.
 - **Decisão de produto registrada (operador):** **remoção total do espelho G22 de Projetos só quando o modo local for aposentado** — o rollback nível 1 (`kora.projects.dataSource.v1=local`) depende dele. Até lá o espelho continua existindo; o que se corrige é a CONSISTÊNCIA entre os call sites (G85), não a existência.
 - **Fix previsto:** ramo local do CRM passa a espelhar pelo mesmo caminho dos outros 3 (`mirrorProjectToSupabase` → mapper → vocabulário canônico, gateado pela flag); varrer a classe por qualquer outro literal de status legado de projeto indo pra nuvem. Órfãos de baixo risco do mesmo levantamento (log write-only `kora.quotes.supabaseProjects.v1`, hook reativo `useSupabaseProjectsWriteFlag` sem consumidor, prop `workspaceId` do dialog) entram na mesma rodada.
+- **FECHADO por `50a811a` (Lane B, 2026-10-04):** ramo local do CRM espelha pelo mesmo caminho dos outros 3 (gate `isSupabaseProjectsWriteEnabled()` + `mirrorProjectToSupabase` → mapper → `importProject`; payload `status:"planning"`, `source:"quote"`, vínculos uuid sem `Number()`), vínculo numa cópia só do espelho (projeto local intacto). Helper e mapper não precisaram de ajuste. Varredura da classe: único outro literal de status legado indo pra nuvem era o default `"active"` de `projectsRepository.createProjectFromQuote` (latente) → `"planning"`. Órfãos removidos: log write-only `kora.quotes.supabaseProjects.v1`, hook reativo `useSupabaseProjectsWriteFlag` (leitor imperativo mantido), prop `workspaceId` do dialog. Código: zero escritor de `'active'`.
+- **Draft OPCIONAL de §8-b — NÃO aplicado** (fecha o último resíduo do alias: a coluna ainda tem `DEFAULT 'active'` desde `20260601030000_create_projects_schema.sql:12`; nenhum caminho de código a alcança hoje, porque todo INSERT manda `status`, então é defesa em profundidade contra um produtor futuro que omita o campo; Code não aplica DDL — protocolo §0/§6/§8-b):
+
+  ```sql
+  -- PRÉ-CHECAGEM — default atual da coluna (esperado: column_default = '''active''::text').
+  SELECT column_name, column_default
+  FROM information_schema.columns
+  WHERE table_schema = 'public' AND table_name = 'projects' AND column_name = 'status';
+
+  -- Linhas que ainda carregam o alias (informativo — NÃO são alteradas por este DDL;
+  -- a leitura já as traduz via CLOUD_TO_LOCAL_PROJECT_STATUS):
+  SELECT count(*) FROM public.projects WHERE status = 'active';
+
+  -- DRAFT:
+  ALTER TABLE public.projects ALTER COLUMN status SET DEFAULT 'planning';
+
+  -- PÓS-CHECAGEM — esperado: column_default = '''planning''::text'.
+  SELECT column_name, column_default
+  FROM information_schema.columns
+  WHERE table_schema = 'public' AND table_name = 'projects' AND column_name = 'status';
+  ```
+  Só altera o DEFAULT de INSERTs futuros — não reescreve linhas existentes (backfill do alias, se desejado, é decisão separada). Rollback: `ALTER TABLE public.projects ALTER COLUMN status SET DEFAULT 'active';`.
 - **Referência:** G40/G49 (vocabulário), G60/G68 (classe "produtor gêmeo"), G70 e adendo (2º par de gêmeos em "Gerar projeto"), `src/components/crm/CreateProjectFromQuoteDialog.tsx` (ramo local), `src/services/projects/projectsCloudMirror.ts`.
 
 **G86 — Clientes: o deep link `?client=<id>` (`Clientes.tsx`) fazia `Number(id)` + `Number.isFinite` + `c.id === idNum` — o id de um cliente da nuvem é um uuid "contrabandeado" como number (`useClientsDataSource.ts:9`), `Number(uuid)` é `NaN`, e o drawer do cliente nunca abria, sem erro nenhum. [MÉDIO — corrigido em código por `b65edb5` (rodada FP1); confirmação ao vivo pendente]**
