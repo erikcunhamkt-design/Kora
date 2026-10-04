@@ -12,17 +12,16 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import {
-  ChevronLeft, ChevronRight, Save, Plus, Trash2,
+  ChevronRight, Save, Plus, Trash2,
   Eye, EyeOff, ShieldAlert, Copy, ExternalLink, Pencil, X, Upload, Link2, FileUp,
   CloudLightning, RefreshCw, CheckCircle2, AlertCircle, FileImage,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
-import { useBifurcatedTechnicalSheet } from "@/hooks/useBifurcatedTechnicalSheet";
 import { resolveSheetSupabaseClientId } from "@/services/technicalSheets/resolveSheetClientId";
 import { clientAssetsStorage } from "@/services/storage/clientAssetsStorage";
 import type {
-  Client, ClientTechnicalSheet, ClientBranding, ClientPersona,
+  ClientTechnicalSheet, ClientBranding, ClientPersona,
   ClientEditorialLine, ClientTypography, ClientSocialLinks, ClientAccess,
   ClientCompetitor, ClientBriefing, ClientAsset, ClientAssetType, ClientAssetAccessStatus,
 } from "@/hooks/useClients";
@@ -45,131 +44,6 @@ const normUrl = (u: string) => (!u ? u : /^https?:\/\//i.test(u) || /^data:/i.te
 export const LOGO_MAX_BYTES = 500 * 1024;        // 500 KB por logo
 export const ASSET_FILE_MAX_BYTES = 1024 * 1024; // 1 MB por arquivo
 export const ASSETS_QUOTA_BYTES = 5 * 1024 * 1024; // 5 MB de cota total de uploads do cliente
-
-export function ClientTechnicalSheetDialog({
-  open, onOpenChange, client, onSave,
-}: {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  client: Client | null;
-  onSave: (clientId: number, sheet: ClientTechnicalSheet) => void;
-}) {
-  const [draft, setDraft] = useState<ClientTechnicalSheet>({});
-  const [view, setView] = useState<SectionId>("overview");
-
-  // G74 (etapa-5-flip-fichas-pacote.md §11) — client.technicalSheet é
-  // local-only, nunca populado pra um Client vindo do mapper cloud; só a
-  // leitura INICIAL do draft bifurca (respeita o seletor pós-G63). A
-  // gravação deste diálogo continua no caminho existente hoje (onSave →
-  // updateClient local), fora de escopo desta rodada.
-  const bifurcatedSheet = useBifurcatedTechnicalSheet(client?.id);
-
-  useEffect(() => {
-    if (open && client) {
-      setDraft(bifurcatedSheet);
-      setView("overview");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, client]);
-
-  if (!client) return null;
-
-  const persist = (next: ClientTechnicalSheet, toastMsg?: string) => {
-    setDraft(next);
-    onSave(client.id, next);
-    if (toastMsg) toast.success(toastMsg);
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl w-[96vw] h-[92vh] p-0 overflow-hidden bg-card border-border flex flex-col">
-        <DialogHeader className="px-6 pt-6 pb-4 border-b border-border/60 shrink-0">
-          <div className="flex items-center gap-3">
-            {view !== "overview" && (
-              <Button
-                variant="ghost" size="sm"
-                className="gap-1 -ml-2"
-                onClick={() => setView("overview")}
-              >
-                <ChevronLeft className="h-4 w-4" /> Ficha técnica
-              </Button>
-            )}
-            <div className="flex-1 min-w-0">
-              <DialogTitle className="text-foreground text-lg flex items-center gap-2">
-                Ficha técnica
-                <span className="text-muted-foreground font-normal">·</span>
-                <span className="text-foreground/80 font-medium truncate">{client.name}</span>
-              </DialogTitle>
-              <DialogDescription className="text-xs mt-1">
-                Branding, persona, redes, acessos e materiais da marca. Tudo salvo localmente neste dispositivo.
-              </DialogDescription>
-            </div>
-          </div>
-        </DialogHeader>
-
-        <div className="flex-1 overflow-y-auto px-6 py-6">
-          {view === "overview" && <OverviewGrid sheet={draft} onOpen={(id) => setView(id)} />}
-          {view === "branding" && (
-            <BrandingSection
-              value={draft.branding ?? {}}
-              onSave={(branding) => persist({ ...draft, branding }, "Branding salvo")}
-              clientId={client.id}
-            />
-          )}
-          {view === "persona" && (
-            <PersonaSection
-              value={draft.persona ?? {}}
-              onSave={(persona) => persist({ ...draft, persona }, "Persona salva")}
-            />
-          )}
-          {view === "editorial" && (
-            <EditorialSection
-              value={draft.editorialLine ?? {}}
-              onSave={(editorialLine) => persist({ ...draft, editorialLine }, "Linha editorial salva")}
-            />
-          )}
-          {view === "typography" && (
-            <TypographySection
-              value={draft.typography ?? {}}
-              onSave={(typography) => persist({ ...draft, typography }, "Tipografia salva")}
-            />
-          )}
-          {view === "social" && (
-            <SocialSection
-              value={draft.socialLinks ?? {}}
-              onSave={(socialLinks) => persist({ ...draft, socialLinks }, "Redes sociais salvas")}
-            />
-          )}
-          {view === "accesses" && (
-            <AccessesSection
-              value={draft.accesses ?? []}
-              onChange={(accesses) => persist({ ...draft, accesses })}
-            />
-          )}
-          {view === "competitors" && (
-            <CompetitorsSection
-              value={draft.competitors ?? []}
-              onChange={(competitors) => persist({ ...draft, competitors })}
-            />
-          )}
-          {view === "briefing" && (
-            <BriefingSection
-              value={draft.briefing ?? {}}
-              onSave={(briefing) => persist({ ...draft, briefing }, "Briefing salvo")}
-            />
-          )}
-          {view === "assets" && (
-            <AssetsSection
-              value={draft.assets ?? []}
-              onChange={(assets) => persist({ ...draft, assets })}
-              clientId={client.id}
-            />
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 // ============================================================
 // Overview
@@ -1753,5 +1627,3 @@ export function AssetsSection({
     </SectionShell>
   );
 }
-
-export default ClientTechnicalSheetDialog;

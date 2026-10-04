@@ -29,6 +29,8 @@ import { useSupabaseCrmWriteFlag } from "@/hooks/useSupabaseCrmWriteFlag";
 import { useSupabaseOpportunities } from "@/hooks/useSupabaseOpportunities";
 import { crmOpportunitiesRepository, type SupabaseOpportunity } from "@/repositories/crmOpportunitiesRepository";
 import { CRM_DATA_SOURCE_KEY } from "@/config/flags";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { mapSupabaseOpportunityToLocalLead } from "@/services/crm/crmOpportunityMapper";
 
 vi.mock("@/hooks/useLeads", async () => {
   const actual = await vi.importActual<typeof import("@/hooks/useLeads")>("@/hooks/useLeads");
@@ -867,5 +869,86 @@ describe("CRM · G89 — criar oportunidade grava client_id com passthrough de u
     const payload = await createFromDeepLink("42");
 
     expect(payload.client_id).toBeNull();
+  });
+});
+
+// G87 (padrão G73/G86) — deep link ?lead=<id> fazia Number(raw) + isFinite +
+// `l.id === id`. Em modo Supabase o id do lead é um hash numérico estável do
+// uuid (crmOpportunityMapper.stableNumericIdFromUuid), então o defeito era
+// LATENTE; comparação por string cobre qualquer formato de id.
+describe("CRM · G87 — deep link ?lead=<id> abre o drawer do lead certo", () => {
+  function renderCRMAt(path: string) {
+    // o drawer de uma oportunidade da nuvem monta hooks de React Query (orçamentos vinculados)
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter initialEntries={[path]}>
+          <CRM />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+  }
+
+  const baseLeadsApi = {
+    addLead: vi.fn(), moveLead: vi.fn(), moveLeadToStage: vi.fn(), moveLeadToPipeline: vi.fn(),
+    updateLead: vi.fn(), archiveLead: vi.fn(), deleteLead: vi.fn(), setLeadTags: vi.fn(), markConverted: vi.fn(),
+  };
+
+  it("modo Supabase: o id que o app mostra pra uma oportunidade da nuvem (hash do uuid, mapper real) abre o drawer", async () => {
+    const opp = makeSupabaseOpportunity({ id: "5d3f1f0a-6c2b-4c1e-9a77-0b7a2f4d8e11", title: "Lead Nuvem Deep" });
+    const mapped = mapSupabaseOpportunityToLocalLead(opp);
+    vi.mocked(useLeads).mockReturnValue({ ...baseLeadsApi, leads: [] } as never);
+    vi.mocked(useSupabaseCrmWriteFlag).mockReturnValue({ enabled: true, setEnabled: vi.fn(), toggle: vi.fn() });
+    vi.mocked(useSupabaseOpportunities).mockReturnValue({
+      opportunities: [opp], loading: false, error: null, refresh: vi.fn(),
+    } as never);
+    localStorage.setItem(CRM_DATA_SOURCE_KEY, "supabase");
+
+    renderCRMAt(`/crm?lead=${mapped.id}`);
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("id de lead NÃO numérico (antes: Number() = NaN, drawer nunca abria): abre pelo id exato", async () => {
+    vi.mocked(useLeads).mockReturnValue({
+      ...baseLeadsApi,
+      leads: [makeLocalLead({ id: "lead-uuid-xyz" as unknown as number, name: "Lead Id Texto" })],
+    } as never);
+    vi.mocked(useSupabaseCrmWriteFlag).mockReturnValue({ enabled: true, setEnabled: vi.fn(), toggle: vi.fn() });
+    vi.mocked(useSupabaseOpportunities).mockReturnValue({
+      opportunities: [], loading: false, error: null, refresh: vi.fn(),
+    } as never);
+    localStorage.setItem(CRM_DATA_SOURCE_KEY, "local");
+
+    renderCRMAt("/crm?lead=lead-uuid-xyz");
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("id que não corresponde a nenhum lead: nenhum drawer abre (sem lançar)", async () => {
+    vi.mocked(useLeads).mockReturnValue({ ...baseLeadsApi, leads: [makeLocalLead()] } as never);
+    vi.mocked(useSupabaseCrmWriteFlag).mockReturnValue({ enabled: true, setEnabled: vi.fn(), toggle: vi.fn() });
+    vi.mocked(useSupabaseOpportunities).mockReturnValue({
+      opportunities: [], loading: false, error: null, refresh: vi.fn(),
+    } as never);
+    localStorage.setItem(CRM_DATA_SOURCE_KEY, "local");
+
+    renderCRMAt("/crm?lead=inexistente");
+
+    await screen.findByText("Lead Local");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("regressão: id numérico local continua abrindo o drawer", async () => {
+    vi.mocked(useLeads).mockReturnValue({ ...baseLeadsApi, leads: [makeLocalLead()] } as never);
+    vi.mocked(useSupabaseCrmWriteFlag).mockReturnValue({ enabled: true, setEnabled: vi.fn(), toggle: vi.fn() });
+    vi.mocked(useSupabaseOpportunities).mockReturnValue({
+      opportunities: [], loading: false, error: null, refresh: vi.fn(),
+    } as never);
+    localStorage.setItem(CRM_DATA_SOURCE_KEY, "local");
+
+    renderCRMAt("/crm?lead=42");
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
   });
 });

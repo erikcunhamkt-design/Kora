@@ -142,7 +142,7 @@ const waLink = (phone?: string) => {
 export const ClientProfileDrawer = ({
   client, onClose, onEdit, onWhats, onArchive, onRestore,
   onCreateOpportunity, onCreateQuote,
-  onUpdateAssets, onUpdateTechnicalSheet, onUpdateContacts, onUpdateAvatar,
+  onUpdateAssets, onUpdateContacts, onUpdateAvatar,
   initialTab, highlightedActivityId, source,
 }: {
   client: Client | null;
@@ -154,7 +154,6 @@ export const ClientProfileDrawer = ({
   onCreateOpportunity?: (c: Client) => void;
   onCreateQuote?: (c: Client) => void;
   onUpdateAssets?: (clientId: number, assets: ClientAsset[]) => void;
-  onUpdateTechnicalSheet?: (clientId: number, sheet: ClientTechnicalSheet) => void;
   onUpdateContacts?: (clientId: number, contacts: ClientContact[]) => void;
   onUpdateAvatar?: (clientId: number, avatarUrl: string | null) => void;
   initialTab?: string;

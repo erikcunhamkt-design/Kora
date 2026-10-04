@@ -433,12 +433,11 @@ const CRM = () => {
   useEffect(() => {
     const raw = searchParams.get("lead");
     if (!raw) return;
-    const id = Number(raw);
-    if (!Number.isFinite(id)) return;
-    const lead = leads.find((l) => l.id === id);
+    // G87 (padrão G73/G86): comparação por string, sem Number()/isFinite.
+    const lead = leads.find((l) => String(l.id) === raw);
     if (lead) {
       setSelectedLead(lead);
-      setHighlightedLeadId(id);
+      setHighlightedLeadId(lead.id);
     }
   }, [searchParams, leads]);
 

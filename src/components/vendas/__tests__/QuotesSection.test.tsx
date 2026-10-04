@@ -21,6 +21,7 @@ import { useLeads } from "@/hooks/useLeads";
 import { financeRepository } from "@/repositories/financeRepository";
 import { QUOTES_DATA_SOURCE_KEY } from "@/config/flags";
 import { QUOTES_SUPABASE_WRITE_FLAG_KEY } from "@/hooks/useSupabaseQuotesWriteFlag";
+import { mapSupabaseOpportunityToLocalLead } from "@/services/crm/crmOpportunityMapper";
 
 vi.mock("@/hooks/useQuotes", async () => {
   const actual = await vi.importActual<typeof import("@/hooks/useQuotes")>("@/hooks/useQuotes");
@@ -1072,5 +1073,63 @@ describe("QuotesSection · G67 — deep link ?newQuote=1&clientId=X preenche o w
 
     const nameInput = (await screen.findByPlaceholderText("Nome do cliente")) as HTMLInputElement;
     expect(nameInput.value).toBe("");
+  });
+});
+
+// G87 (padrão G73/G86) — deep link ?newQuote=1&opportunityId=X fazia
+// Number(opportunityId) + `l.id === oppId`. Hoje o CRM só produz esse link em
+// modo local (id numérico); em modo Supabase o id da oportunidade é um hash
+// numérico estável do uuid (crmOpportunityMapper.stableNumericIdFromUuid) —
+// por isso o defeito era LATENTE, não observado. Comparação por string remove
+// a armadilha (qualquer id não-numérico virava NaN e o seed era pulado em silêncio).
+describe("QuotesSection · G87 — deep link ?newQuote=1&opportunityId=X preenche o wizard", () => {
+  const UUID_OPP = "5d3f1f0a-6c2b-4c1e-9a77-0b7a2f4d8e11";
+
+  function leadFixture(id: unknown, name: string) {
+    return {
+      id, name, company: "Empresa", email: "lead@x.com", phone: "11999990000",
+      serviceType: "Serviço X", description: "", notes: "", stage: "lead",
+    };
+  }
+
+  beforeEach(() => {
+    vi.mocked(useQuotes).mockReturnValue({
+      quotes: [], addQuote: vi.fn(), updateStatus: vi.fn(), updateQuote: vi.fn(),
+      duplicateQuote: vi.fn(), deleteQuote: vi.fn(),
+    } as never);
+    vi.mocked(useSupabaseQuotes).mockReturnValue({ quotes: [], loading: false, error: null } as never);
+  });
+
+  it("id de oportunidade da nuvem como o app o produz (hash numérico do uuid, via o mapper real) abre o wizard preenchido", async () => {
+    const lead = mapSupabaseOpportunityToLocalLead({
+      id: UUID_OPP, workspace_id: "ws1", title: "Oportunidade Nuvem", company: "Empresa", contact_name: "Fulano",
+      stage: "lead", status: "open", is_demo: false, archived: false, created_at: "2026-07-01T00:00:00Z", updated_at: "2026-07-01T00:00:00Z",
+    } as never);
+    vi.mocked(useLeads).mockReturnValue({ leads: [lead], updateLead: vi.fn() } as never);
+
+    renderSectionAt(`/vendas?tab=orcamentos&newQuote=1&opportunityId=${lead.id}`);
+
+    const nameInput = (await screen.findByPlaceholderText("Nome do cliente")) as HTMLInputElement;
+    expect(nameInput.value).toBe(lead.name);
+  });
+
+  it("id de oportunidade NÃO numérico (antes: Number() = NaN, seed pulado em silêncio) também preenche o wizard", async () => {
+    vi.mocked(useLeads).mockReturnValue({
+      leads: [leadFixture(UUID_OPP, "Oportunidade Uuid")], updateLead: vi.fn(),
+    } as never);
+
+    renderSectionAt(`/vendas?tab=orcamentos&newQuote=1&opportunityId=${UUID_OPP}`);
+
+    const nameInput = (await screen.findByPlaceholderText("Nome do cliente")) as HTMLInputElement;
+    expect(nameInput.value).toBe("Oportunidade Uuid");
+  });
+
+  it("regressão: id numérico local continua preenchendo", async () => {
+    vi.mocked(useLeads).mockReturnValue({ leads: [leadFixture(7, "Lead Local 7")], updateLead: vi.fn() } as never);
+
+    renderSectionAt("/vendas?tab=orcamentos&newQuote=1&opportunityId=7");
+
+    const nameInput = (await screen.findByPlaceholderText("Nome do cliente")) as HTMLInputElement;
+    expect(nameInput.value).toBe("Lead Local 7");
   });
 });

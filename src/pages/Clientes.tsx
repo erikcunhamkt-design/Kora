@@ -844,10 +844,6 @@ const Clientes = () => {
           updateClient(id, { assets });
           setSelectedClient((prev) => (prev && prev.id === id ? { ...prev, assets } : prev));
         }}
-        onUpdateTechnicalSheet={(id, technicalSheet) => {
-          updateClient(id, { technicalSheet });
-          setSelectedClient((prev) => (prev && prev.id === id ? { ...prev, technicalSheet } : prev));
-        }}
         onUpdateContacts={(id, contacts) => {
           updateClient(id, { contacts });
           setSelectedClient((prev) => (prev && prev.id === id ? { ...prev, contacts } : prev));

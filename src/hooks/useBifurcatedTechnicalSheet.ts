@@ -5,8 +5,9 @@
 // nenhum flag novo, só reusa exatamente a mesma decisão que
 // `ClientTechnicalSheet.tsx` (a própria página da ficha) já aplica pra montar
 // seu `sheet` local, extraída aqui pra servir os consumidores secundários
-// (G74: `ClientTechnicalSheetSnapshot`/`ClientTechnicalSheetDialog`/
-// `ClientProfileDrawer`/`buildMaterialEvents`) sem duplicar a lógica.
+// (G74: `ClientTechnicalSheetSnapshot`/`ClientProfileDrawer`/
+// `buildMaterialEvents`; o `ClientTechnicalSheetDialog`, 4º da lista original, era
+// código morto e foi removido — G84) sem duplicar a lógica.
 //
 // [G63 — invariante, não uma escolha desta rodada] `mapSupabaseToLocalSheet`
 // é reusado TAL COMO ESTÁ: essa função nunca reconstrói `accesses`/

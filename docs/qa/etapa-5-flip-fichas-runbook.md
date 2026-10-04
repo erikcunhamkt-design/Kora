@@ -115,37 +115,48 @@ Cliente `HOMOLOG-FIC-cliente-A` (nuvem). **Hoje (pré-FP0) o resultado esperado 
 | 3.2 | — | Continua **1** linha por cliente; as 4 seções presentes | `SELECT count(*), bool_and(persona<>'{}'::jsonb) FROM public.client_technical_sheets t JOIN public.clients c ON c.id=t.client_id WHERE c.name='HOMOLOG-FIC-cliente-A';` → `1 | t` |
 | 3.3 | Salvar uma seção, **imediatamente** abrir outra aba do navegador na mesma ficha e salvar outra seção diferente | Ficha final contém as duas (ou o resultado é registrado como last-write-wins, **ressalva** — não há versão/updated_at condicional) | SELECT das duas colunas |
 
-### Caso 4 — Round-trip de Concorrentes (achado B — G83) **[completar pós-FP1]**
+### Caso 4 — Round-trip de Concorrentes (G83, corrigido pela FP1)
+
+Pré-requisito: Caso 0 verde (vínculo resolvido). **Sem coluna dedicada** (draft 6.1 não aplicado): a escrita grava em `raw_payload.competitors` e a leitura devolve de lá. Não deve haver toast de aviso de "campo sem persistência" (esse aviso é só de **Acessos**).
 
 | Passo | Ação | Esperado | Prova |
 |---|---|---|---|
-| 4.1 | Seção **Concorrentes** → adicionar `HOMOLOG-FIC-concorrente-1` | "Salvo no Supabase" | — |
-| 4.2 | F5 | Concorrente **continua listado** | Visual |
-| 4.3 | — | Persistiu (em `raw_payload.competitors` ou coluna, conforme decisão FP1) | `SELECT raw_payload->'competitors' FROM public.client_technical_sheets t JOIN public.clients c ON c.id=t.client_id WHERE c.name='HOMOLOG-FIC-cliente-A';` **[completar: ajustar se coluna dedicada]** |
+| 4.1 | Seção **Concorrentes** → **"Novo concorrente"** → Nome `HOMOLOG-FIC-concorrente-1`, Link `https://example.com/rival`, Observações `HOMOLOG-FIC-obs` → **"Salvar"** (do diálogo; cada salvar do diálogo já grava a ficha — não existe "Salvar seção" nesta seção) | Badge **"Salvando…" → "Salvo no Supabase"**; item na lista; **nenhum** toast de aviso | Visual (print) |
+| 4.2 | — (SELECT depois da ação) | Gravado com os 3 campos | `SELECT jsonb_array_length(raw_payload->'competitors') AS n, raw_payload->'competitors'->0->>'name' AS nome, raw_payload->'competitors'->0->>'url' AS url, raw_payload->'competitors'->0->>'notes' AS obs FROM public.client_technical_sheets t JOIN public.clients c ON c.id=t.client_id WHERE c.name='HOMOLOG-FIC-cliente-A';` → `1 \| HOMOLOG-FIC-concorrente-1 \| https://example.com/rival \| HOMOLOG-FIC-obs` |
+| 4.3 | **F5** (recarregar a ficha) | Concorrente **continua listado** com os 3 campos (antes da FP1 sumia aqui com o badge "Salvo") — **prova do G83** | Visual (print) |
+| 4.4 | Adicionar `HOMOLOG-FIC-concorrente-2` (só nome) e editar o 1º pelo ícone de lápis (mudar a observação) | 2 itens; edição refletida sem F5 | `SELECT jsonb_array_length(raw_payload->'competitors') FROM … ;` → `2` |
+| 4.5 | Remover o 2º (lixeira → "Remover concorrente?" → confirmar) e dar F5 | 1 item; o removido **não volta** | `SELECT jsonb_array_length(raw_payload->'competitors') FROM … ;` → `1` |
+| 4.6 | Remover também o 1º; F5 | Lista vazia ("estado vazio"); seção volta a "Vazio" | `SELECT jsonb_array_length(raw_payload->'competitors') FROM … ;` → `0` (array vazio, não ausente) |
 
-**Vermelho hoje:** o concorrente some no F5 com o badge "Salvo" — prova do achado B (G83).
+**Vermelho:** o concorrente some no F5 (4.3) ⇒ regressão do G83. Se o operador aplicar o draft 6.1 (coluna `competitors`) antes desta homologação: a **leitura** prefere a coluna quando ela tem dados e cai no `raw_payload` quando vazia; a **escrita** continua só em `raw_payload` até o follow-up — então, com a coluna criada e vazia, este caso deve passar **igual**; registrar a presença da coluna na abertura.
 
 ### Caso 5 — Acessos: a senha NUNCA vai pra nuvem (G63) + comportamento da seção **[completar pós-FP2]**
 
 | Passo | Ação | Esperado | Prova |
 |---|---|---|---|
-| 5.1 | Seção **Acessos** → adicionar plataforma `HOMOLOG-FIC-plat`, login `a@b.c`, senha `HOMOLOG-FIC-SENHA-TESTE` | Conforme decisão FP2: aviso honesto "ficam só neste dispositivo" **[completar texto real]** e dado persiste no store local | Visual |
+| 5.1 | Seção **Acessos** → adicionar plataforma `HOMOLOG-FIC-plat`, login `a@b.c`, senha `HOMOLOG-FIC-SENHA-TESTE` | **Comportamento atual (pós-FP0/FP1; FP2 pendente):** nota fixa no topo da seção — "**Acessos não sincronizam com a nuvem.** Por segurança, logins e senhas nunca são enviados ao Supabase — o que for digitado aqui não será mantido ao recarregar…"; ao salvar o acesso, toast "Acessos não são salvos na nuvem (por segurança) — a alteração não será mantida ao recarregar." **[completar pós-FP2: texto/armazenamento definitivos]** | Visual (print da nota e do toast) |
 | 5.2 | **Prova obrigatória, segurança** — SELECT depois | Nem a senha, nem `accesses`, nem login/notas aparecem na linha da nuvem | `SELECT count(*) FROM public.client_technical_sheets WHERE raw_payload::text ILIKE '%HOMOLOG-FIC-SENHA-TESTE%' OR raw_payload::text ILIKE '%password%' OR raw_payload ? 'accesses';` → **0** |
-| 5.3 | F5 | A seção "Acessos" mostra o que foi digitado (store local) **ou** o aviso, conforme FP2 — **nunca** uma seção vazia com badge "Salvo" | Visual |
+| 5.3 | F5 | **Hoje (FP2 pendente):** o acesso digitado **some** (não há store) e a nota de 5.1 já avisou — **nunca** uma seção vazia com badge "Salvo" **sem** aviso. Após FP2: conforme a decisão tomada **[completar pós-FP2]** | Visual |
 
 **5.2 é vermelho automático se ≠ 0** — rollback nível 1 imediato, tratar como incidente (G63).
 
-### Caso 6 — Materiais e logo (Storage `client-assets`) — G67 + G75 + B1/B2
+### Caso 6 — Materiais e logo (Storage `client-assets`) — G67 + G75 + G83
 
-Regras do bucket (G75, `clientAssetsStorage.validateMaterialFile`): **png/jpeg/webp, ≤ 2 MB**.
+Regras do bucket (`clientAssetsStorage`, G75): **png/jpeg/webp, ≤ 2 MB** (o logo aceita a mesma validação). Convenção de path (lida em `uploadClientLogo`/`uploadClientMaterial`): `<workspace_id>/<client_uuid>/technical-sheet/logo/<ts>-<rand>.<ext>` e `<workspace_id>/<client_uuid>/technical-sheet/materials/<ts>-<rand>.<ext>`. **Upload ≠ salvar a ficha:** o arquivo sobe pro Storage ao escolher, mas só entra na ficha quando se clica **"Usar na Ficha Técnica local"** (logo) / **"Adicionar à Ficha Técnica local"** (material) — e aí a ficha é gravada (autosave/write-through).
 
 | Passo | Ação | Esperado | Prova |
 |---|---|---|---|
-| 6.1 | Seção **Branding** → upload de logo `HOMOLOG-FIC-logo.png` (< 2 MB) | Upload concluído; logo exibido; **sem** "Vínculo Supabase ou workspace ativo ausente." (G67: `Number(uuid)=NaN` — **vermelho hoje**) | Visual + `SELECT name FROM storage.objects WHERE bucket_id='client-assets' AND name LIKE '%HOMOLOG-FIC%';` → 1 (nome real do path **[completar: confirmar convenção de path]**) |
-| 6.2 | **Materiais e Anexos** → adicionar link `https://example.com/HOMOLOG-FIC-doc` | Aparece; "Salvo no Supabase" | `SELECT materials FROM … ` contém a URL |
-| 6.3 | Arquivo fora da policy (PDF) | Rejeitado **no cliente**, com mensagem clara (G75) | Visual |
-| 6.4 | Colar/enviar logo como dataURL (se o fluxo permitir) | Nenhum `data:image` gravado na coluna `branding` (B2, **[completar pós-FP1]**) | `SELECT count(*) FROM public.client_technical_sheets WHERE branding::text LIKE '%data:image%';` → 0 |
-| 6.5 | Reabrir a ficha (F5) | Nenhum material-fantasma com texto "[Conteúdo binário não enviado nesta etapa]" (B1, **[completar pós-FP1]**) | Visual |
+| 6.1 | Seção **Branding** → "Selecionar e Enviar" com `HOMOLOG-FIC-logo.png` (< 2 MB) | Toast "Logo enviado ao Supabase Storage com sucesso!" e caminho mostrado. **Sem** "Vínculo Supabase ou workspace ativo ausente." (G67: era `Number(uuid)=NaN` — corrigido pela FP0) | `SELECT name FROM storage.objects WHERE bucket_id='client-assets' AND name LIKE '%/technical-sheet/logo/%' AND name LIKE '<workspace_id>/<client_uuid>/%';` → 1 (nome real, com o uuid do cliente-A no meio) |
+| 6.2 | Clicar **"Usar na Ficha Técnica local"** → **"Salvar seção"** | Logo exibido (URL assinada); badge "Salvo no Supabase" | `SELECT branding->>'logoStoragePath' FROM public.client_technical_sheets t JOIN public.clients c ON c.id=t.client_id WHERE c.name='HOMOLOG-FIC-cliente-A';` → o path do 6.1; e `SELECT count(*) FROM public.client_technical_sheets WHERE branding::text LIKE '%data:image%';` → **0** |
+| 6.3 | **Materiais e Anexos** → adicionar **link** `https://example.com/HOMOLOG-FIC-doc` (tipo qualquer) | Aparece; "Salvo no Supabase" | `SELECT materials FROM public.client_technical_sheets t JOIN public.clients c ON c.id=t.client_id WHERE c.name='HOMOLOG-FIC-cliente-A';` contém a URL |
+| 6.4 | Preencher **descrição** e **tags** do material do 6.3, salvar, **F5** | Descrição e tags **continuam** (antes da FP1 eram descartadas na leitura) | `SELECT raw_payload->'assets'->0->>'description', raw_payload->'assets'->0->'tags' FROM … ;` não nulos, e visíveis na tela após o F5 |
+| 6.5 | Material por **arquivo**: "Selecionar e Enviar" com um PNG < 2 MB → **"Adicionar à Ficha Técnica local"** | Item com `storagePath`; sobrevive ao F5 | `SELECT raw_payload->'assets'->1->>'storagePath' FROM … ;` e o objeto em `storage.objects` (`…/technical-sheet/materials/…`) |
+| 6.6 | Arquivo fora da policy (PDF ou > 2 MB) em qualquer dos 2 uploads | Rejeitado **no cliente**, mensagem clara (G75); nada sobe | `SELECT count(*) FROM storage.objects WHERE bucket_id='client-assets' AND name LIKE '%HOMOLOG-FIC%';` inalterado |
+| 6.7 | **Binário local não vai pra nuvem (G83):** se houver (resíduo de ficha local antiga) um logo/material `data:`/`blob:`, salvar qualquer seção | Toast "Não foi enviado à nuvem: o logo (arquivo local) …. Use 'Selecionar e Enviar'…"; os demais campos gravam | `SELECT count(*) FROM public.client_technical_sheets WHERE raw_payload::text LIKE '%[Conteúdo binário não enviado nesta etapa]%' OR branding::text LIKE '%data:image%' OR raw_payload::text LIKE '%data:application%';` → **0** (para as linhas `HOMOLOG-FIC-`; linhas legadas gravadas antes da FP1 podem ter o placeholder — a **tela** não deve mostrar item fantasma) |
+| 6.8 | **Teto de tamanho (G83):** colar > 1 MB de texto no Briefing e salvar a seção | Toast "A ficha técnica tem X MB e o limite … é 1 MB. Nada foi gravado…"; badge "Erro de Sincronia" | `updated_at` da linha **inalterado** (nada gravado) |
+| 6.9 | Reabrir a ficha (F5) | Nenhum material-fantasma com o texto "[Conteúdo binário não enviado nesta etapa]" na lista | Visual |
+
+**Vermelho:** 6.1 com "Vínculo… ausente" ⇒ regressão do G82/G67; 6.2 com `data:image` na coluna ⇒ regressão do G83; 6.8 gravando ⇒ teto quebrado.
 
 ### Caso 7 — Consumidores cruzados (G74 + 5º consumidor)
 
@@ -216,9 +227,9 @@ DELETE FROM public.client_technical_sheets WHERE client_id IN (SELECT id FROM pu
 | 1 Leitura padrão | — | |
 | 2 Escrita nativa + G30 | — | |
 | 3 Idempotência | — | 3.3 pode ser ressalva (last-write-wins) |
-| 4 Round-trip concorrentes | — | depende de FP1 |
+| 4 Round-trip concorrentes | — | FP1 em `main` (G83) |
 | 5 Acessos / G63 | — | 5.2 vermelho automático se ≠ 0 |
-| 6 Materiais e logo | — | depende de FP0/FP1 |
+| 6 Materiais e logo | — | FP0 + FP1 em `main` (G82/G83) |
 | 7 Consumidores | — | 7.4 pode ser parcial (G79) |
 | 8 Toggles / rollback | — | |
 | 9 Import / sobrescrita | — | |

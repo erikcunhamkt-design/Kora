@@ -175,14 +175,16 @@ export function QuotesSection() {
   /** Deep link: ?newQuote=1[&opportunityId=X][&clientId=Y] */
   useEffect(() => {
     if (searchParams.get("newQuote") !== "1") return;
-    const oppId = Number(searchParams.get("opportunityId"));
+    // G87 (padrão G73/G86) — id de oportunidade também compara por string, não
+    // Number(): sem conversão não há NaN silencioso se o id deixar de ser numérico.
+    const oppIdParam = searchParams.get("opportunityId");
     // G67 — id de cliente compara por string, não Number(): em modo Supabase
     // o id é um uuid "contrabandeado" como number (useClientsDataSource.ts:9)
     // e Number(uuid) vira NaN, pulando o bloco de seed inteiro em silêncio.
     const cliIdParam = searchParams.get("clientId");
     const seed: Partial<Quote> = {};
-    if (oppId) {
-      const opp = leads.find((l) => l.id === oppId);
+    if (oppIdParam) {
+      const opp = leads.find((l) => String(l.id) === oppIdParam);
       if (opp) {
         seed.opportunityId = opp.id;
         seed.opportunityTitle = opp.serviceType || opp.name;
