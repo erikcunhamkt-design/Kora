@@ -29,6 +29,9 @@ vi.mock("sonner", () => ({
 vi.mock("@/hooks/useWorkspaceRole", () => ({ useWorkspaceRole: mocks.useWorkspaceRoleMock }));
 
 import { WhatsAppBotConfig } from "@/components/whatsapp/WhatsAppBotConfig";
+// Pré-carrega o chunk lazy do canvas na COLETA do arquivo: o import() do componente vira cache hit e o
+// 1º findBy* não depende do tempo de transformação a frio sob carga (suíte inteira em paralelo).
+import "@/components/whatsapp/FlowCanvas";
 import { toast } from "sonner";
 
 describe("WhatsAppBotConfig · G71 (adendo) — role-gate do botão Salvar Fluxo", () => {

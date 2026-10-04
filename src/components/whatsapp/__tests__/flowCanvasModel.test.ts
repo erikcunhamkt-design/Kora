@@ -3,7 +3,8 @@
 // mutação do modelo). Fonte única das arestas: computeCanvasEdges (G80).
 import { describe, it, expect } from "vitest";
 import {
-  FLOW_HANDLE, LAYOUT, applyConnection, applyEdgeDeletion, canConnect, findDanglingEdges,
+  FLOW_HANDLE, LAYOUT, applyConnection, applyEdgeDeletion, applyNodeDeletion, canConnect, countNodeConnections,
+  findDanglingEdges, isNodeDeletable, resolveDeleteKey,
   gridPosition, setNodePosition, toRenderableEdges, withAutoLayout,
 } from "@/components/whatsapp/flowCanvasModel";
 import type { MenuWorkflowNode, WorkflowNode } from "@/components/whatsapp/WhatsAppBotConfig";
@@ -249,5 +250,115 @@ describe("applyEdgeDeletion — apagar aresta limpa o campo", () => {
     const connected = applyConnection(original, { source: "m1", sourceHandle: "option-0", target: "send", targetHandle: FLOW_HANDLE.in });
     expect(JSON.stringify(connected)).not.toBe(JSON.stringify(original));
     expect(JSON.stringify(applyEdgeDeletion(connected, "m1:option:0"))).toBe(JSON.stringify(original));
+  });
+});
+
+// ── Acabamento do canvas: exclusão de nó + tecla Delete ───────────────────
+
+describe("applyNodeDeletion — exclui nó de menu e limpa TODA referência a ele", () => {
+  // m1 é apontado por: opção de m2, fallback de m2 e entrada do trigger.
+  const base = () => {
+    const nodes = fixed();
+    nodes[0] = { ...nodes[0], properties: { respondAll: true, nextNodeId: "m1" } } as WorkflowNode;
+    return [
+      ...nodes,
+      menu({ opcoes: [{ numero: 1, rotulo: "x", nextNodeId: "send" }] }, "m1"),
+      menu({
+        opcoes: [
+          { numero: 1, rotulo: "vai pro m1", nextNodeId: "m1" },
+          { numero: 2, rotulo: "vai pro h", nextNodeId: "h" },
+        ],
+        fallback: { maxTentativas: 2, acao: "node", fallbackNodeId: "m1" },
+      }, "m2"),
+    ];
+  };
+
+  it("remove o nó e zera opcoes[].nextNodeId, fallbackNodeId e trigger.nextNodeId que apontavam pra ele", () => {
+    const next = applyNodeDeletion(base(), "m1");
+    expect(next.some((n) => n.id === "m1")).toBe(false);
+    const m2 = get(next, "m2") as MenuWorkflowNode;
+    expect(m2.properties.opcoes.map((o) => o.nextNodeId)).toEqual(["", "h"]); // só a que apontava
+    expect(m2.properties.fallback).toEqual({ maxTentativas: 2, acao: "node" }); // chave removida, acao preservada
+    expect("fallbackNodeId" in m2.properties.fallback).toBe(false);
+    expect(get(next, "t").properties).toEqual({ respondAll: true }); // volta ao automático
+  });
+
+  it("depois da exclusão NÃO sobra aresta nem aviso apontando pro id excluído (nenhuma referência órfã)", () => {
+    const next = applyNodeDeletion(base(), "m1");
+    expect(JSON.stringify(next)).not.toContain('"m1"'); // nem como id, nem como destino
+    expect(toRenderableEdges(next).some((e) => e.target === "m1" || e.source === "m1")).toBe(false);
+    // "sem destino" é o estado esperado das opções limpas — não "removido" (id fantasma)
+    expect(findDanglingEdges(next).some((e) => e.problem === "removido")).toBe(false);
+  });
+
+  it("não toca nas outras referências nem nos outros nós (imutável: o array original não muda)", () => {
+    const nodes = base();
+    const snapshot = JSON.stringify(nodes);
+    const next = applyNodeDeletion(nodes, "m1");
+    expect(JSON.stringify(nodes)).toBe(snapshot);
+    expect(get(next, "m2")).not.toBe(get(nodes, "m2")); // m2 mudou
+    expect(get(next, "ai")).toBe(get(nodes, "ai")); // fixo intocado (mesma referência)
+  });
+
+  it("nó que ninguém referencia: só some (os outros nós mantêm a MESMA referência)", () => {
+    const nodes = [...fixed(), menu({}, "solto"), menu({ opcoes: [{ numero: 1, rotulo: "", nextNodeId: "h" }] }, "m2")];
+    const next = applyNodeDeletion(nodes, "solto");
+    expect(next.map((n) => n.id)).toEqual(["t", "ai", "send", "h", "m2"]);
+    expect(get(next, "m2")).toBe(get(nodes, "m2"));
+  });
+
+  it("NÓS FIXOS são protegidos: trigger/ai/send/handover → no-op (mesmo array); inexistente também", () => {
+    const nodes = base();
+    for (const id of ["t", "ai", "send", "h", "nao-existe"]) {
+      expect(applyNodeDeletion(nodes, id)).toBe(nodes);
+    }
+    expect(isNodeDeletable(get(nodes, "t"))).toBe(false);
+    expect(isNodeDeletable(get(nodes, "m1"))).toBe(true);
+    expect(isNodeDeletable(undefined)).toBe(false);
+  });
+
+  it("excluir um menu que aponta pra si mesmo (auto-referência) não deixa lixo", () => {
+    const nodes = [...fixed(), menu({ opcoes: [{ numero: 9, rotulo: "voltar", nextNodeId: "m1" }] }, "m1")];
+    const next = applyNodeDeletion(nodes, "m1");
+    expect(next.map((n) => n.id)).toEqual(["t", "ai", "send", "h"]);
+  });
+
+  it("countNodeConnections conta o que chega + o que sai (editáveis), sem a sequência implícita", () => {
+    const nodes = base();
+    // chegam em m1: opção de m2, fallback de m2, entrada do trigger = 3; saem: 1 opção (→send) = 1
+    expect(countNodeConnections(nodes, "m1")).toBe(4);
+    expect(countNodeConnections(nodes, "m2")).toBe(3); // sai: 2 opções + 1 fallback; chegam: 0
+    expect(countNodeConnections(fixed(), "ai")).toBe(0); // só sequência implícita
+  });
+});
+
+describe("resolveDeleteKey — o que Delete/Backspace faz no canvas", () => {
+  const nodes = [...fixed(), menu({ opcoes: [{ numero: 1, rotulo: "A", nextNodeId: "send" }] }, "m1")];
+
+  it("aresta EDITÁVEL selecionada → apaga a(s) aresta(s) (prioridade sobre o nó ativo)", () => {
+    expect(resolveDeleteKey({ nodes, selectedNodeId: "m1", selectedEdgeIds: ["m1:option:0"] }))
+      .toEqual({ type: "edges", edgeIds: ["m1:option:0"] });
+  });
+
+  it("aplicando a ação 'edges' com applyEdgeDeletion o campo é limpo (aresta apagada pela tecla)", () => {
+    const action = resolveDeleteKey({ nodes, selectedNodeId: "m1", selectedEdgeIds: ["m1:option:0"] });
+    if (action.type !== "edges") throw new Error("esperava edges");
+    const next = action.edgeIds.reduce((acc, id) => applyEdgeDeletion(acc, id), nodes);
+    expect((get(next, "m1") as MenuWorkflowNode).properties.opcoes[0].nextNodeId).toBe("");
+  });
+
+  it("só aresta de sequência implícita selecionada → none (não editável; e NÃO cai pro nó)", () => {
+    expect(resolveDeleteKey({ nodes, selectedNodeId: "m1", selectedEdgeIds: ["t:sequence"] })).toEqual({ type: "none" });
+  });
+
+  it("sem aresta selecionada: nó de menu selecionado → exclui o nó; nó fixo selecionado → none", () => {
+    expect(resolveDeleteKey({ nodes, selectedNodeId: "m1", selectedEdgeIds: [] })).toEqual({ type: "node", nodeId: "m1" });
+    for (const id of ["t", "ai", "send", "h"]) {
+      expect(resolveDeleteKey({ nodes, selectedNodeId: id, selectedEdgeIds: [] })).toEqual({ type: "none" });
+    }
+  });
+
+  it("id de aresta que não existe mais é ignorado", () => {
+    expect(resolveDeleteKey({ nodes, selectedNodeId: "t", selectedEdgeIds: ["m1:option:9"] })).toEqual({ type: "none" });
   });
 });

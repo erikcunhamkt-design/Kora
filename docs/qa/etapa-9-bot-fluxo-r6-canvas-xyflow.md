@@ -131,11 +131,64 @@ a geometria/edição é coberta pelas funções puras. Nós recebem
    ajuste de 1 linha na D: passar `trigger.properties.nextNodeId` como 4º
    argumento. O mesmo branch também edita `whatsapp-bot-reply/index.ts`
    (outras regiões — import e ramo `isTest`).
-3. **Bundle:** o chunk principal está em 2.712 kB (gzip 698 kB) após a
-   lib; não medi o antes. Se o tamanho importar, o canvas é candidato a
-   `React.lazy` (só abre na aba do robô) — não feito (fora de escopo).
-4. Exclusão de nó continua inexistente (herdado do R5); com o canvas, um
-   nó de menu criado por engano só pode ser desabilitado.
+3. ~~Bundle~~ — resolvido no acabamento (§9): canvas em chunk lazy.
+4. ~~Exclusão de nó~~ — resolvida no acabamento (§9).
 5. A seta "sequência implícita" dos fixos continua não refletindo ordem do
    motor (o runtime fixo não segue esse desenho); só é a representação
    herdada — tracejada exatamente pra não parecer aresta editável.
+
+## 9. Acabamento do canvas (rodada seguinte ao merge do R6, `423a0d2`)
+
+**React.lazy + Suspense.** `FlowCanvas` é carregado por `lazy(() => import(...))` em
+`WhatsAppBotConfig.tsx` (fallback: caixa "Carregando canvas do fluxo..."), então
+`@xyflow/react` (+ d3-*, zustand e o CSS da lib) sai do bundle principal. Medido
+com `vite build` (R6 mergeado → esta branch):
+
+| | JS principal | gzip | CSS principal | chunk `FlowCanvas` (JS / gzip) | CSS do chunk |
+|---|---|---|---|---|---|
+| antes (`423a0d2`, canvas no principal) | 2.718,12 kB | 699,69 kB | 154,64 kB | — | — |
+| depois (lazy) | 2.545,02 kB | 644,85 kB | 139,23 kB | 175,06 kB / 55,57 kB | 15,41 kB |
+
+Principal: **−173,10 kB (−54,84 kB gzip)**; o custo (175 kB / 55,6 kB gzip) só é
+pago ao abrir a aba do robô. Testes: o 1º `import()` a frio do chunk passava do teto do `findBy*` quando a
+suíte inteira roda em paralelo (3-5 falhas intermitentes só na suíte cheia; em
+isolamento verde) — mitigação em 2 camadas: (1) os 7 arquivos de teste que
+renderizam `WhatsAppBotConfig` pré-importam `FlowCanvas` na coleta (o `import()` do
+componente vira cache hit; a transformação a frio sai do tempo do teste) e (2)
+`src/test/setup.ts` ganhou `configure({ asyncUtilTimeout: 5000 })`. Suíte cheia
+rodada 2x seguidas: 108/108, 1135/1135. O teste G71 passou a esperar o card
+(`findByText`) em vez de `getByText` síncrono; o teste R2 da lane A
+(`node-lookup`) só ganhou o pré-import.
+
+**Excluir nó de menu** (ficou fora da R5). `applyNodeDeletion` (puro, ao lado de
+`applyEdgeDeletion`): remove o nó e limpa TODA referência — `opcoes[].nextNodeId`
+de qualquer menu → `""`; `fallback.fallbackNodeId` → chave removida (`acao`
+preservada; sem destino o motor trata como esgotado e entrega a humano);
+`trigger.nextNodeId` → chave removida (volta ao automático). **Nós fixos
+(trigger/ai/send/handover) não excluem** (`isNodeDeletable`: só `menu`; no-op) —
+só desabilitam, como antes. UI: botão "Excluir nó" no inspector do menu, em 2
+passos ("Confirmar exclusão"/"Cancelar") com a contagem de conexões que sai junto
+(`countNodeConnections`); o nó ativo volta pro gatilho. Nós fixos mostram "Nó fixo
+do fluxo — não pode ser excluído, só desabilitado". Nada persiste até Salvar.
+
+**Delete/Backspace.** A tecla é tratada pelo próprio `FlowCanvas` (handler no
+wrapper, `tabIndex=-1`), com `deleteKeyCode={null}` no React Flow. O default do
+xyflow (já apagava aresta selecionada via `onEdgesDelete`) é **global** (escuta o
+documento): com nós de menu excluíveis, ele apagaria o nó selecionado mesmo com o
+foco num controle do inspector (ex.: o gatilho de um Select é um `button`, que o
+filtro de inputs da lib não ignora). A decisão é de `resolveDeleteKey` (pura):
+aresta **editável** selecionada → apaga a(s) aresta(s) via `applyEdgeDeletion`
+(prioridade); só sequência implícita selecionada → nada; senão nó de menu
+selecionado → exclui; nó fixo → nada. O handler ignora alvos `input/textarea/
+select/button/[contenteditable]` (campos do inspector, switch do card, "+ Adicionar
+nó de menu"). A seleção de aresta vem de `onSelectionChange`.
+
+**Testes:** `flowCanvasModel.test.ts` (+13: exclusão limpa todas as referências e
+não deixa id fantasma, fixos protegidos, auto-referência, contagem, imutabilidade,
+`resolveDeleteKey` incl. aresta apagada pela tecla via `applyEdgeDeletion`) e
+`WhatsAppBotConfig.node-deletion.test.tsx` (novo, 10: botão + confirmação/cancelar,
+referências limpas e avisos "sem destino" (não "removido"), salvar sem o nó, fixos
+sem botão/tecla, Delete e Backspace, tecla ignorada em input/botão/switch).
+**Limite:** a exclusão de ARESTA pela tecla é coberta pelas funções puras
+(`resolveDeleteKey` + `applyEdgeDeletion`); no jsdom o React Flow não desenha nem
+seleciona linhas, então não há teste de render dessa parte — fica pro passe visual.

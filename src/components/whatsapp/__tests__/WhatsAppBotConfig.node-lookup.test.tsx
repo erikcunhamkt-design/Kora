@@ -37,6 +37,9 @@ vi.mock("@/hooks/useWorkspaceRole", () => ({
 
 import { WhatsAppBotConfig } from "@/components/whatsapp/WhatsAppBotConfig";
 import { simulateFlowTurn } from "../../../../supabase/functions/_shared/botFlowSimulation";
+// Pré-carrega o chunk lazy do canvas na COLETA do arquivo: o import() do componente vira cache hit e o
+// 1º findBy* não depende do tempo de transformação a frio sob carga (suíte inteira em paralelo).
+import "@/components/whatsapp/FlowCanvas";
 
 // jsdom não implementa scrollIntoView (usado no autoscroll do chat do
 // simulador) — mesmo polyfill de outras suítes desta sessão.

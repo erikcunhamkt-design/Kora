@@ -49,3 +49,11 @@ if (typeof window !== "undefined") {
     globalThis.DOMMatrixReadOnly = DOMMatrixReadOnlyStub;
   }
 }
+
+// O canvas do fluxo do bot (FlowCanvas.tsx) é carregado via React.lazy — o
+// 1º `import()` a frio de @xyflow/react dentro de um arquivo de teste pode
+// passar do default de 1000ms do findBy*/waitFor sob contenção de CPU (várias
+// lanes rodando `vitest run` juntas, ver vitest.config.ts). Mesmo teto que o
+// testTimeout já dá pra suíte.
+import { configure } from "@testing-library/react";
+configure({ asyncUtilTimeout: 5000 });

@@ -29,6 +29,8 @@ vi.mock("@/hooks/useWorkspaceRole", () => ({
 }));
 
 import { WhatsAppBotConfig } from "@/components/whatsapp/WhatsAppBotConfig";
+// Pré-carrega o chunk lazy do canvas na coleta (ver nota em WhatsAppBotConfig.canvas-edges.test.tsx).
+import "@/components/whatsapp/FlowCanvas";
 
 describe("WhatsAppBotConfig · G31 (useRef latest-ref) — editar o fluxo não re-dispara fetch", () => {
   it("clicar numa opção do node de gatilho muda o estado mas não chama supabase.from() de novo", async () => {

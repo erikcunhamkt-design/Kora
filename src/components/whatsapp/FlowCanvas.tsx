@@ -22,7 +22,7 @@ import { Switch } from "@/components/ui/switch";
 import type { WorkflowNode } from "@/components/whatsapp/WhatsAppBotConfig";
 import {
   FLOW_HANDLE, applyConnection, applyEdgeDeletion, canConnect, gridPosition,
-  setNodePosition, toRenderableEdges, type FlowPosition,
+  resolveDeleteKey, setNodePosition, toRenderableEdges, type FlowPosition,
 } from "@/components/whatsapp/flowCanvasModel";
 
 const NODE_WIDTH = 224;
@@ -205,10 +205,12 @@ export interface FlowCanvasProps {
   onToggleEnabled: (nodeId: string) => void;
   /** "+ Nó de menu": cria no centro do viewport. */
   onAddMenuNode: (position: FlowPosition) => void;
+  /** Delete/Backspace com um nó "menu" selecionado (o pai aplica applyNodeDeletion + reseleciona). */
+  onDeleteNode: (nodeId: string) => void;
 }
 
 function FlowCanvasInner({
-  nodes, selectedNodeId, onSelectNode, onNodesModelChange, onToggleEnabled, onAddMenuNode,
+  nodes, selectedNodeId, onSelectNode, onNodesModelChange, onToggleEnabled, onAddMenuNode, onDeleteNode,
 }: FlowCanvasProps) {
   const rf = useReactFlow();
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -220,7 +222,7 @@ function FlowCanvasInner({
       position: n.position ?? gridPosition(i),
       data: { node: n, onToggleEnabled },
       selected: n.id === selectedNodeId,
-      deletable: false,
+      deletable: false, // exclusão é do nosso handler (applyNodeDeletion), não do deleteKeyCode do RF
       // Tamanho inicial (antes da medição do React Flow) — também faz o nó
       // aparecer em ambientes sem layout real (jsdom).
       initialWidth: NODE_WIDTH,
@@ -283,9 +285,32 @@ function FlowCanvasInner({
     [nodes],
   );
 
-  const onEdgesDelete = useCallback((deleted: Edge[]) => {
-    onNodesModelChange((prev) => deleted.reduce((acc, e) => applyEdgeDeletion(acc, e.id), prev));
-  }, [onNodesModelChange]);
+  // Arestas selecionadas no React Flow (clicar na linha). Só mantém o id — a
+  // decisão do que apagar é de `resolveDeleteKey` (pura, testada).
+  const [selectedEdgeIds, setSelectedEdgeIds] = useState<string[]>([]);
+  const onSelectionChange = useCallback(({ edges: selected }: { edges: Edge[] }) => {
+    const ids = selected.map((e) => e.id);
+    setSelectedEdgeIds((prev) => (prev.join("|") === ids.join("|") ? prev : ids));
+  }, []);
+
+  // Delete/Backspace — tratado AQUI (escopo = foco dentro do canvas), não pelo
+  // `deleteKeyCode` global do React Flow (null abaixo): com nós "menu"
+  // excluíveis, a tecla global apagaria o nó selecionado mesmo com o foco num
+  // controle do inspector (ex.: o gatilho do Select). Ignora campos de texto,
+  // selects e botões (inclui o switch do card e o "+ Adicionar nó de menu").
+  const onKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== "Delete" && e.key !== "Backspace") return;
+    const target = e.target as HTMLElement | null;
+    if (target?.closest?.('input, textarea, select, button, [contenteditable="true"]')) return;
+    const action = resolveDeleteKey({ nodes, selectedNodeId, selectedEdgeIds });
+    if (action.type === "none") return;
+    e.preventDefault();
+    if (action.type === "edges") {
+      onNodesModelChange((prev) => action.edgeIds.reduce((acc, id) => applyEdgeDeletion(acc, id), prev));
+    } else {
+      onDeleteNode(action.nodeId);
+    }
+  }, [nodes, selectedNodeId, selectedEdgeIds, onNodesModelChange, onDeleteNode]);
 
   const handleAdd = () => {
     const rect = wrapperRef.current?.getBoundingClientRect();
@@ -298,7 +323,13 @@ function FlowCanvasInner({
   };
 
   return (
-    <div ref={wrapperRef} className="relative h-[520px] w-full overflow-hidden rounded-xl border border-border/40 bg-card/60">
+    <div
+      ref={wrapperRef}
+      tabIndex={-1}
+      data-testid="flow-canvas"
+      onKeyDown={onKeyDown}
+      className="relative h-[520px] w-full overflow-hidden rounded-xl border border-border/40 bg-card/60 outline-none"
+    >
       <ReactFlow
         nodes={rfNodes}
         edges={rfEdges}
@@ -306,7 +337,8 @@ function FlowCanvasInner({
         onNodesChange={onNodesChange}
         onConnect={onConnect}
         isValidConnection={isValidConnection}
-        onEdgesDelete={onEdgesDelete}
+        onSelectionChange={onSelectionChange}
+        deleteKeyCode={null}
         onNodeClick={(_, n) => onSelectNode(n.id)}
         fitView
         fitViewOptions={{ padding: 0.2 }}
@@ -327,7 +359,7 @@ function FlowCanvasInner({
             + Adicionar nó de menu
           </button>
           <span className="text-[10px] text-muted-foreground">
-            Arraste o ponto de uma opção até outro nó para ligar · selecione a linha e Backspace para apagar
+            Arraste o ponto de uma opção até outro nó para ligar · selecione a linha ou o nó de menu e Delete/Backspace para apagar
           </span>
         </Panel>
       </ReactFlow>

@@ -33,6 +33,9 @@ vi.mock("@/hooks/useWorkspaceRole", () => ({
 }));
 
 import { WhatsAppBotConfig } from "@/components/whatsapp/WhatsAppBotConfig";
+// Pré-carrega o chunk lazy do canvas na COLETA do arquivo: o import() do componente vira cache hit e o
+// 1º findBy* não depende do tempo de transformação a frio sob carga (suíte inteira em paralelo).
+import "@/components/whatsapp/FlowCanvas";
 
 describe("WhatsAppBotConfig · G71 — flow_data nao duplica credenciais do no 'ai'", () => {
   it("salvar com API key preenchida: coluna dedicada tem a chave real, flow_data (no 'ai') NAO tem", async () => {
@@ -41,7 +44,8 @@ describe("WhatsAppBotConfig · G71 — flow_data nao duplica credenciais do no '
     await screen.findByText("Apenas Conversas Novas (Triagem)"); // load concluido
 
     // Seleciona o no "ai" (inspector muda pra ele)
-    fireEvent.click(screen.getByText("Agente IA (Gemini)"));
+    // R6 acabamento: o canvas vem em chunk lazy — espera o card do nó aparecer.
+    fireEvent.click(await screen.findByText("Agente IA (Gemini)"));
 
     // Digita a API key real no campo de senha
     const apiKeyInput = screen.getByPlaceholderText("AIzaSy...");
@@ -108,7 +112,8 @@ describe("WhatsAppBotConfig · G71 — flow_data nao duplica credenciais do no '
     render(<WhatsAppBotConfig workspaceId="ws-2" />);
 
     await screen.findByText("Agente IA (Gemini)");
-    fireEvent.click(screen.getByText("Agente IA (Gemini)"));
+    // R6 acabamento: o canvas vem em chunk lazy — espera o card do nó aparecer.
+    fireEvent.click(await screen.findByText("Agente IA (Gemini)"));
 
     const apiKeyInput = (await screen.findByPlaceholderText("AIzaSy...")) as HTMLInputElement;
     expect(apiKeyInput.value).toBe("ROW-REAL-KEY-5678");

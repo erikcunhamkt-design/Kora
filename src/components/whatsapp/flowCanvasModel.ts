@@ -227,3 +227,83 @@ export function applyEdgeDeletion(nodes: WorkflowNode[], edgeId: string): Workfl
     return n;
   });
 }
+
+// ── Exclusão de nó ───────────────────────────────────────────────────────
+
+/** Só nós "menu" (criados pelo usuário) podem ser excluídos. Os 4 fixos
+ *  (trigger/ai/send/handover) só são desabilitados, como sempre foi. */
+export function isNodeDeletable(node: WorkflowNode | undefined): boolean {
+  return node?.type === "menu";
+}
+
+/**
+ * Quantas conexões editáveis (opção/fallback/entrada) tocam o nó — as que
+ * chegam nele E as que saem dele. Só pra dizer ao usuário o que a exclusão
+ * leva junto; não inclui a sequência implícita dos fixos.
+ */
+export function countNodeConnections(nodes: WorkflowNode[], nodeId: string): number {
+  return computeCanvasEdges(nodes).filter(
+    (e) => e.kind !== "sequence" && e.toNodeId !== null && (e.toNodeId === nodeId || e.fromNodeId === nodeId),
+  ).length;
+}
+
+/**
+ * Exclui um nó "menu" e limpa TODA referência a ele no modelo:
+ *   - `opcoes[i].nextNodeId === id` (de qualquer menu) → "";
+ *   - `fallback.fallbackNodeId === id` → chave removida (a `acao` é preservada;
+ *     sem destino o motor trata como esgotado e entrega a humano);
+ *   - `trigger.properties.nextNodeId === id` → chave removida (volta ao automático).
+ * Nó fixo, inexistente ou id desconhecido → no-op (devolve o MESMO array).
+ */
+export function applyNodeDeletion(nodes: WorkflowNode[], nodeId: string): WorkflowNode[] {
+  if (!isNodeDeletable(nodes.find((n) => n.id === nodeId))) return nodes;
+  return nodes
+    .filter((n) => n.id !== nodeId)
+    .map((n) => {
+      if (n.type === "trigger" && n.properties.nextNodeId === nodeId) {
+        const { nextNodeId: _removed, ...rest } = n.properties;
+        return { ...n, properties: rest };
+      }
+      if (n.type === "menu") {
+        const hasOption = n.properties.opcoes.some((o) => o.nextNodeId === nodeId);
+        const hasFallback = n.properties.fallback.fallbackNodeId === nodeId;
+        if (!hasOption && !hasFallback) return n;
+        const { fallbackNodeId: _removed, ...fb } = n.properties.fallback;
+        return {
+          ...n,
+          properties: {
+            ...n.properties,
+            opcoes: n.properties.opcoes.map((o) => (o.nextNodeId === nodeId ? { ...o, nextNodeId: "" } : o)),
+            fallback: hasFallback ? fb : n.properties.fallback,
+          },
+        };
+      }
+      return n;
+    });
+}
+
+// ── Tecla Delete/Backspace ───────────────────────────────────────────────
+
+export type DeleteKeyAction =
+  | { type: "edges"; edgeIds: string[] }
+  | { type: "node"; nodeId: string }
+  | { type: "none" };
+
+/**
+ * O que Delete/Backspace faz no canvas: aresta(s) EDITÁVEL(is) selecionada(s)
+ * têm prioridade (clicar numa linha seleciona a linha; o nó segue "ativo" no
+ * inspector mas a intenção é apagar a linha); senão, o nó selecionado SE for
+ * excluível (menu). Sequência implícita e nós fixos → "none".
+ */
+export function resolveDeleteKey(args: {
+  nodes: WorkflowNode[];
+  selectedNodeId: string;
+  selectedEdgeIds: string[];
+}): DeleteKeyAction {
+  const editable = new Set(toRenderableEdges(args.nodes).filter((e) => e.editable).map((e) => e.id));
+  const edgeIds = args.selectedEdgeIds.filter((id) => editable.has(id));
+  if (edgeIds.length > 0) return { type: "edges", edgeIds };
+  if (args.selectedEdgeIds.length > 0) return { type: "none" }; // só sequência implícita selecionada
+  const node = args.nodes.find((n) => n.id === args.selectedNodeId);
+  return isNodeDeletable(node) ? { type: "node", nodeId: args.selectedNodeId } : { type: "none" };
+}

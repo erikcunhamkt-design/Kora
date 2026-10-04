@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from "react";
 import {
   Save, AlertCircle, Loader2, Server, Key, BrainCircuit,
   Sparkles, MessageSquareCode, Settings2, HelpCircle,
@@ -17,8 +17,10 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Database, Json } from "@/integrations/supabase/types";
 import { useWorkspaceRole } from "@/hooks/useWorkspaceRole";
 import { toastError } from "@/lib/supabase/errors";
-import { FlowCanvas } from "@/components/whatsapp/FlowCanvas";
-import { findDanglingEdges, gridPosition, withAutoLayout, type FlowPosition } from "@/components/whatsapp/flowCanvasModel";
+import {
+  applyNodeDeletion, countNodeConnections, findDanglingEdges, gridPosition, isNodeDeletable,
+  withAutoLayout, type FlowPosition,
+} from "@/components/whatsapp/flowCanvasModel";
 import { FlowSimulatorPanel } from "@/components/whatsapp/FlowSimulatorPanel";
 import {
   INITIAL_SIM_STATE,
@@ -30,6 +32,13 @@ import {
   type SimFlowState,
   type SimMessage,
 } from "@/components/whatsapp/flowSimulatorModel";
+
+// Canvas em chunk SEPARADO (React.lazy): @xyflow/react (+ d3-*, zustand, CSS)
+// só é baixado quando a aba do robô abre, não no bundle principal do app.
+// Só o `default` é re-exportado aqui; os tipos continuam vindo de FlowCanvas.tsx.
+const FlowCanvas = lazy(() =>
+  import("@/components/whatsapp/FlowCanvas").then((m) => ({ default: m.FlowCanvas })),
+);
 
 type BotSettings = Database["public"]["Tables"]["whatsapp_bot_settings"]["Row"];
 type BotSettingsInsert = Database["public"]["Tables"]["whatsapp_bot_settings"]["Insert"];
@@ -361,6 +370,16 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
   // handleSimulateMessage/loadSettings (rehydration legada) leem os 4 nós
   // fixos por índice (nodes[0..3]); manter o append no fim preserva essa
   // suposição sem precisar tocar nenhum desses 3 pontos nesta rodada.
+  // Exclusão de nó "menu" (botão do inspector e Delete/Backspace no canvas).
+  // applyNodeDeletion limpa TODA referência (opcoes[].nextNodeId, fallbackNodeId,
+  // trigger.nextNodeId); nó fixo → no-op. O nó ativo volta pro gatilho.
+  const [confirmDeleteNodeId, setConfirmDeleteNodeId] = useState<string | null>(null);
+  const deleteMenuNode = useCallback((nodeId: string) => {
+    setNodes(prev => applyNodeDeletion(prev, nodeId));
+    setSelectedNodeId(current => (current === nodeId ? "node-trigger" : current));
+    setConfirmDeleteNodeId(null);
+  }, []);
+
   const addMenuNode = (position?: FlowPosition) => {
     const menuCount = nodes.filter(n => n.type === "menu").length;
     const newNode: MenuWorkflowNode = {
@@ -622,14 +641,23 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
               <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Visual Canvas</span>
             </div>
 
-            <FlowCanvas
-              nodes={nodes}
-              selectedNodeId={selectedNodeId}
-              onSelectNode={setSelectedNodeId}
-              onNodesModelChange={setNodes}
-              onToggleEnabled={toggleNodeEnabled}
-              onAddMenuNode={addMenuNode}
-            />
+            <Suspense
+              fallback={
+                <div className="flex h-[520px] w-full items-center justify-center gap-2 rounded-xl border border-border/40 bg-card/60 text-xs text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin text-primary" /> Carregando canvas do fluxo...
+                </div>
+              }
+            >
+              <FlowCanvas
+                nodes={nodes}
+                selectedNodeId={selectedNodeId}
+                onSelectNode={setSelectedNodeId}
+                onNodesModelChange={setNodes}
+                onToggleEnabled={toggleNodeEnabled}
+                onAddMenuNode={addMenuNode}
+                onDeleteNode={deleteMenuNode}
+              />
+            </Suspense>
 
             <div className="flex justify-between items-center bg-violet-950/10 border border-violet-500/20 rounded-xl p-3 relative z-10">
               <span className="text-[10px] text-muted-foreground flex items-center gap-1.5 leading-normal">
@@ -664,6 +692,11 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
             <h3 className="text-sm font-semibold text-foreground/90 flex items-center gap-2 border-b border-border/40 pb-3">
               <Settings2 className="h-4 w-4 text-violet-500" /> Configuração do Nó: {activeNode.title}
             </h3>
+            {!isNodeDeletable(activeNode) && (
+              <p className="mt-2 text-[10px] text-muted-foreground/70">
+                Nó fixo do fluxo — não pode ser excluído, só desabilitado.
+              </p>
+            )}
 
             <div className="mt-4 space-y-4">
               
@@ -921,6 +954,32 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
                   <p className="text-xs text-muted-foreground leading-relaxed">
                     Mensagem scriptada com opções numeradas — sem custo de IA. Cada opção aponta pra outro nó da árvore.
                   </p>
+
+                  {/* Excluir nó: 2 passos (nada persiste até "Salvar Fluxo", mas a
+                      exclusão leva junto as conexões que chegam/saem dele). */}
+                  {confirmDeleteNodeId === activeNode.id ? (
+                    <div role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-xs">
+                      <span className="flex-1 min-w-[200px] text-destructive">
+                        Excluir “{activeNode.title}”? {countNodeConnections(nodes, activeNode.id)} conexão(ões) que chegam ou saem dele serão removidas.
+                      </span>
+                      <Button type="button" size="sm" variant="destructive" className="h-7 text-[11px]" onClick={() => deleteMenuNode(activeNode.id)}>
+                        Confirmar exclusão
+                      </Button>
+                      <Button type="button" size="sm" variant="outline" className="h-7 text-[11px]" onClick={() => setConfirmDeleteNodeId(null)}>
+                        Cancelar
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex justify-end">
+                      <Button
+                        type="button" size="sm" variant="outline"
+                        onClick={() => setConfirmDeleteNodeId(activeNode.id)}
+                        className="h-7 gap-1 text-[11px] text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="h-3 w-3" /> Excluir nó
+                      </Button>
+                    </div>
+                  )}
 
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">
