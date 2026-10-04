@@ -15,6 +15,9 @@ import { useProjects, type Project } from "@/hooks/useProjects";
 import { useSupabaseProjects } from "@/hooks/useSupabaseProjects";
 import { useTasks } from "@/hooks/useTasks";
 import { useBifurcatedTasks } from "@/hooks/useBifurcatedTasks";
+import { useSupabaseTasksAll } from "@/hooks/useSupabaseTasksAll";
+import { TASKS_SUPABASE_WRITE_FLAG_KEY } from "@/hooks/useSupabaseTasksWriteFlag";
+import { TASKS_DATA_SOURCE_KEY } from "@/config/flags";
 import { useClients } from "@/hooks/useClients";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { PROJECTS_SUPABASE_WRITE_FLAG_KEY } from "@/hooks/useSupabaseProjectsWriteFlag";
@@ -25,8 +28,12 @@ vi.mock("@/hooks/useProjects", async () => {
   return { ...actual, useProjects: vi.fn() };
 });
 vi.mock("@/hooks/useSupabaseProjects", () => ({ useSupabaseProjects: vi.fn() }));
-vi.mock("@/hooks/useTasks", () => ({ useTasks: vi.fn() }));
+vi.mock("@/hooks/useTasks", async () => {
+  const actual = await vi.importActual<typeof import("@/hooks/useTasks")>("@/hooks/useTasks");
+  return { ...actual, useTasks: vi.fn() };
+});
 vi.mock("@/hooks/useBifurcatedTasks", () => ({ useBifurcatedTasks: vi.fn() }));
+vi.mock("@/hooks/useSupabaseTasksAll", () => ({ useSupabaseTasksAll: vi.fn() }));
 vi.mock("@/hooks/useClients", () => ({ useClients: vi.fn() }));
 vi.mock("@/hooks/useCurrentWorkspace", () => ({ useCurrentWorkspace: vi.fn() }));
 vi.mock("@/services/projects/projectsCloudMirror", () => ({ mirrorProjectToSupabase: vi.fn() }));
@@ -67,6 +74,7 @@ function makeProject(overrides: Partial<Project> = {}): Project {
 function setupCommonMocks() {
   vi.mocked(useTasks).mockReturnValue({ addTask: vi.fn(), moveTask: vi.fn() } as never);
   vi.mocked(useBifurcatedTasks).mockReturnValue([] as never);
+  vi.mocked(useSupabaseTasksAll).mockReturnValue({ createTask: vi.fn(), moveTask: vi.fn() } as never);
   vi.mocked(useClients).mockReturnValue({ clients: [] } as never);
   vi.mocked(useCurrentWorkspace).mockReturnValue({ workspace: { id: "ws1" } } as never);
 }
@@ -218,5 +226,107 @@ describe("ProjectDetailDrawer · B4 — tarefas leem via useBifurcatedTasks (eta
     renderDrawer(makeProject());
 
     expect(await screen.findByText("Tarefa local")).toBeInTheDocument();
+  });
+});
+
+describe("ProjectDetailDrawer · cutover de escrita de Tarefas (getTasksDataSource + flag nativa, mesmo gate de Tarefas.tsx/G77)", () => {
+  async function createTaskViaForm(title: string) {
+    fireEvent.click(screen.getByText("Nova tarefa"));
+    fireEvent.change(screen.getByPlaceholderText("Título da tarefa"), { target: { value: title } });
+    fireEvent.click(screen.getByText("Criar"));
+  }
+
+  it("modo Supabase + flag de escrita ligada — criar tarefa vai pro caminho nativo (createTask), NUNCA addTaskLocal", async () => {
+    localStorage.setItem(TASKS_DATA_SOURCE_KEY, "supabase");
+    localStorage.setItem(TASKS_SUPABASE_WRITE_FLAG_KEY, "true");
+    const addTaskLocal = vi.fn();
+    const createSupabaseTask = vi.fn().mockResolvedValue({ id: "cloud-task-uuid" });
+    vi.mocked(useTasks).mockReturnValue({ addTask: addTaskLocal, moveTask: vi.fn() } as never);
+    vi.mocked(useSupabaseTasksAll).mockReturnValue({ createTask: createSupabaseTask, moveTask: vi.fn() } as never);
+    vi.mocked(useProjects).mockReturnValue({ updateProject: vi.fn() } as never);
+    vi.mocked(useSupabaseProjects).mockReturnValue({ updateProject: vi.fn() } as never);
+
+    renderDrawer(makeProject({ id: "pj-1", clientId: 1, quoteId: "q-1" }));
+    await createTaskViaForm("Tarefa nova");
+
+    await waitFor(() => expect(createSupabaseTask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Tarefa nova", projectId: "pj-1", clientId: 1, quoteId: "q-1", source: "projeto",
+      }),
+    ));
+    expect(addTaskLocal).not.toHaveBeenCalled();
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Tarefa criada"));
+  });
+
+  it("modo Supabase + flag de escrita ligada — concluir/reabrir tarefa vai pro caminho nativo (moveTask, id como string — G67), NUNCA moveTaskLocal", async () => {
+    localStorage.setItem(TASKS_DATA_SOURCE_KEY, "supabase");
+    localStorage.setItem(TASKS_SUPABASE_WRITE_FLAG_KEY, "true");
+    const moveTaskLocal = vi.fn();
+    const moveSupabaseTask = vi.fn().mockResolvedValue({ id: "cloud-task-uuid" });
+    vi.mocked(useTasks).mockReturnValue({ addTask: vi.fn(), moveTask: moveTaskLocal } as never);
+    vi.mocked(useSupabaseTasksAll).mockReturnValue({ createTask: vi.fn(), moveTask: moveSupabaseTask } as never);
+    vi.mocked(useProjects).mockReturnValue({ updateProject: vi.fn() } as never);
+    vi.mocked(useSupabaseProjects).mockReturnValue({ updateProject: vi.fn() } as never);
+    vi.mocked(useBifurcatedTasks).mockReturnValue([
+      { id: "cloud-task-uuid", title: "Tarefa só-nuvem", projectId: "pj-1", archived: false, status: "a_fazer", priority: "média" },
+    ] as never);
+
+    renderDrawer(makeProject());
+    fireEvent.click(screen.getByLabelText("Concluir tarefa"));
+
+    await waitFor(() => expect(moveSupabaseTask).toHaveBeenCalledWith("cloud-task-uuid", "concluido"));
+    expect(moveTaskLocal).not.toHaveBeenCalled();
+  });
+
+  it("modo local (dataSource de Tarefas = local, explícito) — regressão: criar/concluir continuam locais, nunca o caminho nativo", async () => {
+    localStorage.setItem(TASKS_DATA_SOURCE_KEY, "local");
+    const addTaskLocal = vi.fn();
+    const moveTaskLocal = vi.fn();
+    const createSupabaseTask = vi.fn();
+    const moveSupabaseTask = vi.fn();
+    vi.mocked(useTasks).mockReturnValue({ addTask: addTaskLocal, moveTask: moveTaskLocal } as never);
+    vi.mocked(useSupabaseTasksAll).mockReturnValue({ createTask: createSupabaseTask, moveTask: moveSupabaseTask } as never);
+    vi.mocked(useProjects).mockReturnValue({ updateProject: vi.fn() } as never);
+    vi.mocked(useSupabaseProjects).mockReturnValue({ updateProject: vi.fn() } as never);
+    vi.mocked(useBifurcatedTasks).mockReturnValue([
+      { id: 42, title: "Tarefa local", projectId: "pj-1", archived: false, status: "a_fazer", priority: "média" },
+    ] as never);
+
+    renderDrawer(makeProject());
+    fireEvent.click(screen.getByLabelText("Concluir tarefa"));
+    await waitFor(() => expect(moveTaskLocal).toHaveBeenCalledWith(42, "concluido"));
+    expect(moveSupabaseTask).not.toHaveBeenCalled();
+
+    await createTaskViaForm("Local nova");
+    await waitFor(() => expect(addTaskLocal).toHaveBeenCalledWith(expect.objectContaining({ title: "Local nova" })));
+    expect(createSupabaseTask).not.toHaveBeenCalled();
+  });
+
+  it("modo Supabase + flag de escrita DESLIGADA — bloqueio honesto (G76): nunca chama nativo nem local, toast de erro explícito", async () => {
+    localStorage.setItem(TASKS_DATA_SOURCE_KEY, "supabase");
+    localStorage.setItem(TASKS_SUPABASE_WRITE_FLAG_KEY, "false");
+    const addTaskLocal = vi.fn();
+    const createSupabaseTask = vi.fn();
+    const moveTaskLocal = vi.fn();
+    const moveSupabaseTask = vi.fn();
+    vi.mocked(useTasks).mockReturnValue({ addTask: addTaskLocal, moveTask: moveTaskLocal } as never);
+    vi.mocked(useSupabaseTasksAll).mockReturnValue({ createTask: createSupabaseTask, moveTask: moveSupabaseTask } as never);
+    vi.mocked(useProjects).mockReturnValue({ updateProject: vi.fn() } as never);
+    vi.mocked(useSupabaseProjects).mockReturnValue({ updateProject: vi.fn() } as never);
+    vi.mocked(useBifurcatedTasks).mockReturnValue([
+      { id: "cloud-task-uuid", title: "Tarefa só-nuvem", projectId: "pj-1", archived: false, status: "a_fazer", priority: "média" },
+    ] as never);
+
+    renderDrawer(makeProject());
+    fireEvent.click(screen.getByLabelText("Concluir tarefa"));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("modo Supabase")));
+    expect(moveSupabaseTask).not.toHaveBeenCalled();
+    expect(moveTaskLocal).not.toHaveBeenCalled();
+
+    vi.mocked(toast.error).mockClear();
+    await createTaskViaForm("Bloqueada");
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("Criar tarefa aqui")));
+    expect(createSupabaseTask).not.toHaveBeenCalled();
+    expect(addTaskLocal).not.toHaveBeenCalled();
   });
 });

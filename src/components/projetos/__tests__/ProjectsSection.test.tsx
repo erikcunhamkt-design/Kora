@@ -17,6 +17,7 @@ import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { useClients } from "@/hooks/useClients";
 import { useTasks } from "@/hooks/useTasks";
 import { useBifurcatedTasks } from "@/hooks/useBifurcatedTasks";
+import { useSupabaseTasksAll } from "@/hooks/useSupabaseTasksAll";
 import { PROJECTS_DATA_SOURCE_KEY } from "@/config/flags";
 import { PROJECTS_SUPABASE_WRITE_FLAG_KEY } from "@/hooks/useSupabaseProjectsWriteFlag";
 import { mirrorProjectToSupabase } from "@/services/projects/projectsCloudMirror";
@@ -30,8 +31,12 @@ vi.mock("@/hooks/useSupabaseProjects", () => ({ useSupabaseProjects: vi.fn() }))
 vi.mock("@/hooks/useClientsDataSource", () => ({ useClientsDataSource: vi.fn() }));
 vi.mock("@/hooks/useCurrentWorkspace", () => ({ useCurrentWorkspace: vi.fn() }));
 vi.mock("@/hooks/useClients", () => ({ useClients: vi.fn() }));
-vi.mock("@/hooks/useTasks", () => ({ useTasks: vi.fn() }));
+vi.mock("@/hooks/useTasks", async () => {
+  const actual = await vi.importActual<typeof import("@/hooks/useTasks")>("@/hooks/useTasks");
+  return { ...actual, useTasks: vi.fn() };
+});
 vi.mock("@/hooks/useBifurcatedTasks", () => ({ useBifurcatedTasks: vi.fn() }));
+vi.mock("@/hooks/useSupabaseTasksAll", () => ({ useSupabaseTasksAll: vi.fn() }));
 vi.mock("@/services/projects/projectsCloudMirror", () => ({ mirrorProjectToSupabase: vi.fn() }));
 vi.mock("@/hooks/use-toast", () => ({ toast: vi.fn() }));
 
@@ -80,6 +85,7 @@ function setupCommonMocks() {
   vi.mocked(useClients).mockReturnValue({ clients: [] } as never);
   vi.mocked(useTasks).mockReturnValue({ addTask: vi.fn(), moveTask: vi.fn() } as never);
   vi.mocked(useBifurcatedTasks).mockReturnValue([] as never);
+  vi.mocked(useSupabaseTasksAll).mockReturnValue({ createTask: vi.fn(), moveTask: vi.fn() } as never);
   vi.mocked(useClientsDataSource).mockReturnValue({
     clients: [{ id: "uuid-client-1", name: "Acme Corp" }],
   } as never);

@@ -17,6 +17,7 @@ import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { useClients } from "@/hooks/useClients";
 import { useTasks } from "@/hooks/useTasks";
 import { useBifurcatedTasks } from "@/hooks/useBifurcatedTasks";
+import { useSupabaseTasksAll } from "@/hooks/useSupabaseTasksAll";
 import { projectsRepository } from "@/repositories/projectsRepository";
 
 vi.mock("@/hooks/useProjects", async () => {
@@ -26,8 +27,12 @@ vi.mock("@/hooks/useProjects", async () => {
 vi.mock("@/hooks/useClientsDataSource", () => ({ useClientsDataSource: vi.fn() }));
 vi.mock("@/hooks/useCurrentWorkspace", () => ({ useCurrentWorkspace: vi.fn() }));
 vi.mock("@/hooks/useClients", () => ({ useClients: vi.fn() }));
-vi.mock("@/hooks/useTasks", () => ({ useTasks: vi.fn() }));
+vi.mock("@/hooks/useTasks", async () => {
+  const actual = await vi.importActual<typeof import("@/hooks/useTasks")>("@/hooks/useTasks");
+  return { ...actual, useTasks: vi.fn() };
+});
 vi.mock("@/hooks/useBifurcatedTasks", () => ({ useBifurcatedTasks: vi.fn() }));
+vi.mock("@/hooks/useSupabaseTasksAll", () => ({ useSupabaseTasksAll: vi.fn() }));
 vi.mock("@/repositories/projectsRepository", () => ({
   projectsRepository: { listProjects: vi.fn(), updateProject: vi.fn() },
 }));
@@ -65,6 +70,7 @@ beforeEach(() => {
   vi.mocked(useClients).mockReturnValue({ clients: [] } as never);
   vi.mocked(useTasks).mockReturnValue({ addTask: vi.fn(), moveTask: vi.fn() } as never);
   vi.mocked(useBifurcatedTasks).mockReturnValue([] as never);
+  vi.mocked(useSupabaseTasksAll).mockReturnValue({ createTask: vi.fn(), moveTask: vi.fn() } as never);
   vi.mocked(useClientsDataSource).mockReturnValue({ clients: [] } as never);
   vi.mocked(useCurrentWorkspace).mockReturnValue({ workspace: { id: "ws1" } } as never);
   vi.mocked(useProjects).mockReturnValue({ projects: [], addProject: vi.fn() } as never);

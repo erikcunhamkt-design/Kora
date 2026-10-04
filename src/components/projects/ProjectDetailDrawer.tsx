@@ -23,10 +23,12 @@ import {
 } from "@/hooks/useProjects";
 import { useTasks, formatPtBr, type Task, type TaskPriority } from "@/hooks/useTasks";
 import { useBifurcatedTasks } from "@/hooks/useBifurcatedTasks";
+import { useSupabaseTasksAll, type NewTaskInput } from "@/hooks/useSupabaseTasksAll";
+import { isSupabaseTasksWriteEnabled } from "@/hooks/useSupabaseTasksWriteFlag";
 import { useClients } from "@/hooks/useClients";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { ClientTechnicalSheetSnapshot } from "@/components/clients/ClientTechnicalSheetSnapshot";
-import type { DataSource } from "@/config/flags";
+import { getTasksDataSource, type DataSource } from "@/config/flags";
 import { mirrorProjectToSupabase } from "@/services/projects/projectsCloudMirror";
 import { isSupabaseProjectsWriteEnabled } from "@/hooks/useSupabaseProjectsWriteFlag";
 import { useSupabaseProjects } from "@/hooks/useSupabaseProjects";
@@ -86,16 +88,25 @@ export function ProjectDetailDrawer({ project, open, onOpenChange, dataSource = 
   const { updateProject: updateLocalProject } = useProjects();
   const { updateProject: updateSupabaseProject } = useSupabaseProjects();
   // B4 (etapa-5-flip-tarefas-pacote.md §7) — leitura bifurcada
-  // (useBifurcatedTasks). G78 (kora-hub-auditoria-e-plano.md, correção
-  // desta rodada): B5 (escrita nativa de Tarefas) já EXISTE no repo desde
-  // `5e1829d`/`1dea136` (`Tarefas.tsx`, `cloudWriteMode`) — a razão de
-  // addTask/moveTask aqui continuarem vindo de useTasks() (local) não é
-  // "B5 não existe", é que este arquivo nunca recebeu o mesmo wiring
-  // (dataSource+flag de escrita) que `Tarefas.tsx` já tem. Decisão de
-  // escopo, não limitação técnica — mover/criar uma tarefa lida da nuvem
-  // por aqui continua sendo um no-op no array local até (se) alguém
-  // estender o wiring de B5 pra este arquivo também.
-  const { addTask, moveTask } = useTasks();
+  // (useBifurcatedTasks). Cutover total de escrita (correção desta rodada,
+  // fecha a lacuna que G78 tinha documentado: B5/G77 de `Tarefas.tsx` —
+  // `getTasksDataSource()` + `useSupabaseTasksWriteFlag` — nunca tinha sido
+  // ligado a este arquivo, então criar/concluir tarefa aqui era sempre
+  // local-only, mesmo em modo Supabase). Mesmo gate de `Tarefas.tsx`
+  // pós-B5 e de `useDayCenterActions.ts` (G77): em modo Supabase
+  // (`getTasksDataSource() === "supabase"`) COM a flag de escrita nativa
+  // ligada (`isSupabaseTasksWriteEnabled()`), criar/concluir/reabrir tarefa
+  // vai DIRETO pro caminho nativo (`createTask`/`moveTask` de
+  // `useSupabaseTasksAll()`, id como string — G67, nunca `Number()`). Com a
+  // flag de escrita desligada, bloqueia com toast explícito em vez de
+  // aparentar sucesso num array local que a tela nem lê (mesma classe de
+  // risco do G76). Modo local (flag de Tarefas, independente do
+  // `dataSource` de Projetos) intocado: `addTaskLocal`/`moveTaskLocal`
+  // continuam gravando local. Não há produtor de EXCLUSÃO de tarefa neste
+  // arquivo — só criar e concluir/reabrir (confirmado por leitura completa
+  // do arquivo nesta rodada, relatório LANE E).
+  const { addTask: addTaskLocal, moveTask: moveTaskLocal } = useTasks();
+  const { createTask: createSupabaseTask, moveTask: moveSupabaseTask } = useSupabaseTasksAll();
   const tasks = useBifurcatedTasks();
   const { clients } = useClients();
   const { workspace } = useCurrentWorkspace();
@@ -187,10 +198,10 @@ export function ProjectDetailDrawer({ project, open, onOpenChange, dataSource = 
     mirrorUpdateToSupabase({ ...project, ...patch });
   };
 
-  const handleCreateTask = () => {
+  const handleCreateTask = async () => {
     if (!newTaskTitle.trim()) return toast.error("Informe o título da tarefa");
     const iso = newTaskDate || new Date().toISOString().slice(0, 10);
-    addTask({
+    const taskInput: NewTaskInput = {
       title: newTaskTitle.trim(),
       description: "",
       client: project.clientName,
@@ -208,11 +219,48 @@ export function ProjectDetailDrawer({ project, open, onOpenChange, dataSource = 
       subtasks: [],
       comments: [],
       recurrence: "none",
-    });
+    };
+    const tasksSource = getTasksDataSource();
+    const tasksCloudWriteMode = tasksSource === "supabase" && isSupabaseTasksWriteEnabled();
+    if (tasksSource === "supabase" && !tasksCloudWriteMode) {
+      toast.error("Criar tarefa aqui ainda não funciona em modo Supabase com a escrita nativa desligada — use a tela Tarefas.");
+      return;
+    }
+    if (tasksCloudWriteMode) {
+      try {
+        await createSupabaseTask(taskInput);
+      } catch (err) {
+        console.error("Falha ao criar tarefa no Supabase:", err);
+        toast.error("Falha ao criar tarefa no Supabase — tente novamente.");
+        return;
+      }
+    } else {
+      addTaskLocal(taskInput);
+    }
     toast.success("Tarefa criada");
     setNewTaskTitle("");
     setNewTaskDate("");
     setShowNewTask(false);
+  };
+
+  const handleToggleTask = async (t: Task) => {
+    const nextStatus: Task["status"] = t.status === "concluido" ? "a_fazer" : "concluido";
+    const tasksSource = getTasksDataSource();
+    const tasksCloudWriteMode = tasksSource === "supabase" && isSupabaseTasksWriteEnabled();
+    if (tasksSource === "supabase" && !tasksCloudWriteMode) {
+      toast.error("Concluir/reabrir tarefa aqui ainda não funciona em modo Supabase com a escrita nativa desligada — use a tela Tarefas.");
+      return;
+    }
+    try {
+      if (tasksCloudWriteMode) {
+        await moveSupabaseTask(String(t.id), nextStatus);
+      } else {
+        moveTaskLocal(t.id, nextStatus);
+      }
+    } catch (err) {
+      console.error("Falha ao atualizar tarefa no Supabase:", err);
+      toast.error("Falha ao atualizar tarefa no Supabase — tente novamente.");
+    }
   };
 
   const fromQuote = project.source === "orçamento";
@@ -435,7 +483,7 @@ export function ProjectDetailDrawer({ project, open, onOpenChange, dataSource = 
                   <li key={t.id} className="rounded-lg border border-border/60 bg-background/40 p-3 flex items-start gap-3">
                     <button
                       type="button"
-                      onClick={() => moveTask(t.id, done ? "a_fazer" : "concluido")}
+                      onClick={() => handleToggleTask(t)}
                       className={`mt-0.5 h-5 w-5 rounded-md border flex items-center justify-center transition ${
                         done ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-400" : "border-border text-transparent hover:border-primary"
                       }`}
