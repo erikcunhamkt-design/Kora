@@ -171,7 +171,9 @@ export function resolveMenuTurn(
   const byId = new Map(menuNodes.map((n) => [n.id, n]));
   const activeNode = state ? byId.get(state.currentNodeId) : undefined;
 
-  if (!activeNode) {
+  // `!state ||` é redundante em runtime (state nulo ⇒ activeNode já é undefined)
+  // — existe só pra o TS estreitar `state` abaixo (`state.attempts`).
+  if (!state || !activeNode) {
     // Sem estado (primeira mensagem), ou estado aponta pra um nó que não é
     // mais um "menu" habilitado (desabilitado/removido entre uma virada e
     // outra) — (re)apresenta o menu de ENTRADA: o apontado por

@@ -106,7 +106,7 @@ divergência de sequência virar problema.
 | `skipped` | `null` | fluxo com nós mas sem nó "ai" habilitado — produção também não responderia |
 | `ai` | resposta da IA | seguiu o caminho de IA; `simulation` acompanha só pra devolver o estado |
 
-## 4. Contrato pra Lane C incorporar na UI (`WhatsAppBotConfig.tsx`, R6 canvas) — NÃO implementado aqui
+## 4. Contrato pra incorporar na UI (`WhatsAppBotConfig.tsx`) — IMPLEMENTADO na rodada seguinte (ver §7)
 
 1. **Manter `simState` no componente** (`useState`), começando em
    `{ botFlowState: null, handedOver: false }`; **enviar em toda mensagem** do
@@ -170,5 +170,50 @@ e **depois** de auth + rate-limit, que não foram alterados.
 - Persistir qualquer coisa do simulador no banco (decisão: o simulador **nunca**
   toca em `whatsapp_conversations`).
 
-**PARADO aqui — simulador do fluxo coberto no server (opt-in), contrato da UI
-reportado, zero DDL/deploy, zero push/merge. §18.**
+## 7. Lado UI — implementado (U1–U4 fechados)
+
+Rodada "simulador, lado UI" (branch `etapa-9-item4-simulador-ui`). Território: só o bloco do
+simulador de `WhatsAppBotConfig.tsx` (estado + `handleSimulateMessage` + painel) — canvas/inspector
+(Lane C) intocados. Para manter o diff pequeno naquele arquivo, a lógica foi extraída:
+
+| Peça | Arquivo | Papel |
+|---|---|---|
+| Lógica pura | `src/components/whatsapp/flowSimulatorModel.ts` | `buildSimulatorRequest` (corpo do pedido), `applySimulationResponse` (resposta → mensagens + próximo estado), `describeSimState` (estado legível) |
+| Painel | `src/components/whatsapp/FlowSimulatorPanel.tsx` | só apresentação: header com **Reiniciar simulação**, barra de estado, conversa (`role="log"`), selo de handover, avisos do simulador |
+| Cola | `WhatsAppBotConfig.tsx` | `simState` (useState), handler, `<FlowSimulatorPanel/>` no lugar de ~80 linhas de JSX |
+
+| # | Gap | Como ficou |
+|---|---|---|
+| **U1** | `return` silencioso sem nó IA | removido; o nó "ai" é opcional — sem ele o corpo vai sem provider/credencial e o server responde `skipped` sozinho se de fato não há IA. **Fluxo só-menu é simulável** |
+| **U2** | handover fabricado no navegador | removido (`includes("atendente")` e o texto "[Simulação de Transbordo]" saíram). O handover vem de `simulation.engine === "handover"`: a bolha **é** a cortesia (substitui a IA, não aparece depois dela), com selo do motivo (palavra-chave / opção do menu / fallback do menu / tentativas esgotadas) |
+| **U3** | sem ida-e-volta de estado | `simState` mantido no componente, enviado em toda mensagem e substituído pelo `simulation` devolvido. **Reiniciar simulação** limpa o chat **e** zera o estado (devolve o robô) |
+| **U4** | `reply: null` vira "Resposta da IA vazia" | `silent` → aviso "🔇 Robô em silêncio — conversa entregue"; `skipped` → "nada a responder". "Resposta da IA vazia" só sobra no caso de server **antigo** com reply vazio |
+| + | estado visível | barra "Estado:" no painel — "Fora do menu", "No menu “<título>” — respostas inválidas: N de <máx>", "Entregue a atendimento humano — o robô está em silêncio" |
+
+### Decisões
+
+1. **Compatível com server antigo.** Se a UI subir antes do deploy do `whatsapp-bot-reply` novo, o server ignora `simState` e devolve só `{ reply }`: a UI mostra a resposta, mantém o estado e **não fabrica nada** (U2). Só um fluxo só-menu deixa de funcionar nesse intervalo (o server antigo tenta a IA) — não regride o que já funcionava.
+2. **Erros do simulador viram aviso ("system"), não fala do robô.** Antes o "❌ Falha no fluxo…" entrava no chat como mensagem do robô **e ia no histórico** pra IA nas próximas chamadas. Agora é um aviso que nunca entra no histórico. (Mudança pequena de comportamento, em benefício do próprio simulador.)
+3. **A saudação inicial continua sendo o item 0 do chat e fica fora do histórico** (comportamento antigo preservado); os avisos "system" também.
+4. **Ícones `Bot`/`Send`/`Eye`/`RefreshCw` do import de `lucide-react` em `WhatsAppBotConfig.tsx` ficaram sem uso** (só o painel antigo os usava). Não removi o import de propósito: é um bloco compartilhado com a Lane C na mesma janela — limpeza trivial pra depois que as duas branches mesclarem (a regra `no-unused-vars` do repo está desligada, não é erro).
+
+### Testes (40, 3 arquivos)
+
+- `flowSimulatorModel.test.ts` (19): pedido (só-menu sem credenciais, com IA como antes, modelo custom/vertex, simState+flowData, histórico sem saudação/avisos), resposta (menu, ai, handover com os 4 selos, silent/skipped sem erro, server legado, `simulation` malformada, engine sem reply), estado legível (4 casos).
+- `FlowSimulatorPanel.test.tsx` (7): estado legível, estado entregue destacado, bolhas/selo/aviso "system", reiniciar, enviar/digitar, input vazio, simulando.
+- `WhatsAppBotConfig.simulator.test.tsx` (14, **montagem real**): o `functions.invoke` roda o **motor REAL do server** (`simulateFlowTurn`/`wantsFlowSimulation`) — prova o contrato UI ↔ server de ponta a ponta. Cobre: menu → opção válida avança (+ ida e volta do estado carregado), saída pra IA, reprompt com contador, **inválida ×N → entrega** (bolha é a cortesia, sem IA, com selo e estado), reply null = silêncio (nunca "Resposta da IA vazia"), **handover real substitui a IA e não sobra o texto fabricado**, server legado sem handover fabricado, **só-menu** (U1) incl. entrega sem IA, gate "sem IA habilitada", **reiniciar** (depois de entregue e no meio do menu), entrada pela aresta do R6, erro fora do histórico. (O canvas é stubado nesse arquivo: tem suíte própria e re-renderizá-lo a cada mensagem deixava os testes lentos no jsdom.)
+
+**Divergências DELIBERADAS em testes pré-existentes (1):**
+
+| Teste | Afirmava (antes) | Afirma agora |
+|---|---|---|
+| `WhatsAppBotConfig.node-lookup.test.tsx` › "nós em ordem embaralhada, mensagem com 'atendente'…" (R2) | o texto fabricado "[Simulação de Transbordo]" aparecia (handover achado por tipo, mesmo fora da posição 3) | a propriedade protegida (achar o handover **por tipo, não por posição**) vale de ponta a ponta com o **motor real do server**: a cortesia substitui a IA, com selo "palavra-chave", e o texto fabricado **não** existe mais |
+
+**Efeito colateral do teste de integração — `tsc` passa a ver os módulos do server.** `WhatsAppBotConfig.simulator.test.tsx` (e o teste acima) importam `supabase/functions/_shared/botFlowSimulation.ts` a partir de `src/`; como `tsconfig.app.json` segue o grafo de imports, `botFlowSimulation.ts` → `botFlowMenu.ts` → `botHandover.ts` **passaram a ser type-checados pelo gate** (até aqui `supabase/functions/**` nunca passava por `tsc`). Isso acusou um nit latente da R3 em `botFlowMenu.ts` (`state.attempts` com `state` possivelmente nulo, TS18047) — corrigido com `if (!state || !activeNode)` (o `!state` é redundante em runtime: estado nulo ⇒ `activeNode` já é `undefined`; comportamento idêntico, coberto pelos testes existentes). Daqui em diante um erro de tipo nesses 3 módulos **quebra o gate** — é cobertura a mais, mas vale a Lane C saber ao mexer neles.
+
+**Prova fail→fix→pass por patch (G65, sem `git stash`):** `git add -N` (2 arquivos novos) → `git diff` dos 3 arquivos de implementação → `git checkout --` → `vitest run` dos 3 arquivos: **40/40 falharam** → `rm` dos esvaziados + `git apply` do mesmo patch → **40/40 passaram**.
+
+**Não verificado em navegador real** (jsdom não faz layout/estilo): a aparência do painel (barra de estado, selo, avisos) foi conferida só por estrutura/texto.
+
+**PARADO aqui — simulador do fluxo coberto no server (opt-in) e na UI, zero
+DDL/deploy, zero push/merge. §18.**

@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
-  Bot, Save, AlertCircle, Loader2, Server, Key, BrainCircuit,
-  Sparkles, MessageSquareCode, Settings2, HelpCircle, Send,
-  RefreshCw, CheckCircle2, ShieldAlert, UserCog, Network,
-  ArrowRight, ToggleLeft, ToggleRight, Play, Eye, Lock,
+  Save, AlertCircle, Loader2, Server, Key, BrainCircuit,
+  Sparkles, MessageSquareCode, Settings2, HelpCircle,
+  CheckCircle2, ShieldAlert, UserCog, Network,
+  ArrowRight, ToggleLeft, ToggleRight, Play, Lock,
   Plus, Trash2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,17 @@ import { useWorkspaceRole } from "@/hooks/useWorkspaceRole";
 import { toastError } from "@/lib/supabase/errors";
 import { FlowCanvas } from "@/components/whatsapp/FlowCanvas";
 import { findDanglingEdges, gridPosition, withAutoLayout, type FlowPosition } from "@/components/whatsapp/flowCanvasModel";
+import { FlowSimulatorPanel } from "@/components/whatsapp/FlowSimulatorPanel";
+import {
+  INITIAL_SIM_STATE,
+  SIM_GREETING,
+  SIM_RESET_GREETING,
+  applySimulationResponse,
+  buildSimulatorRequest,
+  describeSimState,
+  type SimFlowState,
+  type SimMessage,
+} from "@/components/whatsapp/flowSimulatorModel";
 
 type BotSettings = Database["public"]["Tables"]["whatsapp_bot_settings"]["Row"];
 type BotSettingsInsert = Database["public"]["Tables"]["whatsapp_bot_settings"]["Insert"];
@@ -128,9 +139,6 @@ function isTriggerNode(n: WorkflowNode): n is TriggerWorkflowNode {
 function isAiNode(n: WorkflowNode): n is AiWorkflowNode {
   return n.type === "ai";
 }
-function isHandoverNode(n: WorkflowNode): n is HandoverWorkflowNode {
-  return n.type === "handover";
-}
 
 // Valor do item "Automático" do Select "Começar por" (Radix Select não aceita
 // value ""); ausente em trigger.properties.nextNodeId.
@@ -201,13 +209,15 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
   // Selected node for the side inspector panel
   const [selectedNodeId, setSelectedNodeId] = useState<string>("node-trigger");
 
-  // Simulator states
-  const [simMessages, setSimMessages] = useState<Array<{ role: "user" | "model"; text: string }>>([
-    { role: "model", text: "Olá! Eu sou o simulador do seu fluxo visual. Salve seu fluxo e envie uma mensagem para testar as respostas e transbordos em tempo real!" }
+  // Simulator states. `simState` é o estado de ida e volta do simulador do fluxo
+  // (nó do menu/tentativas/entregue a humano — contrato em docs/qa/etapa-9-bot-
+  // simulador-fluxo-cobertura.md §3); o MOTOR é do server, aqui só se carrega.
+  const [simMessages, setSimMessages] = useState<SimMessage[]>([
+    { role: "model", text: SIM_GREETING }
   ]);
+  const [simState, setSimState] = useState<SimFlowState>(INITIAL_SIM_STATE);
   const [simInput, setSimInput] = useState("");
   const [simulating, setSimulating] = useState(false);
-  const chatEndRef = useRef<HTMLDivElement>(null);
 
   // `|| nodes[0]` aqui é fallback de seleção inválida ("mostra algo em vez de
   // nada"), não suposição de tipo por posição — revisado na rodada R2 e
@@ -304,10 +314,6 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
     if (!workspaceId) return;
     loadSettings();
   }, [workspaceId, loadSettings]);
-
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [simMessages]);
 
   // Item 4 · R5 — o valor aceito ganhou number/array/objeto pra servir as
   // propriedades do nó "menu" (opções, fallback), além de string/boolean
@@ -511,62 +517,43 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
 
     const userText = simInput;
     setSimInput("");
-    
+
     // Append user message
-    const updatedHistory = [...simMessages, { role: "user" as const, text: userText }];
-    setSimMessages(updatedHistory);
+    const updatedMessages: SimMessage[] = [...simMessages, { role: "user", text: userText }];
+    setSimMessages(updatedMessages);
     setSimulating(true);
 
     try {
-      const aiNode = nodes.find(isAiNode);
-      if (!aiNode) return;
-      const activeModelName = aiNode.properties.model === "custom"
-        ? aiNode.properties.customModelName 
-        : aiNode.properties.model;
-      
-      // Call the edge function in test mode
+      // U1: sem `return` silencioso quando não há nó "ai" — um fluxo só-menu é
+      // simulável (o server responde `skipped` sozinho se de fato não há IA).
+      // Call the edge function in test mode, levando o estado do fluxo (U3).
       const { data, error } = await supabase.functions.invoke("whatsapp-bot-reply", {
-        body: {
-          isTest: true,
-          workspaceId,
-          systemInstruction: aiNode.properties.instruction,
-          provider: aiNode.properties.provider,
-          modelName: activeModelName,
-          geminiApiKey: aiNode.properties.provider === "gemini_api_key" ? aiNode.properties.geminiApiKey : null,
-          gcpProjectId: aiNode.properties.provider === "vertex_ai" ? aiNode.properties.gcpProjectId : null,
-          gcpRegion: aiNode.properties.provider === "vertex_ai" ? aiNode.properties.gcpRegion : "us-central1",
-          gcpServiceAccount: aiNode.properties.provider === "vertex_ai" ? aiNode.properties.gcpServiceAccount : null,
-          messageText: userText,
-          history: updatedHistory.slice(1).map(m => ({ role: m.role, text: m.text })),
-          flowData: nodes
-        }
+        body: buildSimulatorRequest({ workspaceId, nodes, userText, messages: updatedMessages, simState }),
       });
 
       if (error) throw error;
 
-      if (data && data.reply) {
-        setSimMessages(prev => [...prev, { role: "model", text: data.reply }]);
-        
-        // Simulation of Human Handover node action
-        const handoverNode = nodes.find(isHandoverNode);
-        if (handoverNode?.enabled && userText.toLowerCase().includes("atendente")) {
-          setSimMessages(prev => [...prev, { 
-            role: "model", 
-            text: "🔀 [Simulação de Transbordo] Fluxo encaminhado para a fila de atendimento humano. Robô pausado." 
-          }]);
-        }
-      } else {
-        throw new Error("Resposta da IA vazia");
-      }
+      // U2/U4: o resultado (menu, handover que SUBSTITUI a resposta da IA, robô
+      // em silêncio) vem do server — nada de handover fabricado no navegador.
+      const { messages: replies, nextState } = applySimulationResponse(data, simState);
+      setSimMessages(prev => [...prev, ...replies]);
+      setSimState(nextState);
     } catch (err) {
       console.error(err);
       setSimMessages(prev => [
-        ...prev, 
-        { role: "model", text: `❌ Falha no fluxo: ${(err as Error).message || "Erro desconhecido. Verifique as credenciais."}` }
+        ...prev,
+        { role: "system", text: `❌ Falha no fluxo: ${(err as Error).message || "Erro desconhecido. Verifique as credenciais."}` }
       ]);
     } finally {
       setSimulating(false);
     }
+  };
+
+  // "Reiniciar simulação": limpa o chat E devolve o robô ao início do fluxo
+  // (zera o estado de ida e volta — espelha, no simulador, a devolução ao robô).
+  const handleResetSimulation = () => {
+    setSimMessages([{ role: "model", text: SIM_RESET_GREETING }]);
+    setSimState(INITIAL_SIM_STATE);
   };
 
   if (loading) {
@@ -1107,86 +1094,16 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
 
         </div>
 
-        {/* Right: Interactive Simulator Playground (4/12) */}
-        <div className="lg:col-span-4 h-full flex flex-col rounded-xl border border-border/40 bg-card shadow-md overflow-hidden min-h-[580px]">
-          
-          <div className="bg-gradient-to-r from-violet-950/30 to-indigo-950/30 px-4 py-3.5 border-b border-border/40 flex items-center justify-between shrink-0">
-            <div className="flex items-center gap-2">
-              <div className="h-2 w-2 rounded-full bg-violet-400 animate-pulse" />
-              <span className="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-1">
-                <Eye className="h-3.5 w-3.5" /> Simulador do Fluxo
-              </span>
-            </div>
-            
-            <Button 
-              type="button" 
-              variant="ghost" 
-              size="icon" 
-              onClick={() => setSimMessages([{ role: "model", text: "Simulador limpo! Digite algo para rodar o fluxo." }])}
-              className="h-7 w-7 text-muted-foreground hover:text-foreground rounded-lg"
-            >
-              <RefreshCw className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-
-          {/* Simulator Messages Screen */}
-          <div className="flex-1 p-4 space-y-4 overflow-y-auto bg-background/25 flex flex-col min-h-0">
-            {simMessages.map((msg, index) => (
-              <div 
-                key={index} 
-                className={`flex gap-2.5 max-w-[85%] ${msg.role === "user" ? "self-end flex-row-reverse" : "self-start flex-row"}`}
-              >
-                <div className={`h-7 w-7 rounded-lg flex items-center justify-center shrink-0 shadow-sm ${
-                  msg.role === "user" ? "bg-violet-600/20 text-violet-400" : "bg-card-elevated text-violet-500 border border-border/40"
-                }`}>
-                  {msg.role === "user" ? "U" : <Bot className="h-4 w-4" />}
-                </div>
-
-                <div className={`rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed ${
-                  msg.role === "user" 
-                    ? "bg-violet-600 text-white rounded-tr-none" 
-                    : "bg-card border border-border/40 text-foreground/90 rounded-tl-none"
-                }`}>
-                  <p className="whitespace-pre-line font-sans">{msg.text}</p>
-                </div>
-              </div>
-            ))}
-
-            {simulating && (
-              <div className="flex gap-2.5 max-w-[80%] self-start flex-row">
-                <div className="h-7 w-7 rounded-lg bg-card-elevated text-violet-500 border border-border/40 flex items-center justify-center shrink-0 animate-pulse">
-                  <Bot className="h-4 w-4" />
-                </div>
-                <div className="bg-card border border-border/40 rounded-2xl rounded-tl-none px-3.5 py-3 text-xs text-muted-foreground flex items-center gap-2">
-                  <Loader2 className="h-3 w-3 animate-spin text-violet-500" />
-                  <span>Processando fluxo de nós...</span>
-                </div>
-              </div>
-            )}
-            
-            <div ref={chatEndRef} />
-          </div>
-
-          {/* Simulator Input Bar */}
-          <form onSubmit={handleSimulateMessage} className="p-3 border-t border-border/40 bg-card-elevated/50 flex gap-2 shrink-0">
-            <Input
-              value={simInput}
-              onChange={(e) => setSimInput(e.target.value)}
-              placeholder="Envie uma mensagem de teste..."
-              disabled={simulating}
-              className="h-9 text-xs bg-background/40 border-border/60 focus:border-violet-500 focus:ring-violet-500"
-            />
-            <Button 
-              type="submit" 
-              disabled={!simInput.trim() || simulating} 
-              size="icon" 
-              className="h-9 w-9 shrink-0 bg-violet-600 hover:bg-violet-500 text-white shadow-sm"
-            >
-              <Send className="h-3.5 w-3.5" />
-            </Button>
-          </form>
-
-        </div>
+        {/* Right: Interactive Simulator Playground (4/12) — painel extraído (FlowSimulatorPanel); lógica em flowSimulatorModel.ts */}
+        <FlowSimulatorPanel
+          messages={simMessages}
+          simulating={simulating}
+          input={simInput}
+          onInputChange={setSimInput}
+          onSubmit={handleSimulateMessage}
+          onReset={handleResetSimulation}
+          stateSummary={describeSimState(simState, nodes)}
+        />
 
       </div>
     </div>

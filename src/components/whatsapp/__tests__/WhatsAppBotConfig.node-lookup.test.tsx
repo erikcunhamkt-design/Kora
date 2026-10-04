@@ -36,6 +36,7 @@ vi.mock("@/hooks/useWorkspaceRole", () => ({
 }));
 
 import { WhatsAppBotConfig } from "@/components/whatsapp/WhatsAppBotConfig";
+import { simulateFlowTurn } from "../../../../supabase/functions/_shared/botFlowSimulation";
 
 // jsdom não implementa scrollIntoView (usado no autoscroll do chat do
 // simulador) — mesmo polyfill de outras suítes desta sessão.
@@ -115,7 +116,17 @@ describe("WhatsAppBotConfig · R2 — Simular mensagem encontra ai/handover por 
     expect(body.body.systemInstruction).toBe("instrucao embaralhada");
   });
 
-  it("nós em ordem embaralhada, mensagem com 'atendente': simulação de transbordo dispara mesmo com handover fora da posição 3", async () => {
+  // DIVERGÊNCIA DELIBERADA (rodada "simulador, lado UI", U2): este teste afirmava o
+  // handover FABRICADO no navegador ("[Simulação de Transbordo]", montado por
+  // `includes("atendente")`) — removido. A propriedade que ele protegia (o handover é
+  // achado POR TIPO, não por posição) continua valendo, agora de ponta a ponta com o
+  // motor REAL do server: a UI manda os nós como estão (handover na posição 0) e o
+  // resultado do handover vem do server, substituindo a resposta da IA.
+  it("nós em ordem embaralhada, mensagem com 'atendente': o handover REAL (do server) é achado por tipo, mesmo fora da posição 3", async () => {
+    mocks.invoke.mockImplementationOnce(async (_name: string, { body }: { body: Record<string, unknown> }) => {
+      const turn = simulateFlowTurn(body.flowData as never, body.simState, String(body.messageText));
+      return { data: { ok: true, reply: turn.kind === "respond" ? turn.reply : "resposta simulada", simulation: turn.simulation }, error: null };
+    });
     mockScrambledLoad();
     render(<WhatsAppBotConfig workspaceId="ws-1" />);
 
@@ -125,13 +136,14 @@ describe("WhatsAppBotConfig · R2 — Simular mensagem encontra ai/handover por 
     fireEvent.change(simInput, { target: { value: "quero falar com atendente" } });
     fireEvent.submit(simInput.closest("form")!);
 
-    // Com nodes[3] (código antigo), nodes[3] seria "trigger" (não
-    // "handover") — .enabled existe em todo node (WorkflowNodeBase), então
-    // não quebraria, mas leria o campo do node ERRADO. Aqui o handover está
-    // na posição 0 e habilitado — a simulação de transbordo precisa disparar.
+    // O handover (posição 0, habilitado) foi achado por tipo: a cortesia SUBSTITUI a IA.
     await waitFor(() => expect(
-      screen.getByText(/Simulação de Transbordo/),
+      screen.getByText(/Encaminhando o seu contato para o atendimento humano/),
     ).toBeInTheDocument());
+    expect(screen.getByText("Entregue a atendimento humano · palavra-chave")).toBeInTheDocument();
+    expect(screen.queryByText("resposta simulada")).not.toBeInTheDocument();
+    // …e o texto fabricado no navegador NÃO existe mais.
+    expect(screen.queryByText(/Simulação de Transbordo/)).not.toBeInTheDocument();
   });
 });
 
