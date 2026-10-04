@@ -34,7 +34,7 @@ export function SupabaseQuotesViewerCard() {
   const handleCreateReceivableClick = (quote: Quote) => {
     const flagEnabled = getBooleanFlag("quotesSupabaseCreateReceivable");
     if (!flagEnabled) {
-      toast.info("Geração de recebível financeiro entra nesta etapa experimental. Ative em Configurações.");
+      toast.info("Gerar recebível está desligado. Ative “Orçamentos Supabase - Gerar Recebível” em Configurações → Sincronização Cloud.");
       return;
     }
     setReceivableQuote(quote);
@@ -47,7 +47,7 @@ export function SupabaseQuotesViewerCard() {
   const handleCreateProjectClick = (quote: Quote) => {
     const flagEnabled = getBooleanFlag("quotesSupabaseCreateProject");
     if (!flagEnabled) {
-      toast.info("Geração de projeto experimental entra nesta etapa experimental. Ative em Configurações.");
+      toast.info("Gerar projeto está desligado. Ative “Orçamentos Supabase - Gerar Projeto” em Configurações → Sincronização Cloud.");
       return;
     }
     setProjectQuote(quote);
@@ -81,7 +81,7 @@ export function SupabaseQuotesViewerCard() {
     // flag legada (quem já tinha quotesSupabaseApproval ligada não perde a
     // capacidade). As duas saem juntas só no pacote do flip.
     if (!isQuotesApprovalReachable()) {
-      toast.info("Aprovação de orçamentos Supabase entra nesta etapa experimental. Ative em Configurações.");
+      toast.info("A escrita de Orçamentos no Supabase está desligada nesta sessão (kora.quotes.supabaseWrite.enabled=false) — aprovar/recusar fica indisponível aqui.");
       return;
     }
     setSelectedQuoteId(quoteId);
@@ -149,7 +149,7 @@ export function SupabaseQuotesViewerCard() {
 
   return (
     <SettingsCard 
-      title="Orçamentos no Supabase (Experimental)" 
+      title="Orçamentos no Supabase" 
       headerActions={
         <Button 
           variant="outline" 
@@ -165,11 +165,11 @@ export function SupabaseQuotesViewerCard() {
     >
       <div className="space-y-4">
         <p className="text-xs text-muted-foreground">
-          Visualização passiva de somente leitura dos orçamentos salvos no Supabase.
+          Consulta dos orçamentos do workspace no Supabase, com atalhos de aprovar/recusar, gerar projeto e gerar recebível (os dois últimos dependem das chaves acima).
         </p>
 
         <div className="rounded-lg border border-primary/20 bg-primary/[0.02] p-3 text-xs text-muted-foreground/90">
-          Esta visualização confirma os orçamentos no Supabase para o workspace ativo. A tela principal de Vendas/Orçamentos ainda usa localStorage.
+          Esta lista confirma os orçamentos no Supabase para o workspace ativo. A tela principal de Vendas/Orçamentos já lê e grava no Supabase por padrão (o modo “Local” segue disponível no seletor da própria tela).
         </div>
 
         {loading ? (

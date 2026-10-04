@@ -110,7 +110,7 @@ describe("Configuracoes · incidente #4 (Fatia 10) — SupabaseQuotesViewerCard 
   it("aba Dados renderiza o card do viewer (título real), incondicionalmente com workspace", async () => {
     renderConfiguracoesOnDataTab();
 
-    expect(await screen.findByText("Orçamentos no Supabase (Experimental)")).toBeInTheDocument();
+    expect(await screen.findByText("Orçamentos no Supabase")).toBeInTheDocument();
   });
 
   it("regressão: sem a correção do incidente #4 o card nunca aparecia — aqui aparece, sem depender de nenhuma flag", async () => {

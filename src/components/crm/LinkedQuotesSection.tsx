@@ -38,7 +38,7 @@ export function LinkedQuotesSection({
   const handleCreateReceivableClick = (quote: Quote) => {
     const flagEnabled = getBooleanFlag("quotesSupabaseCreateReceivable");
     if (!flagEnabled) {
-      toast.info("Geração de recebível financeiro entra nesta etapa experimental. Ative em Configurações.");
+      toast.info("Gerar recebível está desligado. Ative “Orçamentos Supabase - Gerar Recebível” em Configurações → Sincronização Cloud.");
       return;
     }
     setReceivableQuote(quote);
@@ -51,7 +51,7 @@ export function LinkedQuotesSection({
   const handleCreateProjectClick = (quote: Quote) => {
     const flagEnabled = getBooleanFlag("quotesSupabaseCreateProject");
     if (!flagEnabled) {
-      toast.info("Geração de projeto experimental entra nesta etapa experimental. Ative em Configurações.");
+      toast.info("Gerar projeto está desligado. Ative “Orçamentos Supabase - Gerar Projeto” em Configurações → Sincronização Cloud.");
       return;
     }
     setProjectQuote(quote);
@@ -79,7 +79,7 @@ export function LinkedQuotesSection({
     // Etapa 5 · Fatia 10 (item 7, §8.1) — coexistência temporária: mesma regra
     // do item 6 (SupabaseQuotesViewerCard.tsx), master flag OU flag legada.
     if (!isQuotesApprovalReachable()) {
-      toast.info("Aprovação de orçamentos Supabase entra nesta etapa experimental. Ative em Configurações.");
+      toast.info("A escrita de Orçamentos no Supabase está desligada nesta sessão (kora.quotes.supabaseWrite.enabled=false) — aprovar/recusar fica indisponível aqui.");
       return;
     }
 

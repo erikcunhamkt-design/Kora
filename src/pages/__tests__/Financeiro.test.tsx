@@ -166,11 +166,11 @@ describe("Financeiro · modo Supabase (novo default, Pacote do Flip)", () => {
 });
 
 describe("Financeiro · seletor (getFinanceDataSource — default SUPABASE desde o Pacote do Flip)", () => {
-  it("default é supabase sem tocar em nada — seletor mostra Supabase experimental ativo", () => {
+  it("default é supabase sem tocar em nada — seletor mostra Supabase (nuvem) ativo", () => {
     expect(localStorage.getItem(FINANCE_DATA_SOURCE_KEY)).toBeNull();
     renderPage();
     expect(screen.getByText("Fonte do financeiro:")).toBeInTheDocument();
-    expect(screen.getByText("Supabase experimental").className).toMatch(/bg-primary/);
+    expect(screen.getByText("Supabase (nuvem)").className).toMatch(/bg-primary/);
   });
 
   it("trocar pra Local explícito grava a flag e persiste (override continua funcionando)", async () => {
@@ -180,9 +180,9 @@ describe("Financeiro · seletor (getFinanceDataSource — default SUPABASE desde
     await waitFor(() => expect(localStorage.getItem(FINANCE_DATA_SOURCE_KEY)).toBe("local"));
   });
 
-  it("trocar pra Supabase experimental grava a flag e persiste", async () => {
+  it("trocar pra Supabase (nuvem) grava a flag e persiste", async () => {
     renderPage();
-    fireEvent.click(screen.getByText("Supabase experimental"));
+    fireEvent.click(screen.getByText("Supabase (nuvem)"));
 
     await waitFor(() => expect(localStorage.getItem(FINANCE_DATA_SOURCE_KEY)).toBe("supabase"));
   });
@@ -196,12 +196,12 @@ describe("Financeiro · painel de leitura Supabase renderiza (item 3/4, novo def
     expect(await screen.findByText("Recebível Nuvem X")).toBeInTheDocument();
   });
 
-  it("lista real da nuvem aparece ao trocar pra Supabase experimental (explícito)", async () => {
+  it("lista real da nuvem aparece ao trocar pra Supabase (nuvem) (explícito)", async () => {
     localStorage.setItem(FINANCE_DATA_SOURCE_KEY, "local");
     vi.mocked(financeRepository.listTransactions).mockResolvedValue([makeRow()]);
     renderPage();
 
-    fireEvent.click(screen.getByText("Supabase experimental"));
+    fireEvent.click(screen.getByText("Supabase (nuvem)"));
 
     expect(await screen.findByText("Recebível Nuvem X")).toBeInTheDocument();
   });
@@ -217,7 +217,7 @@ describe("Financeiro · escrita bloqueada em modo Supabase (override explícito 
   async function switchToSupabase() {
     localStorage.setItem(FINANCE_SUPABASE_WRITE_FLAG_KEY, "false");
     renderPage();
-    fireEvent.click(screen.getByText("Supabase experimental"));
+    fireEvent.click(screen.getByText("Supabase (nuvem)"));
     await screen.findByText(/Transações operacionais \(Supabase\)/);
   }
 
@@ -226,7 +226,7 @@ describe("Financeiro · escrita bloqueada em modo Supabase (override explícito 
 
     fireEvent.click(screen.getByText("Venda rápida"));
 
-    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("Escrita em modo Supabase"));
+    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("escrita em nuvem do Financeiro está desligada"));
     expect(document.querySelector('[role="dialog"]')).not.toBeInTheDocument();
   });
 
@@ -235,7 +235,7 @@ describe("Financeiro · escrita bloqueada em modo Supabase (override explícito 
 
     fireEvent.click(screen.getByText("Lançar despesa"));
 
-    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("Escrita em modo Supabase"));
+    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("escrita em nuvem do Financeiro está desligada"));
     expect(document.querySelector('[role="dialog"]')).not.toBeInTheDocument();
   });
 
@@ -271,7 +271,7 @@ describe("Financeiro · escrita real com a flag ligada (Fase B, §2 do desenho)"
   async function switchToSupabaseWithWrite() {
     localStorage.setItem(FINANCE_SUPABASE_WRITE_FLAG_KEY, "true");
     renderPage();
-    fireEvent.click(screen.getByText("Supabase experimental"));
+    fireEvent.click(screen.getByText("Supabase (nuvem)"));
     await screen.findByText(/Transações operacionais \(Supabase\)/);
   }
 
@@ -393,7 +393,7 @@ describe("Financeiro · escrita real com a flag ligada (Fase B, §2 do desenho)"
     localStorage.setItem(FINANCE_SUPABASE_WRITE_FLAG_KEY, "false");
     vi.mocked(financeRepository.listTransactions).mockResolvedValue([makeRow()]);
     renderPage();
-    fireEvent.click(screen.getByText("Supabase experimental"));
+    fireEvent.click(screen.getByText("Supabase (nuvem)"));
 
     expect(await screen.findByText("Recebível Nuvem X")).toBeInTheDocument();
     expect(screen.queryByText("Ações")).not.toBeInTheDocument();

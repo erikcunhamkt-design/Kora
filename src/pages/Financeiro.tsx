@@ -205,7 +205,7 @@ const Financeiro = () => {
   const blockWrite = (): boolean => {
     if (dataSource !== "supabase") return false;
     if (writeEnabled) return false;
-    toast.error("Escrita em modo Supabase ainda não existe pra Financeiro — volte para \"Local\" para lançar/editar, ou ative a escrita experimental.");
+    toast.error("A escrita em nuvem do Financeiro está desligada nesta sessão (kora.finance.supabaseWrite.enabled=false) — volte para \"Local\" para lançar/editar, ou religue a escrita.");
     return true;
   };
 
@@ -303,7 +303,7 @@ const Financeiro = () => {
                 : "border-border text-foreground hover:bg-muted/40"
             }`}
           >
-            Supabase experimental
+            Supabase (nuvem)
           </button>
         </div>
       </div>
@@ -313,7 +313,7 @@ const Financeiro = () => {
           <Cloud className="h-4 w-4 shrink-0 mt-0.5 text-primary" />
           <div className="flex-1">
             <span className="font-semibold block">
-              Transações operacionais (Supabase) — {writeEnabled ? "escrita experimental" : "modo leitura"}
+              Transações operacionais (Supabase) — {writeEnabled ? "escrita ativa" : "modo leitura"}
             </span>
             <span className="text-muted-foreground">
               {writeEnabled
@@ -325,7 +325,7 @@ const Financeiro = () => {
                 // fornecedor, conta-caixa e observações continuam fora
                 // (mesmo gap sem coluna do Caso 5/G41).
                 ? "A lista abaixo já vem da nuvem e aceita criar/editar/marcar pago/excluir. Recorrência, fornecedor e observações ainda não têm coluna na nuvem — leia o aviso ao usá-los; edição cobre só os campos com coluna real."
-                : "A lista abaixo já vem da nuvem. Escrita (criar, editar, marcar como pago, excluir) ainda não existe nesse modo — as abas locais continuam funcionando normalmente, intocadas, pra você lançar e editar enquanto isso."}
+                : "A lista abaixo já vem da nuvem. A escrita em nuvem (criar, editar, marcar como pago, excluir) está desligada nesta sessão — as abas locais continuam funcionando normalmente, intocadas, pra você lançar e editar."}
             </span>
           </div>
         </div>

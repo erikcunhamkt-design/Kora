@@ -514,7 +514,9 @@ export default function ClientTechnicalSheetPage() {
         </div>
         <p className="text-xs text-muted-foreground max-w-3xl">
           Centralize a inteligência da marca: branding, persona, conteúdo, acessos e materiais.
-          Tudo é salvo automaticamente neste dispositivo. Upload de arquivos, cofre de senhas e
+          {activeDataSource === "supabase"
+            ? (writeThrough ? "As edições são gravadas direto no Supabase." : 'As edições ficam na tela até você clicar em "Salvar no Supabase".')
+            : "Tudo é salvo automaticamente neste dispositivo."}{" "}Upload de arquivos, cofre de senhas e
           integrações com Drive/Figma/Canva chegam em etapas futuras.
         </p>
 
@@ -621,7 +623,9 @@ export default function ClientTechnicalSheetPage() {
           </div>
           
           <p className="text-xs text-muted-foreground mb-4">
-            {isExperimentalEnabled 
+            {activeDataSource === "supabase"
+              ? "Esta página está editando a versão Supabase; o painel abaixo mostra a cópia salva na nuvem (somente leitura)."
+              : isExperimentalEnabled 
               ? "A edição principal desta página ainda usa dados locais. A versão Supabase é somente leitura nesta etapa."
               : "A Ficha Técnica está sendo mantida localmente neste navegador. Para habilitar o modo experimental de visualização e salvamento no Supabase, ative a opção correspondente na página de Configurações."}
           </p>
@@ -781,7 +785,9 @@ export default function ClientTechnicalSheetPage() {
             <div className="mt-4 pt-4 border-t border-border/40 flex flex-col gap-2">
               <div className="flex items-center justify-between gap-4 flex-wrap">
                 <p className="text-[11px] text-muted-foreground max-w-md">
-                  A edição principal desta página ainda usa dados locais. O Supabase recebe apenas uma cópia manual ou serve para restaurar backups nesta etapa.
+                  {activeDataSource === "supabase"
+                    ? "A edição principal desta página está na versão Supabase (fonte ativa)."
+                    : "A edição principal desta página ainda usa dados locais. O Supabase recebe apenas uma cópia manual ou serve para restaurar backups nesta etapa."}
                 </p>
 
                 <div className="flex items-center gap-2 flex-wrap">
@@ -834,7 +840,7 @@ export default function ClientTechnicalSheetPage() {
                           <AlertDialogHeader>
                             <AlertDialogTitle>Salvar cópia no Supabase?</AlertDialogTitle>
                             <AlertDialogDescription>
-                              Esta ação enviará a versão local atual da Ficha Técnica para o Supabase. A edição principal continuará local nesta etapa.
+                              Esta ação enviará a versão local atual da Ficha Técnica para o Supabase.{activeDataSource === "local" ? " A edição principal continuará local nesta etapa." : ""}
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>

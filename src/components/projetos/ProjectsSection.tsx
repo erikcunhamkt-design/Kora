@@ -71,7 +71,7 @@ export function ProjectsSection() {
   const handleSourceChange = (next: DataSource) => {
     setProjectsDataSource(next);
     setDataSourceState(next);
-    toast({ title: `Fonte dos projetos alterada para ${next === "supabase" ? "Supabase (leitura)" : "Local"}.` });
+    toast({ title: `Fonte dos projetos alterada para ${next === "supabase" ? "Supabase (nuvem)" : "Local"}.` });
   };
 
   const navigate = useNavigate();
@@ -354,7 +354,7 @@ export function ProjectsSection() {
                 : "border-border text-foreground hover:bg-muted/40"
             }`}
           >
-            Supabase experimental
+            Supabase (nuvem)
           </button>
         </div>
       </div>

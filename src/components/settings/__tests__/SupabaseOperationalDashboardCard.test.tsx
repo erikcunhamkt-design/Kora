@@ -58,7 +58,7 @@ describe("SupabaseOperationalDashboardCard — gate pela flag supabaseOperationa
   it("flag desligada (default): mostra o placeholder, nunca o painel de dados", () => {
     render(<SupabaseOperationalDashboardCard />);
 
-    expect(screen.getByText(/Painel desativado experimentalmente/)).toBeInTheDocument();
+    expect(screen.getByText(/Painel desligado/)).toBeInTheDocument();
     expect(screen.queryByText("Relações do Fluxo Comercial")).not.toBeInTheDocument();
   });
 
@@ -68,7 +68,7 @@ describe("SupabaseOperationalDashboardCard — gate pela flag supabaseOperationa
     render(<SupabaseOperationalDashboardCard />);
 
     expect(screen.getByText("Relações do Fluxo Comercial")).toBeInTheDocument();
-    expect(screen.queryByText(/Painel desativado experimentalmente/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Painel desligado/)).not.toBeInTheDocument();
   });
 
   it("flag ligada: reconciliação conta oportunidade com orçamento vinculado", () => {

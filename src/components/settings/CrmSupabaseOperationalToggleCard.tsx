@@ -18,7 +18,7 @@ export function CrmSupabaseOperationalToggleCard() {
     toast.success(
       next
         ? "CRM Supabase Operacional ativado. Edição liberada no modo Supabase."
-        : "CRM Supabase Operacional desativado. Modo Supabase volta a ser somente leitura.",
+        : "CRM Supabase Operacional desativado. O CRM em modo Supabase fica somente para consulta.",
     );
   };
 
@@ -41,8 +41,8 @@ export function CrmSupabaseOperationalToggleCard() {
       <div className="space-y-4">
         <p className="text-xs text-muted-foreground leading-normal">
           Permite criar, editar e mover oportunidades diretamente no Supabase.
-          O modo local permanece intacto. Quando desligado, o CRM Supabase
-          funciona apenas para consulta.
+          Ligado por padrão; ao desligar, o CRM em modo Supabase fica somente
+          para consulta (o modo local segue intacto e editável).
         </p>
         <div className="flex items-center justify-between gap-4 py-2 px-3 border border-border/60 bg-muted/10 rounded-lg">
           <div className="flex items-center gap-2">

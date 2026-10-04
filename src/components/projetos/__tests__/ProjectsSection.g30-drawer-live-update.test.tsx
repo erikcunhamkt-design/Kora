@@ -101,7 +101,7 @@ describe("ProjectsSection + ProjectDetailDrawer · G30 — drawer aberto reflete
     vi.mocked(projectsRepository.updateProject).mockResolvedValue({ ...baseRow(), status: "in_progress" } as never);
 
     renderSection();
-    fireEvent.click(screen.getByText("Supabase experimental"));
+    fireEvent.click(screen.getByText("Supabase (nuvem)"));
 
     const title = await screen.findByText("Projeto Nuvem");
     fireEvent.click(title.closest('[role="button"]') as HTMLElement);

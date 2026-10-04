@@ -259,7 +259,7 @@ describe("QuotesSection · modo Supabase (leitura)", () => {
     } as never);
 
     renderSection();
-    fireEvent.click(screen.getByText("Supabase experimental"));
+    fireEvent.click(screen.getByText("Supabase (nuvem)"));
 
     const titleEl = await screen.findByText("Orçamento Nuvem");
     expect(screen.queryByText("Orçamento Local")).not.toBeInTheDocument();
@@ -285,7 +285,7 @@ describe("QuotesSection · modo Supabase (leitura)", () => {
     } as never);
 
     renderSection();
-    fireEvent.click(screen.getByText("Supabase experimental"));
+    fireEvent.click(screen.getByText("Supabase (nuvem)"));
 
     await waitFor(() => expect(localStorage.getItem(QUOTES_DATA_SOURCE_KEY)).toBe("supabase"));
     expect(await screen.findByText("Orçamentos em modo leitura (Supabase)")).toBeInTheDocument();
@@ -310,7 +310,7 @@ describe("QuotesSection · modo Supabase (leitura)", () => {
     } as never);
 
     renderSection();
-    fireEvent.click(screen.getByText("Supabase experimental"));
+    fireEvent.click(screen.getByText("Supabase (nuvem)"));
 
     expect(await screen.findByText("Orçamentos operacionais (Supabase)")).toBeInTheDocument();
     expect(screen.getByText("Modo operacional")).toBeInTheDocument();
@@ -342,7 +342,7 @@ describe("QuotesSection · G33/G55 — nem 'Gerar projeto' nem 'Gerar conta a re
       quotes: [makeSupabaseMappedQuote({ status: "aprovado" })], loading: false, error: null,
     } as never);
     renderSection();
-    fireEvent.click(screen.getByText("Supabase experimental"));
+    fireEvent.click(screen.getByText("Supabase (nuvem)"));
     await screen.findByText("Orçamento Nuvem");
     vi.mocked(toast.error).mockClear();
   }
@@ -440,7 +440,7 @@ describe("QuotesSection · G69 — recebível detectado pela fonte de verdade (u
       quotes: [makeSupabaseMappedQuote({ status: "aprovado" })], loading: false, error: null,
     } as never);
     renderSection();
-    fireEvent.click(screen.getByText("Supabase experimental"));
+    fireEvent.click(screen.getByText("Supabase (nuvem)"));
     await screen.findByText("Orçamento Nuvem");
   }
 
@@ -479,7 +479,7 @@ describe("QuotesSection · 3º caso (§9a) — status desconhecido nunca mascara
     } as never);
 
     renderSection();
-    fireEvent.click(screen.getByText("Supabase experimental"));
+    fireEvent.click(screen.getByText("Supabase (nuvem)"));
 
     const titleEl = await screen.findByText("Orçamento Nuvem");
     const row = titleEl.closest("tr") as HTMLElement;
@@ -504,7 +504,7 @@ describe("QuotesSection · 3º caso (§9a) — status desconhecido nunca mascara
     } as never);
 
     renderSection();
-    fireEvent.click(screen.getByText("Supabase experimental"));
+    fireEvent.click(screen.getByText("Supabase (nuvem)"));
 
     await screen.findByText("Orçamento Nuvem");
     expect(screen.queryByText(/status bruto/)).not.toBeInTheDocument();
@@ -534,7 +534,7 @@ describe("QuotesSection · escrita bloqueada em modo Supabase (lição O2/O3/O4)
       quotes: [makeSupabaseMappedQuote()], loading: false, error: null,
     } as never);
     renderSection();
-    fireEvent.click(screen.getByText("Supabase experimental"));
+    fireEvent.click(screen.getByText("Supabase (nuvem)"));
     await screen.findByText("Orçamento Nuvem");
     // Limpa o histórico do toast informativo do próprio flip de fonte, pra
     // não contaminar as asserções de "nunca mostra toast de sucesso" abaixo.
@@ -612,7 +612,7 @@ describe("QuotesSection · item 3 (Fatia 10) — exclusão real quando o master 
     } as never);
 
     renderSection();
-    fireEvent.click(screen.getByText("Supabase experimental"));
+    fireEvent.click(screen.getByText("Supabase (nuvem)"));
     await screen.findByText("Orçamento Nuvem");
     vi.mocked(toast.success).mockClear();
     vi.mocked(toast.error).mockClear();
@@ -642,7 +642,7 @@ describe("QuotesSection · item 3 (Fatia 10) — exclusão real quando o master 
     } as never);
 
     renderSection();
-    fireEvent.click(screen.getByText("Supabase experimental"));
+    fireEvent.click(screen.getByText("Supabase (nuvem)"));
     await screen.findByText("Orçamento Nuvem");
     vi.mocked(toast.success).mockClear();
     vi.mocked(toast.error).mockClear();
@@ -674,7 +674,7 @@ describe("QuotesSection · item 4 (Fatia 10) — duplicar via RPC compartilhada 
     } as never);
 
     renderSection();
-    fireEvent.click(screen.getByText("Supabase experimental"));
+    fireEvent.click(screen.getByText("Supabase (nuvem)"));
     await screen.findByText("Orçamento Nuvem");
     vi.mocked(toast.success).mockClear();
     vi.mocked(toast.error).mockClear();
@@ -705,7 +705,7 @@ describe("QuotesSection · item 4 (Fatia 10) — duplicar via RPC compartilhada 
     } as never);
 
     renderSection();
-    fireEvent.click(screen.getByText("Supabase experimental"));
+    fireEvent.click(screen.getByText("Supabase (nuvem)"));
     await screen.findByText("Orçamento Nuvem");
     vi.mocked(toast.success).mockClear();
     vi.mocked(toast.error).mockClear();
@@ -735,7 +735,7 @@ describe("QuotesSection · item 8 (Fatia 10) — status/criação sob o master f
     } as never);
 
     renderSection();
-    fireEvent.click(screen.getByText("Supabase experimental"));
+    fireEvent.click(screen.getByText("Supabase (nuvem)"));
     await screen.findByText("Orçamento Nuvem");
     vi.mocked(toast.success).mockClear();
     vi.mocked(toast.error).mockClear();
@@ -763,7 +763,7 @@ describe("QuotesSection · item 8 (Fatia 10) — status/criação sob o master f
     } as never);
 
     renderSection();
-    fireEvent.click(screen.getByText("Supabase experimental"));
+    fireEvent.click(screen.getByText("Supabase (nuvem)"));
     await screen.findByText("Orçamento Nuvem");
     vi.mocked(toast.success).mockClear();
     vi.mocked(toast.error).mockClear();
@@ -791,7 +791,7 @@ describe("QuotesSection · item 8 (Fatia 10) — status/criação sob o master f
     } as never);
 
     renderSection();
-    fireEvent.click(screen.getByText("Supabase experimental"));
+    fireEvent.click(screen.getByText("Supabase (nuvem)"));
     await screen.findByText("Orçamento Nuvem");
     vi.mocked(toast.success).mockClear();
     vi.mocked(toast.error).mockClear();
@@ -819,7 +819,7 @@ describe("QuotesSection · item 8 (Fatia 10) — status/criação sob o master f
     } as never);
 
     renderSection();
-    fireEvent.click(screen.getByText("Supabase experimental"));
+    fireEvent.click(screen.getByText("Supabase (nuvem)"));
     vi.mocked(toast.success).mockClear();
     vi.mocked(toast.error).mockClear();
 

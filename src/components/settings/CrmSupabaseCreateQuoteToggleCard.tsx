@@ -18,7 +18,7 @@ export function CrmSupabaseCreateQuoteToggleCard() {
     <SettingsCard title="CRM Supabase - Criar Orçamento Experimental">
       <div className="space-y-4">
         <p className="text-xs text-muted-foreground leading-normal">
-          Permite criar um orçamento no Supabase a partir de uma oportunidade do CRM. A tela principal de Vendas/Orçamentos continua usando dados locais.
+          Libera o botão de criar orçamento a partir de uma oportunidade do CRM em modo Supabase, gravando o orçamento direto na nuvem. A tela Vendas/Orçamentos já lê e grava no Supabase por padrão. Desligado por padrão.
         </p>
         <div className="flex items-center justify-between gap-4 py-2 px-3 border border-border/60 bg-muted/10 rounded-lg">
           <div className="flex items-center gap-2">

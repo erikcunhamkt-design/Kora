@@ -20,7 +20,7 @@ export function SupabaseOperationalDashboardToggleCard() {
     <SettingsCard title="Visão Operacional Supabase (Experimental)">
       <div className="space-y-4">
         <p className="text-xs text-muted-foreground leading-normal">
-          Acompanhe dados experimentais já persistidos no Supabase. Esta visualização é somente leitura e não substitui os módulos locais.
+          Painel de acompanhamento dos projetos e tarefas do workspace no Supabase. Por padrão é só consulta; as ações do painel (gerar tarefas base, transição de status) só aparecem com as chaves próprias ligadas. As telas principais (Orçamentos, CRM, Projetos, Tarefas, Financeiro) já usam o Supabase por padrão, sem esta chave.
         </p>
         <div className="flex items-center justify-between gap-4 py-2 px-3 border border-border/60 bg-muted/10 rounded-lg">
           <div className="flex items-center gap-2">

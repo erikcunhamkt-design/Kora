@@ -199,7 +199,7 @@ export function CreateCrmSupabaseQuoteDialog({
         <DialogHeader>
           <DialogTitle className="text-foreground">Criar orçamento a partir da oportunidade</DialogTitle>
           <DialogDescription>
-            Preencha os dados do orçamento experimental no Supabase. Os itens serão associados a esta oportunidade.
+            Preencha os dados do orçamento no Supabase. Os itens serão associados a esta oportunidade.
           </DialogDescription>
         </DialogHeader>
 

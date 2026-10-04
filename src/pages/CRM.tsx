@@ -197,7 +197,7 @@ const CRM = () => {
     if (!isExperimentalEnabled) return;
     setCrmDataSource(newSource);
     setDataSource(newSource);
-    toast.success(`Fonte do CRM alterada para ${newSource === "supabase" ? "Supabase experimental" : "Local"}.`);
+    toast.success(`Fonte do CRM alterada para ${newSource === "supabase" ? "Supabase (nuvem)" : "Local"}.`);
   };
 
   const blockWriteAction = (isMovingStage = false, isBasicEdit = false) => {
@@ -258,7 +258,7 @@ const CRM = () => {
   const handleArchiveClick = (leadId: number) => {
     if (activeDataSource === "supabase") {
       if (!isArchiveEnabled) {
-        toast.error("Arquivamento no CRM Supabase entra nesta etapa experimental. Ative em Configurações.");
+        toast.error("Arquivamento no CRM Supabase está desligado (CRM Supabase Operacional desativado). Reative em Configurações → Sincronização Cloud.");
         return;
       }
       setArchiveTargetLeadId(leadId);
@@ -273,7 +273,7 @@ const CRM = () => {
   const handleDeleteClick = (leadId: number) => {
     if (activeDataSource === "supabase") {
       if (!isSoftDeleteEnabled) {
-        toast.error("Exclusão experimental no CRM Supabase está desativada. Ative a flag nas Configurações.");
+        toast.error("Exclusão no CRM Supabase está desligada (CRM Supabase Operacional desativado). Reative em Configurações → Sincronização Cloud.");
         return;
       }
       setSoftDeleteTargetLeadId(leadId);
@@ -291,7 +291,7 @@ const CRM = () => {
   const handleUnarchiveClick = (leadId: number) => {
     if (activeDataSource === "supabase") {
       if (!isRestoreArchiveEnabled) {
-        toast.error("Restauração no CRM Supabase está bloqueada nesta etapa experimental.");
+        toast.error("Restauração no CRM Supabase está desligada (CRM Supabase Operacional desativado). Reative em Configurações → Sincronização Cloud.");
         return;
       }
       // Fatia 8 (O3, correção): chamava archiveLead() local (no-op para um lead de
@@ -484,7 +484,7 @@ const CRM = () => {
   const handleNewLead = () => {
     if (activeDataSource === "supabase") {
       if (!isCreateOpportunityEnabled) {
-        toast.error("Criação no CRM Supabase entra nesta etapa experimental. Ative em Configurações.");
+        toast.error("Criação no CRM Supabase está desligada (CRM Supabase Operacional desativado). Reative em Configurações → Sincronização Cloud.");
         return;
       }
     }
@@ -807,7 +807,7 @@ const CRM = () => {
               onClick={() => handleSourceChange("supabase")}
               title={!workspace ? "Selecione um workspace ativo nas Configurações para usar o Supabase" : undefined}
             >
-              Supabase experimental
+              Supabase (nuvem)
             </Button>
           </div>
         </div>
@@ -1344,7 +1344,7 @@ const CRM = () => {
           if (activeDataSource === "supabase") {
             const createQuoteFlag = getBooleanFlag("crmSupabaseCreateQuote");
             if (!createQuoteFlag) {
-              toast.info("Criação de orçamento no CRM Supabase entra nesta etapa experimental. Ative em Configurações.");
+              toast.info("Criar orçamento a partir do CRM Supabase está desligado. Ative “CRM Supabase - Criar Orçamento” em Configurações → Sincronização Cloud.");
               return;
             }
             if (selectedLead) {
@@ -2102,7 +2102,7 @@ const LeadDetailSheet = ({
           // os atalhos rápidos abaixo (Avançar/Ganho/Perdido) é que não têm
           // implementação própria pra modo Supabase, não a ação em si.
           <div className="mb-4 p-2 rounded-md bg-amber-500/10 border border-amber-500/25 text-amber-500 text-[11px]">
-            ⚠️ Modo Supabase experimental. Os atalhos rápidos de estágio (Avançar/Ganho/Perdido) não aparecem aqui — arraste o card no quadro para mudar de estágio. {isBasicEditEnabled ? "Edição de campos cadastrais liberada." : "Modo somente leitura. Volte para Local para editar."}
+            ⚠️ Modo Supabase. Os atalhos rápidos de estágio (Avançar/Ganho/Perdido) não aparecem aqui — arraste o card no quadro para mudar de estágio. {isBasicEditEnabled ? "Edição de campos cadastrais liberada." : "Modo somente leitura. Volte para Local para editar."}
           </div>
         )}
 

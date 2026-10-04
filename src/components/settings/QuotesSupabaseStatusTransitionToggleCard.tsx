@@ -20,7 +20,7 @@ export function QuotesSupabaseStatusTransitionToggleCard() {
     <SettingsCard title="Tarefas Supabase - Transição de Status Experimental">
       <div className="space-y-4">
         <p className="text-xs text-muted-foreground leading-normal">
-          Permite alterar o status de tarefas no Supabase. Edição avançada, calendário, automações e tarefas locais continuam bloqueados.
+          Libera a transição de status de tarefas dentro do painel Visão Operacional (Configurações). Desligado por padrão — a tela Tarefas já altera o status direto no Supabase por padrão (escrita de Tarefas ligada por padrão), sem depender desta chave.
         </p>
         <div className="flex items-center justify-between gap-4 py-2 px-3 border border-border/60 bg-muted/10 rounded-lg">
           <div className="flex items-center gap-2">

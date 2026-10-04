@@ -77,7 +77,7 @@ export function CreateProjectFromQuoteDialog({
     if (open) {
       setTitle(`Projeto - ${quoteTitle}`);
       setBudget(quoteTotal);
-      setDescription(`Projeto gerado a partir do orçamento experimental aprovado: ${quoteTitle}.`);
+      setDescription(`Projeto gerado a partir do orçamento aprovado: ${quoteTitle}.`);
       
       const todayStr = new Date().toISOString().slice(0, 10);
       setStartDate(todayStr);

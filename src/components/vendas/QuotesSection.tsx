@@ -134,7 +134,7 @@ export function QuotesSection() {
   const handleSourceChange = (next: "local" | "supabase") => {
     setQuotesDataSource(next);
     setDataSourceState(next);
-    toast.success(`Fonte dos orçamentos alterada para ${next === "supabase" ? "Supabase (leitura)" : "Local"}.`);
+    toast.success(`Fonte dos orçamentos alterada para ${next === "supabase" ? "Supabase (nuvem)" : "Local"}.`);
   };
 
   // Etapa 5 · Fatia 10 (item 8) — o ciclo de vida da PRÓPRIA quote (criar,
@@ -418,7 +418,7 @@ export function QuotesSection() {
                 : "border-border text-foreground hover:bg-muted/40"
             }`}
           >
-            Supabase experimental
+            Supabase (nuvem)
           </button>
         </div>
       </div>
@@ -431,8 +431,8 @@ export function QuotesSection() {
               <>
                 <span className="font-semibold block">Orçamentos operacionais (Supabase)</span>
                 <span className="text-muted-foreground">
-                  Criar, mudar status, duplicar e excluir já gravam na nuvem. Gerar projeto (G33)
-                  e gerar conta a receber (G55) a partir de um orçamento aprovado também já
+                  Criar, mudar status, duplicar e excluir já gravam na nuvem. Gerar projeto
+                  e gerar conta a receber a partir de um orçamento aprovado também já
                   funcionam, independente do modo desta tela.
                 </span>
               </>

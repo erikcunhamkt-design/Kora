@@ -154,7 +154,7 @@ describe("ProjectsSection · modo Supabase (leitura, novo default)", () => {
     mockSupabaseProjects({ projects: [makeSupabaseProjectRaw()] });
 
     renderSection();
-    fireEvent.click(screen.getByText("Supabase experimental"));
+    fireEvent.click(screen.getByText("Supabase (nuvem)"));
 
     const titleEl = await screen.findByText("Projeto Nuvem");
     const card = titleEl.closest('[role="button"]') as HTMLElement;
@@ -170,7 +170,7 @@ describe("ProjectsSection · modo Supabase (leitura, novo default)", () => {
     vi.mocked(useProjects).mockReturnValue({ projects: [], addProject: vi.fn() } as never);
 
     renderSection();
-    fireEvent.click(screen.getByText("Supabase experimental"));
+    fireEvent.click(screen.getByText("Supabase (nuvem)"));
 
     await waitFor(() => expect(localStorage.getItem(PROJECTS_DATA_SOURCE_KEY)).toBe("supabase"));
   });
@@ -195,7 +195,7 @@ describe("ProjectsSection · G29 — banner/badge refletem a escrita real em mod
     mockSupabaseProjects({ projects: [] });
 
     renderSection();
-    fireEvent.click(screen.getByText("Supabase experimental"));
+    fireEvent.click(screen.getByText("Supabase (nuvem)"));
 
     await screen.findByText("Modo operacional");
     await screen.findByText("Projetos operacionais (Supabase)");
@@ -210,7 +210,7 @@ describe("ProjectsSection · G29 — banner/badge refletem a escrita real em mod
     mockSupabaseProjects({ createProject });
 
     renderSection();
-    fireEvent.click(screen.getByText("Supabase experimental"));
+    fireEvent.click(screen.getByText("Supabase (nuvem)"));
     await screen.findByText("Projetos operacionais (Supabase)");
 
     fireEvent.click(screen.getByText("Novo projeto"));
@@ -231,7 +231,7 @@ describe("ProjectsSection · CRUD real em modo Supabase (Pacote do Flip, Fase B)
     mockSupabaseProjects({ createProject });
 
     renderSection();
-    fireEvent.click(screen.getByText("Supabase experimental"));
+    fireEvent.click(screen.getByText("Supabase (nuvem)"));
     await screen.findByText("Projetos operacionais (Supabase)");
 
     fireEvent.click(screen.getByText("Novo projeto"));
@@ -250,7 +250,7 @@ describe("ProjectsSection · CRUD real em modo Supabase (Pacote do Flip, Fase B)
     mockSupabaseProjects({ createProject });
 
     renderSection();
-    fireEvent.click(screen.getByText("Supabase experimental"));
+    fireEvent.click(screen.getByText("Supabase (nuvem)"));
     await screen.findByText("Projetos operacionais (Supabase)");
 
     fireEvent.click(screen.getByText("Novo projeto"));
@@ -407,7 +407,7 @@ describe("ProjectsSection · G79 — Select de cliente real preenche clientId", 
     mockSupabaseProjects({ createProject });
 
     renderSection();
-    fireEvent.click(screen.getByText("Supabase experimental"));
+    fireEvent.click(screen.getByText("Supabase (nuvem)"));
     await screen.findByText("Projetos operacionais (Supabase)");
 
     fireEvent.click(screen.getByText("Novo projeto"));
@@ -445,7 +445,7 @@ describe("ProjectsSection · G79 — Select de cliente real preenche clientId", 
     mockSupabaseProjects({ createProject });
 
     renderSection();
-    fireEvent.click(screen.getByText("Supabase experimental"));
+    fireEvent.click(screen.getByText("Supabase (nuvem)"));
     await screen.findByText("Projetos operacionais (Supabase)");
 
     fireEvent.click(screen.getByText("Novo projeto"));

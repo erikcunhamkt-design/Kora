@@ -20,7 +20,7 @@ export function QuotesSupabaseReceivableToggleCard() {
     <SettingsCard title="Orçamentos Supabase - Gerar Recebível Experimental">
       <div className="space-y-4">
         <p className="text-xs text-muted-foreground leading-normal">
-          Permite criar um lançamento financeiro a receber a partir de um orçamento aprovado no Supabase. Pagamentos, Pix, Asaas e financeiro local continuam bloqueados.
+          Libera o botão “Gerar recebível” nos orçamentos aprovados do CRM e desta tela de Configurações, criando uma conta a receber no Financeiro. Pagamentos, Pix e Asaas não fazem parte deste botão. Desligado por padrão — a tela Vendas/Orçamentos gera conta a receber independente desta chave.
         </p>
         <div className="flex items-center justify-between gap-4 py-2 px-3 border border-border/60 bg-muted/10 rounded-lg">
           <div className="flex items-center gap-2">

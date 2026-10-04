@@ -359,11 +359,11 @@ export function SupabaseOperationalDashboardCard() {
       <SettingsCard title="Visão Operacional Supabase">
         <div className="space-y-4">
           <p className="text-xs text-muted-foreground leading-normal">
-            Acompanhe dados experimentais já persistidos no Supabase. Esta visualização é somente leitura e não substitui os módulos locais.
+            Painel de acompanhamento dos projetos e tarefas do workspace no Supabase. Por padrão é só consulta; as ações do painel (gerar tarefas base, transição de status) só aparecem com as chaves próprias ligadas. As telas principais (Orçamentos, CRM, Projetos, Tarefas, Financeiro) já usam o Supabase por padrão, sem esta chave.
           </p>
           <div className="py-8 border border-dashed border-border/60 rounded-lg text-center text-xs text-muted-foreground flex flex-col items-center gap-2">
             <Activity className="h-8 w-8 text-muted-foreground/40" />
-            <span>Painel desativado experimentalmente. Habilite nas configurações acima.</span>
+            <span>Painel desligado (opt-in). Habilite “Visão Operacional Supabase” nas configurações acima.</span>
           </div>
         </div>
       </SettingsCard>
@@ -381,7 +381,7 @@ export function SupabaseOperationalDashboardCard() {
             Experimental
           </Badge>
           <Badge variant="outline" className="text-[9px] uppercase tracking-wide text-muted-foreground border-border bg-muted/20">
-            Somente Leitura
+            Consulta
           </Badge>
           <Button 
             variant="outline" 
@@ -398,7 +398,7 @@ export function SupabaseOperationalDashboardCard() {
     >
       <div className="space-y-6">
         <p className="text-xs text-muted-foreground leading-normal">
-          Acompanhe dados experimentais já persistidos no Supabase. Esta visualização é somente leitura e não substitui os módulos locais.
+          Painel de acompanhamento dos projetos e tarefas do workspace no Supabase. Por padrão é só consulta; as ações do painel (gerar tarefas base, transição de status) só aparecem com as chaves próprias ligadas. As telas principais (Orçamentos, CRM, Projetos, Tarefas, Financeiro) já usam o Supabase por padrão, sem esta chave.
         </p>
 
         {loading ? (

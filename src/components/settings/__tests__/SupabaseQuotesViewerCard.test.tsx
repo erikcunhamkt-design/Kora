@@ -283,3 +283,27 @@ describe("SupabaseQuotesViewerCard · G19 — data de validade lia campo inexist
     expect(screen.queryByText(/Validade:/)).not.toBeInTheDocument();
   });
 });
+// Varredura G29-classe (textos falsos pós-flips): o card dizia "A tela
+// principal de Vendas/Orçamentos ainda usa localStorage" — falso desde o flip
+// de quotes (default "supabase"). Provado pela inversão: o texto novo afirma a
+// fonte real, o antigo não existe mais.
+describe("SupabaseQuotesViewerCard · G29 — copy reflete o estado real pós-flip de quotes", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.clearAllMocks();
+    vi.mocked(useCurrentWorkspace).mockReturnValue({
+      workspace: mockWorkspace, membership: null, loading: false, error: null,
+    });
+    vi.mocked(useSupabaseQuotes).mockReturnValue({
+      quotes: [], loading: false, error: null, refresh: vi.fn(),
+    } as never);
+  });
+
+  it("não afirma mais que a tela de Vendas usa localStorage; diz que já lê e grava no Supabase por padrão", () => {
+    render(<SupabaseQuotesViewerCard />);
+
+    expect(screen.queryByText(/ainda usa localStorage/)).not.toBeInTheDocument();
+    expect(screen.getByText(/já lê e grava no Supabase por padrão/)).toBeInTheDocument();
+    expect(screen.queryByText(/somente leitura dos orçamentos/)).not.toBeInTheDocument();
+  });
+});

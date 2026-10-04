@@ -20,7 +20,7 @@ export function QuotesSupabaseBaseTasksToggleCard() {
     <SettingsCard title="Projetos Supabase - Gerar Tarefas Base Experimental">
       <div className="space-y-4">
         <p className="text-xs text-muted-foreground leading-normal">
-          Permite criar um checklist inicial de tarefas no Supabase a partir de um projeto. Cronogramas, automações e tarefas locais continuam bloqueados.
+          Libera o botão “Gerar tarefas base” no painel Visão Operacional (Configurações), criando um checklist inicial de tarefas no Supabase a partir de um projeto. Cronogramas e automações não são criados. Desligado por padrão — a tela Tarefas já grava direto no Supabase por padrão, sem esta chave.
         </p>
         <div className="flex items-center justify-between gap-4 py-2 px-3 border border-border/60 bg-muted/10 rounded-lg">
           <div className="flex items-center gap-2">
