@@ -1379,6 +1379,34 @@ Incidente (2026-10-04, merge do G85, `50a811a`): o comando de merge encadeava `n
 
 ---
 
+**G89 — CRM: `client_id` grava `NULL` ao criar oportunidade (e orçamento) pelo CRM quando o cliente é nativo da nuvem — a resolução cliente→uuid só consulta o mapa de import (`kora.clients.supabaseImport.v1`), sem passthrough de uuid. [MÉDIO — ABERTO — inferido do código, a confirmar ao vivo na V2 (casos 2.4/2.6/2.7)]**
+Achado do refresh do runbook V2 (leitura de código em `0554210`, nenhum caso executado). Mesma classe do G60/G68 ("produtor gêmeo" sem o padrão `resolve*Fk`).
+
+- **Mecanismo:** `CRM.tsx` (criação de oportunidade, ~`:1190-1203`) resolve `data.clientId` só por `importedMap[String(clientId)]`. Um cliente criado direto na nuvem (uuid "contrabandeado" como number, nunca importado) não está no mapa → `client_id = NULL`. O dialog "Criar orçamento a partir da oportunidade" resolve o cliente pelo mesmo mapa. Os `resolveProjectFk`/`resolveTaskFk`/`resolveSheetClientId` já fazem passthrough de uuid; o CRM ficou pra trás.
+- **Efeito:** oportunidade/orçamento criados pelo CRM para cliente nativo perdem o vínculo; o botão "Ver cliente" do drawer e o `client_id` herdado por "Gerar projeto" (casos 2.6/2.7) ficam vazios.
+- **Confirmação ao vivo:** V2 casos 2.4 (`SELECT client_id` de `HOMOLOG-V2-lead-link`), 2.6 e 2.7.
+- **Referência:** `docs/qa/homologacao-leve-vendas-crm-clientes.md` §6 (A4), G37 (`resolve*Fk` passthrough), G60/G68.
+
+---
+
+**G90 — Vendas: repetir "Gerar projeto" para o mesmo orçamento devolve o projeto existente (idempotente), mas o dialog cria de novo as 4–5 tarefas iniciais — sem dedupe. [BAIXO — ABERTO — inferido do código, a confirmar ao vivo na V2 (caso 1.7)]**
+
+- **Mecanismo:** `importProject` → `findProjectByQuote`/23505 em `ux_projects_from_quote` garante 1 projeto por orçamento, sem aviso ao usuário (toast "Projeto criado" de novo). `QuoteToProjectDialog` não consulta se o projeto já existia: roda `buildStarterTaskInputs` e cria as tarefas iniciais novamente apontando pro projeto existente. Previsão: 10 tarefas após 2 gerações (o ideal seria 5).
+- **Dono do código:** lane E (`QuoteToProjectDialog.tsx`); este item só registra.
+- **Confirmação ao vivo:** V2 caso 1.7 (`SELECT count(*) FROM tasks WHERE project_id = …`).
+- **Referência:** runbook V2 §6 (A3), `5be5c3d` (cutover do dialog).
+
+---
+
+**G91 — CRM: converter lead em cliente na nuvem não grava `converted_client_id` e não marca o lead como convertido; permite converter N vezes (duplica o cliente); o `catch` mostra "Lead marcado como convertido" como se fosse sucesso. [MÉDIO — ABERTO — inferido do código, a confirmar ao vivo na V2 (caso 2.5)]**
+
+- **Mecanismo:** `handleConvertToClient` (`CRM.tsx` ~`:656-702`) cria o cliente via `useClientsDataSource().addClient`, mas `markConverted(lead.id)` é operação **local** (`useLeads.ts`); para um lead da nuvem (id numérico derivado do uuid) não casa com nada. `crm_opportunities.converted_client_id` nunca é escrito; na nuvem `lead.converted` é derivado de `stage === "fechado"`. Em qualquer exceção, o `catch` marca convertido e dá toast de sucesso — erro mascarado.
+- **Escopo:** rodada própria (não misturar com G89).
+- **Confirmação ao vivo:** V2 caso 2.5 (cliente em `clients`; `converted_client_id` continua `NULL`).
+- **Referência:** G58/G59 (conversão grava na nuvem), runbook V2 §6 (A5).
+
+---
+
 **Backlog de UX (fila, Fase D Financeiro — débito de produto, não incidente, sem G novo):** ressalvas registradas no sign-off do domínio (`docs/qa/etapa-5-flip-financeiro-runbook.md` §6), não bloquearam o 8/8 e não viram achado catalogado por não divergirem de nenhum comportamento desenhado/documentado — só de uma expectativa de UX ainda não implementada. **Ambas resolvidas pós-homologação, LANE A:**
 - **(a) — RESOLVIDA (`67a9a2d`).** O aviso previsto pro uso dos 4 campos sem coluna cloud (`recurrence`/`supplierId`/`cashAccountId`/`notes`, Caso 5 do runbook, §1.2 do pacote) não disparava na prática. Investigação: 2 dos 4 já tinham aviso funcionando (recorrência em `QuickSaleDialog`; recorrência+fornecedor em `ExpenseDialog`) — só "observações" (`notes`) nunca entrava na checagem em nenhum dos 2 diálogos. `cashAccountId` não tem nenhum controle de formulário em nenhum dos 2 diálogos hoje (confirmado por grep repo-wide) — não há "uso" desse campo pra avisar. Fix: "observações" adicionado ao array de gaps já existente nos 2 diálogos, mesmo padrão de recorrência/fornecedor.
 - **(b) — RESOLVIDA v1 (branch `etapa-5-financeiro-edit-dialog`, esta rodada).** `EditTransactionDialog` novo na lista Supabase (`Financeiro.tsx`, item "Editar" no `DropdownMenu`, antes de "Excluir") — edita título/descrição/valor/vencimento/status/categoria/forma de pagamento (campos com coluna real em `SupabaseFinancialTransaction`), reusando `onUpdate`/`financeRepository.updateTransaction` (G30, cache já cuidado pela própria resposta da mutation). Campos locais-only (`recurrence`/`supplierId`/`cashAccountId`/`notes`) OMITIDOS do form — diferente de criar (onde avisar faz sentido, o valor É digitado e some), aqui não há nada a perder porque o campo nunca teve onde persistir. FKs (`client_id`/`quote_id`/`opportunity_id`) fora da v1 de propósito — registradas como v2 no comentário do componente, exigiriam `useClientsDataSource`+`resolveFinanceFk`. Banner da lista (`Financeiro.tsx`) atualizado — "editar" deixa de ser promessa sem UI por trás.
