@@ -11,6 +11,7 @@
 // docs/qa/etapa-5-flip-quotes.md §2.2); os testes abaixo não setam mais
 // essa flag (era um no-op desde a retirada, deixado de propósito fora
 // pra não sugerir que ainda importa).
+import configuracoesSource from "../Configuracoes.tsx?raw";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { vi, describe, it, expect, beforeEach } from "vitest";
@@ -123,5 +124,23 @@ describe("Configuracoes · incidente #4 (Fatia 10) — SupabaseQuotesViewerCard 
     renderConfiguracoesOnDataTab();
 
     expect(await screen.findByText("Nenhum orçamento encontrado no Supabase para este workspace.")).toBeInTheDocument();
+  });
+
+  // Código morto removido (rodada pós-varredura G29): `SupabaseCrmViewerCard`
+  // ("CRM Supabase — Infraestrutura pronta / experimental") estava definido em
+  // Configuracoes.tsx mas NUNCA montado — grep de `<SupabaseCrmViewerCard`
+  // devolvia zero. Caracterização (passa antes e depois): a aba Dados nunca o
+  // renderizou, então remover não muda nada na tela; e a definição não volta.
+  it("aba Dados nunca renderiza o card morto 'CRM Supabase / Infraestrutura pronta' (remoção sem efeito visual)", async () => {
+    renderConfiguracoesOnDataTab();
+
+    await screen.findByText("Orçamentos no Supabase");
+    expect(screen.queryByText(/Infraestrutura pronta/)).not.toBeInTheDocument();
+    expect(screen.queryByText("CRM Supabase")).not.toBeInTheDocument();
+  });
+
+  it("a definição morta SupabaseCrmViewerCard não existe mais em Configuracoes.tsx", () => {
+    expect(configuracoesSource).not.toContain("SupabaseCrmViewerCard");
+    expect(configuracoesSource).not.toContain("Infraestrutura pronta / experimental");
   });
 });

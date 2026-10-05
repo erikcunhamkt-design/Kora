@@ -1972,23 +1972,4 @@ export function LocalOpportunitiesImportCard() {
   );
 }
 
-function SupabaseCrmViewerCard() {
-  return (
-    <SettingsCard title="CRM Supabase">
-      <div className="space-y-4">
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-400 border-emerald-500/20 uppercase font-mono">
-            Infraestrutura pronta / experimental
-          </Badge>
-        </div>
-        <p className="text-xs text-muted-foreground leading-normal">
-          {getCrmDataSource() === "local"
-            ? "A persistência de oportunidades no Supabase foi preparada, mas a tela CRM principal está configurada para usar dados locais neste workspace."
-            : "A persistência de oportunidades no Supabase está ativa. A tela CRM principal já lê do Supabase por padrão neste workspace."}
-        </p>
-      </div>
-    </SettingsCard>
-  );
-}
-
 export default Configuracoes;
