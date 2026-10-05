@@ -394,20 +394,22 @@ const Clientes = () => {
     }
   };
 
+  // Copy G29-classe: `archiveClient`/`restoreClient`/`deleteClient` já dão o toast
+  // do modo REAL (nuvem/local) — sucesso ou erro. Antes, estes handlers não
+  // esperavam a mutation e ainda disparavam um 2º toast.success incondicional
+  // (`<nome> arquivado/restaurado/excluído`), que dobrava a mensagem e mentia
+  // sucesso quando a escrita na nuvem falhava.
   const handleArchive = (c: Client) => {
-    archiveClient(c.id);
-    toast.success(`${c.name} arquivado`);
+    void archiveClient(c.id);
   };
 
   const handleRestore = (c: Client) => {
-    restoreClient(c.id);
-    toast.success(`${c.name} restaurado`);
+    void restoreClient(c.id);
   };
 
   const confirmDelete = () => {
     if (!deleteTarget) return;
-    deleteClient(deleteTarget.id);
-    toast.success(`${deleteTarget.name} excluído`);
+    void deleteClient(deleteTarget.id);
     setDeleteTarget(null);
   };
 
@@ -861,8 +863,9 @@ const Clientes = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir cliente?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta ação é permanente. {deleteTarget?.name} e seus dados locais serão removidos.
-              Para preservar histórico, considere arquivar.
+              {source === "supabase"
+                ? `Esta ação é permanente. ${deleteTarget?.name}, seus contatos e sua ficha técnica serão removidos da nuvem; oportunidades, orçamentos, projetos e tarefas vinculados ficam sem cliente. Para preservar histórico, considere arquivar.`
+                : `Esta ação é permanente. ${deleteTarget?.name} e seus dados locais serão removidos. Para preservar histórico, considere arquivar.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

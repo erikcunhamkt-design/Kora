@@ -1379,12 +1379,15 @@ Incidente (2026-10-04, merge do G85, `50a811a`): o comando de merge encadeava `n
 
 ---
 
-**G89 — CRM: `client_id` grava `NULL` ao criar oportunidade (e orçamento) pelo CRM quando o cliente é nativo da nuvem — a resolução cliente→uuid só consulta o mapa de import (`kora.clients.supabaseImport.v1`), sem passthrough de uuid. [MÉDIO — ABERTO — inferido do código, a confirmar ao vivo na V2 (casos 2.4/2.6/2.7)]**
+**G89 — CRM: `client_id` grava `NULL` ao criar oportunidade (e orçamento) pelo CRM quando o cliente é nativo da nuvem — a resolução cliente→uuid só consulta o mapa de import (`kora.clients.supabaseImport.v1`), sem passthrough de uuid. [MÉDIO — corrigido em código (rodada G89, branch `etapa-5-g89-crm-client-uuid-e-copy`); confirmação ao vivo pendente (casos 2.4/2.6/2.7 da V2)]**
 Achado do refresh do runbook V2 (leitura de código em `0554210`, nenhum caso executado). Mesma classe do G60/G68 ("produtor gêmeo" sem o padrão `resolve*Fk`).
 
 - **Mecanismo:** `CRM.tsx` (criação de oportunidade, ~`:1190-1203`) resolve `data.clientId` só por `importedMap[String(clientId)]`. Um cliente criado direto na nuvem (uuid "contrabandeado" como number, nunca importado) não está no mapa → `client_id = NULL`. O dialog "Criar orçamento a partir da oportunidade" resolve o cliente pelo mesmo mapa. Os `resolveProjectFk`/`resolveTaskFk`/`resolveSheetClientId` já fazem passthrough de uuid; o CRM ficou pra trás.
 - **Efeito:** oportunidade/orçamento criados pelo CRM para cliente nativo perdem o vínculo; o botão "Ver cliente" do drawer e o `client_id` herdado por "Gerar projeto" (casos 2.6/2.7) ficam vazios.
-- **Confirmação ao vivo:** V2 casos 2.4 (`SELECT client_id` de `HOMOLOG-V2-lead-link`), 2.6 e 2.7.
+- **Fix:** `resolveCrmClientFk(clientId, map?)` em `crmOpportunityMapper.ts` (exporta também `readCrmClientsImportMap`): uuid passa direto; o mapa `kora.clients.supabaseImport.v1` só traduz id numérico local legado; senão `null` (nunca o id cru). Usado nos 2 pontos nativos do CRM: criar oportunidade (`CRM.tsx`) e `CreateCrmSupabaseQuoteDialog.tsx`.
+- **Varredura da classe (CRM inteiro):** ocorrências de cliente→uuid só pelo mapa: apenas esses 2 (`CRM.tsx` criar oportunidade; `CreateCrmSupabaseQuoteDialog.tsx`). Já corretos: `crmOpportunityMapper.resolveUuid` (import local→nuvem, G68), `CreateReceivableDialog`/`CreateProjectFromQuoteDialog` (recebem o `clientId` do orçamento da nuvem — já uuid — e vão a `createReceivableFromQuote`/`importProject`→`resolveProjectFk`, que têm passthrough). Não existe UI de "vincular cliente a oportunidade" fora da criação; edição de campos (`handleSaveEdit`) não toca `client_id`. Pontos do G91 (só listados, **não** tocados): `handleConvertToClient` → `markConverted(lead.id)` local (`CRM.tsx`), `converted_client_id` nunca escrito, `catch` com toast de sucesso.
+- **Testes (uuid REAL, lição G82):** `CRM.test.tsx` "G89" (3: cliente nativo uuid + mapa vazio → `client_id = uuid`; id numérico legado + mapa → uuid mapeado; numérico não mapeado → `null`), `CreateCrmSupabaseQuoteDialog.test.tsx` (uuid + mapa vazio), `crmOpportunityMapper.test.ts` (unitários do resolvedor). Prova fail→fix→pass por patch: sem o fix 2 falham (CRM + dialog), com o fix passam.
+- **Confirmação ao vivo:** V2 casos 2.4 (`SELECT client_id` de `HOMOLOG-V2-lead-link`), 2.6 (`quotes.client_id` do orçamento criado pelo CRM) e 2.7.
 - **Referência:** `docs/qa/homologacao-leve-vendas-crm-clientes.md` §6 (A4), G37 (`resolve*Fk` passthrough), G60/G68.
 
 ---

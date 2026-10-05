@@ -11,6 +11,8 @@ import type { SupabaseOpportunity } from "@/repositories/crmOpportunitiesReposit
 import {
   mapLocalLeadToSupabaseOpportunity,
   mapSupabaseOpportunityToLocalLead,
+  readCrmClientsImportMap,
+  resolveCrmClientFk,
 } from "@/services/crm/crmOpportunityMapper";
 
 function baseLead(overrides: Partial<Lead> = {}): Lead {
@@ -349,5 +351,40 @@ describe("mapSupabaseOpportunityToLocalLead — G67-ext (leitura, uuid nunca vir
       baseSupabaseOpportunity({ client_id: payload.client_id }),
     );
     expect(String(roundTripped.clientId)).toBe(clientUuid);
+  });
+});
+
+// G89 — resolveCrmClientFk: uuid REAL (nao fixture numerica — licao G82) passa direto;
+// o mapa so traduz id numerico local legado; NUNCA devolve id local cru.
+describe("G89 — resolveCrmClientFk (escritas nativas do CRM)", () => {
+  const CLIENT_UUID = "3f2b7c1e-9a4d-4e8b-8c55-1d2e3f4a5b6c";
+  const MAPPED_UUID = "9c8b7a6d-5e4f-4a3b-9c2d-1e0f9a8b7c6d";
+
+  it("uuid real de cliente da nuvem passa direto, mesmo com o mapa vazio", () => {
+    expect(resolveCrmClientFk(CLIENT_UUID, {})).toBe(CLIENT_UUID);
+  });
+
+  it("uuid \"contrabandeado\" como number (cliente nativo da nuvem) tambem passa direto", () => {
+    expect(resolveCrmClientFk(CLIENT_UUID as unknown as number, {})).toBe(CLIENT_UUID);
+  });
+
+  it("id numerico local legado: traduz pelo mapa; nao mapeado => null (nunca o id cru)", () => {
+    expect(resolveCrmClientFk(42, { "42": MAPPED_UUID })).toBe(MAPPED_UUID);
+    expect(resolveCrmClientFk(43, { "42": MAPPED_UUID })).toBeNull();
+  });
+
+  it("ausente/vazio => null", () => {
+    expect(resolveCrmClientFk(undefined, {})).toBeNull();
+    expect(resolveCrmClientFk(null, {})).toBeNull();
+    expect(resolveCrmClientFk("", {})).toBeNull();
+  });
+
+  it("sem mapa explicito le o localStorage (id legado) e tolera mapa corrompido", () => {
+    localStorage.setItem("kora.clients.supabaseImport.v1", JSON.stringify({ importedMap: { "7": MAPPED_UUID } }));
+    expect(resolveCrmClientFk(7)).toBe(MAPPED_UUID);
+    localStorage.setItem("kora.clients.supabaseImport.v1", "{nao-e-json");
+    expect(readCrmClientsImportMap()).toEqual({});
+    expect(resolveCrmClientFk(CLIENT_UUID)).toBe(CLIENT_UUID);
+    localStorage.removeItem("kora.clients.supabaseImport.v1");
   });
 });

@@ -227,3 +227,95 @@ describe("Clientes · G86 — deep link ?client= com id uuid abre o cliente cert
     expect(await screen.findByText("Histórico de Relacionamento")).toBeInTheDocument();
   });
 });
+
+// Copy G29-classe — arquivar/restaurar/excluir cliente: o toast tem que refletir o modo
+// REAL (nuvem por default) e a escrita; antes, os handlers não esperavam a mutation e
+// disparavam um 2º toast.success incondicional ("<nome> arquivado/restaurado/excluído"),
+// que dobrava a mensagem e mentia sucesso mesmo quando a escrita na nuvem falhava. O
+// diálogo de exclusão dizia "dados locais" também na nuvem.
+describe("Clientes · copy G29 — arquivar/restaurar/excluir refletem o modo real e a escrita", () => {
+  async function openRowMenu() {
+    await screen.findByText("Cliente Teste");
+    const trigger = document.querySelector("tbody button[aria-haspopup=\"menu\"]") as HTMLElement;
+    fireEvent.pointerDown(trigger, { button: 0, pointerId: 1, isPrimary: true });
+    fireEvent.pointerUp(trigger, { button: 0, pointerId: 1, isPrimary: true });
+    fireEvent.click(trigger);
+  }
+
+  function setupWith(source: "local" | "supabase", overrides: Record<string, unknown> = {}) {
+    const client = makeClient();
+    setupCommonMocks(source, client);
+    const archiveClient = vi.fn().mockResolvedValue(undefined);
+    const deleteClient = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(useClientsDataSource).mockReturnValue({
+      source, clients: [client], loading: false, addClient: vi.fn(),
+      updateClient: vi.fn().mockResolvedValue(client), archiveClient, deleteClient, ...overrides,
+    } as never);
+    return { archiveClient, deleteClient };
+  }
+
+  it("arquivar na nuvem: UM toast de sucesso (o do modo real), sem o 2º incondicional", async () => {
+    const { archiveClient } = setupWith("supabase");
+    renderClientesAt("/clientes");
+
+    await openRowMenu();
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Arquivar/ }));
+
+    await waitFor(() => expect(archiveClient).toHaveBeenCalledWith("1", true));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Cliente arquivado no Supabase."));
+    expect(toast.success).toHaveBeenCalledTimes(1);
+    expect(toast.success).not.toHaveBeenCalledWith("Cliente Teste arquivado");
+  });
+
+  it("arquivar na nuvem com FALHA: só o toast de erro — nunca um sucesso falso", async () => {
+    setupWith("supabase", { archiveClient: vi.fn().mockRejectedValue(new Error("rls")) });
+    renderClientesAt("/clientes");
+
+    await openRowMenu();
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Arquivar/ }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Erro ao arquivar cliente no Supabase."));
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it("excluir na nuvem: o diálogo não diz \"dados locais\" e o toast de sucesso é um só", async () => {
+    const { deleteClient } = setupWith("supabase");
+    renderClientesAt("/clientes");
+
+    await openRowMenu();
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Excluir/ }));
+    const dialog = (await screen.findByText("Excluir cliente?")).closest("[role=\"alertdialog\"]") as HTMLElement;
+    expect(within(dialog).queryByText(/dados locais/)).not.toBeInTheDocument();
+    expect(within(dialog).getByText(/removidos da nuvem/)).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Excluir" }));
+
+    await waitFor(() => expect(deleteClient).toHaveBeenCalledWith("1"));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Cliente excluído do Supabase."));
+    expect(toast.success).toHaveBeenCalledTimes(1);
+    expect(toast.success).not.toHaveBeenCalledWith("Cliente Teste excluído");
+  });
+
+  it("excluir na nuvem com FALHA: só o toast de erro — nunca um sucesso falso", async () => {
+    setupWith("supabase", { deleteClient: vi.fn().mockRejectedValue(new Error("fk")) });
+    renderClientesAt("/clientes");
+
+    await openRowMenu();
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Excluir/ }));
+    const dialog = (await screen.findByText("Excluir cliente?")).closest("[role=\"alertdialog\"]") as HTMLElement;
+    fireEvent.click(within(dialog).getByRole("button", { name: "Excluir" }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Erro ao excluir cliente do Supabase."));
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it("modo local: o diálogo de exclusão segue dizendo \"dados locais\" (texto correto pro modo)", async () => {
+    setupWith("local");
+    renderClientesAt("/clientes");
+
+    await openRowMenu();
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Excluir/ }));
+    const dialog = (await screen.findByText("Excluir cliente?")).closest("[role=\"alertdialog\"]") as HTMLElement;
+    expect(within(dialog).getByText(/seus dados locais serão removidos/)).toBeInTheDocument();
+  });
+});

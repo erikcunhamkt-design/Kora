@@ -354,9 +354,23 @@ describe("QuotesSection · G33/G55 — nem 'Gerar projeto' nem 'Gerar conta a re
     fireEvent.click(screen.getByText("Gerar projeto"));
 
     expect(await screen.findByText(
-      "Transforme este orçamento aprovado em um projeto local com entregáveis e tarefas iniciais.",
+      "Transforme este orçamento aprovado em um projeto na nuvem (Supabase) com entregáveis e tarefas iniciais.",
     )).toBeInTheDocument();
     expect(toast.error).not.toHaveBeenCalledWith(expect.stringContaining("Edição de orçamentos"));
+  });
+
+  // Copy G29-classe: o texto do diálogo reflete a fonte REAL de Projetos (nuvem por
+  // default; só o literal "local" seleciona local) — antes dizia "projeto local" sempre.
+  it("copy: com a fonte de Projetos explicitamente em \"local\", o diálogo diz \"projeto local\"", async () => {
+    localStorage.setItem("kora.projects.dataSource.v1", "local");
+    await renderApprovedQuoteInSupabaseMode();
+
+    await openQuoteMenu("Orçamento Nuvem");
+    fireEvent.click(screen.getByText("Gerar projeto"));
+
+    expect(await screen.findByText(
+      "Transforme este orçamento aprovado em um projeto local com entregáveis e tarefas iniciais.",
+    )).toBeInTheDocument();
   });
 
   it("dentro do 'Ver' (preview) — onGenerateProject também abre o diálogo, sem bloqueio", async () => {
@@ -367,7 +381,7 @@ describe("QuotesSection · G33/G55 — nem 'Gerar projeto' nem 'Gerar conta a re
     fireEvent.click(generateBtn);
 
     expect(await screen.findByText(
-      "Transforme este orçamento aprovado em um projeto local com entregáveis e tarefas iniciais.",
+      "Transforme este orçamento aprovado em um projeto na nuvem (Supabase) com entregáveis e tarefas iniciais.",
     )).toBeInTheDocument();
     expect(toast.error).not.toHaveBeenCalledWith(expect.stringContaining("Edição de orçamentos"));
   });

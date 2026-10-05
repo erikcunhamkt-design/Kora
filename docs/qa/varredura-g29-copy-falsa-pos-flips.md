@@ -116,3 +116,17 @@ Asserções de texto **atualizadas onde a tela já tinha teste** (label "Supabas
 * Zero comportamento alterado; zero card removido; `flags.ts` intocado.
 * Lane A: nada em Acessos/FP2; `ClientTechnicalSheetDialog.tsx` não tocado; `ClientTechnicalSheet.tsx` tocado só nos 4 textos do §1.5 (se a lane A estiver editando esse arquivo, o conflito esperado é pequeno e textual).
 * Nenhum ID novo: é adendo de G29.
+
+---
+
+## Adendo (rodada G89) — 3 sobras de copy do runbook V2
+
+Achadas no refresh do runbook de homologação leve V2 (`docs/qa/homologacao-leve-vendas-crm-clientes.md` §6, A2/A8); mesma classe da varredura (texto falso pós-flip). Corrigidas com asserção:
+
+| Onde | Antes | Depois |
+|---|---|---|
+| `QuoteToProjectDialog.tsx` (só o texto do dialog) | "…em um projeto **local** com entregáveis e tarefas iniciais." sempre | "…em um projeto **na nuvem (Supabase)** …" quando a fonte de Projetos é nuvem (default); "local" só com a fonte em "Local" |
+| `Clientes.tsx` — diálogo "Excluir cliente?" | "…e seus dados locais serão removidos." também na nuvem | nuvem: "…seus contatos e sua ficha técnica serão removidos da nuvem; oportunidades, orçamentos, projetos e tarefas vinculados ficam sem cliente…"; local: texto antigo |
+| `Clientes.tsx` — arquivar/restaurar/excluir | handlers não esperavam a mutation e disparavam um 2º `toast.success` incondicional (`<nome> arquivado/restaurado/excluído`), mesmo com a escrita na nuvem falhando | só o toast do modo real (já existente dentro de `archiveClient`/`restoreClient`/`deleteClient`: sucesso **ou** erro) |
+
+Testes: `Clientes.test.tsx` ("copy G29", 5), `QuotesSection.test.tsx` (2 strings atualizadas + 1 de modo local). Continua fora (não pedido): item de menu "Criar oportunidade" da linha de cliente ainda é um toast "chega em breve no CRM." (o gatilho real é "Nova oportunidade" no drawer, aba "Comercial").

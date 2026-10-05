@@ -44,6 +44,35 @@ function resolveUuid(localId: string | number | null | undefined, map: Record<st
   return map[key] ?? null;
 }
 
+const CLIENTS_IMPORT_META_KEY = "kora.clients.supabaseImport.v1";
+
+/** Lê o mapa idLocal → uuid de Clientes. Nunca lança (localStorage ausente/corrompido ⇒ `{}`). */
+export function readCrmClientsImportMap(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(CLIENTS_IMPORT_META_KEY);
+    if (raw) return (JSON.parse(raw)?.importedMap as Record<string, string>) || {};
+  } catch {
+    // ignora — sem mapa, só o passthrough de uuid resolve
+  }
+  return {};
+}
+
+/**
+ * G89 — resolve o `client_id` (uuid) das escritas NATIVAS do CRM (criar
+ * oportunidade, "Criar orçamento" pelo CRM). Antes, os 2 pontos liam o mapa
+ * legado `importedMap[String(clientId)]` direto: um cliente nativo da nuvem
+ * (uuid "contrabandeado" como number, nunca importado) não está no mapa e o
+ * `client_id` saía `NULL`. Mesmo padrão de `resolveProjectFk`/`resolveTaskFk`/
+ * `resolveSheetSupabaseClientId`: uuid passa direto; o mapa só vale pro id
+ * numérico local legado; senão `null` (NUNCA um id local cru).
+ */
+export function resolveCrmClientFk(
+  clientId: string | number | null | undefined,
+  map: Record<string, string> = readCrmClientsImportMap(),
+): string | null {
+  return resolveUuid(clientId, map);
+}
+
 export function mapLocalLeadToSupabaseOpportunity(
   lead: Lead,
   maps: OpportunityImportMaps = EMPTY_IMPORT_MAPS,

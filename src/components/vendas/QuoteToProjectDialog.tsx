@@ -283,7 +283,7 @@ export function QuoteToProjectDialog({
             Gerar projeto
           </DialogTitle>
           <DialogDescription>
-            Transforme este orçamento aprovado em um projeto local com entregáveis e tarefas iniciais.
+            {`Transforme este orçamento aprovado em um projeto ${cloudMode ? "na nuvem (Supabase)" : "local"} com entregáveis e tarefas iniciais.`}
           </DialogDescription>
         </DialogHeader>
 

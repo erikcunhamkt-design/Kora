@@ -142,6 +142,37 @@ describe("CreateCrmSupabaseQuoteDialog - QA & Rollback", () => {
     expect(log[0]).toMatchObject({ quoteId: "quote-created-uuid-1", total: 2500 });
   });
 
+  it("G89 — cliente nativo da nuvem (uuid real, nunca importado, mapa vazio): client_id passa direto, nao NULL", async () => {
+    const CLIENT_UUID = "3f2b7c1e-9a4d-4e8b-8c55-1d2e3f4a5b6c";
+    vi.mocked(useCurrentWorkspace).mockReturnValue({
+      workspace: {
+        id: "ws-1", name: "QA Workspace", slug: "qa-workspace", owner_id: "owner-1",
+        created_at: "2024-01-01T00:00:00Z", updated_at: "2024-01-01T00:00:00Z",
+        currency: "BRL", locale: "pt-BR", timezone: null,
+      },
+      membership: null, loading: false, error: null,
+    });
+    vi.mocked(quotesRepository.importQuoteWithItems).mockResolvedValue({
+      id: "quote-created-uuid-2",
+    } as unknown as SupabaseQuote);
+
+    const onSuccess = vi.fn();
+    render(
+      <CreateCrmSupabaseQuoteDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        lead={{ ...mockLead, clientId: CLIENT_UUID as unknown as number }}
+        onSuccess={onSuccess}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Criar Orçamento"));
+    await waitFor(() => expect(onSuccess).toHaveBeenCalled());
+
+    const payloadArg = vi.mocked(quotesRepository.importQuoteWithItems).mock.calls[0][2];
+    expect(payloadArg.client_id).toBe(CLIENT_UUID);
+  });
+
   it("nunca aciona rollback manual quando a RPC falha — a atomicidade é da própria RPC", async () => {
     vi.mocked(useCurrentWorkspace).mockReturnValue({
       workspace: {

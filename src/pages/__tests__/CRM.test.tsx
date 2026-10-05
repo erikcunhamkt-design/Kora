@@ -798,3 +798,74 @@ describe("CRM · G64 itens 2/3 (deep link + consumidor local-only) — clientId 
     expect(fieldInput("Nome / contato*").value).toBe("Cliente Local");
   });
 });
+
+describe("CRM · G89 — criar oportunidade grava client_id com passthrough de uuid (cliente nativo da nuvem), mapa só pro id local legado", () => {
+  // Fixtures com uuid REAL (lição G82): "client-uuid-1"/ids numéricos mascaram a classe.
+  const CLIENT_UUID = "3f2b7c1e-9a4d-4e8b-8c55-1d2e3f4a5b6c";
+  const MAPPED_UUID = "9c8b7a6d-5e4f-4a3b-9c2d-1e0f9a8b7c6d";
+
+  function makeClient(id: string | number, name: string) {
+    return {
+      id, name, company: "Empresa", email: "cliente@teste.com", phone: "11999998888",
+      whatsapp: "", instagram: "", site: "", serviceType: "Branding", status: "Ativo",
+      potentialValue: 5000, lastProject: "", lastInteraction: "", observations: "",
+      projects: [], tasks: [], temperature: "Quente", origin: "Indicação",
+    };
+  }
+
+  async function createFromDeepLink(clientId: string) {
+    vi.mocked(useLeads).mockReturnValue({
+      leads: [], addLead: vi.fn(), moveLead: vi.fn(), moveLeadToStage: vi.fn(), moveLeadToPipeline: vi.fn(),
+      updateLead: vi.fn(), archiveLead: vi.fn(), deleteLead: vi.fn(), setLeadTags: vi.fn(), markConverted: vi.fn(),
+    } as never);
+    vi.mocked(useSupabaseCrmWriteFlag).mockReturnValue({ enabled: true, setEnabled: vi.fn(), toggle: vi.fn() });
+    vi.mocked(useSupabaseOpportunities).mockReturnValue({
+      opportunities: [], loading: false, error: null, refresh: vi.fn(),
+    } as never);
+    vi.mocked(crmOpportunitiesRepository.createOpportunity).mockResolvedValue(
+      makeSupabaseOpportunity({ id: "new-opp" }) as never,
+    );
+    localStorage.setItem(CRM_DATA_SOURCE_KEY, "supabase");
+
+    render(
+      <MemoryRouter initialEntries={[`/crm?newOpportunity=1&clientId=${clientId}`]}>
+        <CRM />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText("Vinculada a um cliente existente.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Criar oportunidade" }));
+    await waitFor(() => expect(crmOpportunitiesRepository.createOpportunity).toHaveBeenCalledTimes(1));
+    return vi.mocked(crmOpportunitiesRepository.createOpportunity).mock.calls[0][1];
+  }
+
+  it("cliente nativo da nuvem (uuid real, mapa de import vazio): client_id = o uuid, não NULL", async () => {
+    vi.mocked(useClientsDataSource).mockReturnValue({
+      source: "supabase", addClient: vi.fn(), clients: [makeClient(CLIENT_UUID, "Cliente Nuvem")] as never,
+    } as never);
+
+    const payload = await createFromDeepLink(CLIENT_UUID);
+
+    expect(payload.client_id).toBe(CLIENT_UUID);
+  });
+
+  it("cliente local legado importado (id numérico + mapa): client_id = uuid mapeado", async () => {
+    localStorage.setItem("kora.clients.supabaseImport.v1", JSON.stringify({ importedMap: { "42": MAPPED_UUID } }));
+    vi.mocked(useClientsDataSource).mockReturnValue({
+      source: "supabase", addClient: vi.fn(), clients: [makeClient(42, "Cliente Legado")] as never,
+    } as never);
+
+    const payload = await createFromDeepLink("42");
+
+    expect(payload.client_id).toBe(MAPPED_UUID);
+  });
+
+  it("id numérico local NÃO mapeado: client_id = null (nunca o id local cru numa coluna uuid)", async () => {
+    vi.mocked(useClientsDataSource).mockReturnValue({
+      source: "supabase", addClient: vi.fn(), clients: [makeClient(42, "Cliente Sem Mapa")] as never,
+    } as never);
+
+    const payload = await createFromDeepLink("42");
+
+    expect(payload.client_id).toBeNull();
+  });
+});

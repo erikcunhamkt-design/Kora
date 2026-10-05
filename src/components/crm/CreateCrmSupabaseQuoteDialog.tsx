@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { quotesRepository } from "@/repositories/quotesRepository";
 import { buildNativeSourceLocalId } from "@/lib/installId";
+import { resolveCrmClientFk } from "@/services/crm/crmOpportunityMapper";
 import type { Lead } from "@/hooks/useLeads";
 import { formatCurrency as intlCurrency } from "@/lib/format";
 
@@ -97,22 +98,9 @@ export function CreateCrmSupabaseQuoteDialog({
     setSubmitting(true);
 
     try {
-      // 1. Resolve potential Supabase UUID for client_id from client mapping
-      let supabaseClientId: string | null = null;
-      if (lead.clientId) {
-        try {
-          const rawMap = localStorage.getItem("kora.clients.supabaseImport.v1");
-          if (rawMap) {
-            const parsed = JSON.parse(rawMap);
-            const mappedUuid = parsed.importedMap?.[String(lead.clientId)];
-            if (mappedUuid) {
-              supabaseClientId = mappedUuid;
-            }
-          }
-        } catch (err) {
-          console.error("Erro ao ler mapeamento de cliente:", err);
-        }
-      }
+      // 1. G89 — uuid de cliente da nuvem passa direto; o mapa de import só
+      // traduz id numérico local legado.
+      const supabaseClientId = resolveCrmClientFk(lead.clientId);
 
       const totalVal = calculateTotal();
 

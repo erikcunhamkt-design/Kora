@@ -122,7 +122,7 @@ const SummaryCard = ({ icon: Icon, label, value, sub, accent }: { icon: LucideIc
 };
 
 import { useSupabaseOpportunities } from "@/hooks/useSupabaseOpportunities";
-import { mapSupabaseOpportunityToLocalLead } from "@/services/crm/crmOpportunityMapper";
+import { mapSupabaseOpportunityToLocalLead, resolveCrmClientFk } from "@/services/crm/crmOpportunityMapper";
 import { crmOpportunitiesRepository, type SupabaseOpportunityInput } from "@/repositories/crmOpportunitiesRepository";
 import { Cloud, Database, Lock, RefreshCw } from "lucide-react";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
@@ -1185,22 +1185,9 @@ const CRM = () => {
             try {
               if (!workspace) throw new Error("Workspace não selecionado.");
 
-              // Map client link using clients import mapping
-              let supabaseClientId: string | null = null;
-              if (data.clientId) {
-                try {
-                  const rawMap = localStorage.getItem("kora.clients.supabaseImport.v1");
-                  if (rawMap) {
-                    const parsed = JSON.parse(rawMap);
-                    const mappedUuid = parsed.importedMap?.[String(data.clientId)];
-                    if (mappedUuid) {
-                      supabaseClientId = mappedUuid;
-                    }
-                  }
-                } catch (err) {
-                  console.error("Erro ao ler mapeamento de cliente:", err);
-                }
-              }
+              // G89 — uuid de cliente da nuvem passa direto; o mapa de import só
+              // traduz id numérico local legado.
+              const supabaseClientId = resolveCrmClientFk(data.clientId);
 
               // G64 — `data.stage` é `StageKey` coagido pra 1 dos 6 valores
               // fixos do pipeline padrão (`NewLeadDialog.handleSave`,
