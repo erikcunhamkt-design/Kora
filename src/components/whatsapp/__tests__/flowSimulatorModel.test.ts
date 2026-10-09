@@ -126,7 +126,11 @@ describe("applySimulationResponse", () => {
       { ok: true, reply: "Encaminhando o seu contato…", simulation: { engine: "handover", handoverReason: "menu_exhausted", botFlowState: null, handedOver: true } },
       menuState,
     );
-    expect(messages).toEqual([{ role: "model", text: "Encaminhando o seu contato…", tag: "Entregue a atendimento humano · tentativas esgotadas" }]);
+    // DIVERGÊNCIA DELIBERADA (item 3): o selo ganhou `tagKind` — o painel desenha o selo de
+    // handover diferente do da base de conhecimento.
+    expect(messages).toEqual([
+      { role: "model", text: "Encaminhando o seu contato…", tag: "Entregue a atendimento humano · tentativas esgotadas", tagKind: "handover" },
+    ]);
     expect(nextState).toEqual({ botFlowState: null, handedOver: true });
   });
 

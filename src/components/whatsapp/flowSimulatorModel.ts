@@ -24,9 +24,17 @@ export const INITIAL_SIM_STATE: SimFlowState = { botFlowState: null, handedOver:
 export type SimEngine = "menu" | "handover" | "silent" | "skipped" | "ai";
 export type SimHandoverReason = "keyword" | "menu_option" | "menu_fallback_node" | "menu_exhausted";
 
+/** Selo da base de conhecimento (item 3): só vem quando um bloco REALMENTE entrou no prompt. */
+export interface SimKnowledgeInfo {
+  categories: string[];
+  included: number;
+  omitted: number;
+}
+
 export interface SimulationInfo extends SimFlowState {
   engine: SimEngine;
   handoverReason?: SimHandoverReason;
+  knowledge?: SimKnowledgeInfo;
 }
 
 /** "system" = aviso do próprio simulador (não é fala do robô nem do cliente — nunca entra no histórico enviado). */
@@ -37,6 +45,8 @@ export interface SimMessage {
   text: string;
   /** Selo curto abaixo da bolha do robô (ex.: "Entregue a atendimento humano · tentativas esgotadas"). */
   tag?: string;
+  /** Semântica do selo — define a aparência no painel (handover = atendimento; knowledge = base de conhecimento). */
+  tagKind?: "handover" | "knowledge";
 }
 
 export const SIM_GREETING =
@@ -121,6 +131,29 @@ function parseBotFlowState(raw: unknown): SimBotFlowState | null {
     : null;
 }
 
+function parseKnowledge(raw: unknown): SimKnowledgeInfo | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const o = raw as Record<string, unknown>;
+  if (!Array.isArray(o.categories) || !o.categories.every((c) => typeof c === "string") || o.categories.length === 0) {
+    return undefined;
+  }
+  const included = typeof o.included === "number" && o.included > 0 ? o.included : 0;
+  if (included === 0) return undefined;
+  return { categories: o.categories as string[], included, omitted: typeof o.omitted === "number" && o.omitted > 0 ? o.omitted : 0 };
+}
+
+// Rótulo HONESTO por categoria (G29/G40): "catalog" lê itens JÁ ORÇADOS, não o catálogo.
+const KNOWLEDGE_CATEGORY_LABEL: Record<string, { one: string; many: string }> = {
+  catalog: { one: "item já orçado", many: "itens já orçados" },
+};
+
+function describeKnowledgeSeal(k: SimKnowledgeInfo): string {
+  const label = KNOWLEDGE_CATEGORY_LABEL[k.categories[0]];
+  const what = label ? (k.included === 1 ? label.one : label.many) : (k.included === 1 ? "item" : "itens");
+  const omitted = k.omitted > 0 ? ` (+${k.omitted} de fora pelo limite)` : "";
+  return `Base de conhecimento · ${k.included} ${what} no contexto${omitted}`;
+}
+
 // Lê `data.simulation` do server; qualquer forma inesperada → null (trata como
 // resposta legada, sem estado novo).
 function parseSimulation(raw: unknown): SimulationInfo | null {
@@ -133,6 +166,7 @@ function parseSimulation(raw: unknown): SimulationInfo | null {
     handoverReason: typeof reason === "string" && reason in HANDOVER_REASON_LABEL ? (reason as SimHandoverReason) : undefined,
     botFlowState: parseBotFlowState(o.botFlowState),
     handedOver: o.handedOver,
+    knowledge: parseKnowledge(o.knowledge),
   };
 }
 
@@ -168,10 +202,16 @@ export function applySimulationResponse(
 
   if (sim.engine === "handover") {
     const motivo = sim.handoverReason ? ` · ${HANDOVER_REASON_LABEL[sim.handoverReason]}` : "";
-    return { messages: [{ role: "model", text: reply, tag: `Entregue a atendimento humano${motivo}` }], nextState };
+    return {
+      messages: [{ role: "model", text: reply, tag: `Entregue a atendimento humano${motivo}`, tagKind: "handover" }],
+      nextState,
+    };
   }
 
-  return { messages: [{ role: "model", text: reply }], nextState };
+  // Resposta de IA: se um bloco da base de conhecimento entrou no prompt, o
+  // selo vem do MESMO primitivo de produção (o server só o repassa).
+  const tag = sim.engine === "ai" && sim.knowledge ? describeKnowledgeSeal(sim.knowledge) : undefined;
+  return { messages: [{ role: "model", text: reply, ...(tag ? { tag, tagKind: "knowledge" as const } : {}) }], nextState };
 }
 
 // ---------------------------------------------------------------------------

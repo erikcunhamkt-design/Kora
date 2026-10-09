@@ -49,6 +49,12 @@ export const BOOLEAN_FLAG_KEYS = {
   // flag (a edge function não lê localStorage). Ver
   // docs/architecture/etapa-9-item2-cerebro-fase-a.md §5.1.
   aiBrainEnabled: "kora.ai.brain.enabled",
+  // Etapa 9 · item 3 — base de conhecimento do robô. Mesmo contrato do cérebro:
+  // gateia SÓ a visibilidade da UI de opt-in em Configurações. O EFEITO no
+  // servidor (whatsapp-bot-reply) é gateado pela linha de consentimento ativa em
+  // ai_knowledge_consents (reaplicada no servidor) — a edge function não lê
+  // localStorage. Nome reservado em etapa-9-item2-cerebro-fase-a.md §5.1.
+  aiKnowledgeBaseEnabled: "kora.ai.knowledgeBase.enabled",
 } as const;
 
 export type BooleanFlagName = keyof typeof BOOLEAN_FLAG_KEYS;

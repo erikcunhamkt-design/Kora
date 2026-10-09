@@ -424,3 +424,18 @@ describe("flags · seletor de fonte da ficha técnica (mapa JSON por cliente, de
     expect(getTechnicalSheetDataSource(7)).toBe("local");
   });
 });
+
+// Etapa 9 · item 3 — base de conhecimento do robô: flag só de UI (o efeito no
+// servidor é gateado pela linha de consentimento, nunca por esta flag).
+describe("flags · aiKnowledgeBaseEnabled (Etapa 9 item 3)", () => {
+  it("chave reservada na Fase A e default OFF, com round-trip", () => {
+    localStorage.clear();
+    expect(BOOLEAN_FLAG_KEYS.aiKnowledgeBaseEnabled).toBe("kora.ai.knowledgeBase.enabled");
+    expect(getBooleanFlag("aiKnowledgeBaseEnabled")).toBe(false);
+    setBooleanFlag("aiKnowledgeBaseEnabled", true);
+    expect(localStorage.getItem("kora.ai.knowledgeBase.enabled")).toBe("true");
+    expect(getBooleanFlag("aiKnowledgeBaseEnabled")).toBe(true);
+    setBooleanFlag("aiKnowledgeBaseEnabled", false);
+    expect(getBooleanFlag("aiKnowledgeBaseEnabled")).toBe(false);
+  });
+});

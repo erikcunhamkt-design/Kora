@@ -70,12 +70,21 @@ export function composeSystemInstruction(
 // (Fase A item 3 §4: "Contexto relevante encontrado:").
 export const KNOWLEDGE_SECTION_HEADER = "Contexto relevante encontrado:";
 
-// Teto do bloco, em caracteres (~500-700 tokens em português). PROVISÓRIO: a
-// Fase A deixou em aberto se existe um teto AGREGADO por chamada (R7); este é
-// o menor controle que impede o bloco de crescer sem limite com a base do
-// workspace. Decisão de valor final e de teto por categoria vs agregado:
-// docs/qa/etapa-9-item3-r1-base-conhecimento-fundacao.md §3 (D6).
-export const KNOWLEDGE_BLOCK_MAX_CHARS = 2000;
+// Teto do bloco, em TOKENS — decisão Q4 do revisor (item 3 R1): teto AGREGADO
+// por chamada de 2.500 tokens, item inteiro ou nada (docs/qa/etapa-9-item3-r1-
+// base-conhecimento-fundacao.md §3, "Decisões do revisor — OFICIAIS").
+export const KNOWLEDGE_BLOCK_MAX_TOKENS = 2500;
+
+// Estimador de tokens SEM tokenizer (a edge function não carrega um): 1 token
+// ≈ 3 caracteres — propositalmente CONSERVADOR pra português (o real fica em
+// ~3,5–4 chars/token nos modelos usados), então o bloco estimado em 2.500
+// tokens nunca passa de 2.500 de verdade. Heurística, não medição: o teto
+// protege custo, não é uma garantia contábil.
+export const CHARS_PER_TOKEN_ESTIMATE = 3;
+
+export function estimateTokens(text: string): number {
+  return Math.ceil(text.length / CHARS_PER_TOKEN_ESTIMATE);
+}
 
 export interface KnowledgeBlockResult {
   /** Bloco pronto ("" quando não há nenhum item utilizável). */
@@ -89,10 +98,11 @@ export interface KnowledgeBlockResult {
 // chamador (um item por linha, sem rótulo próprio). Itens vazios são
 // descartados; a ordem do chamador é preservada; entra item INTEIRO ou não
 // entra (nunca corta no meio de um fato — um preço pela metade é pior que
-// nenhum). Sem itens utilizáveis → bloco vazio (nunca só o cabeçalho).
+// nenhum); para no primeiro que estoura o teto. Sem itens utilizáveis → bloco
+// vazio (nunca só o cabeçalho).
 export function buildKnowledgeBlock(
   items: Array<string | null | undefined>,
-  maxChars: number = KNOWLEDGE_BLOCK_MAX_CHARS,
+  maxTokens: number = KNOWLEDGE_BLOCK_MAX_TOKENS,
 ): KnowledgeBlockResult {
   const valid = items
     .map((i) => (typeof i === "string" ? i.trim() : ""))
@@ -100,13 +110,10 @@ export function buildKnowledgeBlock(
   if (valid.length === 0) return { block: "", included: 0, omitted: 0 };
 
   const lines: string[] = [];
-  let used = KNOWLEDGE_SECTION_HEADER.length;
   for (const item of valid) {
-    const line = `- ${item}`;
-    const cost = line.length + 1; // +1: quebra de linha
-    if (used + cost > maxChars) break; // ordem preservada: parou, o resto fica de fora
-    lines.push(line);
-    used += cost;
+    const candidate = [KNOWLEDGE_SECTION_HEADER, ...lines, `- ${item}`].join("\n");
+    if (estimateTokens(candidate) > maxTokens) break; // ordem preservada: parou, o resto fica de fora
+    lines.push(`- ${item}`);
   }
   if (lines.length === 0) return { block: "", included: 0, omitted: valid.length };
   return {

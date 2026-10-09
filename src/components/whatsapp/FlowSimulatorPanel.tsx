@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Bot, Eye, Headset, Loader2, RefreshCw, Send } from "lucide-react";
+import { Bot, BookOpen, Eye, Headset, Loader2, RefreshCw, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { SimMessage, SimStateSummary } from "./flowSimulatorModel";
@@ -107,8 +107,18 @@ export function FlowSimulatorPanel({
                   <p className="whitespace-pre-line font-sans">{msg.text}</p>
                 </div>
                 {msg.tag && (
-                  <p className="mt-1 flex items-center gap-1 text-[10px] font-medium text-amber-700 dark:text-amber-400">
-                    <Headset className="h-3 w-3" aria-hidden="true" />
+                  <p
+                    className={`mt-1 flex items-center gap-1 text-[10px] font-medium ${
+                      msg.tagKind === "knowledge"
+                        ? "text-violet-700 dark:text-violet-300"
+                        : "text-amber-700 dark:text-amber-400"
+                    }`}
+                  >
+                    {msg.tagKind === "knowledge" ? (
+                      <BookOpen className="h-3 w-3" aria-hidden="true" />
+                    ) : (
+                      <Headset className="h-3 w-3" aria-hidden="true" />
+                    )}
                     {msg.tag}
                   </p>
                 )}

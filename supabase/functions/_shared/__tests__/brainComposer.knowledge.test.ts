@@ -6,10 +6,12 @@
 import { describe, expect, it } from "vitest";
 import {
   BRAIN_SECTION_HEADER,
-  KNOWLEDGE_BLOCK_MAX_CHARS,
+  CHARS_PER_TOKEN_ESTIMATE,
+  KNOWLEDGE_BLOCK_MAX_TOKENS,
   KNOWLEDGE_SECTION_HEADER,
   buildKnowledgeBlock,
   composeSystemInstruction,
+  estimateTokens,
 } from "../brainComposer";
 
 const ORIGINAL = "Instrução do fluxo.";
@@ -76,25 +78,38 @@ describe("buildKnowledgeBlock", () => {
     expect(included).toBe(2);
   });
 
-  it("teto: entra item INTEIRO ou não entra; para no primeiro que estoura e conta os omitidos", () => {
+  // DIVERGÊNCIA DELIBERADA vs a fundação (que media o teto em caracteres,
+  // provisório): a decisão Q4 do revisor fixou o teto em TOKENS (2.500).
+  it("teto (em tokens): entra item INTEIRO ou não entra; para no primeiro que estoura e conta os omitidos", () => {
     const items = ["x".repeat(30), "y".repeat(30), "z".repeat(30)];
-    // cabeçalho (30) + 1 item ("- " + 30 + quebra = 33) = 63; o 2º levaria a 96 > 70
-    const { block, included, omitted } = buildKnowledgeBlock(items, 70);
+    // 1 item = cabeçalho(30) + quebra + "- "+30 = 63 chars ≈ 21 tokens; 2 itens = 96 chars ≈ 32 tokens
+    const { block, included, omitted } = buildKnowledgeBlock(items, 25);
     expect(included).toBe(1);
     expect(omitted).toBe(2);
-    expect(block).toBe(`${KNOWLEDGE_SECTION_HEADER}\n- ${"x".repeat(30)}`);
-    expect(block.length).toBeLessThanOrEqual(70);
+    expect(block).toBe(`${KNOWLEDGE_SECTION_HEADER}
+- ${"x".repeat(30)}`);
+    expect(estimateTokens(block)).toBeLessThanOrEqual(25);
   });
 
   it("um único item maior que o teto: NÃO é cortado no meio — bloco vazio, omitted conta", () => {
-    expect(buildKnowledgeBlock(["w".repeat(500)], 100)).toEqual({ block: "", included: 0, omitted: 1 });
+    expect(buildKnowledgeBlock(["w".repeat(500)], 30)).toEqual({ block: "", included: 0, omitted: 1 });
   });
 
-  it("teto default é o provisório da Fase A/R7 e o bloco nunca o ultrapassa", () => {
+  it("teto default = 2.500 tokens (Q4) e o bloco nunca o ultrapassa", () => {
     const many = Array.from({ length: 500 }, (_, i) => `Item ${i} com descrição razoavelmente longa para encher o bloco`);
     const { block, omitted } = buildKnowledgeBlock(many);
-    expect(KNOWLEDGE_BLOCK_MAX_CHARS).toBe(2000);
-    expect(block.length).toBeLessThanOrEqual(KNOWLEDGE_BLOCK_MAX_CHARS);
+    expect(KNOWLEDGE_BLOCK_MAX_TOKENS).toBe(2500);
+    expect(estimateTokens(block)).toBeLessThanOrEqual(KNOWLEDGE_BLOCK_MAX_TOKENS);
     expect(omitted).toBeGreaterThan(0);
+  });
+});
+
+describe("estimateTokens (estimador conservador, sem tokenizer)", () => {
+  it("1 token ≈ 3 caracteres, arredondado pra CIMA (nunca subestima)", () => {
+    expect(CHARS_PER_TOKEN_ESTIMATE).toBe(3);
+    expect(estimateTokens("")).toBe(0);
+    expect(estimateTokens("abc")).toBe(1);
+    expect(estimateTokens("abcd")).toBe(2);
+    expect(estimateTokens("a".repeat(7500))).toBe(2500);
   });
 });

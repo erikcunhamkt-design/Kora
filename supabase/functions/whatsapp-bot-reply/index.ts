@@ -27,8 +27,11 @@ import {
 import {
   simulateFlowTurn,
   wantsFlowSimulation,
+  withKnowledgeInfo,
   type SimulationInfo,
 } from "../_shared/botFlowSimulation.ts";
+import { loadKnowledgeForPrompt } from "../_shared/knowledgeLoader.ts";
+import { QUOTED_STATUSES } from "../_shared/knowledgeSources.ts";
 
 interface BotFlowNodeProperties {
   respondAll?: boolean;
@@ -818,6 +821,55 @@ Deno.serve(async (req) => {
       console.warn("[bot-reply] brain profile fetch failed, composing without it:", brainErr.message);
     }
     const brain = !brainErr && brainRow ? (brainRow as AiBrainProfileRow) : null;
+
+    // Etapa 9 · item 3 — base de conhecimento (docs/qa/etapa-9-item3-r1-base-
+    // conhecimento-liga.md). MESMO ponto único de composição do cérebro, só no
+    // caminho de IA: menu/handover/silêncio (R3/R4) já retornaram antes daqui
+    // e NUNCA leem consentimento nem dado (custo zero por construção, D7).
+    // Gate = linha ativa em ai_knowledge_consents, reaplicado no servidor
+    // (knowledgeConsent.activeCategories) — a flag da UI não conta. Default OFF:
+    // tabela ausente / sem linha / erro => bloco vazio => prompt idêntico ao de
+    // hoje. Hoje só a categoria "catalog" ("itens já orçados") tem leitura.
+    const run = async (q: PromiseLike<{ data: unknown; error: { message: string } | null }>) => {
+      const { data, error } = await q;
+      return { data, error };
+    };
+    const knowledge = await loadKnowledgeForPrompt(
+      {
+        fetchConsents: () =>
+          run(
+            adminClient!
+              .from("ai_knowledge_consents")
+              .select("category, enabled, legal_basis_ack, revoked_at")
+              .eq("workspace_id", workspaceId),
+          ),
+        // client_name/company vêm só pra MASCARAR nomes de cliente — nunca saem no bloco.
+        fetchQuotesWithItems: () =>
+          run(
+            adminClient!
+              .from("quotes")
+              .select("id, status, archived, deleted_at, client_name, company, quote_items(name, unit_price)")
+              .eq("workspace_id", workspaceId)
+              .is("deleted_at", null)
+              .in("status", [...QUOTED_STATUSES])
+              .order("created_at", { ascending: false })
+              .limit(500),
+          ),
+        fetchClients: () =>
+          run(adminClient!.from("clients").select("name, company").eq("workspace_id", workspaceId).limit(2000)),
+        fetchCurrency: () =>
+          run(adminClient!.from("workspaces").select("currency").eq("id", workspaceId).maybeSingle()),
+      },
+      { warn: (message) => console.warn(`[bot-reply] ${message}`) },
+    );
+    if (knowledge.categories.length > 0) {
+      console.log(
+        `[bot-reply] knowledge block entered: categories=${knowledge.categories.join(",")} included=${knowledge.included} omitted=${knowledge.omitted}`,
+      );
+      // Simulador (opt-in via simState): mesmo resultado do primitivo de produção vira o selo.
+      if (simulation) simulation = withKnowledgeInfo(simulation, knowledge);
+    }
+
     systemInstruction = composeSystemInstruction(
       brain
         ? {
@@ -829,6 +881,7 @@ Deno.serve(async (req) => {
           }
         : null,
       systemInstruction,
+      knowledge.block,
     );
 
     // Default environment variables (fallback)

@@ -52,10 +52,24 @@ export interface SimState {
 
 export type SimulationEngine = "menu" | "handover" | "silent" | "skipped" | "ai";
 
+/**
+ * Selo de paridade da BASE DE CONHECIMENTO (item 3): presente só quando um bloco
+ * de conhecimento REALMENTE entrou no prompt desta resposta de IA — o simulador
+ * mostra isso ao operador. Vem do MESMO primitivo de produção
+ * (`loadKnowledgeForPrompt`); este módulo só carrega o resultado, não o recalcula.
+ */
+export interface SimulationKnowledgeInfo {
+  categories: string[];
+  included: number;
+  omitted: number;
+}
+
 export interface SimulationInfo {
   engine: SimulationEngine;
   /** Só quando `engine === "handover"`. */
   handoverReason?: HandoverReason;
+  /** Só quando `engine === "ai"` e um bloco de conhecimento entrou no prompt. */
+  knowledge?: SimulationKnowledgeInfo;
   /** Estado a devolver ao servidor na PRÓXIMA mensagem do simulador. */
   botFlowState: BotFlowState | null;
   handedOver: boolean;
@@ -169,4 +183,22 @@ export function simulateFlowTurn(
 
   // 5. Segue pra IA.
   return { kind: "continue", simulation: { engine: "ai", botFlowState, handedOver: false } };
+}
+
+// Anexa o selo de conhecimento a uma simulação que seguiu pro caminho de IA.
+// Sem categoria que realmente entrou -> a simulação volta INALTERADA (nenhum
+// campo novo no corpo — simulador sem conhecimento ativo = idêntico a antes).
+export function withKnowledgeInfo(
+  simulation: SimulationInfo,
+  knowledge: { categories: readonly string[]; included: number; omitted: number },
+): SimulationInfo {
+  if (knowledge.categories.length === 0) return simulation;
+  return {
+    ...simulation,
+    knowledge: {
+      categories: [...knowledge.categories],
+      included: knowledge.included,
+      omitted: knowledge.omitted,
+    },
+  };
 }

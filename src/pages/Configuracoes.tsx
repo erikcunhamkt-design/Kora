@@ -92,6 +92,7 @@ import { useAccessibility } from "@/contexts/accessibility-context-value";
 import { useTranslation } from "@/contexts/language-context-value";
 import { SoundPreferencesSection } from "@/components/settings/SoundPreferencesSection";
 import { AiBrainSection } from "@/components/settings/AiBrainSection";
+import { AiKnowledgeSection } from "@/components/settings/AiKnowledgeSection";
 
 
 
@@ -431,7 +432,13 @@ const Configuracoes = () => {
             </SettingsSection>
           )}
 
-          {active === "brain" && <AiBrainSection />}
+          {active === "brain" && (
+            <div className="space-y-10">
+              <AiBrainSection />
+              {/* Etapa 9 · item 3 — base de conhecimento, ao lado do cérebro (mesmo padrão de flag/card). */}
+              <AiKnowledgeSection />
+            </div>
+          )}
 
           {active === "links" && (
             <SettingsSection title="Links públicos" description="Slugs que apontam para suas páginas externas.">
