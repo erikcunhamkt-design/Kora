@@ -11,8 +11,9 @@ import { composeSystemInstruction } from "../_shared/brainComposer.ts";
 import { resolveAiConfig } from "../_shared/botCredentials.ts";
 import {
   extractMenuNodes,
+  extractMessageNodes,
   parseBotFlowState,
-  resolveEntryMenu,
+  resolveEntryNode,
   resolveMenuTurn,
 } from "../_shared/botFlowMenu.ts";
 import {
@@ -31,8 +32,9 @@ import {
 
 interface BotFlowNodeProperties {
   respondAll?: boolean;
-  // Aresta de entrada (trigger → menu): id do menu por onde o fluxo começa.
-  // Ausente = primeiro menu habilitado (comportamento anterior).
+  // Aresta de entrada (trigger → menu/mensagem): id do nó por onde o fluxo
+  // começa. Ausente = primeiro menu habilitado (comportamento anterior). No nó
+  // "message" (R7) é o destino depois de enviar o texto (ausente = encerra).
   nextNodeId?: string;
   instruction?: string;
   provider?: string;
@@ -54,7 +56,7 @@ interface BotFlowNodeProperties {
 
 interface BotFlowNode {
   id: string;
-  type: "trigger" | "ai" | "send" | "handover" | "menu";
+  type: "trigger" | "ai" | "send" | "handover" | "menu" | "message";
   enabled: boolean;
   properties?: BotFlowNodeProperties;
 }
@@ -619,8 +621,14 @@ Deno.serve(async (req) => {
       // fluxo válido. Nó "menu" ausente/desabilitado no flow_data =
       // extractMenuNodes() devolve [] = zero código deste bloco roda,
       // comportamento atual 100% intocado.
+      //
+      // R7 — nó "message" (texto informativo montável entre menus): entra no
+      // MESMO bloco e no MESMO motor (resolveMenuTurn recebe os nós "message"
+      // habilitados). Sem nenhum nó "menu" nem "message" habilitado, o bloco
+      // inteiro continua não rodando.
       const menuNodes = extractMenuNodes(flowNodes);
-      if (menuNodes.length > 0) {
+      const messageNodes = extractMessageNodes(flowNodes);
+      if (menuNodes.length > 0 || messageNodes.length > 0) {
         const currentFlowState = parseBotFlowState(conv.bot_flow_state);
 
         // Mensagem do usuário nesta virada — busca isolada e mínima (não
@@ -637,17 +645,17 @@ Deno.serve(async (req) => {
 
         // Aresta de entrada: trigger.nextNodeId (opcional). Só vale quando o
         // trigger está habilitado (`triggerNode` já filtra por enabled).
-        // Inválido → resolveEntryMenu cai no primeiro menu habilitado; aqui
+        // Inválido → resolveEntryNode cai no primeiro menu habilitado; aqui
         // só LOGA (diagnóstico de fluxo mal montado), nunca muda o fluxo.
         const entryNodeId = triggerNode?.properties?.nextNodeId;
         const entryInUse = !currentFlowState || !menuNodes.some((n) => n.id === currentFlowState.currentNodeId);
-        if (entryInUse && resolveEntryMenu(menuNodes, entryNodeId)?.reason === "invalid-edge") {
+        if (entryInUse && resolveEntryNode(menuNodes, messageNodes, entryNodeId)?.reason === "invalid-edge") {
           console.warn(
-            `[bot-reply] trigger.nextNodeId="${entryNodeId}" não é um menu habilitado — usando o primeiro menu habilitado (fallback automático).`,
+            `[bot-reply] trigger.nextNodeId="${entryNodeId}" não é um menu nem uma mensagem habilitada — usando o primeiro menu habilitado (fallback automático).`,
           );
         }
 
-        const turn = resolveMenuTurn(menuNodes, currentFlowState, lastInboundText, entryNodeId);
+        const turn = resolveMenuTurn(menuNodes, currentFlowState, lastInboundText, entryNodeId, messageNodes);
         const outbound: OutboundContext = {
           workspaceId: workspaceId as string,
           conversationId: conversationId as string,
@@ -655,7 +663,22 @@ Deno.serve(async (req) => {
           instance,
         };
 
-        if (turn.kind === "present" || turn.kind === "reprompt") {
+        if (turn.kind === "present" || turn.kind === "reprompt" || turn.kind === "message") {
+          // R7: cadeia de nós "message" cortada (ciclo / teto de saltos) ou que
+          // terminou num destino que o motor não conhece — só LOGA; a resposta
+          // sai normalmente com o que foi acumulado (nunca derruba a virada).
+          if (turn.kind === "message") {
+            if (turn.truncated) {
+              console.warn(
+                `[bot-reply] cadeia de nós "message" cortada (${turn.truncated}) na conversa ${conversationId}: ${turn.messageNodeIds.join(" → ")}.`,
+              );
+            }
+            if (turn.unresolvedNextNodeId) {
+              console.warn(
+                `[bot-reply] nó "message" aponta pra "${turn.unresolvedNextNodeId}", que não é um menu nem uma mensagem habilitada — encerrando o fluxo scriptado ali.`,
+              );
+            }
+          }
           await sendBotText(adminClient, outbound, turn.message);
 
           // Update SEPARADO do de dentro de sendBotText de propósito: se `bot_flow_state`
@@ -674,6 +697,8 @@ Deno.serve(async (req) => {
             );
           }
 
+          // `turn.state` null (só no kind "message": cadeia sem menu no fim)
+          // limpa o estado — a PRÓXIMA mensagem reentra pelo nó de entrada.
           return json({ ok: true, menu: turn.kind });
         }
 

@@ -16,7 +16,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import {
-  BrainCircuit, MessageSquareCode, Send, Sparkles, UserCog, type LucideIcon,
+  BrainCircuit, MessageSquare, MessageSquareCode, Send, Sparkles, UserCog, type LucideIcon,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import type { WorkflowNode } from "@/components/whatsapp/WhatsAppBotConfig";
@@ -39,6 +39,7 @@ const TYPE_STYLE: Record<WorkflowNode["type"], { icon: LucideIcon; border: strin
   send: { icon: Send, border: "blue", iconBg: "bg-blue-500/10", iconCol: "text-blue-400" },
   handover: { icon: UserCog, border: "orange", iconBg: "bg-orange-500/10", iconCol: "text-orange-400" },
   menu: { icon: MessageSquareCode, border: "pink", iconBg: "bg-pink-500/10", iconCol: "text-pink-400" },
+  message: { icon: MessageSquare, border: "cyan", iconBg: "bg-cyan-500/10", iconCol: "text-cyan-400" },
 };
 
 const BORDER_CLASS: Record<string, { idle: string; selected: string }> = {
@@ -47,6 +48,7 @@ const BORDER_CLASS: Record<string, { idle: string; selected: string }> = {
   blue: { idle: "border-blue-500/30", selected: "border-blue-500 ring-1 ring-blue-500" },
   orange: { idle: "border-orange-500/30", selected: "border-orange-500 ring-1 ring-orange-500" },
   pink: { idle: "border-pink-500/30", selected: "border-pink-500 ring-1 ring-pink-500" },
+  cyan: { idle: "border-cyan-500/30", selected: "border-cyan-500 ring-1 ring-cyan-500" },
 };
 
 function summaryOf(node: WorkflowNode): string {
@@ -59,6 +61,7 @@ function summaryOf(node: WorkflowNode): string {
       return node.properties.opcoes.length === 0
         ? "Sem opções"
         : `${node.properties.opcoes.length} opç${node.properties.opcoes.length === 1 ? "ão" : "ões"}`;
+    case "message": return node.properties.mensagem.trim() === "" ? "Sem texto" : node.properties.mensagem;
   }
 }
 
@@ -75,8 +78,8 @@ const HANDLE_BASE = "!h-3 !w-3 !border-2 !border-background";
 
 // Nó custom: card (ícone do tipo, título, resumo curto, badge desabilitado) +
 // handles de saída — trigger: 1 (entrada do fluxo); menu: 1 por opção
-// (rotulado com o número) + 1 de fallback só com acao="node"; demais nós sem
-// handle editável. Todo nó que não é o trigger tem 1 handle de entrada.
+// (rotulado com o número) + 1 de fallback só com acao="node"; mensagem: 1
+// ("Depois de enviar"); demais nós sem handle editável. Todo nó que não é o trigger tem 1 handle de entrada.
 function FlowNodeCard({ data, selected }: NodeProps<FlowRfNode>) {
   const { node, onToggleEnabled } = data;
   const style = TYPE_STYLE[node.type];
@@ -179,9 +182,19 @@ function FlowNodeBody({
         </ul>
       )}
 
+      {node.type === "message" && (
+        <div className="relative -mx-3 mt-2 flex items-center justify-between px-3 text-[10px] text-muted-foreground">
+          <span>Depois de enviar</span>
+          <Handle
+            type="source" id={FLOW_HANDLE.next} position={Position.Right}
+            className={`${HANDLE_BASE} !bg-cyan-500`}
+          />
+        </div>
+      )}
+
       {/* Saída da sequência IMPLÍCITA dos nós fixos — só visual, não conecta
           (a semântica do runtime fixo não muda nesta rodada). */}
-      {node.type !== "menu" && (
+      {node.type !== "menu" && node.type !== "message" && (
         <Handle
           type="source" id={FLOW_HANDLE.sequenceOut} position={Position.Right} isConnectable={false}
           className="!h-2 !w-2 !border-0 !bg-border"
@@ -205,12 +218,14 @@ export interface FlowCanvasProps {
   onToggleEnabled: (nodeId: string) => void;
   /** "+ Nó de menu": cria no centro do viewport. */
   onAddMenuNode: (position: FlowPosition) => void;
-  /** Delete/Backspace com um nó "menu" selecionado (o pai aplica applyNodeDeletion + reseleciona). */
+  /** "+ Nó de mensagem" (R7): cria no centro do viewport. */
+  onAddMessageNode: (position: FlowPosition) => void;
+  /** Delete/Backspace com um nó "menu"/"message" selecionado (o pai aplica applyNodeDeletion + reseleciona). */
   onDeleteNode: (nodeId: string) => void;
 }
 
 function FlowCanvasInner({
-  nodes, selectedNodeId, onSelectNode, onNodesModelChange, onToggleEnabled, onAddMenuNode, onDeleteNode,
+  nodes, selectedNodeId, onSelectNode, onNodesModelChange, onToggleEnabled, onAddMenuNode, onAddMessageNode, onDeleteNode,
 }: FlowCanvasProps) {
   const rf = useReactFlow();
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -312,15 +327,18 @@ function FlowCanvasInner({
     }
   }, [nodes, selectedNodeId, selectedEdgeIds, onNodesModelChange, onDeleteNode]);
 
-  const handleAdd = () => {
+  // Centro do viewport (ou posição de grade, em ambientes sem layout real).
+  const centerPosition = (): FlowPosition => {
     const rect = wrapperRef.current?.getBoundingClientRect();
     const pos = rf.screenToFlowPosition({
       x: (rect?.left ?? 0) + (rect?.width ?? 0) / 2,
       y: (rect?.top ?? 0) + (rect?.height ?? 0) / 2,
     });
     const safe = Number.isFinite(pos.x) && Number.isFinite(pos.y) ? pos : gridPosition(nodes.length);
-    onAddMenuNode({ x: Math.round(safe.x), y: Math.round(safe.y) });
+    return { x: Math.round(safe.x), y: Math.round(safe.y) };
   };
+  const handleAddMenu = () => onAddMenuNode(centerPosition());
+  const handleAddMessage = () => onAddMessageNode(centerPosition());
 
   return (
     <div
@@ -353,13 +371,20 @@ function FlowCanvasInner({
         <Panel position="top-left" className="flex items-center gap-3">
           <button
             type="button"
-            onClick={handleAdd}
+            onClick={handleAddMenu}
             className="rounded-lg border border-dashed border-pink-500/50 bg-background/90 px-3 py-1.5 text-[11px] font-bold text-pink-400 hover:border-pink-500 hover:bg-pink-500/5"
           >
             + Adicionar nó de menu
           </button>
+          <button
+            type="button"
+            onClick={handleAddMessage}
+            className="rounded-lg border border-dashed border-cyan-500/50 bg-background/90 px-3 py-1.5 text-[11px] font-bold text-cyan-400 hover:border-cyan-500 hover:bg-cyan-500/5"
+          >
+            + Adicionar nó de mensagem
+          </button>
           <span className="text-[10px] text-muted-foreground">
-            Arraste o ponto de uma opção até outro nó para ligar · selecione a linha ou o nó de menu e Delete/Backspace para apagar
+            Arraste o ponto de uma opção até outro nó para ligar · selecione a linha ou o nó (menu/mensagem) e Delete/Backspace para apagar
           </span>
         </Panel>
       </ReactFlow>

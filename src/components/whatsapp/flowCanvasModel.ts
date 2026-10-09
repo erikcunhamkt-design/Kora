@@ -6,7 +6,8 @@
 //   - arestas → React Flow: `toRenderableEdges` (fonte única:
 //     `computeCanvasEdges`, do G80).
 //   - edição: `applyConnection` (arrastar handle → nó alvo grava
-//     opcoes[i].nextNodeId / fallbackNodeId / trigger.nextNodeId) e
+//     opcoes[i].nextNodeId / fallbackNodeId / trigger.nextNodeId /
+//     message.nextNodeId) e
 //     `applyEdgeDeletion` (apagar aresta limpa o campo) — as funções
 //     INVERSAS de `computeCanvasEdges`.
 // As arestas implícitas dos nós fixos (sequência trigger→ai→send→handover do
@@ -26,6 +27,8 @@ export const FLOW_HANDLE = {
   entry: "entry",
   /** menu → nó alvo quando `fallback.acao === "node"` (editável). */
   fallback: "fallback",
+  /** R7: mensagem → destino depois de enviar (editável). */
+  next: "next",
   /** saída da sequência implícita dos nós fixos (NÃO editável). */
   sequenceOut: "seq-out",
   /** entrada de todo nó que não é o trigger. */
@@ -85,6 +88,7 @@ function sourceHandleFor(edge: CanvasEdge): string {
     case "option": return FLOW_HANDLE.option(edge.optionIndex ?? 0);
     case "fallback": return FLOW_HANDLE.fallback;
     case "entry": return FLOW_HANDLE.entry;
+    case "next": return FLOW_HANDLE.next;
     case "sequence": return FLOW_HANDLE.sequenceOut;
   }
 }
@@ -141,7 +145,10 @@ export type ConnectionCheck = { ok: true } | { ok: false; reason: string };
  *   - só os handles EDITÁVEIS conectam (`entry` do trigger; `option-i` do
  *     menu, `i` existente; `fallback` do menu, só com acao="node");
  *   - alvo = handle `in` de um nó existente que NÃO é o trigger;
- *   - `entry` só aponta pra um nó "menu" (é o que o motor entende);
+ *   - `entry` só aponta pra um nó "menu" ou "message" (é o que o motor entende);
+ *   - `next` (nó "message") só aponta pra "menu" ou "message", nunca pra si
+ *     mesmo (o motor também corta ciclos mais longos, mas o próprio nó é
+ *     erro óbvio de montagem);
  *   - `fallback` não pode apontar pro próprio menu ("outro nó"); `option` PODE
  *     (padrão real "9 - voltar ao menu").
  */
@@ -154,7 +161,17 @@ export function canConnect(nodes: WorkflowNode[], c: FlowConnection): Connection
 
   if (source.type === "trigger") {
     if (c.sourceHandle !== FLOW_HANDLE.entry) return { ok: false, reason: "só a entrada do fluxo é editável" };
-    if (target.type !== "menu") return { ok: false, reason: "a entrada só aponta pra um nó de menu" };
+    if (target.type !== "menu" && target.type !== "message") {
+      return { ok: false, reason: "a entrada só aponta pra um nó de menu ou de mensagem" };
+    }
+    return { ok: true };
+  }
+  if (source.type === "message") {
+    if (c.sourceHandle !== FLOW_HANDLE.next) return { ok: false, reason: "saída inexistente" };
+    if (target.id === source.id) return { ok: false, reason: "a mensagem não pode apontar pra si mesma" };
+    if (target.type !== "menu" && target.type !== "message") {
+      return { ok: false, reason: "a mensagem só segue pra um menu ou outra mensagem" };
+    }
     return { ok: true };
   }
   if (source.type === "menu") {
@@ -175,8 +192,8 @@ export function applyConnection(nodes: WorkflowNode[], c: FlowConnection): Workf
   if (!canConnect(nodes, c).ok) return nodes;
   return nodes.map((n) => {
     if (n.id !== c.source) return n;
-    if (n.type === "trigger") {
-      return { ...n, properties: { ...n.properties, nextNodeId: c.target } };
+    if (n.type === "trigger" || n.type === "message") {
+      return { ...n, properties: { ...n.properties, nextNodeId: c.target } } as WorkflowNode;
     }
     if (n.type === "menu") {
       if (c.sourceHandle === FLOW_HANDLE.fallback) {
@@ -198,7 +215,7 @@ export function applyConnection(nodes: WorkflowNode[], c: FlowConnection): Workf
 /**
  * Apagar uma aresta limpa o campo que a originou: `opcoes[i].nextNodeId` → "",
  * `fallbackNodeId` → removido, `trigger.nextNodeId` → removido (volta ao
- * automático). Aresta "sequence" (implícita) ou id desconhecido → no-op.
+ * automático), `message.nextNodeId` → removido (a mensagem passa a encerrar o fluxo). Aresta "sequence" (implícita) ou id desconhecido → no-op.
  */
 export function applyEdgeDeletion(nodes: WorkflowNode[], edgeId: string): WorkflowNode[] {
   const edge = computeCanvasEdges(nodes).find((e) => e.id === edgeId);
@@ -206,6 +223,10 @@ export function applyEdgeDeletion(nodes: WorkflowNode[], edgeId: string): Workfl
   return nodes.map((n) => {
     if (n.id !== edge.fromNodeId) return n;
     if (edge.kind === "entry" && n.type === "trigger") {
+      const { nextNodeId: _removed, ...rest } = n.properties;
+      return { ...n, properties: rest };
+    }
+    if (edge.kind === "next" && n.type === "message") {
       const { nextNodeId: _removed, ...rest } = n.properties;
       return { ...n, properties: rest };
     }
@@ -230,10 +251,10 @@ export function applyEdgeDeletion(nodes: WorkflowNode[], edgeId: string): Workfl
 
 // ── Exclusão de nó ───────────────────────────────────────────────────────
 
-/** Só nós "menu" (criados pelo usuário) podem ser excluídos. Os 4 fixos
- *  (trigger/ai/send/handover) só são desabilitados, como sempre foi. */
+/** Só nós criados pelo usuário ("menu" e "message") podem ser excluídos. Os 4
+ *  fixos (trigger/ai/send/handover) só são desabilitados, como sempre foi. */
 export function isNodeDeletable(node: WorkflowNode | undefined): boolean {
-  return node?.type === "menu";
+  return node?.type === "menu" || node?.type === "message";
 }
 
 /**
@@ -248,8 +269,10 @@ export function countNodeConnections(nodes: WorkflowNode[], nodeId: string): num
 }
 
 /**
- * Exclui um nó "menu" e limpa TODA referência a ele no modelo:
+ * Exclui um nó "menu"/"message" e limpa TODA referência a ele no modelo:
  *   - `opcoes[i].nextNodeId === id` (de qualquer menu) → "";
+ *   - `message.nextNodeId === id` (de qualquer mensagem) → chave removida (a
+ *     mensagem passa a encerrar o fluxo scriptado);
  *   - `fallback.fallbackNodeId === id` → chave removida (a `acao` é preservada;
  *     sem destino o motor trata como esgotado e entrega a humano);
  *   - `trigger.properties.nextNodeId === id` → chave removida (volta ao automático).
@@ -260,9 +283,9 @@ export function applyNodeDeletion(nodes: WorkflowNode[], nodeId: string): Workfl
   return nodes
     .filter((n) => n.id !== nodeId)
     .map((n) => {
-      if (n.type === "trigger" && n.properties.nextNodeId === nodeId) {
+      if ((n.type === "trigger" || n.type === "message") && n.properties.nextNodeId === nodeId) {
         const { nextNodeId: _removed, ...rest } = n.properties;
-        return { ...n, properties: rest };
+        return { ...n, properties: rest } as WorkflowNode;
       }
       if (n.type === "menu") {
         const hasOption = n.properties.opcoes.some((o) => o.nextNodeId === nodeId);
@@ -293,7 +316,7 @@ export type DeleteKeyAction =
  * O que Delete/Backspace faz no canvas: aresta(s) EDITÁVEL(is) selecionada(s)
  * têm prioridade (clicar numa linha seleciona a linha; o nó segue "ativo" no
  * inspector mas a intenção é apagar a linha); senão, o nó selecionado SE for
- * excluível (menu). Sequência implícita e nós fixos → "none".
+ * excluível (menu/mensagem). Sequência implícita e nós fixos → "none".
  */
 export function resolveDeleteKey(args: {
   nodes: WorkflowNode[];

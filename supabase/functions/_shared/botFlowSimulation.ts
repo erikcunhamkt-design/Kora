@@ -18,9 +18,10 @@
 // A ORDEM espelha o handler de produção (whatsapp-bot-reply/index.ts, ramo
 // não-teste). Se aquela ordem mudar, mudar aqui junto:
 //   1. conversa entregue a humano → silêncio            (gate `isHandedOver`)
-//   2. motor do menu (se há nó "menu" habilitado):      (bloco R3/R4/R6)
-//        entrada: trigger.nextNodeId (R6, só com trigger habilitado)
+//   2. motor do menu (se há nó "menu"/"message" habilitado): (bloco R3/R4/R6/R7)
+//        entrada: trigger.nextNodeId (R6, só com trigger habilitado; R7: menu OU mensagem)
 //        present/reprompt → responde o menu, sem IA
+//        message (R7) → responde a cadeia de textos (+ menu de destino), sem IA
 //        handover (3 gatilhos do menu) → entrega
 //        advanced-away/handover-fallback p/ nó não-handover → sai do menu
 //   3. gate "AI node disabled": fluxo com nós mas sem "ai" habilitado → skip
@@ -29,6 +30,7 @@
 
 import {
   extractMenuNodes,
+  extractMessageNodes,
   parseBotFlowState,
   resolveMenuTurn,
   type BotFlowState,
@@ -102,16 +104,20 @@ export function simulateFlowTurn(
 
   // 2. Motor do menu (R3) + handover real (R4).
   const menuNodes = extractMenuNodes(nodes);
-  if (menuNodes.length > 0) {
+  const messageNodes = extractMessageNodes(nodes);
+  if (menuNodes.length > 0 || messageNodes.length > 0) {
     // Aresta de ENTRADA (R6): `trigger.properties.nextNodeId` aponta o menu por
     // onde o fluxo começa. Paridade com produção (whatsapp-bot-reply/index.ts):
     // só vale com o trigger HABILITADO (`triggerNode` lá filtra por enabled);
-    // ausente/inválido → resolveEntryMenu cai no primeiro menu habilitado.
+    // ausente/inválido → resolveEntryNode cai no primeiro menu habilitado.
     const triggerNode = nodes.find((n) => n.type === "trigger" && n.enabled);
     const entryNodeId = (triggerNode?.properties as { nextNodeId?: unknown } | undefined)?.nextNodeId;
-    const turn = resolveMenuTurn(menuNodes, botFlowState, messageText, entryNodeId);
+    const turn = resolveMenuTurn(menuNodes, botFlowState, messageText, entryNodeId, messageNodes);
 
-    if (turn.kind === "present" || turn.kind === "reprompt") {
+    // R7: "message" responde igual a present/reprompt (texto único já montado;
+    // `turn.state` = menu em que a cadeia terminou, ou null = encerrou) — a
+    // MESMA decisão de produção, sem reimplementar a cadeia aqui.
+    if (turn.kind === "present" || turn.kind === "reprompt" || turn.kind === "message") {
       return {
         kind: "respond",
         reply: turn.message,

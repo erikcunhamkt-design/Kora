@@ -23,9 +23,14 @@
 // `resolveEntryMenu` em supabase/functions/_shared/botFlowMenu.ts). A aresta
 // é emitida mesmo com destino inválido (id removido / nó que não é menu
 // habilitado) — o renderer sinaliza, nunca esconde.
+//
+// R7 — nó "message": emite a aresta `"next"` (message → destino depois de
+// enviar) SÓ quando `properties.nextNodeId` está preenchido (ausente = o fluxo
+// scriptado termina ali, não é aresta pendente). Nó "message" não participa da
+// sequência posicional dos fixos (nem emite nem recebe "sequence"), igual ao menu.
 import type { WorkflowNode } from "@/components/whatsapp/WhatsAppBotConfig";
 
-export type CanvasEdgeKind = "sequence" | "option" | "fallback" | "entry";
+export type CanvasEdgeKind = "sequence" | "option" | "fallback" | "entry" | "next";
 
 export interface CanvasEdge {
   /** Estável por (origem, tipo, índice) — serve de key de render. */
@@ -69,6 +74,19 @@ export function computeCanvasEdges(nodes: WorkflowNode[]): CanvasEdge[] {
       return;
     }
 
+    // R7: nó de mensagem — 1 saída (destino depois de enviar), só se preenchida.
+    if (node.type === "message") {
+      if (node.properties.nextNodeId) {
+        edges.push({
+          id: `${node.id}:next`,
+          kind: "next",
+          fromNodeId: node.id,
+          toNodeId: node.properties.nextNodeId,
+        });
+      }
+      return;
+    }
+
     // Aresta de entrada: só o trigger a emite, e só quando preenchida.
     if (node.type === "trigger" && node.properties.nextNodeId) {
       edges.push({
@@ -80,10 +98,10 @@ export function computeCanvasEdges(nodes: WorkflowNode[]): CanvasEdge[] {
     }
 
     // Nós fixos: sequência atual preservada — só entre vizinhos que SÃO
-    // fixos. Um nó menu vizinho nunca recebe seta sequencial (não é aresta
-    // real de ninguém).
+    // fixos. Um nó menu/mensagem vizinho nunca recebe seta sequencial (não é
+    // aresta real de ninguém).
     const next = nodes[index + 1];
-    if (next && next.type !== "menu") {
+    if (next && next.type !== "menu" && next.type !== "message") {
       edges.push({
         id: `${node.id}:sequence`,
         kind: "sequence",

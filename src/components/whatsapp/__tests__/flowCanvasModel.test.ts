@@ -7,7 +7,7 @@ import {
   findDanglingEdges, isNodeDeletable, resolveDeleteKey,
   gridPosition, setNodePosition, toRenderableEdges, withAutoLayout,
 } from "@/components/whatsapp/flowCanvasModel";
-import type { MenuWorkflowNode, WorkflowNode } from "@/components/whatsapp/WhatsAppBotConfig";
+import type { MenuWorkflowNode, MessageWorkflowNode, WorkflowNode } from "@/components/whatsapp/WhatsAppBotConfig";
 
 function fixed(): WorkflowNode[] {
   return [
@@ -360,5 +360,140 @@ describe("resolveDeleteKey — o que Delete/Backspace faz no canvas", () => {
 
   it("id de aresta que não existe mais é ignorado", () => {
     expect(resolveDeleteKey({ nodes, selectedNodeId: "t", selectedEdgeIds: ["m1:option:9"] })).toEqual({ type: "none" });
+  });
+});
+
+// ── R7 — nó "message" (texto informativo montável entre menus) ────────────
+
+function message(over: Partial<MessageWorkflowNode["properties"]> = {}, id = "msg1"): MessageWorkflowNode {
+  return { id, type: "message", title: `Mensagem ${id}`, enabled: true, properties: { mensagem: "Horário: seg–sex 9h–18h", ...over } };
+}
+
+describe("R7 · nó 'message' — arestas (computeCanvasEdges via toRenderableEdges)", () => {
+  it("com nextNodeId emite 1 aresta 'next' EDITÁVEL (handle next → in); sem nextNodeId não emite nada (encerra ≠ pendente)", () => {
+    const withNext = [...fixed(), menu({}, "m1"), message({ nextNodeId: "m1" })];
+    const edges = toRenderableEdges(withNext).filter((e) => e.source === "msg1");
+    expect(edges.map((e) => [e.id, e.kind, e.target, e.editable, e.sourceHandle, e.targetHandle])).toEqual([
+      ["msg1:next", "next", "m1", true, FLOW_HANDLE.next, FLOW_HANDLE.in],
+    ]);
+
+    const noNext = [...fixed(), menu({}, "m1"), message()];
+    expect(toRenderableEdges(noNext).some((e) => e.source === "msg1")).toBe(false);
+    expect(findDanglingEdges(noNext).some((e) => e.fromNodeId === "msg1")).toBe(false);
+  });
+
+  it("não participa da sequência posicional dos fixos (nem emite nem recebe 'sequence')", () => {
+    // mensagem logo depois do handover (último fixo) e outra no meio dos fixos
+    const nodes = [...fixed(), message({}, "msgA")];
+    const seq = toRenderableEdges(nodes).filter((e) => e.kind === "sequence").map((e) => `${e.source}>${e.target}`);
+    expect(seq).toEqual(["t>ai", "ai>send", "send>h"]);
+    const inMiddle = [fixed()[0], message({}, "msgB"), ...fixed().slice(1)];
+    const seq2 = toRenderableEdges(inMiddle).filter((e) => e.kind === "sequence").map((e) => `${e.source}>${e.target}`);
+    expect(seq2).toEqual(["ai>send", "send>h"]); // t→msgB não existe; msgB não emite
+  });
+
+  it("destino removido: a aresta não é desenhada e o inspector recebe o aviso 'removido'", () => {
+    const nodes = [...fixed(), message({ nextNodeId: "fantasma" })];
+    expect(toRenderableEdges(nodes).some((e) => e.source === "msg1")).toBe(false);
+    expect(findDanglingEdges(nodes).map((e) => [e.fromNodeId, e.kind, e.problem])).toEqual([["msg1", "next", "removido"]]);
+  });
+});
+
+describe("R7 · nó 'message' — canConnect/applyConnection/applyEdgeDeletion", () => {
+  const nodes = [
+    ...fixed(),
+    menu({ opcoes: [{ numero: 1, rotulo: "A", nextNodeId: "" }] }, "m1"),
+    message({}, "msg1"),
+    message({}, "msg2"),
+  ];
+  const conn = (source: string, sourceHandle: string, target: string) => ({ source, sourceHandle, target, targetHandle: FLOW_HANDLE.in });
+
+  it("entrada do trigger passa a aceitar mensagem (e continua recusando ai/send/handover)", () => {
+    expect(canConnect(nodes, conn("t", FLOW_HANDLE.entry, "msg1")).ok).toBe(true);
+    expect(canConnect(nodes, conn("t", FLOW_HANDLE.entry, "m1")).ok).toBe(true);
+    expect(canConnect(nodes, conn("t", FLOW_HANDLE.entry, "ai")).ok).toBe(false);
+  });
+
+  it("mensagem → menu ou outra mensagem; nunca pra si mesma, pro trigger nem pra nó fixo", () => {
+    expect(canConnect(nodes, conn("msg1", FLOW_HANDLE.next, "m1")).ok).toBe(true);
+    expect(canConnect(nodes, conn("msg1", FLOW_HANDLE.next, "msg2")).ok).toBe(true);
+    expect(canConnect(nodes, conn("msg1", FLOW_HANDLE.next, "msg1")).ok).toBe(false);
+    expect(canConnect(nodes, conn("msg1", FLOW_HANDLE.next, "t")).ok).toBe(false);
+    expect(canConnect(nodes, conn("msg1", FLOW_HANDLE.next, "h")).ok).toBe(false);
+    expect(canConnect(nodes, conn("msg1", "option-0", "m1")).ok).toBe(false); // handle que ela não tem
+  });
+
+  it("opção de menu aponta pra mensagem (qualquer nó não-trigger já valia)", () => {
+    expect(canConnect(nodes, conn("m1", "option-0", "msg1")).ok).toBe(true);
+    const next = applyConnection(nodes, conn("m1", "option-0", "msg1"));
+    expect((get(next, "m1") as MenuWorkflowNode).properties.opcoes[0].nextNodeId).toBe("msg1");
+  });
+
+  it("applyConnection grava message.nextNodeId (e só nela); trigger grava a entrada", () => {
+    const next = applyConnection(nodes, conn("msg1", FLOW_HANDLE.next, "m1"));
+    expect(get(next, "msg1").properties).toEqual({ mensagem: "Horário: seg–sex 9h–18h", nextNodeId: "m1" });
+    expect(get(next, "msg2")).toBe(get(nodes, "msg2"));
+    const entry = applyConnection(nodes, conn("t", FLOW_HANDLE.entry, "msg1"));
+    expect(get(entry, "t").properties).toEqual({ respondAll: true, nextNodeId: "msg1" });
+  });
+
+  it("conexão inválida da mensagem → no-op (MESMO array)", () => {
+    expect(applyConnection(nodes, conn("msg1", FLOW_HANDLE.next, "msg1"))).toBe(nodes);
+  });
+
+  it("applyEdgeDeletion remove a chave nextNodeId (a mensagem volta a encerrar) e preserva o texto; round-trip", () => {
+    const connected = applyConnection(nodes, conn("msg1", FLOW_HANDLE.next, "m1"));
+    const cleared = applyEdgeDeletion(connected, "msg1:next");
+    expect(get(cleared, "msg1").properties).toEqual({ mensagem: "Horário: seg–sex 9h–18h" });
+    expect("nextNodeId" in get(cleared, "msg1").properties).toBe(false);
+    expect(JSON.stringify(cleared)).toBe(JSON.stringify(nodes));
+  });
+});
+
+describe("R7 · nó 'message' — exclusão (applyNodeDeletion/isNodeDeletable/resolveDeleteKey)", () => {
+  const base = () => {
+    const f = fixed();
+    f[0] = { ...f[0], properties: { respondAll: true, nextNodeId: "msg1" } } as WorkflowNode;
+    return [
+      ...f,
+      menu({ opcoes: [{ numero: 1, rotulo: "Horário", nextNodeId: "msg1" }], fallback: { maxTentativas: 2, acao: "node", fallbackNodeId: "msg1" } }, "m1"),
+      message({ nextNodeId: "m1" }, "msg1"),
+      message({ nextNodeId: "msg1" }, "msg2"),
+    ];
+  };
+
+  it("isNodeDeletable: mensagem é excluível (como menu); fixos continuam protegidos", () => {
+    expect(isNodeDeletable(message())).toBe(true);
+    expect(isNodeDeletable(menu())).toBe(true);
+    for (const n of fixed()) expect(isNodeDeletable(n)).toBe(false);
+  });
+
+  it("excluir a mensagem limpa opção, fallback, entrada do trigger e o nextNodeId de OUTRA mensagem", () => {
+    const next = applyNodeDeletion(base(), "msg1");
+    expect(next.some((n) => n.id === "msg1")).toBe(false);
+    const m1 = get(next, "m1") as MenuWorkflowNode;
+    expect(m1.properties.opcoes[0].nextNodeId).toBe("");
+    expect("fallbackNodeId" in m1.properties.fallback).toBe(false);
+    expect(get(next, "t").properties).toEqual({ respondAll: true });
+    expect(get(next, "msg2").properties).toEqual({ mensagem: "Horário: seg–sex 9h–18h" });
+    expect(JSON.stringify(next)).not.toContain('"msg1"');
+    expect(findDanglingEdges(next).some((e) => e.problem === "removido")).toBe(false);
+  });
+
+  it("excluir um menu limpa o nextNodeId das mensagens que apontavam pra ele", () => {
+    const next = applyNodeDeletion(base(), "m1");
+    expect(get(next, "msg1").properties).toEqual({ mensagem: "Horário: seg–sex 9h–18h" });
+    expect(get(next, "msg2").properties).toEqual({ mensagem: "Horário: seg–sex 9h–18h", nextNodeId: "msg1" }); // não apontava pro menu
+  });
+
+  it("countNodeConnections conta a aresta 'next' (chega e sai)", () => {
+    expect(countNodeConnections(base(), "msg1")).toBe(5); // entrada t→msg1, opção m1→msg1, fallback m1→msg1, msg1→m1, msg2→msg1
+  });
+
+  it("Delete: aresta 'next' selecionada → apaga a aresta; mensagem selecionada → exclui o nó", () => {
+    expect(resolveDeleteKey({ nodes: base(), selectedNodeId: "msg1", selectedEdgeIds: ["msg1:next"] }))
+      .toEqual({ type: "edges", edgeIds: ["msg1:next"] });
+    expect(resolveDeleteKey({ nodes: base(), selectedNodeId: "msg1", selectedEdgeIds: [] }))
+      .toEqual({ type: "node", nodeId: "msg1" });
   });
 });

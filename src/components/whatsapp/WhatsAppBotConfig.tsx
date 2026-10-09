@@ -53,9 +53,9 @@ export interface WorkflowNodeBase {
 
 export interface TriggerWorkflowNode extends WorkflowNodeBase {
   type: "trigger";
-  // `nextNodeId` = aresta de ENTRADA (trigger → menu): id do menu por onde o
-  // fluxo começa. Ausente = comportamento anterior (motor entra no primeiro
-  // menu habilitado) — compat total com flow_data já salvo.
+  // `nextNodeId` = aresta de ENTRADA (trigger → menu ou mensagem): id do nó
+  // por onde o fluxo começa. Ausente = comportamento anterior (motor entra no
+  // primeiro menu habilitado) — compat total com flow_data já salvo.
   properties: { respondAll: boolean; nextNodeId?: string };
 }
 
@@ -128,12 +128,29 @@ export interface MenuWorkflowNode extends WorkflowNodeBase {
   };
 }
 
+// Etapa 9 · item 4, R7 — nó "message": texto informativo montável pelo usuário
+// entre menus (ex.: "Horário: seg–sex 9h–18h" → voltar ao menu). Ao ser
+// alcançado o motor envia `mensagem` e segue `nextNodeId` na MESMA virada
+// (menu → apresenta o menu junto; outra mensagem → encadeia, com teto de saltos
+// e corte de ciclo). Ausente = encerra o fluxo scriptado (a próxima mensagem do
+// cliente recomeça pelo nó de entrada). Compat total com flow_data salvo: é só
+// um `type` novo na união.
+export interface MessageWorkflowNode extends WorkflowNodeBase {
+  type: "message";
+  properties: {
+    mensagem: string;
+    /** Destino depois de enviar — id de um menu ou de outra mensagem. Ausente = encerra. */
+    nextNodeId?: string;
+  };
+}
+
 export type WorkflowNode =
   | TriggerWorkflowNode
   | AiWorkflowNode
   | SendWorkflowNode
   | HandoverWorkflowNode
-  | MenuWorkflowNode;
+  | MenuWorkflowNode
+  | MessageWorkflowNode;
 
 // Etapa 9 · item 4, rodada R2 — busca por tipo, não por posição no array.
 // `nodes[0]`/`nodes[1]`/`nodes[3]` assumiam a ordem fixa hoje (trigger, ai,
@@ -152,6 +169,9 @@ function isAiNode(n: WorkflowNode): n is AiWorkflowNode {
 // Valor do item "Automático" do Select "Começar por" (Radix Select não aceita
 // value ""); ausente em trigger.properties.nextNodeId.
 const ENTRY_AUTOMATIC = "__automatico__";
+// Idem pro item "Encerrar o fluxo" do destino do nó de mensagem (ausente em
+// message.properties.nextNodeId).
+const MESSAGE_END = "__encerrar__";
 
 export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
   // G71 (adendo de backlog de UI) — leitura fica aberta pra qualquer membro;
@@ -380,6 +400,34 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
     setConfirmDeleteNodeId(null);
   }, []);
 
+  const generateMessageNodeId = () => `node-message-${Math.random().toString(36).slice(2, 9)}`;
+
+  // R7 — "+ Adicionar nó de mensagem". Texto vazio de propósito (o usuário
+  // escreve); sem destino = encerra o fluxo scriptado depois de enviar.
+  const addMessageNode = (position?: FlowPosition) => {
+    const messageCount = nodes.filter(n => n.type === "message").length;
+    const newNode: MessageWorkflowNode = {
+      id: generateMessageNodeId(),
+      type: "message",
+      title: `Mensagem ${messageCount + 1}`,
+      enabled: true,
+      position: position ?? gridPosition(nodes.length),
+      properties: { mensagem: "" },
+    };
+    setNodes(prev => [...prev, newNode]);
+    setSelectedNodeId(newNode.id);
+  };
+
+  // Destino depois de enviar: grava/limpa message.properties.nextNodeId.
+  // "Encerrar" REMOVE a chave (mesma disciplina do trigger — sem string vazia).
+  const setMessageNextNode = (nodeId: string, nextNodeId: string | undefined) => {
+    setNodes(prev => prev.map(node => {
+      if (node.id !== nodeId || node.type !== "message") return node;
+      const { nextNodeId: _removed, ...rest } = node.properties;
+      return { ...node, properties: nextNodeId ? { ...rest, nextNodeId } : rest };
+    }));
+  };
+
   const addMenuNode = (position?: FlowPosition) => {
     const menuCount = nodes.filter(n => n.type === "menu").length;
     const newNode: MenuWorkflowNode = {
@@ -410,9 +458,9 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
     }));
   };
 
-  // Só nós "menu" (criados pelo usuário nesta rodada) ganham título
-  // editável — os 4 nós fixos nunca tiveram esse campo na UI, e mudar
-  // título deles está fora do escopo desta rodada.
+  // Só nós criados pelo usuário ("menu" e "message") ganham título editável —
+  // os 4 nós fixos nunca tiveram esse campo na UI, e mudar título deles está
+  // fora do escopo.
   const updateMenuNodeTitle = (nodeId: string, title: string) => {
     setNodes(prev => prev.map(node => (node.id === nodeId ? { ...node, title } : node)));
   };
@@ -575,6 +623,34 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
     setSimState(INITIAL_SIM_STATE);
   };
 
+  // "Excluir nó" em 2 passos, compartilhado pelo inspector do menu e da
+  // mensagem (nada persiste até "Salvar Fluxo", mas a exclusão leva junto as
+  // conexões que chegam/saem do nó).
+  const renderDeleteControl = (node: WorkflowNode) =>
+    confirmDeleteNodeId === node.id ? (
+      <div role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-xs">
+        <span className="flex-1 min-w-[200px] text-destructive">
+          Excluir “{node.title}”? {countNodeConnections(nodes, node.id)} conexão(ões) que chegam ou saem dele serão removidas.
+        </span>
+        <Button type="button" size="sm" variant="destructive" className="h-7 text-[11px]" onClick={() => deleteMenuNode(node.id)}>
+          Confirmar exclusão
+        </Button>
+        <Button type="button" size="sm" variant="outline" className="h-7 text-[11px]" onClick={() => setConfirmDeleteNodeId(null)}>
+          Cancelar
+        </Button>
+      </div>
+    ) : (
+      <div className="flex justify-end">
+        <Button
+          type="button" size="sm" variant="outline"
+          onClick={() => setConfirmDeleteNodeId(node.id)}
+          className="h-7 gap-1 text-[11px] text-destructive hover:text-destructive"
+        >
+          <Trash2 className="h-3 w-3" /> Excluir nó
+        </Button>
+      </div>
+    );
+
   if (loading) {
     return (
       <div className="flex h-96 flex-col items-center justify-center gap-3 text-sm text-muted-foreground bg-card/10 backdrop-blur-lg rounded-2xl border border-border/20 m-6">
@@ -655,6 +731,7 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
                 onNodesModelChange={setNodes}
                 onToggleEnabled={toggleNodeEnabled}
                 onAddMenuNode={addMenuNode}
+                onAddMessageNode={addMessageNode}
                 onDeleteNode={deleteMenuNode}
               />
             </Suspense>
@@ -758,7 +835,7 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value={ENTRY_AUTOMATIC}>Automático (primeiro menu habilitado)</SelectItem>
-                        {nodes.filter((n): n is MenuWorkflowNode => n.type === "menu").map((m) => (
+                        {nodes.filter((n): n is MenuWorkflowNode | MessageWorkflowNode => n.type === "menu" || n.type === "message").map((m) => (
                           <SelectItem key={m.id} value={m.id}>{m.enabled ? m.title : `${m.title} (desabilitado)`}</SelectItem>
                         ))}
                       </SelectContent>
@@ -770,14 +847,14 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
                     ))}
                     {(() => {
                       const chosen = nodes.find((n) => n.id === activeNode.properties.nextNodeId);
-                      return chosen && !(chosen.type === "menu" && chosen.enabled) ? (
+                      return chosen && !((chosen.type === "menu" || chosen.type === "message") && chosen.enabled) ? (
                         <p role="alert" className="text-[10px] text-destructive/90">
-                          ⚠ “{chosen.title}” não é um menu habilitado — a entrada é ignorada e o motor usa o primeiro menu habilitado.
+                          ⚠ “{chosen.title}” não é um menu habilitado nem uma mensagem habilitada — a entrada é ignorada e o motor usa o primeiro menu habilitado.
                         </p>
                       ) : null;
                     })()}
                     <p className="text-[10px] text-muted-foreground/70 leading-relaxed">
-                      Sem escolha, o fluxo começa no primeiro menu habilitado. Você também pode ligar o ponto “Início do fluxo” do gatilho a um menu no canvas.
+                      Sem escolha, o fluxo começa no primeiro menu habilitado. Você também pode ligar o ponto “Início do fluxo” do gatilho a um menu ou a uma mensagem no canvas.
                     </p>
                   </div>
                 </div>
@@ -957,29 +1034,7 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
 
                   {/* Excluir nó: 2 passos (nada persiste até "Salvar Fluxo", mas a
                       exclusão leva junto as conexões que chegam/saem dele). */}
-                  {confirmDeleteNodeId === activeNode.id ? (
-                    <div role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-xs">
-                      <span className="flex-1 min-w-[200px] text-destructive">
-                        Excluir “{activeNode.title}”? {countNodeConnections(nodes, activeNode.id)} conexão(ões) que chegam ou saem dele serão removidas.
-                      </span>
-                      <Button type="button" size="sm" variant="destructive" className="h-7 text-[11px]" onClick={() => deleteMenuNode(activeNode.id)}>
-                        Confirmar exclusão
-                      </Button>
-                      <Button type="button" size="sm" variant="outline" className="h-7 text-[11px]" onClick={() => setConfirmDeleteNodeId(null)}>
-                        Cancelar
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="flex justify-end">
-                      <Button
-                        type="button" size="sm" variant="outline"
-                        onClick={() => setConfirmDeleteNodeId(activeNode.id)}
-                        className="h-7 gap-1 text-[11px] text-destructive hover:text-destructive"
-                      >
-                        <Trash2 className="h-3 w-3" /> Excluir nó
-                      </Button>
-                    </div>
-                  )}
+                  {renderDeleteControl(activeNode)}
 
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">
@@ -1143,6 +1198,84 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
                       {activeNode.properties.fallback.acao === "reprompt"
                         ? "a conversa é entregue a um atendente humano."
                         : "o fluxo segue para o nó de destino escolhido."}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* MESSAGE INSPECTOR (Item 4 · R7 — nó de mensagem montável) */}
+              {activeNode.type === "message" && (
+                <div className="space-y-5">
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Texto informativo enviado de uma vez — sem opções e sem custo de IA. Depois de enviar, o fluxo segue para o destino escolhido (normalmente de volta a um menu).
+                  </p>
+
+                  {renderDeleteControl(activeNode)}
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">
+                      Título do nó
+                    </label>
+                    <Input
+                      value={activeNode.title}
+                      onChange={(e) => updateMenuNodeTitle(activeNode.id, e.target.value)}
+                      placeholder="Ex: Horário de atendimento"
+                      className="h-9 text-xs bg-background/30"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">
+                      Texto da mensagem
+                    </label>
+                    <Textarea
+                      value={activeNode.properties.mensagem}
+                      onChange={(e) => updateNodeProperty(activeNode.id, "mensagem", e.target.value)}
+                      placeholder="Ex: Atendemos de segunda a sexta, das 9h às 18h."
+                      className="min-h-[90px] text-xs bg-background/30"
+                    />
+                    {activeNode.properties.mensagem.trim() === "" && (
+                      <p role="alert" className="text-[10px] text-destructive/90">
+                        ⚠ Texto vazio — o robô ignora este nó até você escrever a mensagem.
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">
+                      Depois de enviar, ir para
+                    </label>
+                    <Select
+                      value={activeNode.properties.nextNodeId ?? MESSAGE_END}
+                      onValueChange={(val) => setMessageNextNode(activeNode.id, val === MESSAGE_END ? undefined : val)}
+                    >
+                      <SelectTrigger className="h-9 text-xs bg-background/30">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={MESSAGE_END}>Encerrar o fluxo — padrão</SelectItem>
+                        {nodes
+                          .filter((n) => n.id !== activeNode.id && (n.type === "menu" || n.type === "message"))
+                          .map((n) => (
+                            <SelectItem key={n.id} value={n.id}>{n.enabled ? n.title : `${n.title} (desabilitado)`}</SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                    {danglingEdges.filter((e) => e.fromNodeId === activeNode.id).map((e) => (
+                      <p key={e.id} role="alert" className="text-[10px] text-destructive/90">
+                        ⚠ O destino depois de enviar não existe mais — escolha outro (sem destino a mensagem encerra o fluxo).
+                      </p>
+                    ))}
+                    {(() => {
+                      const chosen = nodes.find((n) => n.id === activeNode.properties.nextNodeId);
+                      return chosen && !((chosen.type === "menu" || chosen.type === "message") && chosen.enabled) ? (
+                        <p role="alert" className="text-[10px] text-destructive/90">
+                          ⚠ “{chosen.title}” não é um menu habilitado nem uma mensagem habilitada — o fluxo encerra depois de enviar este texto.
+                        </p>
+                      ) : null;
+                    })()}
+                    <p className="text-[10px] text-muted-foreground/70 leading-relaxed">
+                      Voltar a um menu apresenta o menu na mesma resposta. Sem destino, o fluxo scriptado termina aqui e a próxima mensagem do cliente recomeça pelo nó de entrada.
                     </p>
                   </div>
                 </div>
