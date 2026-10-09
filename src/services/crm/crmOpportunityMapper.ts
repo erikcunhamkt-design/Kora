@@ -1,4 +1,4 @@
-import type { Lead, StageKey, Priority, LeadTemperature } from "@/hooks/useLeads";
+import type { Lead, StageKey, Priority, LeadTemperature, NewLeadInput } from "@/hooks/useLeads";
 import type { SupabaseOpportunity, SupabaseOpportunityInput } from "@/repositories/crmOpportunitiesRepository";
 import { formatDate as intlDate } from "@/lib/format";
 
@@ -71,6 +71,44 @@ export function resolveCrmClientFk(
   map: Record<string, string> = readCrmClientsImportMap(),
 ): string | null {
   return resolveUuid(clientId, map);
+}
+
+/**
+ * Produtor NATIVO único de `crm_opportunities` (criar oportunidade na nuvem). Extraído do
+ * `CRM.tsx` (G64 item 1 + G89) pra que os escritores de lead FORA do CRM (G93 — ex.: a
+ * conversão de solicitação de cadastro em oportunidade, em `Clientes.tsx`) usem exatamente
+ * o mesmo payload, sem um 2º produtor que derive.
+ *
+ *  - `stage` = id real do estágio (`stageId`, pode ser de funil customizado), senão `stage`;
+ *  - `status` deriva de `PipelineStage.type` (`stageType`: "won"/"lost"/outro ⇒ "open"), não da
+ *    string literal "fechado"/"perdido";
+ *  - `client_id` pelo mesmo resolvedor do G89 (uuid passa direto; mapa só pro id local legado).
+ */
+export function buildNativeOpportunityInput(
+  data: NewLeadInput,
+  opts: { stageType?: string | null } = {},
+): SupabaseOpportunityInput {
+  return {
+    title: data.name,
+    company: data.company || null,
+    contact_name: data.name || null,
+    email: data.email || null,
+    phone: data.phone || null,
+    whatsapp: data.phone || null,
+    stage: data.stageId || data.stage || "lead",
+    status: opts.stageType === "won" ? "won" : opts.stageType === "lost" ? "lost" : "open",
+    source: data.source || data.origin || null,
+    temperature: data.temperature || "não definida",
+    priority: data.priority || "média",
+    potential_value: data.estimatedValue || 0,
+    next_action: data.nextAction || null,
+    next_action_date: data.nextActionDate || null,
+    expected_close_date: null,
+    notes: data.description || null,
+    archived: false,
+    is_demo: false,
+    client_id: resolveCrmClientFk(data.clientId),
+  };
 }
 
 export function mapLocalLeadToSupabaseOpportunity(

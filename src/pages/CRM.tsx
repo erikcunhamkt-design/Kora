@@ -122,7 +122,7 @@ const SummaryCard = ({ icon: Icon, label, value, sub, accent }: { icon: LucideIc
 };
 
 import { useSupabaseOpportunities } from "@/hooks/useSupabaseOpportunities";
-import { mapSupabaseOpportunityToLocalLead, resolveCrmClientFk } from "@/services/crm/crmOpportunityMapper";
+import { mapSupabaseOpportunityToLocalLead, buildNativeOpportunityInput } from "@/services/crm/crmOpportunityMapper";
 import { crmOpportunitiesRepository, type SupabaseOpportunityInput } from "@/repositories/crmOpportunitiesRepository";
 import { Cloud, Database, Lock, RefreshCw } from "lucide-react";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
@@ -131,22 +131,9 @@ import { supabaseCrmAuditLog } from "@/services/crm/supabaseCrmAuditLog";
 import { CreateCrmSupabaseQuoteDialog } from "@/components/crm/CreateCrmSupabaseQuoteDialog";
 import { LinkedQuotesSection } from "@/components/crm/LinkedQuotesSection";
 import { useTranslation } from "@/contexts/language-context-value";
-import { getFriendlyMessage } from "@/lib/supabase/errors";
+import { getRealErrorMessage } from "@/lib/supabase/errors";
 
 
-
-/**
- * Mensagem REAL do erro (G75: o usuário vê o que de fato falhou). `Error` e o objeto
- * `{ message }` do PostgrestError passam como estão; só o que não tem mensagem cai
- * na normalizada (`getFriendlyMessage`).
- */
-function realErrorMessage(err: unknown): string {
-  if (err instanceof Error && err.message) return err.message;
-  if (err && typeof err === "object" && typeof (err as { message?: unknown }).message === "string" && (err as { message: string }).message) {
-    return (err as { message: string }).message;
-  }
-  return getFriendlyMessage(err);
-}
 
 const CRM = () => {
   const { t } = useTranslation();
@@ -615,7 +602,7 @@ const CRM = () => {
         toast.success("Estágio atualizado com sucesso no Supabase!");
       } catch (err) {
         console.error("Failed to move stage in Supabase:", err);
-        toast.error("Erro ao persistir alteração no Supabase. Revertendo alteração...");
+        toast.error(`Erro ao mover a oportunidade de etapa no Supabase: ${getRealErrorMessage(err)}. Revertendo alteração...`);
         // force state refresh to rollback UI
         await refreshSupabase();
       }
@@ -773,7 +760,7 @@ const CRM = () => {
       toast.success("Cliente criado a partir do lead");
     } catch (err) {
       console.error("Erro ao converter lead em cliente:", err);
-      toast.error(`Erro ao converter lead em cliente: ${realErrorMessage(err)}`);
+      toast.error(`Erro ao converter lead em cliente: ${getRealErrorMessage(err)}`);
     } finally {
       convertingLeadIds.current.delete(lead.id);
     }
@@ -1265,44 +1252,13 @@ const CRM = () => {
 
               // G89 — uuid de cliente da nuvem passa direto; o mapa de import só
               // traduz id numérico local legado.
-              const supabaseClientId = resolveCrmClientFk(data.clientId);
-
-              // G64 — `data.stage` é `StageKey` coagido pra 1 dos 6 valores
-              // fixos do pipeline padrão (`NewLeadDialog.handleSave`,
-              // obrigatório ali porque `Lead.stage` LOCAL é tipado
-              // `StageKey`) — `data.stageId` carrega o id real do pipeline
-              // (pode ser customizado, "Gerenciar funis"). `crm_opportunities.stage`
-              // é TEXT livre sem CHECK (confirmado em
-              // docs/qa/etapa-5-flip-crm-rodada3-check-drafts.md §1), então a
-              // nuvem deve gravar o estágio real — mesmo contrato que
-              // `moveOpportunityStage` já grava sem coerção nenhuma. Won/lost
-              // deriva de `PipelineStage.type`, não de comparar a string
-              // literal "fechado"/"perdido" (que só existe no pipeline
-              // padrão) — mesmo padrão que `wonCount`/`totalActive` (acima)
-              // já usam pro lado local.
+              // G64 — `data.stage` é `StageKey` coagido pra 1 dos 6 valores fixos do
+              // pipeline padrão; `data.stageId` carrega o id real do funil (pode ser
+              // customizado). Won/lost deriva de `PipelineStage.type`. G89 — `client_id`
+              // com passthrough de uuid. Tudo isso agora vive no produtor compartilhado
+              // `buildNativeOpportunityInput` (G93: o mesmo payload é usado fora do CRM).
               const stageObj = stages.find((s) => s.id === data.stageId);
-
-              const payload: SupabaseOpportunityInput = {
-                title: data.name,
-                company: data.company || null,
-                contact_name: data.name || null,
-                email: data.email || null,
-                phone: data.phone || null,
-                whatsapp: data.phone || null,
-                stage: data.stageId || data.stage || "lead",
-                status: stageObj?.type === "won" ? "won" : stageObj?.type === "lost" ? "lost" : "open",
-                source: data.source || data.origin || null,
-                temperature: data.temperature || "não definida",
-                priority: data.priority || "média",
-                potential_value: data.estimatedValue || 0,
-                next_action: data.nextAction || null,
-                next_action_date: data.nextActionDate || null,
-                expected_close_date: null,
-                notes: data.description || null,
-                archived: false,
-                is_demo: false,
-                client_id: supabaseClientId,
-              };
+              const payload = buildNativeOpportunityInput(data, { stageType: stageObj?.type });
 
               const result = await crmOpportunitiesRepository.createOpportunity(workspace.id, payload);
 
@@ -1396,7 +1352,7 @@ const CRM = () => {
               toast.success("Alterações salvas com sucesso no Supabase!");
             } catch (err) {
               console.error("Failed to update opportunity in Supabase:", err);
-              toast.error("Erro ao salvar alterações no Supabase. Revertendo...");
+              toast.error(`Erro ao salvar alterações no Supabase: ${getRealErrorMessage(err)}. Revertendo...`);
               await refreshSupabase();
             }
             return;

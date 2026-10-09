@@ -19,7 +19,7 @@ import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { mirrorProjectToSupabase } from "@/services/projects/projectsCloudMirror";
 import { isSupabaseProjectsWriteEnabled } from "@/hooks/useSupabaseProjectsWriteFlag";
 import { getProjectsDataSource } from "@/config/flags";
-import { getFriendlyMessage } from "@/lib/supabase/errors";
+import { getRealErrorMessage } from "@/lib/supabase/errors";
 
 interface CreateProjectFromQuoteDialogProps {
   open: boolean;
@@ -95,7 +95,7 @@ export function CreateProjectFromQuoteDialog({
     } catch (mirrorErr) {
       console.error("Espelho nuvem do projeto falhou (local já gravado):", mirrorErr);
       toast.warning("Projeto salvo localmente, mas o espelho no Supabase falhou.", {
-        description: "Rode a importação manual em Configurações → Dados quando possível.",
+        description: `${getRealErrorMessage(mirrorErr)} — rode a importação manual em Configurações → Dados quando possível.`,
       });
     }
   };
@@ -152,7 +152,7 @@ export function CreateProjectFromQuoteDialog({
         onOpenChange(false);
       } catch (err: unknown) {
         console.error("Falha ao criar projeto no Supabase:", err);
-        toast.error("Erro ao gerar projeto no Supabase.", { description: getFriendlyMessage(err) });
+        toast.error("Erro ao gerar projeto no Supabase.", { description: getRealErrorMessage(err) });
       } finally {
         setSubmitting(false);
       }
@@ -201,7 +201,7 @@ export function CreateProjectFromQuoteDialog({
       onOpenChange(false);
     } catch (err: unknown) {
       console.error(err);
-      toast.error("Erro ao gerar projeto.");
+      toast.error(`Erro ao gerar projeto: ${getRealErrorMessage(err)}`);
     } finally {
       setSubmitting(false);
     }

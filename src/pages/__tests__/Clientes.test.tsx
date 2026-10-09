@@ -9,7 +9,7 @@
 // quando a mudança é só de `assets`.
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Routes, Route, useLocation } from "react-router-dom";
 import { toast } from "sonner";
 
 import Clientes from "@/pages/Clientes";
@@ -21,6 +21,7 @@ import { useSignupRequests } from "@/hooks/useSignupRequests";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { useBifurcatedTechnicalSheet } from "@/hooks/useBifurcatedTechnicalSheet";
 import type { Client } from "@/types/domain";
+import { crmOpportunitiesRepository } from "@/repositories/crmOpportunitiesRepository";
 
 vi.mock("@/hooks/useClientsDataSource", () => ({ useClientsDataSource: vi.fn() }));
 // MaterialsTab (dentro de ClientProfileDrawer, aba "Materiais") passou a ler
@@ -41,7 +42,41 @@ vi.mock("@/hooks/useCurrentWorkspace", () => ({ useCurrentWorkspace: vi.fn() }))
 // SignupLinkDrawer é montado sempre (não condicionado à aba ativa) e chama
 // useAuth() internamente — sem AuthProvider real na árvore de teste, quebra
 // o render inteiro. Sem relação com o achado G75, só ruído de infra.
-vi.mock("@/components/clientes/SignupLinkDrawer", () => ({ SignupLinkDrawer: () => null }));
+// G93 — o drawer de link vira só um botão que abre "Solicitações recebidas", e o painel de
+// solicitações vira um stub que expõe `onConvertLead` (o produtor testado) com o resultado.
+const signupMocks = vi.hoisted(() => ({
+  convertResults: [] as Array<boolean | void>,
+  refreshOpportunities: vi.fn(),
+}));
+vi.mock("@/components/clientes/SignupLinkDrawer", () => ({
+  SignupLinkDrawer: ({ onOpenRequests }: { onOpenRequests: () => void }) => (
+    <button onClick={onOpenRequests}>abrir-solicitacoes-stub</button>
+  ),
+}));
+vi.mock("@/components/clientes/SignupRequestsPanel", () => ({
+  SignupRequestsPanel: ({ onConvertLead }: { onConvertLead?: (r: unknown) => unknown }) => (
+    <button
+      onClick={async () => {
+        const r = await onConvertLead?.({
+          id: "11111111-2222-4333-8444-555555555555", name: "Solicitante Real", company: "Empresa S",
+          email: "solicitante@teste.com", phone: "11977776666", project_interest: "Branding",
+          message: "Quero um orçamento", status: "pending",
+        });
+        signupMocks.convertResults.push(r as boolean | void);
+      }}
+    >
+      converter-solicitacao-stub
+    </button>
+  ),
+}));
+// G93 — Clientes.tsx passou a ler useSupabaseOpportunities() (refresh do cache do CRM depois de
+// criar a oportunidade) e a escrever pelo repositório do CRM.
+vi.mock("@/hooks/useSupabaseOpportunities", () => ({
+  useSupabaseOpportunities: () => ({ opportunities: [], refresh: signupMocks.refreshOpportunities }),
+}));
+vi.mock("@/repositories/crmOpportunitiesRepository", () => ({
+  crmOpportunitiesRepository: { createOpportunity: vi.fn() },
+}));
 vi.mock("sonner", () => ({
   toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() }),
 }));
@@ -317,5 +352,106 @@ describe("Clientes · copy G29 — arquivar/restaurar/excluir refletem o modo re
     fireEvent.click(await screen.findByRole("menuitem", { name: /Excluir/ }));
     const dialog = (await screen.findByText("Excluir cliente?")).closest("[role=\"alertdialog\"]") as HTMLElement;
     expect(within(dialog).getByText(/seus dados locais serão removidos/)).toBeInTheDocument();
+  });
+});
+
+// G93 — escrita de lead FORA do CRM. "Solicitações recebidas → converter em lead" criava a
+// oportunidade só no armazenamento local (useLeads) — em modo Supabase o lead nunca aparecia no
+// CRM, e o painel confirmava "convertido em lead no CRM" mesmo assim. Agora cria nativamente na
+// nuvem (mesmo produtor do CRM); falha/flag OFF viram erro e o painel NÃO confirma sucesso.
+// Item de menu "Criar oportunidade" da linha deixou de ser um toast "chega em breve".
+describe("Clientes · G93 — oportunidade criada fora do CRM grava na nuvem (ou diz que não gravou)", () => {
+  const CLIENT_UUID = "3f2b7c1e-9a4d-4e8b-8c55-1d2e3f4a5b6c";
+
+  function LocationProbe() {
+    const loc = useLocation();
+    return <div data-testid="crm-route">{loc.pathname + loc.search}</div>;
+  }
+
+  async function openRequestsAndConvert() {
+    renderClientesAt("/clientes");
+    fireEvent.click(await screen.findByText("abrir-solicitacoes-stub"));
+    fireEvent.click(await screen.findByText("converter-solicitacao-stub"));
+  }
+
+  beforeEach(() => {
+    signupMocks.convertResults.length = 0;
+    vi.mocked(crmOpportunitiesRepository.createOpportunity).mockResolvedValue({ id: "opp-new" } as never);
+    signupMocks.refreshOpportunities.mockResolvedValue(undefined);
+    localStorage.removeItem("orbyt.leads.v1");
+    setupCommonMocks("supabase", makeClient());
+  });
+
+  it("menu da linha → \"Criar oportunidade\" abre o dialog do CRM já com o clientId (uuid), sem o toast \"chega em breve\"", async () => {
+    setupCommonMocks("supabase", makeClient({ id: CLIENT_UUID as unknown as number }));
+    render(
+      <MemoryRouter initialEntries={["/clientes"]}>
+        <Routes>
+          <Route path="/clientes" element={<Clientes />} />
+          <Route path="/crm" element={<LocationProbe />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await screen.findByText("Cliente Teste");
+    const trigger = document.querySelector("tbody button[aria-haspopup=\"menu\"]") as HTMLElement;
+    fireEvent.pointerDown(trigger, { button: 0, pointerId: 1, isPrimary: true });
+    fireEvent.pointerUp(trigger, { button: 0, pointerId: 1, isPrimary: true });
+    fireEvent.click(trigger);
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Criar oportunidade/ }));
+
+    expect((await screen.findByTestId("crm-route")).textContent).toBe(
+      `/crm?newOpportunity=1&clientId=${CLIENT_UUID}`,
+    );
+    expect(toast).not.toHaveBeenCalledWith(expect.stringContaining("chega em breve"));
+  });
+
+  it("solicitação → lead em modo Supabase: cria a oportunidade NA NUVEM pelo produtor do CRM, não no useLeads local", async () => {
+    await openRequestsAndConvert();
+
+    await waitFor(() => expect(crmOpportunitiesRepository.createOpportunity).toHaveBeenCalledTimes(1));
+    const [ws, payload] = vi.mocked(crmOpportunitiesRepository.createOpportunity).mock.calls[0];
+    expect(ws).toBe("ws1");
+    expect(payload).toMatchObject({
+      title: "Solicitante Real", email: "solicitante@teste.com", phone: "11977776666",
+      stage: "lead", status: "open", source: "Link de cadastro",
+      next_action: "Entrar em contato", notes: "Quero um orçamento", client_id: null, archived: false,
+    });
+    await waitFor(() => expect(signupMocks.convertResults).toEqual([true]));
+    expect(signupMocks.refreshOpportunities).toHaveBeenCalled();
+    const stored = JSON.parse(localStorage.getItem("orbyt.leads.v1") || "[]");
+    expect(stored.some((l: { name: string }) => l.name === "Solicitante Real")).toBe(false);
+  });
+
+  it("CRM Supabase em modo leitura (master flag OFF): não cria, erro honesto e o painel não confirma", async () => {
+    localStorage.setItem("kora.crm.supabaseWrite.enabled", "false");
+
+    await openRequestsAndConvert();
+
+    await waitFor(() => expect(signupMocks.convertResults).toEqual([false]));
+    expect(crmOpportunitiesRepository.createOpportunity).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("Criar oportunidade no CRM Supabase está desligado"));
+  });
+
+  it("falha da nuvem: toast de erro com a mensagem real e o painel não confirma sucesso", async () => {
+    vi.mocked(crmOpportunitiesRepository.createOpportunity).mockRejectedValue(new Error("new row violates row-level security policy"));
+
+    await openRequestsAndConvert();
+
+    await waitFor(() => expect(signupMocks.convertResults).toEqual([false]));
+    const msg = String(vi.mocked(toast.error).mock.calls[0][0]);
+    expect(msg).toContain("Erro ao criar a oportunidade no CRM");
+    expect(msg).toContain("row-level security");
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it("fonte do CRM em Local: segue no armazenamento local, nada vai pra nuvem (modo local intocado)", async () => {
+    localStorage.setItem("kora.crm.dataSource.v1", "local");
+
+    await openRequestsAndConvert();
+
+    await waitFor(() => expect(signupMocks.convertResults).toEqual([true]));
+    expect(crmOpportunitiesRepository.createOpportunity).not.toHaveBeenCalled();
+    const stored = JSON.parse(localStorage.getItem("orbyt.leads.v1") || "[]");
+    expect(stored.some((l: { name: string }) => l.name === "Solicitante Real")).toBe(true);
   });
 });

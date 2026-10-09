@@ -1142,3 +1142,70 @@ describe("CRM · G87 — deep link ?lead=<id> abre o drawer do lead certo", () =
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
   });
 });
+
+// G95 — erros do CRM que diziam só "Erro ao ..." sem a causa: o usuário via "Revertendo alteração..."
+// e não sabia se foi permissão, rede ou constraint. Passam a levar a mensagem real (padrão do G91).
+describe("CRM · G95 — mover estágio / editar mostram a mensagem real do erro", () => {
+  it("mover card pra outra etapa e a nuvem recusar: toast com a mensagem real, não só \"Erro ao persistir…\"", async () => {
+    const leadNuvem = makeSupabaseOpportunity({ stage: "lead" });
+    vi.mocked(useLeads).mockReturnValue({
+      leads: [], addLead: vi.fn(), moveLead: vi.fn(), moveLeadToStage: vi.fn(), moveLeadToPipeline: vi.fn(),
+      updateLead: vi.fn(), archiveLead: vi.fn(), deleteLead: vi.fn(), setLeadTags: vi.fn(), markConverted: vi.fn(),
+    } as never);
+    vi.mocked(useSupabaseCrmWriteFlag).mockReturnValue({ enabled: true, setEnabled: vi.fn(), toggle: vi.fn() });
+    vi.mocked(useSupabaseOpportunities).mockReturnValue({
+      opportunities: [leadNuvem], loading: false, error: null, refresh: vi.fn(),
+    } as never);
+    vi.mocked(crmOpportunitiesRepository.moveOpportunityStage).mockRejectedValue(new Error("permission denied for table crm_opportunities"));
+    localStorage.setItem(CRM_DATA_SOURCE_KEY, "supabase");
+
+    renderCRM();
+    await openLeadMenu("Lead Nuvem");
+    const subTrigger = screen.getByText("Mover para etapa");
+    fireEvent.pointerDown(subTrigger, { button: 0, pointerId: 1, isPrimary: true });
+    fireEvent.pointerUp(subTrigger, { button: 0, pointerId: 1, isPrimary: true });
+    fireEvent.click(subTrigger);
+    const stageItem = await screen.findByRole("menuitem", { name: "Fechado" });
+    fireEvent.pointerDown(stageItem, { button: 0, pointerId: 1, isPrimary: true });
+    fireEvent.pointerUp(stageItem, { button: 0, pointerId: 1, isPrimary: true });
+    fireEvent.click(stageItem);
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    const msg = String(vi.mocked(toast.error).mock.calls[0][0]);
+    expect(msg).toContain("permission denied for table crm_opportunities");
+    expect(msg).toContain("Revertendo");
+    expect(toast.success).not.toHaveBeenCalledWith("Estágio atualizado com sucesso no Supabase!");
+  });
+
+  it("editar no drawer e a nuvem recusar: toast com a mensagem real", async () => {
+    const opp = makeSupabaseOpportunity();
+    const mapped = mapSupabaseOpportunityToLocalLead(opp);
+    vi.mocked(useLeads).mockReturnValue({
+      leads: [], addLead: vi.fn(), moveLead: vi.fn(), moveLeadToStage: vi.fn(), moveLeadToPipeline: vi.fn(),
+      updateLead: vi.fn(), archiveLead: vi.fn(), deleteLead: vi.fn(), setLeadTags: vi.fn(), markConverted: vi.fn(),
+    } as never);
+    vi.mocked(useSupabaseCrmWriteFlag).mockReturnValue({ enabled: true, setEnabled: vi.fn(), toggle: vi.fn() });
+    vi.mocked(useSupabaseOpportunities).mockReturnValue({
+      opportunities: [opp], loading: false, error: null, refresh: vi.fn(),
+    } as never);
+    vi.mocked(crmOpportunitiesRepository.updateOpportunity).mockRejectedValue(new Error("value too long for type character varying(20)"));
+    localStorage.setItem(CRM_DATA_SOURCE_KEY, "supabase");
+
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter initialEntries={[`/crm?lead=${mapped.id}`]}>
+          <CRM />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Editar" }));
+    fireEvent.change(await screen.findByDisplayValue("Lead Nuvem"), { target: { value: "Lead Nuvem Editado" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    const msg = String(vi.mocked(toast.error).mock.calls[0][0]);
+    expect(msg).toContain("value too long for type character varying(20)");
+    expect(toast.success).not.toHaveBeenCalledWith("Alterações salvas com sucesso no Supabase!");
+  });
+});

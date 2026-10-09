@@ -42,6 +42,13 @@ import { SignupLinkDrawer } from "@/components/clientes/SignupLinkDrawer";
 import { SignupRequestsPanel } from "@/components/clientes/SignupRequestsPanel";
 import { useSignupRequests, type SignupRequest } from "@/hooks/useSignupRequests";
 import { useLeads } from "@/hooks/useLeads";
+import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
+import { useSupabaseOpportunities } from "@/hooks/useSupabaseOpportunities";
+import { isSupabaseCrmWriteEnabled } from "@/hooks/useSupabaseCrmWriteFlag";
+import { getCrmDataSource } from "@/config/flags";
+import { crmOpportunitiesRepository } from "@/repositories/crmOpportunitiesRepository";
+import { buildNativeOpportunityInput } from "@/services/crm/crmOpportunityMapper";
+import { getRealErrorMessage } from "@/lib/supabase/errors";
 
 import { useClientTypes } from "@/hooks/useClientTypes";
 import { NewClientTypeDialog } from "@/components/clientes/NewClientTypeDialog";
@@ -334,6 +341,10 @@ const Clientes = () => {
   };
 
   const { addLead } = useLeads();
+  // G93 — solicitação de cadastro → oportunidade: em modo Supabase cria NATIVAMENTE na
+  // nuvem (mesmo produtor do CRM); `addLead` local só vale com a fonte do CRM em "Local".
+  const { workspace: crmWorkspace } = useCurrentWorkspace();
+  const { refresh: refreshOpportunities } = useSupabaseOpportunities({ includeArchived: true });
 
 
   const { wouldExceed, showPaywall, setUsage } = usePlan();
@@ -435,8 +446,9 @@ const Clientes = () => {
     });
   };
 
-  const convertRequestToLead = (req: SignupRequest) => {
-    addLead({
+  /** Devolve `false` quando a oportunidade NÃO foi criada (o painel não confirma sucesso). */
+  const convertRequestToLead = async (req: SignupRequest): Promise<boolean> => {
+    const input = {
       name: req.name,
       company: req.company || "",
       email: req.email || "",
@@ -450,7 +462,31 @@ const Clientes = () => {
       tags: [],
       nextAction: "Entrar em contato",
       description: req.message || "",
-    } as Parameters<typeof addLead>[0]);
+    } as Parameters<typeof addLead>[0];
+
+    if (crmWorkspace && getCrmDataSource() === "supabase") {
+      if (!isSupabaseCrmWriteEnabled()) {
+        toast.error("Criar oportunidade no CRM Supabase está desligado (CRM Supabase Operacional desativado). Reative em Configurações → Sincronização Cloud.");
+        return false;
+      }
+      try {
+        await crmOpportunitiesRepository.createOpportunity(crmWorkspace.id, buildNativeOpportunityInput(input));
+      } catch (err) {
+        console.error("Erro ao criar oportunidade a partir da solicitação:", err);
+        toast.error(`Erro ao criar a oportunidade no CRM (Supabase): ${getRealErrorMessage(err)}`);
+        return false;
+      }
+      try {
+        await refreshOpportunities();
+      } catch (refreshErr) {
+        // A escrita já aconteceu; só a releitura falhou (o próximo refetch corrige).
+        console.error("G93: refresh das oportunidades falhou:", refreshErr);
+      }
+      return true;
+    }
+
+    addLead(input);
+    return true;
   };
 
   const noClients = clients.length === 0;
@@ -680,6 +716,7 @@ const Clientes = () => {
                       onEdit={() => setEditClient(c)}
                       onWhats={() => handleOpenWhatsApp(c)}
                       onCopy={() => handleCopyContact(c)}
+                      onCreateOpportunity={() => navigate(`/crm?newOpportunity=1&clientId=${c.id}`)}
                       onArchive={() => handleArchive(c)}
                       onRestore={() => handleRestore(c)}
                       onDelete={() => setDeleteTarget(c)}
@@ -715,6 +752,7 @@ const Clientes = () => {
                     onEdit={() => setEditClient(c)}
                     onWhats={() => handleOpenWhatsApp(c)}
                     onCopy={() => handleCopyContact(c)}
+                    onCreateOpportunity={() => navigate(`/crm?newOpportunity=1&clientId=${c.id}`)}
                     onArchive={() => handleArchive(c)}
                     onRestore={() => handleRestore(c)}
                     onDelete={() => setDeleteTarget(c)}
@@ -881,10 +919,11 @@ const Clientes = () => {
 
 // ---------- Row menu ----------
 const ClientRowMenu = ({
-  c, onView, onEdit, onWhats, onCopy, onArchive, onRestore, onDelete,
+  c, onView, onEdit, onWhats, onCopy, onCreateOpportunity, onArchive, onRestore, onDelete,
 }: {
   c: Client;
   onView: () => void; onEdit: () => void; onWhats: () => void; onCopy: () => void;
+  onCreateOpportunity: () => void;
   onArchive: () => void; onRestore: () => void; onDelete: () => void;
 }) => (
   <DropdownMenu>
@@ -906,7 +945,7 @@ const ClientRowMenu = ({
       <DropdownMenuItem onClick={onCopy}>
         <Copy className="h-3.5 w-3.5 mr-2" /> Copiar contato
       </DropdownMenuItem>
-      <DropdownMenuItem onClick={() => toast("Criar oportunidade chega em breve no CRM.")}>
+      <DropdownMenuItem onClick={onCreateOpportunity}>
         <Target className="h-3.5 w-3.5 mr-2" /> Criar oportunidade
       </DropdownMenuItem>
       <DropdownMenuSeparator />

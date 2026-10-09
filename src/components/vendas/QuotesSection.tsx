@@ -17,6 +17,11 @@ import { useServices } from "@/hooks/useServices";
 import { useClientsDataSource } from "@/hooks/useClientsDataSource";
 import { useBifurcatedFinance } from "@/hooks/useBifurcatedFinance";
 import { useLeads } from "@/hooks/useLeads";
+import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
+import { useSupabaseOpportunities } from "@/hooks/useSupabaseOpportunities";
+import { isSupabaseCrmWriteEnabled } from "@/hooks/useSupabaseCrmWriteFlag";
+import { crmOpportunitiesRepository } from "@/repositories/crmOpportunitiesRepository";
+import { getRealErrorMessage } from "@/lib/supabase/errors";
 import { useBifurcatedOpportunities } from "@/hooks/useBifurcatedOpportunities";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -82,6 +87,9 @@ const effectiveStatus = (q: Quote): QuoteStatus => (isQuoteExpired(q) ? "vencido
 // ficou incorreta pra esses 4 pontos — dava a entender que o recurso não
 // tinha sido construído, quando na verdade só está desligado por flag nesta
 // sessão.
+const CRM_WRITE_FLAG_OFF_FOR_LINK_MESSAGE =
+  "Vincular o orçamento à oportunidade no CRM Supabase está desligado (CRM Supabase Operacional desativado) — o orçamento não foi criado. Reative em Configurações → Sincronização Cloud.";
+
 const QUOTES_WRITE_FLAG_OFF_MESSAGE =
   "Escrita de orçamentos no Supabase ainda está desligada nesta sessão (flag mestre) — volte para Local para editar.";
 
@@ -100,10 +108,14 @@ export function QuotesSection() {
   // e nunca batia aqui. useClientsDataSource() é a mesma fonte bifurcada já
   // usada pelo Select de cliente do wizard (linha ~762, G44).
   const { clients } = useClientsDataSource();
-  // G92: leitura (seed do wizard por ?opportunityId=) pela fonte do CRM; a
-  // ESCRITA (`updateLead`, vínculo orçamento→lead) segue o hook local.
+  // G92: leitura (seed do wizard por ?opportunityId=) pela fonte do CRM.
+  // G93: ESCRITA do vínculo orçamento→oportunidade — oportunidade da nuvem grava
+  // pelo repositório do CRM (`updateOpportunity`, uuid real, G37); `updateLead`
+  // (hook local) só vale pra lead LOCAL.
   const leads = useBifurcatedOpportunities();
   const { updateLead } = useLeads();
+  const { workspace } = useCurrentWorkspace();
+  const { refresh: refreshOpportunities } = useSupabaseOpportunities({ includeArchived: true });
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
 
@@ -298,20 +310,63 @@ export function QuotesSection() {
         toast.error(QUOTES_WRITE_FLAG_OFF_MESSAGE);
         return;
       }
+      // G93 — o vínculo orçamento→oportunidade segue a fonte da OPORTUNIDADE:
+      //  - oportunidade da nuvem (`supabaseId`): grava `quote_id`/`quote_title` pelo
+      //    repositório do CRM e manda o uuid pra `opportunity_id` do orçamento. Respeita
+      //    a master flag do CRM — OFF bloqueia ANTES de criar o orçamento (senão o vínculo
+      //    pedido se perderia em silêncio; mesma regra do G91);
+      //  - lead LOCAL: `updateLead` local, como sempre;
+      //  - id que não casa com nenhuma oportunidade: avisa (antes: no-op com "sucesso").
+      const linkedLead = data.opportunityId != null ? leads.find((l) => l.id === data.opportunityId) : undefined;
+      const opportunityUuid = linkedLead?.supabaseId;
+      if (data.opportunityId != null && opportunityUuid && !isSupabaseCrmWriteEnabled()) {
+        toast.error(CRM_WRITE_FLAG_OFF_FOR_LINK_MESSAGE);
+        return;
+      }
       const subtotal = data.items.reduce((s, i) => s + i.quantity * i.unitPrice, 0);
       const total = Math.max(subtotal - data.discount, 0);
-      const draftQuote: Quote = { ...data, id: "", createdAt: "", subtotal, total };
+      const draftQuote: Quote = {
+        ...data,
+        // uuid "contrabandeado" (mesmo padrão de clientId): resolveQuoteFk faz passthrough
+        // e o orçamento nasce com opportunity_id real em vez de NULL (hash numérico).
+        opportunityId: opportunityUuid ? (opportunityUuid as unknown as number) : data.opportunityId,
+        id: "", createdAt: "", subtotal, total,
+      };
       createSupabaseQuoteWithItems(draftQuote, data.items)
-        .then((created) => {
-          // data.opportunityId (não created.opportunityId): o mapper de
-          // leitura ainda não devolve opportunityId de volta — usar o valor
-          // já conhecido antes da chamada, não o round-trip incompleto.
-          if (data.opportunityId) {
-            updateLead(data.opportunityId, { quoteId: created.id, quoteTitle: created.title });
+        .then(async (created) => {
+          if (data.opportunityId == null) {
+            toast.success("Orçamento salvo");
+            return;
           }
-          toast.success("Orçamento salvo");
+          if (opportunityUuid) {
+            if (!workspace) {
+              toast.warning("Orçamento salvo, mas o vínculo com a oportunidade não foi gravado: nenhum workspace ativo.");
+              return;
+            }
+            try {
+              await crmOpportunitiesRepository.updateOpportunity(workspace.id, opportunityUuid, {
+                quote_id: created.id,
+                quote_title: created.title,
+              });
+            } catch (linkErr) {
+              console.error("G93: vínculo orçamento→oportunidade falhou:", linkErr);
+              toast.warning(`Orçamento salvo, mas o vínculo com a oportunidade não foi gravado: ${getRealErrorMessage(linkErr)}`);
+              return;
+            }
+            try {
+              await refreshOpportunities?.();
+            } catch (refreshErr) {
+              console.error("G93: refresh das oportunidades falhou:", refreshErr);
+            }
+            toast.success("Orçamento salvo");
+          } else if (linkedLead) {
+            updateLead(data.opportunityId, { quoteId: created.id, quoteTitle: created.title });
+            toast.success("Orçamento salvo");
+          } else {
+            toast.warning("Orçamento salvo, mas a oportunidade de origem não foi encontrada — o vínculo não foi gravado.");
+          }
         })
-        .catch(() => toast.error("Erro ao salvar orçamento no Supabase."));
+        .catch((err) => toast.error(`Erro ao salvar orçamento no Supabase: ${getRealErrorMessage(err)}`));
       setModalOpen(false);
       setInitialData(null);
       return;

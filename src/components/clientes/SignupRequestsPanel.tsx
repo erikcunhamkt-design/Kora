@@ -35,7 +35,8 @@ interface Props {
   /** Hook em Clientes para criar cliente real a partir da solicitação. */
   onApproveAsClient?: (req: SignupRequest) => void;
   /** Hook em Clientes/CRM para criar lead/oportunidade. */
-  onConvertLead?: (req: SignupRequest) => void;
+  /** Devolve `false` quando a oportunidade NÃO foi criada — o painel não confirma sucesso nem muda o status. */
+  onConvertLead?: (req: SignupRequest) => void | boolean | Promise<void | boolean>;
 }
 
 export const SignupRequestsPanel = ({ onApproveAsClient, onConvertLead }: Props) => {
@@ -63,7 +64,10 @@ export const SignupRequestsPanel = ({ onApproveAsClient, onConvertLead }: Props)
   };
 
   const handleLead = async (req: SignupRequest) => {
-    if (onConvertLead) onConvertLead(req);
+    if (onConvertLead) {
+      const created = await onConvertLead(req);
+      if (created === false) return; // o erro (real) já foi mostrado por quem criou
+    }
     const ok = await updateStatus(req.id, "lead");
     if (ok) toast.success(`${req.name} convertido em lead no CRM.`);
     else toast.error("Falha ao converter em lead.");

@@ -207,3 +207,43 @@ describe("CreateReceivableDialog — G70 (colisão silenciosa, mesma proteção 
     expect(toast.warning).not.toHaveBeenCalled();
   });
 });
+
+// G95 — erro ao gerar recebível e aviso de espelho com a mensagem real
+describe("CreateReceivableDialog — G95 mensagem real do erro", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.clearAllMocks();
+  });
+
+  it("falha no lançamento local: toast de erro leva a causa (não só \"Erro ao gerar recebível financeiro.\")", async () => {
+    vi.mocked(useFinance).mockReturnValue({
+      addTransaction: vi.fn(() => { throw new Error("armazenamento local cheio"); }),
+    } as never);
+    const onSuccess = vi.fn();
+
+    render(<CreateReceivableDialog {...baseProps} onSuccess={onSuccess} />);
+    fireEvent.click(screen.getByText("Confirmar e Gerar"));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(String(vi.mocked(toast.error).mock.calls[0][0])).toContain("armazenamento local cheio");
+    expect(onSuccess).not.toHaveBeenCalled();
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it("espelho na nuvem falha: o aviso diz o motivo real, além de mandar rodar a importação", async () => {
+    vi.mocked(useFinance).mockReturnValue({ addTransaction: vi.fn(() => ({ id: "tx-1" })) } as never);
+    vi.mocked(financeRepository.createReceivableFromQuote).mockRejectedValue(new Error("duplicate key ux_ft_receivable_from_quote"));
+    const onSuccess = vi.fn();
+
+    render(<CreateReceivableDialog {...baseProps} onSuccess={onSuccess} />);
+    fireEvent.click(screen.getByText("Confirmar e Gerar"));
+
+    await waitFor(() => expect(onSuccess).toHaveBeenCalled());
+    expect(toast.warning).toHaveBeenCalledWith(
+      "Recebível salvo localmente, mas o espelho no Supabase falhou.",
+      expect.objectContaining({
+        description: expect.stringContaining("duplicate key ux_ft_receivable_from_quote"),
+      }),
+    );
+  });
+});

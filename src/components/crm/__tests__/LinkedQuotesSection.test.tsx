@@ -7,6 +7,7 @@ import { QUOTES_SUPABASE_WRITE_FLAG_KEY } from "@/hooks/useSupabaseQuotesWriteFl
 import { BOOLEAN_FLAG_KEYS } from "@/config/flags";
 import type { Quote } from "@/hooks/useQuotes";
 import { vi, describe, it, expect, beforeEach } from "vitest";
+import { toast } from "sonner";
 
 // Etapa 5 · Fatia 10 (item 7) — CORREÇÃO: as quotes que useSupabaseOpportunityQuotes
 // devolve já passam por mapSupabaseQuoteToLocalQuote (Fatia 9) — carregam o status
@@ -18,6 +19,9 @@ import { vi, describe, it, expect, beforeEach } from "vitest";
 vi.mock("@/hooks/useCurrentWorkspace");
 vi.mock("@/hooks/useSupabaseOpportunityQuotes");
 vi.mock("@/repositories/quotesRepository");
+vi.mock("sonner", () => ({
+  toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() }),
+}));
 
 const mockWorkspace = {
   id: "ws-1",
@@ -228,5 +232,31 @@ describe("LinkedQuotesSection · incidente #4 (Fatia 10, Fase D, achado 400) —
     rerender(<LinkedQuotesSection opportunityId="opp-uuid-123" />);
 
     expect(refresh).toHaveBeenCalledTimes(1);
+  });
+});
+
+// G95 — falha ao aprovar/rejeitar mostra a causa, não só "Erro ao atualizar status do orçamento."
+describe("LinkedQuotesSection · G95 — erro de aprovação com a mensagem real", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.clearAllMocks();
+    vi.mocked(useCurrentWorkspace).mockReturnValue({
+      workspace: mockWorkspace, membership: null, loading: false, error: null,
+    });
+  });
+
+  it("updateStatus rejeita: toast de erro inclui a mensagem real e nunca o de sucesso", async () => {
+    vi.mocked(useSupabaseOpportunityQuotes).mockReturnValue({
+      quotes: [baseQuote({ status: "rascunho" })], loading: false, error: null, refresh: vi.fn(),
+    });
+    vi.mocked(quotesRepository.updateStatus).mockRejectedValue(new Error("new row violates check constraint"));
+
+    render(<LinkedQuotesSection opportunityId="opp-uuid-123" />);
+    fireEvent.click(screen.getByText("Aprovar"));
+    fireEvent.click(await screen.findByText("Aprovar orçamento"));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(String(vi.mocked(toast.error).mock.calls[0][0])).toContain("new row violates check constraint");
+    expect(toast.success).not.toHaveBeenCalled();
   });
 });

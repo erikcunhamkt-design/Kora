@@ -13,6 +13,7 @@ import type { Quote } from "@/hooks/useQuotes";
 import { toast } from "sonner";
 import { formatCurrency as intlCurrency, formatDate as intlDate, formatDateTime as intlDateTime } from "@/lib/format";
 import { getBooleanFlag } from "@/config/flags";
+import { getRealErrorMessage } from "@/lib/supabase/errors";
 
 interface LinkedQuotesSectionProps {
   opportunityId?: string;
@@ -133,7 +134,7 @@ export function LinkedQuotesSection({
       refresh();
     } catch (err: unknown) {
       console.error(err);
-      toast.error("Erro ao atualizar status do orçamento.");
+      toast.error(`Erro ao atualizar status do orçamento: ${getRealErrorMessage(err)}`);
       refresh();
     } finally {
       setSubmittingId(null);

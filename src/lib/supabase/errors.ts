@@ -215,6 +215,20 @@ export function getFriendlyMessage(error: unknown): string {
   return normalizeSupabaseError(error).message;
 }
 
+/**
+ * Mensagem REAL do erro (G75/G95: o usuário vê o que de fato falhou, não um genérico).
+ * `Error` e o objeto `{ message }` do PostgrestError passam como estão; só o que não tem
+ * mensagem cai na normalizada (`getFriendlyMessage`).
+ */
+export function getRealErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message;
+  if (error && typeof error === "object") {
+    const m = (error as { message?: unknown }).message;
+    if (typeof m === "string" && m) return m;
+  }
+  return getFriendlyMessage(error);
+}
+
 /** Show a normalized error as a toast. Returns the AppError for optional rethrow. */
 export function toastError(error: unknown, fallbackTitle?: string): AppError {
   const appErr = normalizeSupabaseError(error);

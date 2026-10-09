@@ -13,6 +13,7 @@ import {
   mapSupabaseOpportunityToLocalLead,
   readCrmClientsImportMap,
   resolveCrmClientFk,
+  buildNativeOpportunityInput,
 } from "@/services/crm/crmOpportunityMapper";
 
 function baseLead(overrides: Partial<Lead> = {}): Lead {
@@ -386,5 +387,43 @@ describe("G89 — resolveCrmClientFk (escritas nativas do CRM)", () => {
     expect(readCrmClientsImportMap()).toEqual({});
     expect(resolveCrmClientFk(CLIENT_UUID)).toBe(CLIENT_UUID);
     localStorage.removeItem("kora.clients.supabaseImport.v1");
+  });
+});
+
+// G93 — produtor nativo único (CRM e escritores de lead fora do CRM usam o mesmo payload).
+describe("G93 — buildNativeOpportunityInput", () => {
+  const CLIENT_UUID = "3f2b7c1e-9a4d-4e8b-8c55-1d2e3f4a5b6c";
+
+  function newLead(overrides: Record<string, unknown> = {}) {
+    return {
+      name: "Lead Novo", company: "Acme", email: "a@x.com", phone: "11999990000", serviceType: "Branding",
+      origin: "Indicação", source: "Link de cadastro", estimatedValue: 1500, priority: "alta" as const,
+      stage: "lead" as const, tags: [], nextAction: "Ligar", description: "obs", ...overrides,
+    } as never;
+  }
+
+  it("campos do CRM: title/contact_name = nome, stage do funil, source > origin, defaults de temperatura/prioridade", () => {
+    const input = buildNativeOpportunityInput(newLead());
+    expect(input).toMatchObject({
+      title: "Lead Novo", contact_name: "Lead Novo", company: "Acme", email: "a@x.com",
+      phone: "11999990000", whatsapp: "11999990000", stage: "lead", status: "open",
+      source: "Link de cadastro", temperature: "não definida", priority: "alta",
+      potential_value: 1500, next_action: "Ligar", notes: "obs", archived: false, is_demo: false,
+      client_id: null,
+    });
+  });
+
+  it("stageId (funil customizado) vence `stage` e o status deriva do TYPE do estágio, não da string", () => {
+    expect(buildNativeOpportunityInput(newLead({ stageId: "s_ganhamos" }), { stageType: "won" }))
+      .toMatchObject({ stage: "s_ganhamos", status: "won" });
+    expect(buildNativeOpportunityInput(newLead({ stageId: "s_perdi" }), { stageType: "lost" }))
+      .toMatchObject({ stage: "s_perdi", status: "lost" });
+    expect(buildNativeOpportunityInput(newLead({ stage: "fechado" }), {}))
+      .toMatchObject({ stage: "fechado", status: "open" });
+  });
+
+  it("client_id: uuid de cliente da nuvem passa direto (G89) — e id local sem mapa vira null", () => {
+    expect(buildNativeOpportunityInput(newLead({ clientId: CLIENT_UUID })).client_id).toBe(CLIENT_UUID);
+    expect(buildNativeOpportunityInput(newLead({ clientId: 99999 })).client_id).toBeNull();
   });
 });

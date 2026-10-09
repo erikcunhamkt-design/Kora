@@ -22,6 +22,8 @@ import { financeRepository } from "@/repositories/financeRepository";
 import { QUOTES_DATA_SOURCE_KEY } from "@/config/flags";
 import { QUOTES_SUPABASE_WRITE_FLAG_KEY } from "@/hooks/useSupabaseQuotesWriteFlag";
 import { mapSupabaseOpportunityToLocalLead } from "@/services/crm/crmOpportunityMapper";
+import { useSupabaseOpportunities } from "@/hooks/useSupabaseOpportunities";
+import { crmOpportunitiesRepository } from "@/repositories/crmOpportunitiesRepository";
 
 vi.mock("@/hooks/useQuotes", async () => {
   const actual = await vi.importActual<typeof import("@/hooks/useQuotes")>("@/hooks/useQuotes");
@@ -39,7 +41,13 @@ vi.mock("@/hooks/useClientsDataSource", () => ({ useClientsDataSource: vi.fn() }
 // (leads do mock de useLeads); a leitura da nuvem tem cobertura própria em
 // useBifurcatedOpportunities.test.ts / g92.consumers.test.tsx.
 vi.mock("@/hooks/useLeads", () => ({ useLeads: vi.fn() }));
-vi.mock("@/hooks/useSupabaseOpportunities", () => ({ useSupabaseOpportunities: () => ({ opportunities: [] }) }));
+vi.mock("@/hooks/useSupabaseOpportunities", () => ({
+  useSupabaseOpportunities: vi.fn(() => ({ opportunities: [], refresh: vi.fn() })),
+}));
+// G93 — o vínculo orçamento→oportunidade da nuvem grava pelo repositório do CRM.
+vi.mock("@/repositories/crmOpportunitiesRepository", () => ({
+  crmOpportunitiesRepository: { updateOpportunity: vi.fn() },
+}));
 // Etapa 5 · Pacote do Flip (projects) — QuoteToProjectDialog (renderizado
 // como filho de QuotesSection) passou a chamar useCurrentWorkspace() pro
 // espelho G22 (mirrorCreateToSupabase). Sem o mock, useAuth() (de dentro de
@@ -154,6 +162,7 @@ function setupCommonMocks() {
   vi.mocked(useClientsDataSource).mockReturnValue({ clients: [], source: "local" } as never);
   vi.mocked(useLeads).mockReturnValue({ leads: [], updateLead: vi.fn() } as never);
   vi.mocked(useCurrentWorkspace).mockReturnValue({ workspace: { id: "ws1" } } as never);
+  vi.mocked(useSupabaseOpportunities).mockReturnValue({ opportunities: [], refresh: vi.fn() } as never);
   vi.mocked(useBifurcatedFinance).mockReturnValue([] as never);
   vi.mocked(useSupabaseProjects).mockReturnValue({ createProject: vi.fn() } as never);
   vi.mocked(useSupabaseTasksAll).mockReturnValue({ createTask: vi.fn() } as never);
@@ -1136,5 +1145,124 @@ describe("QuotesSection · G87 — deep link ?newQuote=1&opportunityId=X preench
 
     const nameInput = (await screen.findByPlaceholderText("Nome do cliente")) as HTMLInputElement;
     expect(nameInput.value).toBe("Lead Local 7");
+  });
+});
+
+// G93 — o vínculo orçamento→oportunidade (updateLead do hook LOCAL) era no-op com "sucesso" pra uma
+// oportunidade da nuvem: o orçamento nascia, o toast dizia "Orçamento salvo", mas a oportunidade
+// nunca recebia quote_id. Agora grava pelo repositório do CRM (uuid real, G37), respeita a master
+// flag do CRM (OFF bloqueia antes de criar, mesma regra do G91) e diz quando o vínculo falha.
+describe("QuotesSection · G93 — vínculo orçamento→oportunidade grava na nuvem", () => {
+  const OPP_UUID = "5d3f1f0a-6c2b-4c1e-9a77-0b7a2f4d8e11";
+  const NEW_QUOTE_UUID = "7a1c2e3f-4b5d-4c6e-8f90-a1b2c3d4e5f6";
+
+  const cloudOpp = {
+    id: OPP_UUID, workspace_id: "ws1", title: "Oportunidade Nuvem", company: "Empresa", contact_name: "Fulano",
+    stage: "lead", status: "open", is_demo: false, archived: false,
+    created_at: "2026-07-01T00:00:00Z", updated_at: "2026-07-01T00:00:00Z",
+  };
+
+  function setupCloud(overrides: { createQuote?: ReturnType<typeof vi.fn>; refresh?: ReturnType<typeof vi.fn> } = {}) {
+    const createQuoteWithItems = overrides.createQuote
+      ?? vi.fn().mockResolvedValue(makeSupabaseMappedQuote({ id: NEW_QUOTE_UUID, title: "Proposta — Geral" }));
+    const refresh = overrides.refresh ?? vi.fn().mockResolvedValue(undefined);
+    const updateLead = vi.fn();
+    localStorage.setItem("kora.crm.dataSource.v1", "supabase");
+    const lead = mapSupabaseOpportunityToLocalLead(cloudOpp as never);
+    vi.mocked(useSupabaseOpportunities).mockReturnValue({ opportunities: [cloudOpp], refresh } as never);
+    vi.mocked(useLeads).mockReturnValue({ leads: [], updateLead } as never);
+    vi.mocked(useQuotes).mockReturnValue({
+      quotes: [], addQuote: vi.fn(), updateStatus: vi.fn(), updateQuote: vi.fn(),
+      duplicateQuote: vi.fn(), deleteQuote: vi.fn(),
+    } as never);
+    vi.mocked(useSupabaseQuotes).mockReturnValue({
+      quotes: [], loading: false, error: null, createQuoteWithItems,
+    } as never);
+    vi.mocked(crmOpportunitiesRepository.updateOpportunity).mockResolvedValue({} as never);
+    return { createQuoteWithItems, refresh, updateLead, lead };
+  }
+
+  async function saveFromOpportunity(oppId: number | string) {
+    renderSectionAt(`/vendas?tab=orcamentos&newQuote=1&opportunityId=${oppId}`);
+    await screen.findByPlaceholderText("Nome do cliente");
+    fireEvent.click(screen.getByText("Continuar")); // passo 1 -> 2
+    fireEvent.click(screen.getByText("+ Item manual"));
+    fireEvent.change(screen.getByPlaceholderText("Nome do item"), { target: { value: "Item X" } });
+    fireEvent.change(screen.getAllByRole("spinbutton")[1], { target: { value: "100" } });
+    fireEvent.click(screen.getByText("Continuar")); // passo 2 -> 3
+    fireEvent.click(screen.getByText("Continuar")); // passo 3 -> 4
+    fireEvent.click(screen.getByText("Salvar orçamento"));
+  }
+
+  it("oportunidade da nuvem: grava quote_id/quote_title pelo repositório do CRM (uuid real) e manda o uuid pro opportunity_id do orçamento", async () => {
+    const { createQuoteWithItems, refresh, updateLead, lead } = setupCloud();
+
+    await saveFromOpportunity(lead.id);
+
+    await waitFor(() => expect(crmOpportunitiesRepository.updateOpportunity).toHaveBeenCalledTimes(1));
+    expect(crmOpportunitiesRepository.updateOpportunity).toHaveBeenCalledWith(
+      "ws1", OPP_UUID, { quote_id: NEW_QUOTE_UUID, quote_title: "Proposta — Geral" },
+    );
+    const draft = createQuoteWithItems.mock.calls[0][0];
+    expect(String(draft.opportunityId)).toBe(OPP_UUID);
+    expect(updateLead).not.toHaveBeenCalled();
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Orçamento salvo"));
+  });
+
+  it("CRM em modo leitura (master flag OFF): bloqueia ANTES de criar o orçamento, com erro honesto", async () => {
+    const { createQuoteWithItems, lead } = setupCloud();
+    localStorage.setItem("kora.crm.supabaseWrite.enabled", "false");
+
+    await saveFromOpportunity(lead.id);
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(
+      expect.stringContaining("Vincular o orçamento à oportunidade no CRM Supabase está desligado"),
+    ));
+    expect(createQuoteWithItems).not.toHaveBeenCalled();
+    expect(crmOpportunitiesRepository.updateOpportunity).not.toHaveBeenCalled();
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it("vínculo falha na nuvem: o orçamento existe, mas o aviso diz que o vínculo NÃO foi gravado, com a mensagem real", async () => {
+    const { lead } = setupCloud();
+    vi.mocked(crmOpportunitiesRepository.updateOpportunity).mockRejectedValue(new Error("rls: update denied"));
+
+    await saveFromOpportunity(lead.id);
+
+    await waitFor(() => expect(toast.warning).toHaveBeenCalledTimes(1));
+    const msg = String(vi.mocked(toast.warning).mock.calls[0][0]);
+    expect(msg).toContain("o vínculo com a oportunidade não foi gravado");
+    expect(msg).toContain("rls: update denied");
+    expect(toast.success).not.toHaveBeenCalledWith("Orçamento salvo");
+  });
+
+  it("falha ao criar o orçamento: erro com a mensagem real (antes: genérico) e nenhum vínculo gravado", async () => {
+    const { lead } = setupCloud({ createQuote: vi.fn().mockRejectedValue(new Error("rpc import_quote_with_items failed")) });
+
+    await saveFromOpportunity(lead.id);
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
+    expect(String(vi.mocked(toast.error).mock.calls[0][0])).toContain("rpc import_quote_with_items failed");
+    expect(crmOpportunitiesRepository.updateOpportunity).not.toHaveBeenCalled();
+  });
+
+  it("lead LOCAL (fonte do CRM em Local): vínculo segue pelo hook local, nada vai pra nuvem (modo local intocado)", async () => {
+    const updateLead = vi.fn();
+    const createQuoteWithItems = vi.fn().mockResolvedValue(makeSupabaseMappedQuote({ id: NEW_QUOTE_UUID, title: "Proposta — Geral" }));
+    vi.mocked(useLeads).mockReturnValue({
+      leads: [{ id: 7, name: "Lead Local 7", company: "E", email: "l@x.com", phone: "1", serviceType: "Geral", description: "", notes: "", stage: "lead" }],
+      updateLead,
+    } as never);
+    vi.mocked(useQuotes).mockReturnValue({
+      quotes: [], addQuote: vi.fn(), updateStatus: vi.fn(), updateQuote: vi.fn(),
+      duplicateQuote: vi.fn(), deleteQuote: vi.fn(),
+    } as never);
+    vi.mocked(useSupabaseQuotes).mockReturnValue({ quotes: [], loading: false, error: null, createQuoteWithItems } as never);
+
+    await saveFromOpportunity(7);
+
+    await waitFor(() => expect(updateLead).toHaveBeenCalledWith(7, { quoteId: NEW_QUOTE_UUID, quoteTitle: "Proposta — Geral" }));
+    expect(crmOpportunitiesRepository.updateOpportunity).not.toHaveBeenCalled();
   });
 });

@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { useFinance } from "@/hooks/useFinance";
 import { financeRepository } from "@/repositories/financeRepository";
+import { getRealErrorMessage } from "@/lib/supabase/errors";
 
 interface CreateReceivableDialogProps {
   open: boolean;
@@ -138,7 +139,7 @@ export function CreateReceivableDialog({
       } catch (mirrorErr) {
         console.error("Espelho nuvem do recebível falhou (local já gravado):", mirrorErr);
         toast.warning("Recebível salvo localmente, mas o espelho no Supabase falhou.", {
-          description: "Rode a importação manual em Configurações → Dados quando possível.",
+          description: `${getRealErrorMessage(mirrorErr)} — rode a importação manual em Configurações → Dados quando possível.`,
         });
       }
 
@@ -165,7 +166,7 @@ export function CreateReceivableDialog({
       onOpenChange(false);
     } catch (err: unknown) {
       console.error(err);
-      toast.error("Erro ao gerar recebível financeiro.");
+      toast.error(`Erro ao gerar recebível financeiro: ${getRealErrorMessage(err)}`);
     } finally {
       setSubmitting(false);
     }
