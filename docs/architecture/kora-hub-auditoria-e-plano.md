@@ -1418,13 +1418,14 @@ Achado do refresh do runbook V2 (leitura de código em `0554210`, nenhum caso ex
 - **Confirmação ao vivo:** V2 caso 2.5 (cliente em `clients`; `converted_client_id` continua `NULL`).
 - **Referência:** G58/G59 (conversão grava na nuvem), runbook V2 §6 (A5).
 
-**G92 — Consumidores de oportunidades/leads fora do CRM leem a fonte LOCAL (`useLeads()`) enquanto o CRM em modo Supabase (o default pós-flip) lista as oportunidades da NUVEM — os links `?lead=<id>` e `?newQuote&opportunityId=` produzidos fora do CRM carregam o id do lead local, que a lista da nuvem não reconhece. [MÉDIO — ABERTO, inferido por leitura de código; observação da varredura do G87]**
+**G92 — Consumidores de oportunidades/leads fora do CRM leem a fonte LOCAL (`useLeads()`) enquanto o CRM em modo Supabase (o default pós-flip) lista as oportunidades da NUVEM — os links `?lead=<id>` e `?newQuote&opportunityId=` produzidos fora do CRM carregam o id do lead local, que a lista da nuvem não reconhece. [MÉDIO — corrigido em código na rodada G92 (hash no merge) — confirmação ao vivo pendente]**
 Achado de passagem da rodada G87 (`docs/qa/etapa-5-fichas-g87-g84-runbook.md`, "Observação nova"). Descompasso de **fonte**, não de tipo de id: o id de uma oportunidade da nuvem é o hash numérico estável do uuid (`crmOpportunityMapper.stableNumericIdFromUuid`), e é esse o id que o CRM usa em modo Supabase.
 
 - **Mecanismo:** `dayCenter.ts` (eventos de lead, rota `/crm?lead=${l.id}`) e `buildCommercialEvents.ts` (aba "Histórico de Relacionamento", `href: /crm?lead=${l.id}`) — e, no geral, qualquer consumidor que leia `useLeads()` — veem só os leads do `localStorage`. Com o CRM em nuvem, um lead criado/editado na nuvem não gera evento na Central do Dia nem na timeline do cliente, e um lead local gera um link que o CRM da nuvem não acha (drawer não abre, sem erro).
 - **Mesma família de:** G74/G54 (leitor bifurcado, produtor local) e da B4 de Tarefas (`useBifurcatedTasks`), que fechou o equivalente para tarefas.
 - **Correção prevista (rodada própria):** varrer a classe fora do CRM (dayCenter, buildCommercialEvents/ClientActivitiesTab, DayCenter, widgets de Início, etc.), trocar pela leitura bifurcada do CRM (`useBifurcatedOpportunities` no padrão de `useBifurcatedTasks`/`useBifurcatedFinance`; G32 `enabled:!!workspaceId`, G30 sem escrever a resposta da própria mutation), links com o id que a lista da nuvem reconhece; modo local intocado. **Não tocar `CRM.tsx` (lane B, G91).**
 - **Referência:** G87, G74, G54, B4 (Tarefas).
+- **Corrigido (rodada G92, `docs/qa/etapa-5-g92-leads-bifurcados.md`):** `useBifurcatedOpportunities` (mesma decisão de fonte do CRM, mapper real, G32/G30) e 6 consumidores trocados (Central do Dia, timeline e aba Comercial do cliente, diálogo de atividade, onboarding, seed do wizard de orçamento); `CRM.tsx` não tocado; modo local intocado. **Fora do escopo, registrado:** a ESCRITA fora do CRM (`updateLead` do `QuotesSection`, `addLead` de `Clientes.tsx`) segue local — candidata a ID próprio.
 
 ---
 

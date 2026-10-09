@@ -35,7 +35,11 @@ vi.mock("@/hooks/useClients", () => ({ useClients: vi.fn() }));
 // dispara useSupabaseClients() -> useQuery() sem QueryClientProvider na
 // árvore de teste e quebra qualquer teste que abra o wizard.
 vi.mock("@/hooks/useClientsDataSource", () => ({ useClientsDataSource: vi.fn() }));
+// G92: useBifurcatedOpportunities (fonte do CRM) — nestes testes o cenário é o LOCAL
+// (leads do mock de useLeads); a leitura da nuvem tem cobertura própria em
+// useBifurcatedOpportunities.test.ts / g92.consumers.test.tsx.
 vi.mock("@/hooks/useLeads", () => ({ useLeads: vi.fn() }));
+vi.mock("@/hooks/useSupabaseOpportunities", () => ({ useSupabaseOpportunities: () => ({ opportunities: [] }) }));
 // Etapa 5 · Pacote do Flip (projects) — QuoteToProjectDialog (renderizado
 // como filho de QuotesSection) passou a chamar useCurrentWorkspace() pro
 // espelho G22 (mirrorCreateToSupabase). Sem o mock, useAuth() (de dentro de
@@ -157,6 +161,7 @@ function setupCommonMocks() {
 
 beforeEach(() => {
   localStorage.clear();
+  localStorage.setItem("kora.crm.dataSource.v1", "local"); // G92: leads = os do mock de useLeads
   vi.clearAllMocks();
   setupCommonMocks();
 });

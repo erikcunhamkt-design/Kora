@@ -3,7 +3,7 @@ import { Check, ChevronDown, ChevronUp, EyeOff, Sparkles, UserPlus, FileText, Tr
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { useClients } from "@/hooks/useClients";
-import { useLeads } from "@/hooks/useLeads";
+import { useBifurcatedOpportunities } from "@/hooks/useBifurcatedOpportunities";
 import { useQuotes } from "@/hooks/useQuotes";
 import { useFinance } from "@/hooks/useFinance";
 import { useProjects } from "@/hooks/useProjects";
@@ -45,7 +45,7 @@ export function KoraOnboarding() {
   
   // Hooks de dados para verificar status real em tempo real
   const { clients } = useClients();
-  const { leads } = useLeads();
+  const leads = useBifurcatedOpportunities();
   const { quotes } = useQuotes();
   const { transactions } = useFinance();
   const { projects } = useProjects();

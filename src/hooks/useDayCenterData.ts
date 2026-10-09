@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useBifurcatedTasks } from "@/hooks/useBifurcatedTasks";
-import { useLeads } from "@/hooks/useLeads";
+import { useBifurcatedOpportunities } from "@/hooks/useBifurcatedOpportunities";
 import { useQuotes } from "@/hooks/useQuotes";
 import { useBifurcatedProjects } from "@/hooks/useBifurcatedProjects";
 import { useBifurcatedFinance } from "@/hooks/useBifurcatedFinance";
@@ -31,12 +31,15 @@ import { computeDayCenter, type DayCenterResult } from "@/lib/dayCenter";
  * nuvem, conforme kora.tasks.dataSource.v1) — mesma leitura-só/escrita-local
  * do padrão acima (`completeTask`, em DayCenter.tsx/useDayCenterActions.ts,
  * segue gravando via o mutator local de useTasks(), com guarda contra
- * no-op silencioso quando a tarefa exibida vier da nuvem). leads/quotes
- * seguem 100% locais, fora de escopo desta fase.
+ * no-op silencioso quando a tarefa exibida vier da nuvem). quotes segue 100%
+ * local, fora de escopo desta fase. `leads` vem de useBifurcatedOpportunities()
+ * (G92) — mesma fonte do CRM.
  */
 export function useDayCenterData(): DayCenterResult {
   const tasks = useBifurcatedTasks();
-  const { leads } = useLeads();
+  // G92: oportunidades pela MESMA fonte do CRM (nuvem em modo Supabase) — o id
+  // dos eventos `/crm?lead=` é o que a lista da nuvem reconhece.
+  const leads = useBifurcatedOpportunities();
   const transactions = useBifurcatedFinance();
   const { quotes } = useQuotes();
   const projects = useBifurcatedProjects();

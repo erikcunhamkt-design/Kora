@@ -20,7 +20,12 @@ import { computeDayCenter } from "@/lib/dayCenter";
 
 vi.mock("@/hooks/useBifurcatedTasks", () => ({ useBifurcatedTasks: vi.fn() }));
 vi.mock("@/hooks/useTasks", () => ({ useTasks: vi.fn() }));
+// G92: useBifurcatedOpportunities (fonte do CRM) — nestes testes o cenário é o LOCAL
+// (leads do mock de useLeads); a leitura da nuvem tem cobertura própria em
+// useBifurcatedOpportunities.test.ts / g92.consumers.test.tsx.
 vi.mock("@/hooks/useLeads", () => ({ useLeads: vi.fn() }));
+vi.mock("@/hooks/useSupabaseOpportunities", () => ({ useSupabaseOpportunities: () => ({ opportunities: [] }) }));
+vi.mock("@/hooks/useCurrentWorkspace", () => ({ useCurrentWorkspace: () => ({ workspace: null }) }));
 vi.mock("@/hooks/useQuotes", () => ({ useQuotes: vi.fn() }));
 vi.mock("@/hooks/useBifurcatedProjects", () => ({ useBifurcatedProjects: vi.fn() }));
 vi.mock("@/hooks/useBifurcatedFinance", () => ({ useBifurcatedFinance: vi.fn() }));

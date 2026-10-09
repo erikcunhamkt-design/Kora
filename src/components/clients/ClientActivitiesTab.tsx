@@ -14,7 +14,7 @@ import {
   StickyNote, Bell, GitBranch, FileQuestion, HelpCircle,
 } from "lucide-react";
 import type { Client } from "@/hooks/useClients";
-import { useLeads } from "@/hooks/useLeads";
+import { useBifurcatedOpportunities } from "@/hooks/useBifurcatedOpportunities";
 import { useQuotes } from "@/hooks/useQuotes";
 import { useBifurcatedFinance } from "@/hooks/useBifurcatedFinance";
 import { useBifurcatedProjects } from "@/hooks/useBifurcatedProjects";
@@ -118,7 +118,7 @@ export const ClientActivitiesTab = ({
   const navigate = useNavigate();
   const [filter, setFilter] = useState<ActivityCategory>("all");
 
-  const { leads } = useLeads();
+  const leads = useBifurcatedOpportunities();
   const { quotes } = useQuotes();
   // Etapa 5 · Pacote do Flip (projects) — Fase B, item 2 (achado (a)):
   // timeline ficava incompleta pra clientes com projetos só na nuvem.

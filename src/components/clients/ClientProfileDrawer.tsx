@@ -40,7 +40,7 @@ import {
   type ClientAsset, type ClientTechnicalSheet, type ClientContact,
   CLIENT_CONTACT_ROLES, CLIENT_ASSET_TYPE_LABELS,
 } from "@/hooks/useClients";
-import { useLeads } from "@/hooks/useLeads";
+import { useBifurcatedOpportunities } from "@/hooks/useBifurcatedOpportunities";
 import { useQuotes } from "@/hooks/useQuotes";
 import { useBifurcatedProjects } from "@/hooks/useBifurcatedProjects";
 import { useBifurcatedFinance } from "@/hooks/useBifurcatedFinance";
@@ -799,7 +799,7 @@ const CommercialTab = ({
   onCreateOpportunity?: (c: Client) => void;
   onCreateQuote?: (c: Client) => void;
 }) => {
-  const { leads } = useLeads();
+  const leads = useBifurcatedOpportunities();
   const { quotes } = useQuotes();
 
   const clientLeads = useMemo(

@@ -17,6 +17,7 @@ import { useServices } from "@/hooks/useServices";
 import { useClientsDataSource } from "@/hooks/useClientsDataSource";
 import { useBifurcatedFinance } from "@/hooks/useBifurcatedFinance";
 import { useLeads } from "@/hooks/useLeads";
+import { useBifurcatedOpportunities } from "@/hooks/useBifurcatedOpportunities";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
@@ -99,7 +100,10 @@ export function QuotesSection() {
   // e nunca batia aqui. useClientsDataSource() é a mesma fonte bifurcada já
   // usada pelo Select de cliente do wizard (linha ~762, G44).
   const { clients } = useClientsDataSource();
-  const { leads, updateLead } = useLeads();
+  // G92: leitura (seed do wizard por ?opportunityId=) pela fonte do CRM; a
+  // ESCRITA (`updateLead`, vínculo orçamento→lead) segue o hook local.
+  const leads = useBifurcatedOpportunities();
+  const { updateLead } = useLeads();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
 
