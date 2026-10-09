@@ -166,6 +166,34 @@ function isAiNode(n: WorkflowNode): n is AiWorkflowNode {
   return n.type === "ai";
 }
 
+// R8 — o que ACONTECE ao chegar num destino (rótulo dos Selects de destino de
+// opção/fallback/mensagem). Desabilitado = destino inválido: o motor nunca age
+// por um nó desligado (menu/mensagem/handover/ai) — sai do fluxo scriptado.
+function destinationHint(n: WorkflowNode): string {
+  if (!n.enabled && n.type !== "trigger" && n.type !== "send") return "desabilitado — destino inválido";
+  switch (n.type) {
+    case "menu": return "apresenta o menu";
+    case "message": return "envia o texto e segue";
+    case "handover": return "entrega a um atendente humano";
+    case "ai": return "a IA responde daqui em diante";
+    default: return "sem efeito no fluxo";
+  }
+}
+
+// Destino UTILIZÁVEL por uma mensagem: nó habilitado de menu/mensagem/handover/ai.
+function isMessageDestination(n: WorkflowNode): boolean {
+  return n.enabled && (n.type === "menu" || n.type === "message" || n.type === "handover" || n.type === "ai");
+}
+
+function renderDestinationItem(n: WorkflowNode) {
+  return (
+    <SelectItem key={n.id} value={n.id}>
+      <span>{n.title}</span>
+      <span className="ml-1.5 text-[10px] text-muted-foreground">— {destinationHint(n)}</span>
+    </SelectItem>
+  );
+}
+
 // Valor do item "Automático" do Select "Começar por" (Radix Select não aceita
 // value ""); ausente em trigger.properties.nextNodeId.
 const ENTRY_AUTOMATIC = "__automatico__";
@@ -1097,9 +1125,7 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
                                 <SelectValue placeholder="Ir para..." />
                               </SelectTrigger>
                               <SelectContent>
-                                {nodes.map((n) => (
-                                  <SelectItem key={n.id} value={n.id}>{n.title}</SelectItem>
-                                ))}
+                                {nodes.map((n) => renderDestinationItem(n))}
                               </SelectContent>
                             </Select>
                             <Button
@@ -1127,6 +1153,18 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
                         : "sem destino — escolha pra onde leva."}
                     </p>
                   ))}
+
+                  {/* R8 — destino DESABILITADO é destino inválido: o motor não entrega a
+                      humano nem passa à IA por um nó desligado (a conversa só sai do
+                      fluxo scriptado). Avisa aqui em vez de falhar em silêncio. */}
+                  {activeNode.properties.opcoes.map((opcao) => {
+                    const target = nodes.find((n) => n.id === opcao.nextNodeId);
+                    return target && !target.enabled ? (
+                      <p key={`off-${opcao.numero}`} role="alert" className="text-[10px] text-destructive/90">
+                        ⚠ Opção {opcao.numero} → “{target.title}” está desabilitado — destino inválido: a conversa sai do menu sem executar o nó. Habilite-o no canvas.
+                      </p>
+                    ) : null;
+                  })}
 
                   <div className="space-y-3 bg-background/30 p-3.5 rounded-lg border border-border/40">
                     <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
@@ -1185,11 +1223,17 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
                             <SelectValue placeholder="Selecione um nó" />
                           </SelectTrigger>
                           <SelectContent>
-                            {nodes.filter(n => n.id !== activeNode.id).map((n) => (
-                              <SelectItem key={n.id} value={n.id}>{n.title}</SelectItem>
-                            ))}
+                            {nodes.filter(n => n.id !== activeNode.id).map((n) => renderDestinationItem(n))}
                           </SelectContent>
                         </Select>
+                        {(() => {
+                          const target = nodes.find((n) => n.id === activeNode.properties.fallback.fallbackNodeId);
+                          return target && !target.enabled ? (
+                            <p role="alert" className="text-[10px] text-destructive/90">
+                              ⚠ “{target.title}” está desabilitado — destino inválido: depois das tentativas a conversa sai do menu sem executar o nó.
+                            </p>
+                          ) : null;
+                        })()}
                       </div>
                     )}
 
@@ -1255,10 +1299,8 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
                       <SelectContent>
                         <SelectItem value={MESSAGE_END}>Encerrar o fluxo — padrão</SelectItem>
                         {nodes
-                          .filter((n) => n.id !== activeNode.id && (n.type === "menu" || n.type === "message"))
-                          .map((n) => (
-                            <SelectItem key={n.id} value={n.id}>{n.enabled ? n.title : `${n.title} (desabilitado)`}</SelectItem>
-                          ))}
+                          .filter((n) => n.id !== activeNode.id && ["menu", "message", "handover", "ai"].includes(n.type))
+                          .map((n) => renderDestinationItem(n))}
                       </SelectContent>
                     </Select>
                     {danglingEdges.filter((e) => e.fromNodeId === activeNode.id).map((e) => (
@@ -1268,14 +1310,14 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
                     ))}
                     {(() => {
                       const chosen = nodes.find((n) => n.id === activeNode.properties.nextNodeId);
-                      return chosen && !((chosen.type === "menu" || chosen.type === "message") && chosen.enabled) ? (
+                      return chosen && !isMessageDestination(chosen) ? (
                         <p role="alert" className="text-[10px] text-destructive/90">
-                          ⚠ “{chosen.title}” não é um menu habilitado nem uma mensagem habilitada — o fluxo encerra depois de enviar este texto.
+                          ⚠ “{chosen.title}” está desabilitado ou não é um destino possível (menu, mensagem, IA ou atendimento humano) — destino inválido: o fluxo encerra depois de enviar este texto.
                         </p>
                       ) : null;
                     })()}
                     <p className="text-[10px] text-muted-foreground/70 leading-relaxed">
-                      Voltar a um menu apresenta o menu na mesma resposta. Sem destino, o fluxo scriptado termina aqui e a próxima mensagem do cliente recomeça pelo nó de entrada.
+                      Voltar a um menu apresenta o menu na mesma resposta. Para a IA, este texto vai como saudação e a IA responde a partir da próxima mensagem do cliente. Para o atendimento humano, este texto vira a cortesia da entrega. Sem destino, o fluxo scriptado termina aqui e a próxima mensagem do cliente recomeça pelo nó de entrada.
                     </p>
                   </div>
                 </div>

@@ -414,12 +414,14 @@ describe("R7 · nó 'message' — canConnect/applyConnection/applyEdgeDeletion",
     expect(canConnect(nodes, conn("t", FLOW_HANDLE.entry, "ai")).ok).toBe(false);
   });
 
-  it("mensagem → menu ou outra mensagem; nunca pra si mesma, pro trigger nem pra nó fixo", () => {
+  it("mensagem → menu, mensagem, handover ou ai (R8); nunca pra si mesma, pro trigger nem pro send", () => {
     expect(canConnect(nodes, conn("msg1", FLOW_HANDLE.next, "m1")).ok).toBe(true);
     expect(canConnect(nodes, conn("msg1", FLOW_HANDLE.next, "msg2")).ok).toBe(true);
+    expect(canConnect(nodes, conn("msg1", FLOW_HANDLE.next, "h")).ok).toBe(true);
+    expect(canConnect(nodes, conn("msg1", FLOW_HANDLE.next, "ai")).ok).toBe(true);
     expect(canConnect(nodes, conn("msg1", FLOW_HANDLE.next, "msg1")).ok).toBe(false);
     expect(canConnect(nodes, conn("msg1", FLOW_HANDLE.next, "t")).ok).toBe(false);
-    expect(canConnect(nodes, conn("msg1", FLOW_HANDLE.next, "h")).ok).toBe(false);
+    expect(canConnect(nodes, conn("msg1", FLOW_HANDLE.next, "send")).ok).toBe(false);
     expect(canConnect(nodes, conn("msg1", "option-0", "m1")).ok).toBe(false); // handle que ela não tem
   });
 

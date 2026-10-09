@@ -146,9 +146,11 @@ export type ConnectionCheck = { ok: true } | { ok: false; reason: string };
  *     menu, `i` existente; `fallback` do menu, só com acao="node");
  *   - alvo = handle `in` de um nó existente que NÃO é o trigger;
  *   - `entry` só aponta pra um nó "menu" ou "message" (é o que o motor entende);
- *   - `next` (nó "message") só aponta pra "menu" ou "message", nunca pra si
- *     mesmo (o motor também corta ciclos mais longos, mas o próprio nó é
- *     erro óbvio de montagem);
+ *   - `next` (nó "message") aponta pra "menu", "message", "handover" ou "ai"
+ *     (R8), nunca pra si mesmo (o motor também corta ciclos mais longos, mas o
+ *     próprio nó é erro óbvio de montagem);
+ *   - `entry` NÃO aceita handover/ai (entrada sem menu/mensagem entregaria ou
+ *     passaria à IA TODA conversa nova — é só o trigger respondAll com outro nome);
  *   - `fallback` não pode apontar pro próprio menu ("outro nó"); `option` PODE
  *     (padrão real "9 - voltar ao menu").
  */
@@ -169,8 +171,11 @@ export function canConnect(nodes: WorkflowNode[], c: FlowConnection): Connection
   if (source.type === "message") {
     if (c.sourceHandle !== FLOW_HANDLE.next) return { ok: false, reason: "saída inexistente" };
     if (target.id === source.id) return { ok: false, reason: "a mensagem não pode apontar pra si mesma" };
-    if (target.type !== "menu" && target.type !== "message") {
-      return { ok: false, reason: "a mensagem só segue pra um menu ou outra mensagem" };
+    // R8: menu, outra mensagem, ou um terminal (handover = entrega a humano com o
+    // texto como cortesia; ai = a IA passa a responder). Trigger já foi recusado
+    // acima; send não é destino (sem efeito no fluxo).
+    if (target.type !== "menu" && target.type !== "message" && target.type !== "handover" && target.type !== "ai") {
+      return { ok: false, reason: "a mensagem só segue pra menu, mensagem, IA ou atendimento humano" };
     }
     return { ok: true };
   }

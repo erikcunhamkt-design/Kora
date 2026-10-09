@@ -10,8 +10,10 @@ import { buildAnthropicMessages, parseAnthropicReply } from "../_shared/anthropi
 import { composeSystemInstruction } from "../_shared/brainComposer.ts";
 import { resolveAiConfig } from "../_shared/botCredentials.ts";
 import {
+  describeDestination,
   extractMenuNodes,
   extractMessageNodes,
+  extractTerminalNodes,
   parseBotFlowState,
   resolveEntryNode,
   resolveMenuTurn,
@@ -265,13 +267,18 @@ async function sendBotText(admin: SupabaseClient, ctx: OutboundContext, text: st
 // `handover_at` ainda não existir (migration §8-b pendente) o erro vira só um
 // warn — o bot degrada pro comportamento de antes da R4 (volta a responder),
 // nunca quebra o fluxo.
+//
+// R8: `courtesyText` permite que o nó "message" que aponta pra um handover use o
+// PRÓPRIO texto como cortesia (uma mensagem só, em vez de texto + cortesia
+// padrão). Omitido = HANDOVER_COURTESY_TEXT, igual aos demais gatilhos.
 async function enterHumanHandover(
   admin: SupabaseClient,
   ctx: OutboundContext,
   reason: HandoverReason,
+  courtesyText: string = HANDOVER_COURTESY_TEXT,
 ): Promise<void> {
   console.log(`[bot-reply] human handover for conversation ${ctx.conversationId} (reason: ${reason})`);
-  await sendBotText(admin, ctx, HANDOVER_COURTESY_TEXT);
+  await sendBotText(admin, ctx, courtesyText);
   for (const update of buildHandoverEntryUpdates(new Date().toISOString())) {
     const { error } = await admin
       .from("whatsapp_conversations")
@@ -631,6 +638,9 @@ Deno.serve(async (req) => {
       // inteiro continua não rodando.
       const menuNodes = extractMenuNodes(flowNodes);
       const messageNodes = extractMessageNodes(flowNodes);
+      // R8 — handover/ai HABILITADOS como destino de menu/mensagem (desabilitado
+      // = destino inválido: nunca entrega nem passa à IA por um nó desligado).
+      const terminals = extractTerminalNodes(flowNodes);
       if (menuNodes.length > 0 || messageNodes.length > 0) {
         const currentFlowState = parseBotFlowState(conv.bot_flow_state);
 
@@ -658,7 +668,7 @@ Deno.serve(async (req) => {
           );
         }
 
-        const turn = resolveMenuTurn(menuNodes, currentFlowState, lastInboundText, entryNodeId, messageNodes);
+        const turn = resolveMenuTurn(menuNodes, currentFlowState, lastInboundText, entryNodeId, messageNodes, terminals);
         const outbound: OutboundContext = {
           workspaceId: workspaceId as string,
           conversationId: conversationId as string,
@@ -678,8 +688,15 @@ Deno.serve(async (req) => {
             }
             if (turn.unresolvedNextNodeId) {
               console.warn(
-                `[bot-reply] nó "message" aponta pra "${turn.unresolvedNextNodeId}", que não é um menu nem uma mensagem habilitada — encerrando o fluxo scriptado ali.`,
+                `[bot-reply] nó "message" aponta pra "${turn.unresolvedNextNodeId}" (${describeDestination(flowNodes, turn.unresolvedNextNodeId)}) — destino inválido, encerrando o fluxo scriptado ali.`,
               );
+            }
+            // R8: mensagem → handover habilitado. O texto da mensagem É a
+            // cortesia (substitui a padrão — uma mensagem só) e a conversa passa
+            // a "entregue a humano" pelo MESMO primitivo da R4.
+            if (turn.destination?.kind === "handover") {
+              await enterHumanHandover(adminClient, outbound, "message_next", turn.message);
+              return json({ ok: true, handover: true, reason: "message_next" });
             }
           }
           await sendBotText(adminClient, outbound, turn.message);
@@ -727,8 +744,8 @@ Deno.serve(async (req) => {
           console.log(
             `[bot-reply] menu flow ended for conversation ${conversationId}:`,
             turn.kind === "advanced-away"
-              ? `advanced to non-menu node ${turn.nextNodeId}`
-              : `attempts exhausted, fallback to node ${turn.fallbackNodeId}`,
+              ? `advanced to non-menu node ${turn.nextNodeId} (${describeDestination(flowNodes, turn.nextNodeId)})`
+              : `attempts exhausted, fallback to node ${turn.fallbackNodeId} (${describeDestination(flowNodes, turn.fallbackNodeId)})`,
           );
           const { error: flowStateErr } = await adminClient
             .from("whatsapp_conversations")

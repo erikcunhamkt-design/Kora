@@ -54,7 +54,10 @@ export type HandoverReason =
   | "keyword"
   | "menu_option"
   | "menu_fallback_node"
-  | "menu_exhausted";
+  | "menu_exhausted"
+  // R8: um nó "message" (alcançado por entrada, opção ou fallback) aponta pra um
+  // nó handover habilitado — o texto da mensagem faz as vezes de cortesia.
+  | "message_next";
 
 export interface HandoverDecision {
   handover: boolean;

@@ -22,6 +22,9 @@
 //        entrada: trigger.nextNodeId (R6, só com trigger habilitado; R7: menu OU mensagem)
 //        present/reprompt → responde o menu, sem IA
 //        message (R7) → responde a cadeia de textos (+ menu de destino), sem IA
+//        message → handover (R8) → entrega, o texto da mensagem é a cortesia
+//        message → ai (R8) → responde o texto e grava o modo IA (IA na PRÓXIMA)
+//        ai-mode (R8) → motor do menu não age; segue pra IA com o estado mantido
 //        handover (3 gatilhos do menu) → entrega
 //        advanced-away/handover-fallback p/ nó não-handover → sai do menu
 //   3. gate "AI node disabled": fluxo com nós mas sem "ai" habilitado → skip
@@ -31,6 +34,7 @@
 import {
   extractMenuNodes,
   extractMessageNodes,
+  extractTerminalNodes,
   parseBotFlowState,
   resolveMenuTurn,
   type BotFlowState,
@@ -119,6 +123,7 @@ export function simulateFlowTurn(
   // 2. Motor do menu (R3) + handover real (R4).
   const menuNodes = extractMenuNodes(nodes);
   const messageNodes = extractMessageNodes(nodes);
+  const terminals = extractTerminalNodes(nodes); // R8: handover/ai HABILITADOS
   if (menuNodes.length > 0 || messageNodes.length > 0) {
     // Aresta de ENTRADA (R6): `trigger.properties.nextNodeId` aponta o menu por
     // onde o fluxo começa. Paridade com produção (whatsapp-bot-reply/index.ts):
@@ -126,7 +131,22 @@ export function simulateFlowTurn(
     // ausente/inválido → resolveEntryNode cai no primeiro menu habilitado.
     const triggerNode = nodes.find((n) => n.type === "trigger" && n.enabled);
     const entryNodeId = (triggerNode?.properties as { nextNodeId?: unknown } | undefined)?.nextNodeId;
-    const turn = resolveMenuTurn(menuNodes, botFlowState, messageText, entryNodeId, messageNodes);
+    const turn = resolveMenuTurn(menuNodes, botFlowState, messageText, entryNodeId, messageNodes, terminals);
+
+    // R8: mensagem → handover habilitado. Mesmo desfecho da produção: o texto da
+    // mensagem é a cortesia e a conversa fica "entregue a humano" (bot mudo).
+    if (turn.kind === "message" && turn.destination?.kind === "handover") {
+      return {
+        kind: "respond",
+        reply: turn.message,
+        simulation: {
+          engine: "handover",
+          handoverReason: "message_next",
+          botFlowState: null,
+          handedOver: true,
+        },
+      };
+    }
 
     // R7: "message" responde igual a present/reprompt (texto único já montado;
     // `turn.state` = menu em que a cadeia terminou, ou null = encerrou) — a

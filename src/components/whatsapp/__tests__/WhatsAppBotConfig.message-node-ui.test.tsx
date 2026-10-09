@@ -144,15 +144,20 @@ describe("R7 · nó 'mensagem' — criação e inspector", () => {
 });
 
 describe("R7 · nó 'mensagem' — conexões (lista 'Conexões do fluxo')", () => {
-  it("destino: lista só menus/mensagens (sem fixos e sem o próprio nó); escolher um menu cria a aresta 'next' editável", async () => {
+  it("destino: lista menus, mensagens, IA e atendimento humano (sem gatilho/envio e sem o próprio nó); escolher um menu cria a aresta 'next' editável", async () => {
     const container = await renderWithFlow([...FIXED, menu(), message()]);
     clickNode(container, "msg-horario");
 
     expect(connections().some((li) => li.getAttribute("data-edge-from") === "msg-horario")).toBe(false);
 
     const list = await openSelect("Encerrar o fluxo");
-    const labels = list.getAllByRole("option").map((o) => o.textContent);
-    expect(labels).toEqual(["Encerrar o fluxo — padrão", "Menu A"]); // sem Horário (ele mesmo) nem fixos
+    const labels = list.getAllByRole("option").map((o) => o.textContent ?? "");
+    // sem Horário (ele mesmo), sem Gatilho nem Enviar Mensagem; terminais (R8) entram, cada um com o efeito
+    expect(labels).toHaveLength(4);
+    expect(labels[0]).toBe("Encerrar o fluxo — padrão");
+    expect(labels[1]).toMatch(/^Agente IA \(Gemini\)/);
+    expect(labels[2]).toMatch(/^Transbordo Humano/);
+    expect(labels[3]).toMatch(/^Menu A/);
     fireEvent.click(list.getByText("Menu A"));
 
     const next = connections().filter((li) => li.getAttribute("data-edge-from") === "msg-horario");
@@ -234,13 +239,13 @@ describe("R7 · nó 'mensagem' — conexões (lista 'Conexões do fluxo')", () =
     expect(screen.getAllByRole("alert").map((a) => a.textContent).join(" ")).toMatch(/destino depois de enviar não existe mais/);
   });
 
-  it("destino que é um nó fixo/desabilitado: o inspector avisa que o fluxo encerra depois do texto", async () => {
+  it("destino DESABILITADO (ex.: handover que nasce desligado): o inspector avisa que é destino inválido e o fluxo encerra depois do texto", async () => {
     const container = await renderWithFlow([
       ...FIXED,
       message({ properties: { mensagem: "x", nextNodeId: "node-handover" } }),
     ]);
     clickNode(container, "msg-horario");
-    expect(screen.getAllByRole("alert").map((a) => a.textContent).join(" ")).toMatch(/não é um menu habilitado nem uma mensagem habilitada/);
+    expect(screen.getAllByRole("alert").map((a) => a.textContent).join(" ")).toMatch(/destino inválido: o fluxo encerra depois de enviar este texto/);
   });
 });
 
