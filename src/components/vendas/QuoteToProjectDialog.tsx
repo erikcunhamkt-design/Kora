@@ -26,6 +26,7 @@ import { getProjectsDataSource, getTasksDataSource } from "@/config/flags";
 import { useSupabaseProjects } from "@/hooks/useSupabaseProjects";
 import { useSupabaseTasksAll } from "@/hooks/useSupabaseTasksAll";
 import { useSupabaseTasksWriteFlag } from "@/hooks/useSupabaseTasksWriteFlag";
+import { tasksRepository } from "@/repositories/tasksRepository";
 import { getFriendlyMessage } from "@/lib/supabase/errors";
 
 const addDaysISO = (base: Date, days: number) => {
@@ -208,21 +209,41 @@ export function QuoteToProjectDialog({
         };
 
         if (createTasks) {
-          const taskInputs = buildStarterTaskInputs(createdProject);
           if (cloudTaskMode) {
-            const results = await Promise.allSettled(taskInputs.map((t) => createSupabaseTask(t)));
-            const failedCount = results.filter((r) => r.status === "rejected").length;
-            if (failedCount > 0) {
-              toast.warning(
-                `Projeto criado, mas ${failedCount} de ${taskInputs.length} tarefas iniciais falharam ao salvar na nuvem.`,
-              );
+            // G90 — createdRow pode ser o retorno IDEMPOTENTE de um projeto já
+            // existente pra este orçamento (createProjectFromQuote/
+            // findProjectByQuote, índice ux_projects_from_quote): repetir
+            // "Gerar projeto" pro mesmo quote nunca duplica o projeto, mas sem
+            // esta checagem duplicava as starter tasks a cada clique. Mesma
+            // checagem (listTasksByProject + filtro por source), mesmo padrão
+            // já coerente em CreateProjectBaseTasksDialog.tsx (source =
+            // "project_template" lá, "projeto" aqui — vocabulários disjuntos,
+            // nunca colidem). `listTasksByProject` já filtra deleted_at IS NULL
+            // no próprio SELECT — se as 5 starter tasks de uma rodada anterior
+            // forem excluídas (soft-delete), a checagem volta a dar vazio e
+            // recria, em vez de ficar travada "já existe" pra sempre.
+            const existingTasks = await tasksRepository.listTasksByProject(workspace.id, createdProject.id);
+            const hasStarterTasks = existingTasks.some((t) => t.source === "projeto");
+            if (hasStarterTasks) {
+              toast.success("Projeto já existia — tarefas iniciais mantidas (não duplicadas).", {
+                description: createdProject.name,
+              });
+            } else {
+              const taskInputs = buildStarterTaskInputs(createdProject);
+              const results = await Promise.allSettled(taskInputs.map((t) => createSupabaseTask(t)));
+              const failedCount = results.filter((r) => r.status === "rejected").length;
+              if (failedCount > 0) {
+                toast.warning(
+                  `Projeto criado, mas ${failedCount} de ${taskInputs.length} tarefas iniciais falharam ao salvar na nuvem.`,
+                );
+              }
             }
           } else {
             // cloudMode true + tasksWriteEnabled false (raro, flag isolado
             // desligado): tarefas caem pro caminho local — referenciando o
             // uuid do projeto nativo, mesmo padrão de referência mista já
             // usado em outros lugares do app.
-            taskInputs.forEach((t) => addTask(t));
+            buildStarterTaskInputs(createdProject).forEach((t) => addTask(t));
           }
         }
 

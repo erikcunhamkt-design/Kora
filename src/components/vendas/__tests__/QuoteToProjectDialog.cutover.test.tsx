@@ -15,6 +15,7 @@ import { PROJECTS_DATA_SOURCE_KEY, TASKS_DATA_SOURCE_KEY } from "@/config/flags"
 import { useSupabaseProjects } from "@/hooks/useSupabaseProjects";
 import { useSupabaseTasksAll } from "@/hooks/useSupabaseTasksAll";
 import { useSupabaseTasksWriteFlag } from "@/hooks/useSupabaseTasksWriteFlag";
+import { tasksRepository } from "@/repositories/tasksRepository";
 import { mirrorProjectToSupabase } from "@/services/projects/projectsCloudMirror";
 import type { Quote } from "@/hooks/useQuotes";
 import { toast } from "sonner";
@@ -29,6 +30,7 @@ vi.mock("@/services/projects/projectsCloudMirror", () => ({ mirrorProjectToSupab
 vi.mock("@/hooks/useSupabaseProjects", () => ({ useSupabaseProjects: vi.fn() }));
 vi.mock("@/hooks/useSupabaseTasksAll", () => ({ useSupabaseTasksAll: vi.fn() }));
 vi.mock("@/hooks/useSupabaseTasksWriteFlag", () => ({ useSupabaseTasksWriteFlag: vi.fn() }));
+vi.mock("@/repositories/tasksRepository", () => ({ tasksRepository: { listTasksByProject: vi.fn() } }));
 vi.mock("sonner", () => ({
   toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), warning: vi.fn() }),
 }));
@@ -76,6 +78,7 @@ beforeEach(() => {
   vi.mocked(useSupabaseTasksWriteFlag).mockReturnValue({ enabled: true, setEnabled: vi.fn(), toggle: vi.fn() } as never);
   vi.mocked(useProjects).mockReturnValue({ addProject: vi.fn() } as never);
   vi.mocked(useTasks).mockReturnValue({ addTask: vi.fn() } as never);
+  vi.mocked(tasksRepository.listTasksByProject).mockResolvedValue([]);
   setupSupabaseProjects();
   setupSupabaseTasks();
 });
@@ -231,5 +234,58 @@ describe("QuoteToProjectDialog · cutover (Caso 7.2) — tasksWriteEnabled desli
     addTask.mock.calls.forEach(([task]) => {
       expect(task.projectId).toBe("project-uuid-created");
     });
+  });
+});
+
+describe('QuoteToProjectDialog · G90 — repetir "Gerar projeto" não duplica as starter tasks', () => {
+  it("1ª chamada (listTasksByProject vazio — projeto novo, sem starter tasks ainda): cria as 4 normalmente", async () => {
+    vi.mocked(tasksRepository.listTasksByProject).mockResolvedValue([]);
+    const createTask = setupSupabaseTasks();
+
+    renderDialog(makeQuote());
+    fireEvent.click(screen.getByRole("button", { name: "Gerar projeto" }));
+
+    await waitFor(() => expect(tasksRepository.listTasksByProject).toHaveBeenCalledWith("ws1", "project-uuid-created"));
+    await waitFor(() => expect(createTask).toHaveBeenCalledTimes(4));
+  });
+
+  it("2ª chamada pro mesmo orçamento (projeto idempotente já tem tarefa com source='projeto'): NÃO duplica, avisa no toast", async () => {
+    vi.mocked(tasksRepository.listTasksByProject).mockResolvedValue([
+      { id: "t1", source: "projeto" } as never,
+    ]);
+    const createTask = setupSupabaseTasks();
+
+    renderDialog(makeQuote());
+    fireEvent.click(screen.getByRole("button", { name: "Gerar projeto" }));
+
+    await waitFor(() => expect(tasksRepository.listTasksByProject).toHaveBeenCalled());
+    expect(createTask).not.toHaveBeenCalled();
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith(
+      expect.stringContaining("já existia"),
+      expect.anything(),
+    ));
+  });
+
+  it("tarefas existentes de outra origem (source='project_template', do CreateProjectBaseTasksDialog) NÃO bloqueiam — vocabulário disjunto, ainda cria as 4 starter tasks", async () => {
+    vi.mocked(tasksRepository.listTasksByProject).mockResolvedValue([
+      { id: "t1", source: "project_template" } as never,
+    ]);
+    const createTask = setupSupabaseTasks();
+
+    renderDialog(makeQuote());
+    fireEvent.click(screen.getByRole("button", { name: "Gerar projeto" }));
+
+    await waitFor(() => expect(createTask).toHaveBeenCalledTimes(4));
+  });
+
+  it("starter tasks de uma rodada anterior foram excluídas (soft-delete — listTasksByProject já filtra deleted_at e devolve vazio): recria normalmente, não fica travado em 'já existe'", async () => {
+    vi.mocked(tasksRepository.listTasksByProject).mockResolvedValue([]);
+    const createTask = setupSupabaseTasks();
+
+    renderDialog(makeQuote());
+    fireEvent.click(screen.getByRole("button", { name: "Gerar projeto" }));
+
+    await waitFor(() => expect(createTask).toHaveBeenCalledTimes(4));
+    expect(toast.success).not.toHaveBeenCalledWith(expect.stringContaining("já existia"), expect.anything());
   });
 });
