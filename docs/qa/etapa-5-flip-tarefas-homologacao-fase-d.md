@@ -84,6 +84,8 @@ Tarefa some da tela sem reload; `deleted_at = 2026-08-30 21:30:22.631+00`; linha
 
 ### Caso 7.3 — `ProjectDetailDrawer` (leitura + escrita) ✅
 
+> **STATUS (2026-10-09): escrita do drawer em cutover nativo por `e783912`** — criar/concluir tarefa aqui, em modo Supabase com a flag de escrita ligada, vai direto pro caminho nativo (`createTask`/`moveTask` de `useSupabaseTasksAll()`, mesmo gate de `Tarefas.tsx`/G77); com a flag desligada, bloqueio honesto (G76) em vez do silêncio descrito abaixo. O achado original (texto abaixo, escrita sempre local até esta data) é o registro correto do estado no momento desta homologação — preservado, não reescrito.
+
 Leitura bifurcada confirmada: as 9 tarefas-base do Caso 5 aparecem no drawer com datas escalonadas herdadas do template. Escrita local confirmada ao vivo: uma tarefa criada pelo próprio drawer NÃO apareceu em modo Supabase (mesmo comportamento documentado no G78 — `addTask`/`moveTask` aqui seguem `useTasks()` local) — depois importada com sucesso no Caso 5-bis, fechando o ciclo de prova.
 
 ### Caso 7.4 — `ClientActivitiesTab` ⚠️ parcial
