@@ -48,14 +48,70 @@ function buildBrainPreamble(brain: BrainProfileFields | null | undefined): strin
 // pra todo workspace que nunca configurou um perfil (a esmagadora maioria,
 // no dia em que esta fatia for ao ar).
 //
-// Estrutura pensada pra ser estendida pelo item 3 (base de conhecimento) sem
-// reescrever esta função: `[brainPreamble, knowledgeBlock, systemInstruction]`
-// no mesmo padrão `.filter(Boolean).join("\n\n")` — ver
-// etapa-9-item3-base-conhecimento-fase-a.md §4.
+// Item 3 (base de conhecimento): `knowledgeBlock` é o 3º parâmetro OPCIONAL —
+// `[brainPreamble, knowledgeBlock, systemInstruction]`, mesmo padrão
+// `.filter(Boolean).join("\n\n")` (etapa-9-item3-base-conhecimento-fase-a.md
+// §4). Ausente/vazio/só-espaço: sai exatamente o que saía antes (nenhum
+// chamador existente muda). Os dois blocos NUNCA se misturam sem rótulo
+// (cabeçalhos distintos): é o que permite auditar a origem de um trecho da
+// resposta e excluir só o conhecimento (revogação, LGPD art. 18 VI) sem tocar
+// o preâmbulo que o operador escreveu à mão.
 export function composeSystemInstruction(
   brain: BrainProfileFields | null | undefined,
   systemInstruction: string,
+  knowledgeBlock?: string | null,
 ): string {
   const brainPreamble = buildBrainPreamble(brain);
-  return [brainPreamble, systemInstruction].filter(Boolean).join("\n\n");
+  const knowledge = typeof knowledgeBlock === "string" ? knowledgeBlock.trim() : "";
+  return [brainPreamble, knowledge, systemInstruction].filter(Boolean).join("\n\n");
+}
+
+// Cabeçalho do bloco de conhecimento — DISTINTO de BRAIN_SECTION_HEADER
+// (Fase A item 3 §4: "Contexto relevante encontrado:").
+export const KNOWLEDGE_SECTION_HEADER = "Contexto relevante encontrado:";
+
+// Teto do bloco, em caracteres (~500-700 tokens em português). PROVISÓRIO: a
+// Fase A deixou em aberto se existe um teto AGREGADO por chamada (R7); este é
+// o menor controle que impede o bloco de crescer sem limite com a base do
+// workspace. Decisão de valor final e de teto por categoria vs agregado:
+// docs/qa/etapa-9-item3-r1-base-conhecimento-fundacao.md §3 (D6).
+export const KNOWLEDGE_BLOCK_MAX_CHARS = 2000;
+
+export interface KnowledgeBlockResult {
+  /** Bloco pronto ("" quando não há nenhum item utilizável). */
+  block: string;
+  included: number;
+  /** Itens válidos que ficaram de fora por causa do teto (observabilidade/log). */
+  omitted: number;
+}
+
+// Monta o bloco rotulado a partir de linhas de texto JÁ derivadas pelo
+// chamador (um item por linha, sem rótulo próprio). Itens vazios são
+// descartados; a ordem do chamador é preservada; entra item INTEIRO ou não
+// entra (nunca corta no meio de um fato — um preço pela metade é pior que
+// nenhum). Sem itens utilizáveis → bloco vazio (nunca só o cabeçalho).
+export function buildKnowledgeBlock(
+  items: Array<string | null | undefined>,
+  maxChars: number = KNOWLEDGE_BLOCK_MAX_CHARS,
+): KnowledgeBlockResult {
+  const valid = items
+    .map((i) => (typeof i === "string" ? i.trim() : ""))
+    .filter((i) => i.length > 0);
+  if (valid.length === 0) return { block: "", included: 0, omitted: 0 };
+
+  const lines: string[] = [];
+  let used = KNOWLEDGE_SECTION_HEADER.length;
+  for (const item of valid) {
+    const line = `- ${item}`;
+    const cost = line.length + 1; // +1: quebra de linha
+    if (used + cost > maxChars) break; // ordem preservada: parou, o resto fica de fora
+    lines.push(line);
+    used += cost;
+  }
+  if (lines.length === 0) return { block: "", included: 0, omitted: valid.length };
+  return {
+    block: [KNOWLEDGE_SECTION_HEADER, ...lines].join("\n"),
+    included: lines.length,
+    omitted: valid.length - lines.length,
+  };
 }
