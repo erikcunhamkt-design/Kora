@@ -1402,7 +1402,7 @@ Achado do refresh do runbook V2 (leitura de código em `0554210`, nenhum caso ex
 
 ---
 
-**G90 — Vendas: repetir "Gerar projeto" para o mesmo orçamento devolve o projeto existente (idempotente), mas o dialog cria de novo as 4–5 tarefas iniciais — sem dedupe. [BAIXO — ABERTO — inferido do código, a confirmar ao vivo na V2 (caso 1.7)]**
+**G90 — Vendas: repetir "Gerar projeto" para o mesmo orçamento devolve o projeto existente (idempotente), mas o dialog cria de novo as 4–5 tarefas iniciais — sem dedupe. [FECHADO por `91c227d` — checagem via `tasksRepository.listTasksByProject` + `source==="projeto"` antes de criar, mesmo padrão já coerente de `CreateProjectBaseTasksDialog.tsx`; confirmação ao vivo pendente (Caso 1.7 do runbook V2)]**
 
 - **Mecanismo:** `importProject` → `findProjectByQuote`/23505 em `ux_projects_from_quote` garante 1 projeto por orçamento, sem aviso ao usuário (toast "Projeto criado" de novo). `QuoteToProjectDialog` não consulta se o projeto já existia: roda `buildStarterTaskInputs` e cria as tarefas iniciais novamente apontando pro projeto existente. Previsão: 10 tarefas após 2 gerações (o ideal seria 5).
 - **Dono do código:** lane E (`QuoteToProjectDialog.tsx`); este item só registra.
