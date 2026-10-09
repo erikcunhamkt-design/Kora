@@ -1,5 +1,5 @@
 import { PageHeader } from "@/components/layout/PageHeader";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePlan } from "@/contexts/plan-context-value";
 import { UsageBadge } from "@/components/plan/UsageBadge";
 import { Badge } from "@/components/ui/badge";
@@ -131,8 +131,22 @@ import { supabaseCrmAuditLog } from "@/services/crm/supabaseCrmAuditLog";
 import { CreateCrmSupabaseQuoteDialog } from "@/components/crm/CreateCrmSupabaseQuoteDialog";
 import { LinkedQuotesSection } from "@/components/crm/LinkedQuotesSection";
 import { useTranslation } from "@/contexts/language-context-value";
+import { getFriendlyMessage } from "@/lib/supabase/errors";
 
 
+
+/**
+ * Mensagem REAL do erro (G75: o usuário vê o que de fato falhou). `Error` e o objeto
+ * `{ message }` do PostgrestError passam como estão; só o que não tem mensagem cai
+ * na normalizada (`getFriendlyMessage`).
+ */
+function realErrorMessage(err: unknown): string {
+  if (err instanceof Error && err.message) return err.message;
+  if (err && typeof err === "object" && typeof (err as { message?: unknown }).message === "string" && (err as { message: string }).message) {
+    return (err as { message: string }).message;
+  }
+  return getFriendlyMessage(err);
+}
 
 const CRM = () => {
   const { t } = useTranslation();
@@ -155,7 +169,7 @@ const CRM = () => {
   // ?newOpportunity=1&clientId=X abaixo — antes lia useClients() (sempre
   // local) e comparava Number(id), quebrando em silêncio contra um uuid da
   // nuvem (mesma classe do G67 em QuotesSection).
-  const { source: clientsSource, addClient: addSupabaseClient, clients } = useClientsDataSource();
+  const { source: clientsSource, addClient: addSupabaseClient, deleteClient: deleteSupabaseClient, clients } = useClientsDataSource();
   const { activeTypes } = useClientTypes();
   const { wouldExceed, showPaywall, setUsage } = usePlan();
   const navigate = useNavigate();
@@ -652,17 +666,49 @@ const CRM = () => {
     }
   };
 
+  // G91 — leads em conversão (guarda de duplo clique: a escrita é assíncrona e o
+  // `lead.convertedClientId` só aparece depois do refresh).
+  const convertingLeadIds = useRef<Set<number>>(new Set());
+
   const handleConvertToClient = async (lead: Lead) => {
     // G58/G59 — o gate `blockWriteAction()` (sem argumentos) bloqueava
     // incondicionalmente em modo Supabase, mesmo com a master flag
     // (`supabaseWriteEnabled`) ligada — fóssil da época em que toda
     // escrita do CRM em modo Supabase estava desabilitada por padrão.
     // Não se aplica aqui: converter lead→cliente escreve no domínio
-    // CLIENTS (`useClientsDataSource()`, cutover próprio, ver G58), não no
-    // domínio CRM/leads que `blockWriteAction` protege.
+    // CLIENTS (`useClientsDataSource()`, cutover próprio, ver G58).
+    //
+    // G91 — em modo Supabase com um lead da NUVEM (`lead.supabaseId`):
+    //  1. idempotência (G56): lead que já tem `converted_client_id` NÃO gera
+    //     outro cliente — avisa e aponta o existente;
+    //  2. cria o cliente nativo (G58) e GRAVA `converted_client_id` (e
+    //     `client_id`, se ainda vazio) na oportunidade pelo caminho nativo do
+    //     CRM — antes, `markConverted(lead.id)` era local e, pra um lead da
+    //     nuvem (id = hash do uuid), não casava com nada: nada ficava marcado
+    //     e cada clique duplicava o cliente;
+    //  3. falha em qualquer etapa → toast de ERRO com a mensagem real e sem
+    //     cliente fantasma (o cliente recém-criado é desfeito se o vínculo
+    //     falhar). O `catch` antigo marcava convertido e dava toast de sucesso.
+    // Modo local: intocado.
+    const isCloudLead = activeDataSource === "supabase" && !!lead.supabaseId;
+
+    if (isCloudLead && lead.convertedClientId) {
+      const existingClientId = String(lead.convertedClientId);
+      toast.warning("Este lead já foi convertido em cliente — nenhum cliente novo foi criado.", {
+        action: { label: "Abrir cliente", onClick: () => navigate(`/clientes?client=${existingClientId}`) },
+      });
+      return;
+    }
+    if (convertingLeadIds.current.has(lead.id)) return;
+    if (isCloudLead && !supabaseWriteEnabled) {
+      toast.error("Converter lead no CRM Supabase está desligado (CRM Supabase Operacional desativado). Reative em Configurações → Sincronização Cloud.");
+      return;
+    }
+
+    convertingLeadIds.current.add(lead.id);
     try {
       if (clientsSource === "supabase") {
-        await addSupabaseClient({
+        const created = await addSupabaseClient({
           name: lead.name,
           company: lead.company || null,
           email: lead.email || null,
@@ -676,6 +722,37 @@ const CRM = () => {
           potential_value: lead.estimatedValue || 0,
           notes: lead.notes || lead.description || null,
         });
+
+        if (isCloudLead) {
+          if (!workspace || !lead.supabaseId) throw new Error("Workspace não selecionado.");
+          try {
+            await crmOpportunitiesRepository.updateOpportunity(workspace.id, lead.supabaseId, {
+              converted_client_id: created.id,
+              // O lead passa a estar vinculado ao cliente criado — sem sobrescrever
+              // um vínculo que o operador já tinha feito.
+              ...(lead.clientId ? {} : { client_id: created.id }),
+            });
+          } catch (linkErr) {
+            // Sem cliente fantasma: desfaz o cliente recém-criado, que ficaria
+            // sem vínculo e seria duplicado na próxima tentativa.
+            try {
+              await deleteSupabaseClient(created.id);
+            } catch (rollbackErr) {
+              console.error("G91: rollback do cliente criado falhou:", rollbackErr);
+              toast.error(`Erro ao vincular o cliente criado à oportunidade, e o cliente "${lead.name}" não pôde ser desfeito — remova-o em Clientes.`);
+            }
+            throw linkErr;
+          }
+          try {
+            await refreshSupabase();
+          } catch (refreshErr) {
+            // A escrita já aconteceu; só a releitura falhou (o próximo refetch corrige).
+            console.error("G91: refresh após converter falhou:", refreshErr);
+          }
+        } else {
+          // Lead LOCAL (fonte do CRM em "Local") com cliente criado na nuvem.
+          markConverted(lead.id);
+        }
       } else {
         addClient({
           name: lead.name,
@@ -691,12 +768,14 @@ const CRM = () => {
           potentialValue: lead.estimatedValue,
           observations: lead.notes || lead.description,
         });
+        markConverted(lead.id);
       }
-      markConverted(lead.id);
       toast.success("Cliente criado a partir do lead");
-    } catch {
-      markConverted(lead.id);
-      toast.success("Lead marcado como convertido");
+    } catch (err) {
+      console.error("Erro ao converter lead em cliente:", err);
+      toast.error(`Erro ao converter lead em cliente: ${realErrorMessage(err)}`);
+    } finally {
+      convertingLeadIds.current.delete(lead.id);
     }
   };
 
@@ -1687,7 +1766,7 @@ const LeadActionsMenu = ({
       <DropdownMenuSeparator />
       <DropdownMenuItem onClick={onConvert} disabled={lead.converted}>
         <CheckCircle2 className="h-4 w-4 mr-2" />
-        {lead.converted ? "Já convertido" : "Converter em cliente"}
+        {lead.converted ? "Já convertido" : lead.convertedClientId ? "Ver cliente convertido" : "Converter em cliente"}
       </DropdownMenuItem>
       {lead.archived ? (
         <DropdownMenuItem onClick={onUnarchive}>

@@ -26,11 +26,11 @@ import { usePlan } from "@/contexts/plan-context-value";
 import { useTranslation } from "@/contexts/language-context-value";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { useSupabaseCrmWriteFlag } from "@/hooks/useSupabaseCrmWriteFlag";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { mapSupabaseOpportunityToLocalLead } from "@/services/crm/crmOpportunityMapper";
 import { useSupabaseOpportunities } from "@/hooks/useSupabaseOpportunities";
 import { crmOpportunitiesRepository, type SupabaseOpportunity } from "@/repositories/crmOpportunitiesRepository";
 import { CRM_DATA_SOURCE_KEY } from "@/config/flags";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { mapSupabaseOpportunityToLocalLead } from "@/services/crm/crmOpportunityMapper";
 
 vi.mock("@/hooks/useLeads", async () => {
   const actual = await vi.importActual<typeof import("@/hooks/useLeads")>("@/hooks/useLeads");
@@ -483,7 +483,13 @@ describe("CRM · O4 (editar tags) — persistTagsSupabase sob flag, nunca setLea
 });
 
 describe("CRM · G58/G59 (converter lead em cliente) — mesmo caminho de escrita de Clientes.tsx, gate fóssil removido", () => {
-  it("G59 — modo Supabase + master flag OFF: conversão NÃO é mais bloqueada (antes: blockWriteAction() sem args travava sempre)", async () => {
+  // G91 — a premissa do G59 ("converter só escreve no domínio CLIENTS") deixou de valer
+  // pro lead da NUVEM: a conversão agora também grava converted_client_id em
+  // crm_opportunities, que a master flag governa. Com a flag OFF (modo leitura) não
+  // se cria cliente nenhum (senão ficaria sem vínculo e duplicaria na próxima
+  // tentativa) — o gate fóssil blockWriteAction() continua removido; este é o gate
+  // real, com mensagem honesta.
+  it("G59/G91 — modo Supabase + master flag OFF: lead da nuvem NÃO cria cliente (modo leitura) e avisa com erro honesto", async () => {
     const supabaseAddClient = vi.fn().mockResolvedValue({ id: "new-uuid" });
     vi.mocked(useClientsDataSource).mockReturnValue({
       source: "supabase", addClient: supabaseAddClient, clients: [],
@@ -506,9 +512,9 @@ describe("CRM · G58/G59 (converter lead em cliente) — mesmo caminho de escrit
     await openLeadMenu("Lead Nuvem");
     fireEvent.click(screen.getByText("Converter em cliente"));
 
-    await waitFor(() => expect(supabaseAddClient).toHaveBeenCalledTimes(1));
-    expect(toast.success).toHaveBeenCalledWith("Cliente criado a partir do lead");
-    expect(toast.error).not.toHaveBeenCalled();
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("Converter lead no CRM Supabase está desligado")));
+    expect(supabaseAddClient).not.toHaveBeenCalled();
+    expect(toast.success).not.toHaveBeenCalled();
   });
 
   it("G58 — modo Supabase: chama addClient de useClientsDataSource (nuvem), nunca o addClient local", async () => {
@@ -537,7 +543,10 @@ describe("CRM · G58/G59 (converter lead em cliente) — mesmo caminho de escrit
     await waitFor(() => expect(supabaseAddClient).toHaveBeenCalledTimes(1));
     expect(supabaseAddClient).toHaveBeenCalledWith(expect.objectContaining({ name: "Lead Nuvem" }));
     expect(localAddClient).not.toHaveBeenCalled();
-    await waitFor(() => expect(markConverted).toHaveBeenCalled());
+    // G91 — o lead da nuvem é marcado NA NUVEM (converted_client_id), não por
+    // markConverted local (que não casava com o id-hash do lead).
+    await waitFor(() => expect(crmOpportunitiesRepository.updateOpportunity).toHaveBeenCalledTimes(1));
+    expect(markConverted).not.toHaveBeenCalled();
     expect(toast.success).toHaveBeenCalledWith("Cliente criado a partir do lead");
   });
 
@@ -869,6 +878,187 @@ describe("CRM · G89 — criar oportunidade grava client_id com passthrough de u
     const payload = await createFromDeepLink("42");
 
     expect(payload.client_id).toBeNull();
+  });
+});
+
+// G91 — converter lead na NUVEM: o cliente nasce nativo, `converted_client_id` (uuid) é
+// gravado na oportunidade pelo caminho nativo do CRM, repetir não duplica (G56) e falha
+// da nuvem vira erro honesto sem cliente fantasma. Fixtures com uuid REAL (lição G82).
+describe("CRM · G91 — converter lead na nuvem grava converted_client_id, é idempotente e honesto no erro", () => {
+  const NEW_CLIENT_UUID = "3f2b7c1e-9a4d-4e8b-8c55-1d2e3f4a5b6c";
+  const EXISTING_CLIENT_UUID = "9c8b7a6d-5e4f-4a3b-9c2d-1e0f9a8b7c6d";
+
+  function setupCloudConversion(opts: {
+    opportunity?: Partial<SupabaseOpportunity>;
+    addClient?: ReturnType<typeof vi.fn>;
+    deleteClient?: ReturnType<typeof vi.fn>;
+    flagEnabled?: boolean;
+  } = {}) {
+    const addClient = opts.addClient ?? vi.fn().mockResolvedValue({ id: NEW_CLIENT_UUID });
+    const deleteClient = opts.deleteClient ?? vi.fn().mockResolvedValue(undefined);
+    const markConverted = vi.fn();
+    const refresh = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(useClientsDataSource).mockReturnValue({
+      source: "supabase", addClient, deleteClient, clients: [],
+    } as never);
+    vi.mocked(useLeads).mockReturnValue({
+      leads: [], addLead: vi.fn(), moveLead: vi.fn(), moveLeadToStage: vi.fn(),
+      moveLeadToPipeline: vi.fn(), updateLead: vi.fn(), archiveLead: vi.fn(),
+      deleteLead: vi.fn(), setLeadTags: vi.fn(), markConverted,
+    } as never);
+    vi.mocked(useSupabaseCrmWriteFlag).mockReturnValue({
+      enabled: opts.flagEnabled ?? true, setEnabled: vi.fn(), toggle: vi.fn(),
+    });
+    vi.mocked(useSupabaseOpportunities).mockReturnValue({
+      opportunities: [makeSupabaseOpportunity(opts.opportunity)], loading: false, error: null, refresh,
+    } as never);
+    vi.mocked(crmOpportunitiesRepository.updateOpportunity).mockResolvedValue({} as never);
+    localStorage.setItem(CRM_DATA_SOURCE_KEY, "supabase");
+    return { addClient, deleteClient, markConverted, refresh };
+  }
+
+  async function clickConvert(label = "Converter em cliente") {
+    await openLeadMenu("Lead Nuvem");
+    fireEvent.click(screen.getByText(label));
+  }
+
+  it("cria o cliente nativo e grava converted_client_id (uuid) + client_id na oportunidade; não usa markConverted local", async () => {
+    const { addClient, markConverted, refresh } = setupCloudConversion();
+
+    renderCRM();
+    await clickConvert();
+
+    await waitFor(() => expect(crmOpportunitiesRepository.updateOpportunity).toHaveBeenCalledTimes(1));
+    expect(addClient).toHaveBeenCalledTimes(1);
+    expect(crmOpportunitiesRepository.updateOpportunity).toHaveBeenCalledWith(
+      "ws1", "opp-uuid-homolog",
+      { converted_client_id: NEW_CLIENT_UUID, client_id: NEW_CLIENT_UUID },
+    );
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+    expect(markConverted).not.toHaveBeenCalled();
+    expect(toast.success).toHaveBeenCalledWith("Cliente criado a partir do lead");
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("oportunidade que JÁ tem client_id: grava converted_client_id sem sobrescrever o vínculo existente", async () => {
+    setupCloudConversion({ opportunity: { client_id: EXISTING_CLIENT_UUID } });
+
+    renderCRM();
+    await clickConvert();
+
+    await waitFor(() => expect(crmOpportunitiesRepository.updateOpportunity).toHaveBeenCalledTimes(1));
+    expect(crmOpportunitiesRepository.updateOpportunity).toHaveBeenCalledWith(
+      "ws1", "opp-uuid-homolog", { converted_client_id: NEW_CLIENT_UUID },
+    );
+  });
+
+  it("idempotência (G56): lead que já tem converted_client_id NÃO cria outro cliente — avisa e aponta o existente", async () => {
+    const { addClient, markConverted } = setupCloudConversion({
+      opportunity: { converted_client_id: EXISTING_CLIENT_UUID, client_id: EXISTING_CLIENT_UUID },
+    });
+
+    renderCRM();
+    await clickConvert("Ver cliente convertido");
+
+    await waitFor(() => expect(toast.warning).toHaveBeenCalledTimes(1));
+    expect(toast.warning).toHaveBeenCalledWith(
+      expect.stringContaining("já foi convertido em cliente"),
+      expect.objectContaining({ action: expect.objectContaining({ label: "Abrir cliente" }) }),
+    );
+    expect(addClient).not.toHaveBeenCalled();
+    expect(crmOpportunitiesRepository.updateOpportunity).not.toHaveBeenCalled();
+    expect(markConverted).not.toHaveBeenCalled();
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it("duplo clique durante a escrita: um único cliente criado", async () => {
+    let release: (v: { id: string }) => void = () => {};
+    const pending = new Promise<{ id: string }>((resolve) => { release = resolve; });
+    const { addClient } = setupCloudConversion({ addClient: vi.fn().mockReturnValue(pending) });
+
+    renderCRM();
+    await clickConvert();
+    await waitFor(() => expect(addClient).toHaveBeenCalledTimes(1));
+    await clickConvert();
+    release({ id: NEW_CLIENT_UUID });
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Cliente criado a partir do lead"));
+    expect(addClient).toHaveBeenCalledTimes(1);
+    expect(crmOpportunitiesRepository.updateOpportunity).toHaveBeenCalledTimes(1);
+  });
+
+  it("falha ao criar o cliente na nuvem: toast de ERRO com a mensagem real, sem sucesso falso e sem marcar convertido", async () => {
+    const { markConverted } = setupCloudConversion({
+      addClient: vi.fn().mockRejectedValue(new Error("new row violates row-level security policy")),
+    });
+
+    renderCRM();
+    await clickConvert();
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(toast.error).mock.calls[0][0]).toContain("Erro ao converter lead em cliente");
+    expect(vi.mocked(toast.error).mock.calls[0][0]).toContain("row-level security");
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(markConverted).not.toHaveBeenCalled();
+    expect(crmOpportunitiesRepository.updateOpportunity).not.toHaveBeenCalled();
+  });
+
+  it("falha ao vincular na oportunidade: desfaz o cliente criado (sem cliente fantasma) e mostra erro real", async () => {
+    vi.mocked(crmOpportunitiesRepository.updateOpportunity);
+    const { deleteClient, markConverted } = setupCloudConversion();
+    vi.mocked(crmOpportunitiesRepository.updateOpportunity).mockRejectedValue(new Error("falha no update"));
+
+    renderCRM();
+    await clickConvert();
+
+    await waitFor(() => expect(deleteClient).toHaveBeenCalledWith(NEW_CLIENT_UUID));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(toast.error).mock.calls[0][0]).toContain("falha no update");
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(markConverted).not.toHaveBeenCalled();
+  });
+
+  it("falha ao vincular E ao desfazer: avisa que o cliente precisa ser removido em Clientes (nunca silencia o fantasma)", async () => {
+    const { deleteClient } = setupCloudConversion({
+      deleteClient: vi.fn().mockRejectedValue(new Error("fk")),
+    });
+    vi.mocked(crmOpportunitiesRepository.updateOpportunity).mockRejectedValue(new Error("falha no update"));
+
+    renderCRM();
+    await clickConvert();
+
+    await waitFor(() => expect(deleteClient).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(2));
+    const messages = vi.mocked(toast.error).mock.calls.map((c) => String(c[0]));
+    expect(messages.some((m) => m.includes("remova-o em Clientes"))).toBe(true);
+    expect(messages.some((m) => m.includes("Erro ao converter lead em cliente"))).toBe(true);
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it("lead LOCAL (fonte do CRM em Local) com cliente na nuvem: markConverted local, sem tocar crm_opportunities", async () => {
+    const supabaseAddClient = vi.fn().mockResolvedValue({ id: NEW_CLIENT_UUID });
+    const markConverted = vi.fn();
+    vi.mocked(useClientsDataSource).mockReturnValue({
+      source: "supabase", addClient: supabaseAddClient, deleteClient: vi.fn(), clients: [],
+    } as never);
+    vi.mocked(useLeads).mockReturnValue({
+      leads: [makeLocalLead()], addLead: vi.fn(), moveLead: vi.fn(), moveLeadToStage: vi.fn(),
+      moveLeadToPipeline: vi.fn(), updateLead: vi.fn(), archiveLead: vi.fn(),
+      deleteLead: vi.fn(), setLeadTags: vi.fn(), markConverted,
+    } as never);
+    vi.mocked(useSupabaseOpportunities).mockReturnValue({
+      opportunities: [], loading: false, error: null, refresh: vi.fn(),
+    } as never);
+    localStorage.setItem(CRM_DATA_SOURCE_KEY, "local");
+
+    renderCRM();
+    await openLeadMenu("Lead Local");
+    fireEvent.click(screen.getByText("Converter em cliente"));
+
+    await waitFor(() => expect(markConverted).toHaveBeenCalledWith(42));
+    expect(supabaseAddClient).toHaveBeenCalledTimes(1);
+    expect(crmOpportunitiesRepository.updateOpportunity).not.toHaveBeenCalled();
+    expect(toast.success).toHaveBeenCalledWith("Cliente criado a partir do lead");
   });
 });
 
