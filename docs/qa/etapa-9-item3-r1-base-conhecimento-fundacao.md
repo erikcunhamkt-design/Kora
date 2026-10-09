@@ -57,7 +57,18 @@
 | **Q5** | Quais categorias entram na 1ª rodada | só A · A+B · A+B+E | só A (Fase A §5.3) — B/E sem caso de uso forte pro atendimento |
 | **Q6** | Catálogo na nuvem (D1-b) | rodada própria agora · depois | fora do item 3; abrir como trilha de Vendas |
 
-**Achado pra catalogar (ID: pedir ao revisor — não reservei):** "serviços/produtos do workspace vivem só em `localStorage` do navegador — invisíveis pra qualquer leitura server-side (robô, relatório, outro dispositivo)". Classe "dado de negócio sem persistência de nuvem"; afeta mais que este item.
+### Decisões do revisor — OFICIAIS (rodada "R1 de verdade", que liga a fundação)
+
+| # | Decisão oficial | Efeito no código |
+|---|---|---|
+| **Q1** | Fonte da categoria A = **`quote_items` agregado**. Rótulo **"itens já orçados"** (nunca "catálogo"). **Sem texto livre que possa conter nome de cliente** — sanitização testada | `knowledgeSources.ts` (agregação + sanitização) e rótulo da UI |
+| **Q2** | **Leitura direta com teto, sem cache** (sem resumo pré-computado) | Sem artefato derivado ⇒ R2 não se aplica à A |
+| **Q3** | **Escrita admin** (precedente G71), **leitura member** | RLS do DRAFT (§4) já assim; UI desabilita o toggle pra não-admin |
+| **Q4** | Teto **agregado por chamada de 2.500 tokens**, item inteiro ou nada | `KNOWLEDGE_BLOCK_MAX_TOKENS` (substitui o provisório de 2.000 chars) |
+| **Q5** | **Só a A é operante.** C/D/E exigem atesto e ficam **desabilitadas na UI** nesta rodada; B só entraria se classificada "sem dado pessoal" | A operante; B/C/D/E desabilitadas (classificação de B em `etapa-9-item3-r1-base-conhecimento-liga.md` §2) |
+| **Q6** | Catálogo (serviços/produtos) na nuvem = **fora do item 3** | Catalogado como **G94** (ABERTO, trilha Vendas/Serviços) |
+
+**G94 registrado** (`kora-hub-auditoria-e-plano.md`): "serviços/produtos do workspace só em `localStorage` — invisíveis pra qualquer leitura server-side".
 
 ## 4. DRAFT de migration — `public.ai_knowledge_consents` (**NÃO aplicada**)
 
