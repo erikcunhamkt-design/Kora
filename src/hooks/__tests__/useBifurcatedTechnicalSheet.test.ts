@@ -10,6 +10,7 @@ import { renderHook } from "@testing-library/react";
 import { useBifurcatedTechnicalSheet } from "@/hooks/useBifurcatedTechnicalSheet";
 import { useClients, type Client } from "@/hooks/useClients";
 import { useSupabaseTechnicalSheet } from "@/hooks/useSupabaseTechnicalSheet";
+import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import {
   setTechnicalSheetExperimentalEnabled,
   setTechnicalSheetDataSource,
@@ -20,6 +21,8 @@ vi.mock("@/hooks/useClients", async () => {
   return { ...actual, useClients: vi.fn() };
 });
 vi.mock("@/hooks/useSupabaseTechnicalSheet", () => ({ useSupabaseTechnicalSheet: vi.fn() }));
+// FP2/F4: o hook agora só usa a nuvem quando ALCANÇÁVEL (workspace + vínculo resolvido)
+vi.mock("@/hooks/useCurrentWorkspace", () => ({ useCurrentWorkspace: vi.fn() }));
 
 function makeLocalClient(overrides: Partial<Client> = {}): Client {
   return {
@@ -38,13 +41,14 @@ beforeEach(() => {
   localStorage.clear();
   vi.clearAllMocks();
   vi.mocked(useClients).mockReturnValue({ clients: [makeLocalClient()] } as never);
-  vi.mocked(useSupabaseTechnicalSheet).mockReturnValue({ sheet: null } as never);
+  vi.mocked(useSupabaseTechnicalSheet).mockReturnValue({ supabaseClientId: "87ebd1d2-b17a-46f4-b0eb-70beac445221", sheet: null } as never);
+  vi.mocked(useCurrentWorkspace).mockReturnValue({ workspace: { id: "ws1" } } as never);
 });
 
 describe("useBifurcatedTechnicalSheet — seletor local (default pós-G63)", () => {
   it("seletor nunca tocado (ausente) devolve a ficha local — default pós-G63 é \"local\"", () => {
     vi.mocked(useSupabaseTechnicalSheet).mockReturnValue({
-      sheet: { branding: { colors: ["#ff0000"] } },
+      supabaseClientId: "87ebd1d2-b17a-46f4-b0eb-70beac445221", sheet: { branding: { colors: ["#ff0000"] } },
     } as never);
 
     const { result } = renderHook(() => useBifurcatedTechnicalSheet(1));
@@ -56,7 +60,7 @@ describe("useBifurcatedTechnicalSheet — seletor local (default pós-G63)", () 
     setTechnicalSheetExperimentalEnabled(true);
     setTechnicalSheetDataSource(1, "local");
     vi.mocked(useSupabaseTechnicalSheet).mockReturnValue({
-      sheet: { branding: { colors: ["#ff0000"] } },
+      supabaseClientId: "87ebd1d2-b17a-46f4-b0eb-70beac445221", sheet: { branding: { colors: ["#ff0000"] } },
     } as never);
 
     const { result } = renderHook(() => useBifurcatedTechnicalSheet(1));
@@ -70,7 +74,7 @@ describe("useBifurcatedTechnicalSheet — seletor Supabase (explícito, pós-G63
     setTechnicalSheetExperimentalEnabled(true);
     setTechnicalSheetDataSource(1, "supabase");
     vi.mocked(useSupabaseTechnicalSheet).mockReturnValue({
-      sheet: { branding: { colors: ["#ff0000"] }, persona: { targetAudience: "PMEs" } },
+      supabaseClientId: "87ebd1d2-b17a-46f4-b0eb-70beac445221", sheet: { branding: { colors: ["#ff0000"] }, persona: { targetAudience: "PMEs" } },
     } as never);
 
     const { result } = renderHook(() => useBifurcatedTechnicalSheet(1));
@@ -83,7 +87,7 @@ describe("useBifurcatedTechnicalSheet — seletor Supabase (explícito, pós-G63
     setTechnicalSheetExperimentalEnabled(true);
     setTechnicalSheetDataSource(1, "supabase");
     vi.mocked(useSupabaseTechnicalSheet).mockReturnValue({
-      sheet: {
+      supabaseClientId: "87ebd1d2-b17a-46f4-b0eb-70beac445221", sheet: {
         branding: {},
         raw_payload: {
           accesses: [{ id: "a1", platform: "WordPress", login: "admin", password: "s3nh4-secreta" }],
@@ -108,7 +112,7 @@ describe("useBifurcatedTechnicalSheet — G82 (id uuid vindo da lista em nuvem)"
   it("cliente só-nuvem (uuid, sem cliente local): lê da nuvem MESMO com todos os flags no default — não é mais 'vazio'", () => {
     vi.mocked(useClients).mockReturnValue({ clients: [makeLocalClient()] } as never);
     vi.mocked(useSupabaseTechnicalSheet).mockReturnValue({
-      sheet: { branding: { colors: ["#00ff00"] } },
+      supabaseClientId: "87ebd1d2-b17a-46f4-b0eb-70beac445221", sheet: { branding: { colors: ["#00ff00"] } },
     } as never);
 
     const { result } = renderHook(() => useBifurcatedTechnicalSheet(UUID));
@@ -119,7 +123,7 @@ describe("useBifurcatedTechnicalSheet — G82 (id uuid vindo da lista em nuvem)"
 
   it("cliente só-nuvem sem ficha na nuvem ⇒ objeto vazio (sem lançar)", () => {
     vi.mocked(useClients).mockReturnValue({ clients: [] } as never);
-    vi.mocked(useSupabaseTechnicalSheet).mockReturnValue({ sheet: null } as never);
+    vi.mocked(useSupabaseTechnicalSheet).mockReturnValue({ supabaseClientId: "87ebd1d2-b17a-46f4-b0eb-70beac445221", sheet: null } as never);
 
     const { result } = renderHook(() => useBifurcatedTechnicalSheet(UUID));
 
@@ -132,7 +136,7 @@ describe("useBifurcatedTechnicalSheet — G82 (id uuid vindo da lista em nuvem)"
       clients: [makeLocalClient({ id: 7, technicalSheet: { branding: { colors: ["#123456"] } } })],
     } as never);
     vi.mocked(useSupabaseTechnicalSheet).mockReturnValue({
-      sheet: { branding: { colors: ["#ff0000"] } },
+      supabaseClientId: "87ebd1d2-b17a-46f4-b0eb-70beac445221", sheet: { branding: { colors: ["#ff0000"] } },
     } as never);
 
     const { result } = renderHook(() => useBifurcatedTechnicalSheet(UUID));
@@ -143,7 +147,7 @@ describe("useBifurcatedTechnicalSheet — G82 (id uuid vindo da lista em nuvem)"
   it("[G63 — invariante] ficha só-nuvem por uuid também nunca devolve accesses/password", () => {
     vi.mocked(useClients).mockReturnValue({ clients: [] } as never);
     vi.mocked(useSupabaseTechnicalSheet).mockReturnValue({
-      sheet: {
+      supabaseClientId: "87ebd1d2-b17a-46f4-b0eb-70beac445221", sheet: {
         branding: {},
         raw_payload: { accesses: [{ id: "a1", platform: "WP", login: "admin", password: "s3nh4-secreta" }] },
       },

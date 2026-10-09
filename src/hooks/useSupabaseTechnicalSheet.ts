@@ -1,6 +1,6 @@
 // Supabase client technical sheet — React Query (A2). Public API unchanged.
-import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useCallback, useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { clientTechnicalSheetsRepository } from "@/repositories/clientTechnicalSheetsRepository";
 import { resolveSheetSupabaseClientId } from "@/services/technicalSheets/resolveSheetClientId";
@@ -32,8 +32,21 @@ export function useSupabaseTechnicalSheet(localClientId: string | number | undef
     [localClientId],
   );
 
+  const queryClient = useQueryClient();
+  const queryKey = ["supabase-technical-sheet", workspaceId, supabaseClientId];
+
+  // G30 (F4/FP4): a linha devolvida pelo próprio upsert (`.select().single()`)
+  // vira o cache — a UI nunca depende de um refetch pra refletir a própria
+  // escrita (um GET com lag reverteria a tela pro valor antigo).
+  const setCachedSheet = useCallback(
+    (row: SupabaseTechnicalSheetData | null) => {
+      queryClient.setQueryData(["supabase-technical-sheet", workspaceId, supabaseClientId], row);
+    },
+    [queryClient, workspaceId, supabaseClientId],
+  );
+
   const query = useQuery({
-    queryKey: ["supabase-technical-sheet", workspaceId, supabaseClientId],
+    queryKey,
     queryFn: async (): Promise<SupabaseTechnicalSheetData | null> => {
       const data = await clientTechnicalSheetsRepository.getTechnicalSheet(workspaceId, supabaseClientId!);
       return (data as unknown as SupabaseTechnicalSheetData) || null;
@@ -48,5 +61,6 @@ export function useSupabaseTechnicalSheet(localClientId: string | number | undef
     loading: query.isLoading || query.isFetching,
     error: (query.error ?? null) as Error | null,
     refresh: () => query.refetch(),
+    setCachedSheet,
   };
 }

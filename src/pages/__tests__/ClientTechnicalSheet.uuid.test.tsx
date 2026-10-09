@@ -116,6 +116,51 @@ describe("ClientTechnicalSheet — G82 (cliente só-nuvem, id uuid)", () => {
     expect(await screen.findByText("Salvo no Supabase")).toBeInTheDocument();
   });
 
+  it("[G30/FP4] a resposta do próprio upsert vira o cache — NENHUM refetch da ficha depois de salvar", async () => {
+    vi.mocked(clientTechnicalSheetsRepository.upsertTechnicalSheet).mockResolvedValue({
+      id: "sheet-1", workspace_id: "ws1", client_id: UUID, created_at: "", updated_at: "",
+      briefing: { generalBriefing: "salvo" },
+    } as never);
+    renderPage();
+    await screen.findByText("Ficha técnica");
+    await waitFor(() => expect(clientTechnicalSheetsRepository.getTechnicalSheet).toHaveBeenCalledTimes(1));
+    await openSection("Briefing & Notas");
+
+    fireEvent.change(await screen.findByPlaceholderText(/Histórico, objetivos/i), { target: { value: "salvo" } });
+    fireEvent.click(screen.getByRole("button", { name: /Salvar seção/i }));
+
+    await waitFor(() => expect(clientTechnicalSheetsRepository.upsertTechnicalSheet).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText("Salvo no Supabase")).toBeInTheDocument();
+    expect(clientTechnicalSheetsRepository.getTechnicalSheet).toHaveBeenCalledTimes(1);
+  });
+
+  it("[FP4] gravações em sequência rápida são serializadas — um upsert por vez, na ordem das ações", async () => {
+    let releaseFirst: (v: unknown) => void = () => {};
+    vi.mocked(clientTechnicalSheetsRepository.upsertTechnicalSheet)
+      .mockImplementationOnce(() => new Promise((r) => { releaseFirst = r; }) as never)
+      .mockResolvedValue({ id: "sheet-1" } as never);
+    renderPage();
+    await screen.findByText("Ficha técnica");
+    await openSection("Briefing & Notas");
+    const area = await screen.findByPlaceholderText(/Histórico, objetivos/i);
+
+    fireEvent.change(area, { target: { value: "primeiro" } });
+    fireEvent.click(screen.getByRole("button", { name: /Salvar seção/i }));
+    await waitFor(() => expect(clientTechnicalSheetsRepository.upsertTechnicalSheet).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(area, { target: { value: "segundo" } });
+    fireEvent.click(screen.getByRole("button", { name: /Salvar seção/i }));
+    // o 2º NÃO começa enquanto o 1º não terminou
+    await new Promise((r) => setTimeout(r, 30));
+    expect(clientTechnicalSheetsRepository.upsertTechnicalSheet).toHaveBeenCalledTimes(1);
+
+    releaseFirst({ id: "sheet-1" });
+    await waitFor(() => expect(clientTechnicalSheetsRepository.upsertTechnicalSheet).toHaveBeenCalledTimes(2));
+    const calls = vi.mocked(clientTechnicalSheetsRepository.upsertTechnicalSheet).mock.calls;
+    expect((calls[0][2] as { briefing: { generalBriefing: string } }).briefing.generalBriefing).toBe("primeiro");
+    expect((calls[1][2] as { briefing: { generalBriefing: string } }).briefing.generalBriefing).toBe("segundo");
+  });
+
   it("[G83] ficha acima do teto de 1 MB: NADA é gravado e o toast é honesto (validação antes de gravar)", async () => {
     renderPage();
     await screen.findByText("Ficha técnica");
@@ -148,22 +193,28 @@ describe("ClientTechnicalSheet — G82 (cliente só-nuvem, id uuid)", () => {
     expect(toast.warning).not.toHaveBeenCalled();
   });
 
-  it("[G29/G75] seção Acessos avisa na tela que não sincroniza com a nuvem; salvar um acesso avisa de novo e a senha nunca vai no payload", async () => {
+  it("[FP2] seção Acessos avisa que os acessos ficam só neste dispositivo; salvar um acesso grava no armazenamento LOCAL e a senha/`accesses` nunca vão no payload", async () => {
     renderPage();
     await screen.findByText("Ficha técnica");
     await openSection("Acessos");
 
-    expect((await screen.findByRole("note")).textContent).toMatch(/Acessos não sincronizam com a nuvem/);
+    expect((await screen.findByRole("note")).textContent).toMatch(/Acessos ficam só neste dispositivo/);
 
     fireEvent.click(await screen.findByRole("button", { name: /Novo acesso/i }));
     const dialog = await screen.findByRole("dialog");
     fireEvent.change(within(dialog).getAllByRole("textbox")[0], { target: { value: "Instagram" } });
     fireEvent.click(within(dialog).getByRole("button", { name: /^Salvar$/ }));
 
-    await waitFor(() => expect(toast.warning).toHaveBeenCalled());
-    expect(vi.mocked(toast.warning).mock.calls[0][0]).toMatch(/Acessos não são salvos na nuvem/);
+    await waitFor(() => expect(toast.info).toHaveBeenCalled());
+    expect(vi.mocked(toast.info).mock.calls[0][0]).toMatch(/Acessos salvos só neste dispositivo/);
+    // armazenamento local deste dispositivo, chaveado pelo uuid da rota
+    const stored = JSON.parse(localStorage.getItem("kora.technicalSheets.accessesLocal.v1") as string);
+    expect(stored[UUID][0].platform).toBe("Instagram");
+    // e nunca na nuvem
+    await waitFor(() => expect(clientTechnicalSheetsRepository.upsertTechnicalSheet).toHaveBeenCalled());
     const [, , payload] = vi.mocked(clientTechnicalSheetsRepository.upsertTechnicalSheet).mock.calls[0];
     expect(JSON.stringify(payload)).not.toContain("accesses");
+    expect(JSON.stringify(payload)).not.toContain("Instagram");
   });
 
   it("upload de logo resolve o vínculo (antes: Number(uuid)=NaN ⇒ 'Vínculo Supabase ou workspace ativo ausente.')", async () => {

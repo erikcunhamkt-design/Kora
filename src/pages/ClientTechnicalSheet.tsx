@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { Button } from "@/components/ui/button";
@@ -34,6 +34,7 @@ import {
 } from "@/services/technicalSheets/technicalSheetMapper";
 import { mapSupabaseToLocalSheet } from "@/services/technicalSheets/supabaseTechnicalSheetToLocalMapper";
 import { findLocalClientForSheet } from "@/services/technicalSheets/resolveSheetClientId";
+import { readLocalAccesses, writeLocalAccesses } from "@/services/technicalSheets/accessesLocalStore";
 import { clientTechnicalSheetsRepository } from "@/repositories/clientTechnicalSheetsRepository";
 import {
   getTechnicalSheetExperimentalEnabled,
@@ -136,7 +137,7 @@ function RestoreFromSupabaseDialog({
     const mappedSheet = mapSupabaseToLocalSheet(supabaseSheet);
     onRestoreConfirm(mappedSheet);
 
-    toast.success("Versão Supabase restaurada localmente. A edição principal continua local nesta etapa.");
+    toast.success("Versão Supabase restaurada na cópia local deste cliente (backup anterior guardado).");
     setOpen(false);
     setAccepted(false);
   };
@@ -271,6 +272,7 @@ export default function ClientTechnicalSheetPage() {
     loading: supabaseLoading,
     error: supabaseError,
     refresh: refreshSupabase,
+    setCachedSheet,
   } = useSupabaseTechnicalSheet(clientId);
 
   const { workspace } = useCurrentWorkspace();
@@ -303,7 +305,7 @@ export default function ClientTechnicalSheetPage() {
     setSavingToSupabase(true);
     try {
       const payload = mapLocalToSupabaseSheet(sheet);
-      await clientTechnicalSheetsRepository.upsertTechnicalSheet(
+      const saved = await clientTechnicalSheetsRepository.upsertTechnicalSheet(
         workspace.id,
         supabaseClientId,
         payload
@@ -311,7 +313,9 @@ export default function ClientTechnicalSheetPage() {
       toast.success("Cópia da Ficha Técnica salva com sucesso no Supabase!");
       const binaryMsg = unsyncedBinaryMessage(describeUnsyncedBinary(sheet));
       if (binaryMsg) toast.warning(binaryMsg);
-      refreshSupabase();
+      // G30: a própria resposta do upsert vira o cache; refetch só como fallback.
+      if (setCachedSheet && saved) setCachedSheet(saved as never);
+      else refreshSupabase();
     } catch (err) {
       console.error("Error saving technical sheet to Supabase:", err);
       toast.error(
@@ -322,6 +326,16 @@ export default function ClientTechnicalSheetPage() {
     }
   };
 
+  // FP4: fila de gravações (um upsert por vez).
+  const saveChainRef = useRef<Promise<void>>(Promise.resolve());
+
+  // FP2: acessos só-locais — nunca vêm da nuvem. Armazenamento deste dispositivo
+  // ou, pra cliente legado, a cópia local da ficha.
+  const withLocalAccesses = (s: ClientTechnicalSheet): ClientTechnicalSheet => {
+    const acc = readLocalAccesses(clientId) ?? localClient?.technicalSheet?.accesses;
+    return acc && acc.length > 0 ? { ...s, accesses: acc } : s;
+  };
+
   const persist = async (next: ClientTechnicalSheet) => {
     setSheet(next);
     if (activeDataSource === "local") {
@@ -330,46 +344,53 @@ export default function ClientTechnicalSheetPage() {
         return;
       }
       updateClient(localClient.id, { technicalSheet: next });
-    } else if (activeDataSource === "supabase" && writeThrough) {
+    } else if (activeDataSource === "supabase") {
+      // F4/FP2 (decisão do revisor): "accesses" é SÓ-LOCAL, com aviso — vai pro
+      // armazenamento deste dispositivo e NUNCA pro payload da nuvem (o mapper
+      // exclui o campo; G63). Grava aqui independente do autosave: é local.
+      if (next.accesses !== sheet.accesses) {
+        writeLocalAccesses(String(clientId), next.accesses ?? []);
+        toast.info("Acessos salvos só neste dispositivo — não sincronizam com a nuvem (por segurança).");
+      }
+      if (!writeThrough) return;
       if (!workspace?.id || !supabaseClientId) {
         toast.error("Vínculo com o Supabase ou workspace ativo ausente.");
         return;
       }
-      setSyncStatus("saving");
-      try {
-        const payload = mapLocalToSupabaseSheet(next);
-        await clientTechnicalSheetsRepository.upsertTechnicalSheet(
-          workspace.id,
-          supabaseClientId,
-          payload
-        );
-        setSyncStatus("synced");
-        refreshSupabase();
-        // G75: "accesses" não tem caminho de persistência na nuvem (G63,
-        // decisão permanente; FP2 pendente) — não silenciar. (Concorrentes
-        // passou a voltar da nuvem — G83/FP1 —, então não entra mais aqui.)
-        if (next.accesses !== sheet.accesses) {
-          toast.warning(
-            "Acessos não são salvos na nuvem (por segurança) — a alteração não será mantida ao recarregar.",
+      // FP4: um upsert por vez, na ordem das ações do usuário — seções salvas em
+      // sequência rápida nunca se atropelam (last-write-wins fora de ordem).
+      const run = async () => {
+        setSyncStatus("saving");
+        try {
+          const payload = mapLocalToSupabaseSheet(next);
+          const saved = await clientTechnicalSheetsRepository.upsertTechnicalSheet(
+            workspace.id,
+            supabaseClientId,
+            payload
           );
+          setSyncStatus("synced");
+          // G30: a própria resposta do upsert vira o cache; refetch só como fallback.
+          if (setCachedSheet && saved) setCachedSheet(saved as never);
+          else refreshSupabase();
+          // G83: binário local (logo/arquivo) NÃO é enviado — rejeição honesta.
+          const binaryMsg = unsyncedBinaryMessage(describeUnsyncedBinary(next));
+          if (binaryMsg) toast.warning(binaryMsg);
+        } catch (err) {
+          console.error("Autosave technical sheet to Supabase error:", err);
+          setSyncStatus("error");
+          if (err instanceof SheetTooLargeError) {
+            toast.error(err.message);
+          } else {
+            toast.error("Erro no salvamento automático. Modificações estão apenas nesta tela até re-tentativa.");
+          }
+          // Rollback visual
+          if (supabaseSheet) {
+            setSheet(withLocalAccesses(mapSupabaseToLocalSheet(supabaseSheet)));
+          }
         }
-        // G83: binário local (logo/arquivo) NÃO é enviado — rejeição honesta.
-        const binaryMsg = unsyncedBinaryMessage(describeUnsyncedBinary(next));
-        if (binaryMsg) toast.warning(binaryMsg);
-      } catch (err) {
-        console.error("Autosave technical sheet to Supabase error:", err);
-        setSyncStatus("error");
-        if (err instanceof SheetTooLargeError) {
-          toast.error(err.message);
-        } else {
-          toast.error("Erro no salvamento automático. Modificações estão apenas locais até re-tentativa.");
-        }
-        // Rollback visual
-        if (supabaseSheet) {
-          const mapped = mapSupabaseToLocalSheet(supabaseSheet);
-          setSheet(mapped);
-        }
-      }
+      };
+      saveChainRef.current = saveChainRef.current.then(run, run);
+      await saveChainRef.current;
     }
   };
 
@@ -386,7 +407,14 @@ export default function ClientTechnicalSheetPage() {
   // independente dos flags, e a gravação por seção (ação explícita do
   // usuário) vai direto, sem depender do autosave (não há cópia local pra
   // segurar a edição até o "Salvar versão atual no Supabase").
-  const activeDataSource = cloudOnly ? "supabase" : isExperimentalEnabled ? dataSource : "local";
+  //
+  // F4 (flip): o default da fonte passou a ser a NUVEM (só "local" explícito
+  // seleciona local). Pra não quebrar o usuário 100% local (sem workspace, ou
+  // cliente sem vínculo), a nuvem só vale quando é ALCANÇÁVEL: workspace ativo
+  // E vínculo resolvido. Sem isso, toda edição cairia em "Vínculo ausente".
+  const cloudReachable = !!workspace?.id && !!supabaseClientId;
+  const activeDataSource =
+    cloudOnly ? "supabase" : isExperimentalEnabled && dataSource === "supabase" && cloudReachable ? "supabase" : "local";
   const writeThrough = cloudOnly || autosaveEnabled;
 
   // G63 (16/ago/2026): o auto-promote pra "supabase" assim que o cliente
@@ -408,8 +436,21 @@ export default function ClientTechnicalSheetPage() {
     }
     setTechnicalSheetDataSource(String(clientId), newSource);
     setDataSource(newSource);
-    toast.success(`Fonte alterada para ${newSource === "supabase" ? "Supabase experimental" : "Local"}.`);
+    toast.success(`Fonte alterada para ${newSource === "supabase" ? "Supabase (nuvem)" : "Local"}.`);
   };
+
+  // F4: a cópia local deste cliente (legado) tem conteúdo de verdade?
+  const hasLocalCopyContent = useMemo(() => {
+    const ts = localClient?.technicalSheet as Record<string, unknown> | undefined;
+    if (!ts) return false;
+    return Object.entries(ts).some(([k, v]) => {
+      if (k === "accesses") return false;
+      if (!v) return false;
+      if (Array.isArray(v)) return v.length > 0;
+      if (typeof v === "object") return Object.keys(v as object).length > 0;
+      return true;
+    });
+  }, [localClient]);
 
   const hasLocalData = useMemo(() => {
     if (!sheet) return false;
@@ -425,18 +466,21 @@ export default function ClientTechnicalSheetPage() {
 
   const isDirty = useMemo(() => {
     if (activeDataSource !== "supabase") return false;
-    if (!supabaseSheet) return hasLocalData;
+    if (!supabaseSheet) return Object.keys(sheet).some((k) => k !== "accesses") && hasLocalData;
     const mappedSupabase = mapSupabaseToLocalSheet(supabaseSheet);
-    return JSON.stringify(sheet) !== JSON.stringify(mappedSupabase);
+    // accesses é só-local (FP2): nunca conta como "pendente de envio".
+    const { accesses: _ignored, ...sheetWithoutAccesses } = sheet;
+    void _ignored;
+    return JSON.stringify(sheetWithoutAccesses) !== JSON.stringify(mappedSupabase);
   }, [activeDataSource, sheet, supabaseSheet, hasLocalData]);
 
   useEffect(() => {
     if (activeDataSource === "supabase") {
       if (supabaseSheet) {
         const mapped = mapSupabaseToLocalSheet(supabaseSheet);
-        setSheet(mapped);
+        setSheet(withLocalAccesses(mapped));
       } else if (!supabaseLoading && !supabaseSheet) {
-        setSheet({});
+        setSheet(withLocalAccesses({}));
       }
     } else {
       if (localClient) {
@@ -528,7 +572,7 @@ export default function ClientTechnicalSheetPage() {
               <span className="text-xs font-semibold text-foreground">Fonte da Ficha Técnica:</span>
               {activeDataSource === "supabase" && (
                 <Badge variant="outline" className="text-[10px] uppercase font-mono py-0 text-primary border-primary/30 bg-primary/5">
-                  Supabase experimental
+                  Supabase (nuvem)
                 </Badge>
               )}
             </div>
@@ -552,7 +596,7 @@ export default function ClientTechnicalSheetPage() {
                 disabled={!supabaseClientId}
                 onClick={() => handleSourceChange("supabase")}
               >
-                Supabase experimental
+                Supabase (nuvem)
                 {!supabaseClientId && (
                   <Lock className="h-3 w-3 text-muted-foreground" />
                 )}
@@ -570,17 +614,17 @@ export default function ClientTechnicalSheetPage() {
           <div className="flex items-start gap-2.5 p-3 rounded-lg border border-primary/20 bg-primary/5 text-xs text-foreground mt-2">
             <Info className="h-4 w-4 text-primary shrink-0 mt-0.5" />
             <div>
-              <span className="font-semibold block">Modo Supabase experimental ativo</span>
+              <span className="font-semibold block">Ficha sincronizada com o Supabase</span>
               <p className="text-muted-foreground mt-0.5 leading-normal">
                 {writeThrough ? (
                   <>
-                    Você está visualizando a versão Supabase desta Ficha Técnica. Use com cuidado; o modo local continua disponível.
-                    Autosave está <strong>ativado</strong> — as edições feitas aqui são gravadas automaticamente no Supabase a cada alteração.
+                    Esta ficha é salva na nuvem (Supabase). Autosave <strong>ativado</strong> — cada seção salva é gravada
+                    automaticamente. A cópia local continua disponível pelo botão <strong>"Local"</strong>.
                   </>
                 ) : (
                   <>
-                    Você está visualizando a versão Supabase desta Ficha Técnica. Use com cuidado; o modo local continua disponível.
-                    As edições feitas aqui são temporárias e não serão salvas automaticamente. Para gravá-las permanentemente no Supabase, clique no botão <strong>"Salvar no Supabase"</strong> abaixo.
+                    Esta ficha é a versão Supabase. O autosave está desligado neste navegador:
+                    as edições feitas aqui são temporárias e não serão salvas automaticamente. Para gravá-las permanentemente no Supabase, clique no botão <strong>"Salvar no Supabase"</strong> abaixo.
                   </>
                 )}
               </p>
@@ -604,17 +648,25 @@ export default function ClientTechnicalSheetPage() {
           </div>
         )}
 
+        {/* F4: cópia local ainda não enviada — a fonte padrão passou a ser a nuvem */}
+        {activeDataSource === "supabase" && !supabaseLoading && !supabaseError && !supabaseSheet && hasLocalCopyContent && (
+          <div role="note" className="flex items-start gap-2.5 p-3 rounded-lg border border-amber-500/30 bg-amber-500/5 text-xs text-foreground mt-2">
+            <AlertCircle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+            <p className="text-muted-foreground leading-normal">
+              <strong className="text-foreground">Existe uma ficha salva só neste dispositivo que ainda não foi enviada à nuvem.</strong>{" "}
+              Envie em <em>Configurações → Dados → "Importar Fichas Técnicas"</em>, ou volte para a fonte{" "}
+              <strong>"Local"</strong> para continuar editando a cópia local.
+            </p>
+          </div>
+        )}
+
         {/* Painel Versão Supabase */}
         <div className="rounded-xl border border-border bg-card/45 p-4 mt-2">
           <div className="flex items-center justify-between gap-4 flex-wrap mb-2">
             <div className="flex items-center gap-2">
               <Database className="h-4 w-4 text-primary" />
               <h3 className="text-sm font-semibold text-foreground">Versão Supabase</h3>
-              {isExperimentalEnabled && (
-                <Badge variant="outline" className="text-[10px] uppercase font-mono py-0 text-muted-foreground">
-                  Experimental
-                </Badge>
-              )}
+
             </div>
             <div className="flex items-center gap-2 text-[11px] text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
               <Lock className="h-3 w-3" />
@@ -625,9 +677,11 @@ export default function ClientTechnicalSheetPage() {
           <p className="text-xs text-muted-foreground mb-4">
             {activeDataSource === "supabase"
               ? "Esta página está editando a versão Supabase; o painel abaixo mostra a cópia salva na nuvem (somente leitura)."
-              : isExperimentalEnabled 
-              ? "A edição principal desta página ainda usa dados locais. A versão Supabase é somente leitura nesta etapa."
-              : "A Ficha Técnica está sendo mantida localmente neste navegador. Para habilitar o modo experimental de visualização e salvamento no Supabase, ative a opção correspondente na página de Configurações."}
+              : !isExperimentalEnabled
+              ? "A sincronização com o Supabase está desligada neste navegador (override de rollback). A ficha é mantida só nesta cópia local; para religar, use Configurações → Dados."
+              : cloudReachable
+              ? "Esta página está editando a cópia local deste cliente (fonte \"Local\"); o painel abaixo mostra a cópia da nuvem (somente leitura)."
+              : "Esta ficha está sendo mantida localmente neste navegador. Para salvá-la na nuvem, o cliente precisa estar vinculado ao Supabase."}
           </p>
 
           {/* Conditional content states */}
@@ -787,12 +841,12 @@ export default function ClientTechnicalSheetPage() {
                 <p className="text-[11px] text-muted-foreground max-w-md">
                   {activeDataSource === "supabase"
                     ? "A edição principal desta página está na versão Supabase (fonte ativa)."
-                    : "A edição principal desta página ainda usa dados locais. O Supabase recebe apenas uma cópia manual ou serve para restaurar backups nesta etapa."}
+                    : "A edição principal desta página usa a cópia local deste cliente. O Supabase recebe uma cópia manual ou serve para restaurar backups."}
                 </p>
 
                 <div className="flex items-center gap-2 flex-wrap">
                   {/* Restaurar do Supabase (Apenas se houver ficha remota) */}
-                  {supabaseClientId && supabaseSheet && (
+                  {activeDataSource === "local" && supabaseClientId && supabaseSheet && (
                     <RestoreFromSupabaseDialog
                       supabaseSheet={supabaseSheet}
                       localSheet={sheet}
@@ -840,7 +894,7 @@ export default function ClientTechnicalSheetPage() {
                           <AlertDialogHeader>
                             <AlertDialogTitle>Salvar cópia no Supabase?</AlertDialogTitle>
                             <AlertDialogDescription>
-                              Esta ação enviará a versão local atual da Ficha Técnica para o Supabase.{activeDataSource === "local" ? " A edição principal continuará local nesta etapa." : ""}
+                              Esta ação enviará a versão local atual da Ficha Técnica para o Supabase.{activeDataSource === "local" ? " A edição principal continuará na cópia local." : ""}
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
@@ -944,9 +998,9 @@ export default function ClientTechnicalSheetPage() {
                 >
                   <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
                   <p className="leading-normal text-muted-foreground">
-                    <strong className="text-foreground">Acessos não sincronizam com a nuvem.</strong> Por segurança,
-                    logins e senhas nunca são enviados ao Supabase — o que for digitado aqui não será mantido ao
-                    recarregar esta ficha. (Decisão de produto sobre onde guardá-los ainda pendente.)
+                    <strong className="text-foreground">Acessos ficam só neste dispositivo.</strong> Por segurança,
+                    logins e senhas nunca são enviados ao Supabase — o que for digitado aqui é mantido apenas neste
+                    navegador e não aparece em outros dispositivos.
                   </p>
                 </div>
               )}
