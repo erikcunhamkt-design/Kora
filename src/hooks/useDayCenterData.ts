@@ -1,10 +1,10 @@
 import { useMemo } from "react";
 import { useBifurcatedTasks } from "@/hooks/useBifurcatedTasks";
 import { useBifurcatedOpportunities } from "@/hooks/useBifurcatedOpportunities";
-import { useQuotes } from "@/hooks/useQuotes";
+import { useBifurcatedQuotes } from "@/hooks/useBifurcatedQuotes";
 import { useBifurcatedProjects } from "@/hooks/useBifurcatedProjects";
 import { useBifurcatedFinance } from "@/hooks/useBifurcatedFinance";
-import { useClients } from "@/hooks/useClients";
+import { useClientsDataSource } from "@/hooks/useClientsDataSource";
 import { useAllClientActivityLogs } from "@/hooks/useClientActivityLogs";
 import { computeDayCenter, type DayCenterResult } from "@/lib/dayCenter";
 
@@ -31,9 +31,18 @@ import { computeDayCenter, type DayCenterResult } from "@/lib/dayCenter";
  * nuvem, conforme kora.tasks.dataSource.v1) — mesma leitura-só/escrita-local
  * do padrão acima (`completeTask`, em DayCenter.tsx/useDayCenterActions.ts,
  * segue gravando via o mutator local de useTasks(), com guarda contra
- * no-op silencioso quando a tarefa exibida vier da nuvem). quotes segue 100%
- * local, fora de escopo desta fase. `leads` vem de useBifurcatedOpportunities()
- * (G92) — mesma fonte do CRM.
+ * no-op silencioso quando a tarefa exibida vier da nuvem).
+ *
+ * G92 (kora-hub-auditoria-e-plano.md, lane A, `e4b03e4`) — `leads` vem de
+ * useBifurcatedOpportunities() (mesma fonte do CRM em modo Supabase) — o id
+ * dos eventos `/crm?lead=` passou a ser o que a lista da nuvem reconhece.
+ *
+ * G92/B4 (mesma classe, lane E) — `clients` e `quotes` eram os 2 domínios
+ * restantes lidos 100% locais aqui — `clients` virou useClientsDataSource()
+ * (mesma fonte bifurcada de ProjectsSection.tsx/QuotesSection.tsx, G44);
+ * `quotes` virou useBifurcatedQuotes() (hook novo, mesmo padrão de
+ * useBifurcatedFinance.ts/useBifurcatedTasks.ts). Os 3 domínios restantes
+ * (clients/quotes/leads) ficaram todos bifurcados nesta dupla rodada.
  */
 export function useDayCenterData(): DayCenterResult {
   const tasks = useBifurcatedTasks();
@@ -41,9 +50,9 @@ export function useDayCenterData(): DayCenterResult {
   // dos eventos `/crm?lead=` é o que a lista da nuvem reconhece.
   const leads = useBifurcatedOpportunities();
   const transactions = useBifurcatedFinance();
-  const { quotes } = useQuotes();
+  const quotes = useBifurcatedQuotes();
   const projects = useBifurcatedProjects();
-  const { clients } = useClients();
+  const { clients } = useClientsDataSource();
   const manualActivities = useAllClientActivityLogs();
 
   return useMemo(

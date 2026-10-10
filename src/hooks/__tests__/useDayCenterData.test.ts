@@ -11,10 +11,10 @@ import { useDayCenterData } from "@/hooks/useDayCenterData";
 import { useBifurcatedTasks } from "@/hooks/useBifurcatedTasks";
 import { useTasks } from "@/hooks/useTasks";
 import { useLeads } from "@/hooks/useLeads";
-import { useQuotes } from "@/hooks/useQuotes";
+import { useBifurcatedQuotes } from "@/hooks/useBifurcatedQuotes";
 import { useBifurcatedProjects } from "@/hooks/useBifurcatedProjects";
 import { useBifurcatedFinance } from "@/hooks/useBifurcatedFinance";
-import { useClients } from "@/hooks/useClients";
+import { useClientsDataSource } from "@/hooks/useClientsDataSource";
 import { useAllClientActivityLogs } from "@/hooks/useClientActivityLogs";
 import { computeDayCenter } from "@/lib/dayCenter";
 
@@ -26,10 +26,13 @@ vi.mock("@/hooks/useTasks", () => ({ useTasks: vi.fn() }));
 vi.mock("@/hooks/useLeads", () => ({ useLeads: vi.fn() }));
 vi.mock("@/hooks/useSupabaseOpportunities", () => ({ useSupabaseOpportunities: () => ({ opportunities: [] }) }));
 vi.mock("@/hooks/useCurrentWorkspace", () => ({ useCurrentWorkspace: () => ({ workspace: null }) }));
-vi.mock("@/hooks/useQuotes", () => ({ useQuotes: vi.fn() }));
+// G92/B4 — quotes/clients passaram a vir dos hooks bifurcados
+// (useBifurcatedQuotes/useClientsDataSource), não mais de useQuotes()/
+// useClients() crus.
+vi.mock("@/hooks/useBifurcatedQuotes", () => ({ useBifurcatedQuotes: vi.fn() }));
 vi.mock("@/hooks/useBifurcatedProjects", () => ({ useBifurcatedProjects: vi.fn() }));
 vi.mock("@/hooks/useBifurcatedFinance", () => ({ useBifurcatedFinance: vi.fn() }));
-vi.mock("@/hooks/useClients", () => ({ useClients: vi.fn() }));
+vi.mock("@/hooks/useClientsDataSource", () => ({ useClientsDataSource: vi.fn() }));
 vi.mock("@/hooks/useClientActivityLogs", () => ({ useAllClientActivityLogs: vi.fn() }));
 vi.mock("@/lib/dayCenter", async () => {
   const actual = await vi.importActual<typeof import("@/lib/dayCenter")>("@/lib/dayCenter");
@@ -51,10 +54,10 @@ beforeEach(() => {
   vi.mocked(useBifurcatedTasks).mockReturnValue([cloudOnlyTask] as never);
   vi.mocked(useTasks).mockReturnValue({ tasks: [] } as never);
   vi.mocked(useLeads).mockReturnValue({ leads: [] } as never);
-  vi.mocked(useQuotes).mockReturnValue({ quotes: [] } as never);
+  vi.mocked(useBifurcatedQuotes).mockReturnValue([] as never);
   vi.mocked(useBifurcatedProjects).mockReturnValue([] as never);
   vi.mocked(useBifurcatedFinance).mockReturnValue([] as never);
-  vi.mocked(useClients).mockReturnValue({ clients: [] } as never);
+  vi.mocked(useClientsDataSource).mockReturnValue({ clients: [] } as never);
   vi.mocked(useAllClientActivityLogs).mockReturnValue([] as never);
 });
 
@@ -75,5 +78,52 @@ describe("useDayCenterData · leitura bifurcada de tasks (§7 B4)", () => {
     const taskItem = result.current.items.find((i) => i.relatedType === "task");
     expect(taskItem).toBeDefined();
     expect(taskItem?.title).toBe("HOMOLOG-TAR-tarefa-nuvem");
+  });
+});
+
+// G92/B4 (kora-hub-auditoria-e-plano.md) — quotes e clients eram lidos via
+// useQuotes()/useClients() crus (100% locais, mesmo em modo Supabase).
+// Prova com dados de fonte NUVEM via mapper real (lição G82: fixture local
+// mascara a classe) — um orçamento/cliente só-nuvem (sem contraparte local)
+// precisa aparecer no resultado, senão a Central do Dia continuaria cega
+// pra esse domínio em modo Supabase.
+describe("useDayCenterData · leitura bifurcada de quotes/clients (G92/B4)", () => {
+  it("passa os quotes de useBifurcatedQuotes() pro computeDayCenter — não os de useQuotes() cru", () => {
+    const cloudOnlyQuote = {
+      id: "sqt-orcamento-nuvem", clientName: "Cliente Nuvem", clientEmail: "", clientWhatsapp: "",
+      title: "HOMOLOG-QT-orcamento-nuvem", description: "", items: [],
+      subtotal: 500, discount: 0, total: 500, paymentCondition: "",
+      deliveryDeadline: "", validityDays: 5, status: "enviado",
+      createdAt: "2026-01-01T00:00:00.000Z", isDemo: false,
+    } as never;
+    vi.mocked(useBifurcatedQuotes).mockReturnValue([cloudOnlyQuote] as never);
+
+    const { result } = renderHook(() => useDayCenterData());
+
+    expect(useBifurcatedQuotes).toHaveBeenCalled();
+    expect(computeDayCenter).toHaveBeenCalledWith(
+      expect.objectContaining({ quotes: [cloudOnlyQuote] }),
+    );
+    const quoteItem = result.current.items.find((i) => i.relatedType === "quote");
+    expect(quoteItem).toBeDefined();
+    expect(quoteItem?.title).toContain("HOMOLOG-QT-orcamento-nuvem");
+  });
+
+  it("passa os clients de useClientsDataSource() pro computeDayCenter — um cliente só-nuvem sem próximo passo aparece no resultado", () => {
+    const cloudOnlyClient = {
+      id: "sct-cliente-nuvem" as unknown as number, // uuid contrabandeado, mesmo padrão de useBifurcatedTasks
+      name: "HOMOLOG-CLI-cliente-nuvem", company: "", status: "Ativo", nextAction: "",
+    } as never;
+    vi.mocked(useClientsDataSource).mockReturnValue({ clients: [cloudOnlyClient] } as never);
+
+    const { result } = renderHook(() => useDayCenterData());
+
+    expect(useClientsDataSource).toHaveBeenCalled();
+    expect(computeDayCenter).toHaveBeenCalledWith(
+      expect.objectContaining({ clients: [cloudOnlyClient] }),
+    );
+    const clientItem = result.current.items.find((i) => i.relatedType === "client");
+    expect(clientItem).toBeDefined();
+    expect(clientItem?.title).toContain("HOMOLOG-CLI-cliente-nuvem");
   });
 });

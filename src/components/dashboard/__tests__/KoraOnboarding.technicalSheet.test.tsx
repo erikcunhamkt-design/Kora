@@ -10,16 +10,27 @@ import type { ReactNode } from "react";
 
 import { KoraOnboarding } from "@/components/dashboard/KoraOnboarding";
 import { useClients } from "@/hooks/useClients";
+import { useClientsDataSource } from "@/hooks/useClientsDataSource";
+import { useBifurcatedQuotes } from "@/hooks/useBifurcatedQuotes";
+import { useBifurcatedFinance } from "@/hooks/useBifurcatedFinance";
+import { useBifurcatedProjects } from "@/hooks/useBifurcatedProjects";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { clientTechnicalSheetsRepository } from "@/repositories/clientTechnicalSheetsRepository";
 import { useSupabaseOpportunities } from "@/hooks/useSupabaseOpportunities";
 
 vi.mock("@/hooks/useClients", () => ({ useClients: vi.fn() }));
+// G92/B4 — KoraOnboarding passou a ler clientes/orçamentos/financeiro/
+// projetos pelos hooks bifurcados (useClientsDataSource/useBifurcatedQuotes/
+// useBifurcatedFinance/useBifurcatedProjects), não mais pelos hooks locais
+// crus (useQuotes/useFinance/useProjects) — sem este mock, os hooks
+// bifurcados reais disparariam repository real sem QueryClientProvider
+// completo (só clientTechnicalSheetsRepository é mockado aqui).
+vi.mock("@/hooks/useClientsDataSource", () => ({ useClientsDataSource: vi.fn() }));
 vi.mock("@/hooks/useLeads", () => ({ useLeads: () => ({ leads: [] }) }));
 vi.mock("@/hooks/useSupabaseOpportunities", () => ({ useSupabaseOpportunities: vi.fn() }));
-vi.mock("@/hooks/useQuotes", () => ({ useQuotes: () => ({ quotes: [] }) }));
-vi.mock("@/hooks/useFinance", () => ({ useFinance: () => ({ transactions: [] }) }));
-vi.mock("@/hooks/useProjects", () => ({ useProjects: () => ({ projects: [] }) }));
+vi.mock("@/hooks/useBifurcatedQuotes", () => ({ useBifurcatedQuotes: vi.fn() }));
+vi.mock("@/hooks/useBifurcatedFinance", () => ({ useBifurcatedFinance: vi.fn() }));
+vi.mock("@/hooks/useBifurcatedProjects", () => ({ useBifurcatedProjects: vi.fn() }));
 vi.mock("@/hooks/useCurrentWorkspace", () => ({ useCurrentWorkspace: vi.fn() }));
 vi.mock("@/repositories/clientTechnicalSheetsRepository", () => ({
   clientTechnicalSheetsRepository: { listTechnicalSheets: vi.fn() },
@@ -43,6 +54,10 @@ beforeEach(() => {
   // Cliente só-nuvem: nenhum cliente local, nenhuma ficha local.
   vi.mocked(useClients).mockReturnValue({ clients: [] } as never);
   vi.mocked(useSupabaseOpportunities).mockReturnValue({ opportunities: [] } as never);
+  vi.mocked(useClientsDataSource).mockReturnValue({ clients: [] } as never);
+  vi.mocked(useBifurcatedQuotes).mockReturnValue([] as never);
+  vi.mocked(useBifurcatedFinance).mockReturnValue([] as never);
+  vi.mocked(useBifurcatedProjects).mockReturnValue([] as never);
 });
 
 describe("KoraOnboarding · passo 'Preencher Ficha Técnica' — G82", () => {
@@ -67,9 +82,12 @@ describe("KoraOnboarding · passo 'Preencher Ficha Técnica' — G82", () => {
 
   it("regressão: ficha local de cliente não-demo continua completando o passo (fonte local intacta)", async () => {
     vi.mocked(clientTechnicalSheetsRepository.listTechnicalSheets).mockResolvedValue([] as never);
-    vi.mocked(useClients).mockReturnValue({
-      clients: [{ id: 1, name: "Local", isDemo: false, technicalSheet: { persona: { name: "Camila" } } }],
-    } as never);
+    const localClient = { id: 1, name: "Local", isDemo: false, technicalSheet: { persona: { name: "Camila" } } };
+    // step2 (ficha, local-only por design — G82) lê useClients() direto;
+    // step1 (G92/B4) lê useClientsDataSource() — em modo local as 2 listas
+    // batem, mesmo cliente nos 2 mocks.
+    vi.mocked(useClients).mockReturnValue({ clients: [localClient] } as never);
+    vi.mocked(useClientsDataSource).mockReturnValue({ clients: [localClient] } as never);
 
     render(<KoraOnboarding />, { wrapper: Providers });
 

@@ -3,10 +3,11 @@ import { Check, ChevronDown, ChevronUp, EyeOff, Sparkles, UserPlus, FileText, Tr
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { useClients } from "@/hooks/useClients";
+import { useClientsDataSource } from "@/hooks/useClientsDataSource";
 import { useBifurcatedOpportunities } from "@/hooks/useBifurcatedOpportunities";
-import { useQuotes } from "@/hooks/useQuotes";
-import { useFinance } from "@/hooks/useFinance";
-import { useProjects } from "@/hooks/useProjects";
+import { useBifurcatedQuotes } from "@/hooks/useBifurcatedQuotes";
+import { useBifurcatedFinance } from "@/hooks/useBifurcatedFinance";
+import { useBifurcatedProjects } from "@/hooks/useBifurcatedProjects";
 import { useSupabaseTechnicalSheetsAll } from "@/hooks/useSupabaseTechnicalSheetsAll";
 import { mapSupabaseToLocalSheet } from "@/services/technicalSheets/supabaseTechnicalSheetToLocalMapper";
 import type { ClientTechnicalSheet } from "@/hooks/useClients";
@@ -43,12 +44,20 @@ function sheetHasContent(ts: ClientTechnicalSheet | undefined): boolean {
 export function KoraOnboarding() {
   const navigate = useNavigate();
   
-  // Hooks de dados para verificar status real em tempo real
-  const { clients } = useClients();
+  // Hooks de dados para verificar status real em tempo real.
+  // G92/B4 (kora-hub-auditoria-e-plano.md) — steps 1/3/4/5 liam a fonte LOCAL
+  // de domínios já flipados (clientes/oportunidades/orçamentos/financeiro/
+  // projetos), mesmo em modo Supabase. `localClients` (useClients() puro)
+  // continua só pro step2: `technicalSheet` é campo LOCAL-only (G82,
+  // comentário abaixo) — não existe contraparte bifurcada pra ele, trocar
+  // quebraria esse check.
+  const { clients: localClients } = useClients();
+  const { clients: dsClients } = useClientsDataSource();
+  // Oportunidades pela MESMA fonte do CRM (lane A, G92/`e4b03e4`).
   const leads = useBifurcatedOpportunities();
-  const { quotes } = useQuotes();
-  const { transactions } = useFinance();
-  const { projects } = useProjects();
+  const quotes = useBifurcatedQuotes();
+  const transactions = useBifurcatedFinance();
+  const projects = useBifurcatedProjects();
   // G82 (5º consumidor da ficha): clientes só-nuvem têm a ficha em
   // client_technical_sheets, nunca em `client.technicalSheet` local.
   const { sheets: cloudSheets } = useSupabaseTechnicalSheetsAll();
@@ -98,17 +107,18 @@ export function KoraOnboarding() {
 
   // 1. Cadastrar primeiro cliente
   const step1 = useMemo(() => {
-    return clients.some((c) => !c.isDemo);
-  }, [clients]);
+    return dsClients.some((c) => !c.isDemo);
+  }, [dsClients]);
 
   // 2. Preencher Ficha Técnica
   const step2 = useMemo(() => {
-    const localDone = clients.some((c) => !c.isDemo && sheetHasContent(c.technicalSheet));
+    const localDone = localClients.some((c) => !c.isDemo && sheetHasContent(c.technicalSheet));
     if (localDone) return true;
     return cloudSheets.some((s) => sheetHasContent(mapSupabaseToLocalSheet(s)));
-  }, [clients, cloudSheets]);
+  }, [localClients, cloudSheets]);
 
-  // 3. Criar oportunidade
+  // 3. Criar oportunidade — bifurcado pela lane A (G92/`e4b03e4`,
+  // useBifurcatedOpportunities, mesma fonte do CRM).
   const step3 = useMemo(() => {
     return leads.some((l) => !l.isDemo);
   }, [leads]);
@@ -119,12 +129,15 @@ export function KoraOnboarding() {
   }, [quotes]);
 
   // 5. Gerar recebível ou projeto
-  // Etapa 5 · Pacote do Flip (projects) — Fase A, item 1 (classe b): `projects`
-  // aqui é 100% local, NÃO bifurcado por dataSource, de propósito. Se o
-  // usuário gerou um projeto só na nuvem (modo Supabase), este checklist
-  // pode marcar o passo 5 como pendente mesmo já tendo sido feito —
-  // limitação aceita (sinal informativo de onboarding, baixo-stakes, não
-  // bloqueia nenhum fluxo real). Ver docs/qa/etapa-5-flip-projetos-pacote.md §1.
+  // G92/B4 (kora-hub-auditoria-e-plano.md) — `transactions`/`projects` eram
+  // 100% locais aqui, de propósito (Etapa 5 · Pacote do Flip (projects),
+  // Fase A, item 1 — "limitação aceita", ver
+  // docs/qa/etapa-5-flip-projetos-pacote.md §1): se o usuário gerasse um
+  // projeto/recebível só na nuvem, este passo ficava pendente mesmo já feito.
+  // Corrigido nesta rodada: os 2 agora usam os hooks bifurcados já existentes
+  // (useBifurcatedFinance/useBifurcatedProjects, mesmos que a Central do Dia
+  // já usa) — sem custo extra de implementação, a limitação não precisa mais
+  // ser aceita.
   const step5 = useMemo(() => {
     const hasFinance = transactions.some((t) => !t.isDemo && t.source === "quote");
     const hasProject = projects.some((p) => !p.isDemo && p.quoteId);
