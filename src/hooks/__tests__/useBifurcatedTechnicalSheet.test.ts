@@ -1,9 +1,10 @@
-// Etapa 5 · Flip de Fichas Técnicas, fatia F2 (`etapa-5-flip-fichas-pacote.md`
-// §11). Mocka useClients/useSupabaseTechnicalSheet diretamente (já testados
-// isoladamente em seus próprios arquivos) — este teste prova só a escolha de
-// fonte (seletor por-cliente + opt-in global, ambos pós-G63) e a invariante
-// de segurança do G63 (accesses/password nunca voltam de um objeto lido da
-// nuvem), mesmo escopo de useBifurcatedTasks.test.ts.
+// Etapa 5 · Fichas Técnicas — leitura bifurcada por CLIENTE
+// (`etapa-5-flip-fichas-pacote.md` §11, F2; reescrito no F4/flip). Mocka
+// useClients/useSupabaseTechnicalSheet/useCurrentWorkspace — este teste prova a
+// escolha de fonte pós-flip (default NUVEM, só "local" explícito escolhe local,
+// nuvem só quando ALCANÇÁVEL: workspace + vínculo resolvido), os acessos
+// só-locais (FP2) e a invariante G63 (accesses/password nunca vêm da nuvem).
+// Fixtures com uuid REAL na classe G82/G67.
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
 
@@ -15,14 +16,16 @@ import {
   setTechnicalSheetExperimentalEnabled,
   setTechnicalSheetDataSource,
 } from "@/config/flags";
+import { writeLocalAccesses } from "@/services/technicalSheets/accessesLocalStore";
 
 vi.mock("@/hooks/useClients", async () => {
   const actual = await vi.importActual<typeof import("@/hooks/useClients")>("@/hooks/useClients");
   return { ...actual, useClients: vi.fn() };
 });
 vi.mock("@/hooks/useSupabaseTechnicalSheet", () => ({ useSupabaseTechnicalSheet: vi.fn() }));
-// FP2/F4: o hook agora só usa a nuvem quando ALCANÇÁVEL (workspace + vínculo resolvido)
 vi.mock("@/hooks/useCurrentWorkspace", () => ({ useCurrentWorkspace: vi.fn() }));
+
+const UUID = "87ebd1d2-b17a-46f4-b0eb-70beac445221";
 
 function makeLocalClient(overrides: Partial<Client> = {}): Client {
   return {
@@ -37,63 +40,77 @@ function makeLocalClient(overrides: Partial<Client> = {}): Client {
   } as Client;
 }
 
+/** Nuvem alcançável: o vínculo resolve e há workspace. */
+function cloud(sheet: unknown, supabaseClientId: string | null = UUID) {
+  vi.mocked(useSupabaseTechnicalSheet).mockReturnValue({ sheet, supabaseClientId } as never);
+}
+
 beforeEach(() => {
   localStorage.clear();
   vi.clearAllMocks();
   vi.mocked(useClients).mockReturnValue({ clients: [makeLocalClient()] } as never);
-  vi.mocked(useSupabaseTechnicalSheet).mockReturnValue({ supabaseClientId: "87ebd1d2-b17a-46f4-b0eb-70beac445221", sheet: null } as never);
   vi.mocked(useCurrentWorkspace).mockReturnValue({ workspace: { id: "ws1" } } as never);
+  cloud(null, null);
 });
 
-describe("useBifurcatedTechnicalSheet — seletor local (default pós-G63)", () => {
-  it("seletor nunca tocado (ausente) devolve a ficha local — default pós-G63 é \"local\"", () => {
-    vi.mocked(useSupabaseTechnicalSheet).mockReturnValue({
-      supabaseClientId: "87ebd1d2-b17a-46f4-b0eb-70beac445221", sheet: { branding: { colors: ["#ff0000"] } },
-    } as never);
-
-    const { result } = renderHook(() => useBifurcatedTechnicalSheet(1));
-
-    expect(result.current.branding).toEqual({ colors: ["#000000"] });
-  });
-
-  it("experimental ligado mas seletor do cliente em \"local\" explícito devolve a ficha local", () => {
-    setTechnicalSheetExperimentalEnabled(true);
-    setTechnicalSheetDataSource(1, "local");
-    vi.mocked(useSupabaseTechnicalSheet).mockReturnValue({
-      supabaseClientId: "87ebd1d2-b17a-46f4-b0eb-70beac445221", sheet: { branding: { colors: ["#ff0000"] } },
-    } as never);
-
-    const { result } = renderHook(() => useBifurcatedTechnicalSheet(1));
-
-    expect(result.current.branding).toEqual({ colors: ["#000000"] });
-  });
-});
-
-describe("useBifurcatedTechnicalSheet — seletor Supabase (explícito, pós-G63)", () => {
-  it("experimental ligado + seletor do cliente em \"supabase\" devolve a ficha já mapeada de useSupabaseTechnicalSheet", () => {
-    setTechnicalSheetExperimentalEnabled(true);
-    setTechnicalSheetDataSource(1, "supabase");
-    vi.mocked(useSupabaseTechnicalSheet).mockReturnValue({
-      supabaseClientId: "87ebd1d2-b17a-46f4-b0eb-70beac445221", sheet: { branding: { colors: ["#ff0000"] }, persona: { targetAudience: "PMEs" } },
-    } as never);
+describe("useBifurcatedTechnicalSheet — defaults pós-flip (F4)", () => {
+  it("cliente local COM vínculo e workspace, flags/seletor nunca tocados: lê a NUVEM (default pós-flip)", () => {
+    localStorage.setItem("kora.clients.supabaseImport.v1", JSON.stringify({ importedMap: { "1": UUID } }));
+    cloud({ branding: { colors: ["#ff0000"] } });
 
     const { result } = renderHook(() => useBifurcatedTechnicalSheet(1));
 
     expect(result.current.branding).toEqual({ colors: ["#ff0000"] });
-    expect(result.current.persona).toEqual({ targetAudience: "PMEs" });
+  });
+
+  it("[usuário 100% local] sem vínculo (nuvem inalcançável): devolve a ficha LOCAL, nunca 'vazia', mesmo com os defaults na nuvem", () => {
+    cloud(null, null);
+
+    const { result } = renderHook(() => useBifurcatedTechnicalSheet(1));
+
+    expect(result.current.branding).toEqual({ colors: ["#000000"] });
+  });
+
+  it("[usuário 100% local] sem workspace: devolve a ficha LOCAL", () => {
+    vi.mocked(useCurrentWorkspace).mockReturnValue({ workspace: null } as never);
+    cloud({ branding: { colors: ["#ff0000"] } });
+
+    const { result } = renderHook(() => useBifurcatedTechnicalSheet(1));
+
+    expect(result.current.branding).toEqual({ colors: ["#000000"] });
+  });
+
+  it("seletor do cliente em \"local\" explícito (rollback por cliente): devolve a ficha local", () => {
+    setTechnicalSheetDataSource(1, "local");
+    cloud({ branding: { colors: ["#ff0000"] } });
+
+    const { result } = renderHook(() => useBifurcatedTechnicalSheet(1));
+
+    expect(result.current.branding).toEqual({ colors: ["#000000"] });
+  });
+
+  it("experimental desligado (rollback nível 1: \"false\"): devolve a ficha local", () => {
+    setTechnicalSheetExperimentalEnabled(false);
+    cloud({ branding: { colors: ["#ff0000"] } });
+
+    const { result } = renderHook(() => useBifurcatedTechnicalSheet(1));
+
+    expect(result.current.branding).toEqual({ colors: ["#000000"] });
+  });
+
+  it("nuvem ligada mas sem ficha na nuvem ainda ⇒ objeto vazio (a ficha local aparece pelo aviso/import da página)", () => {
+    cloud(null);
+
+    const { result } = renderHook(() => useBifurcatedTechnicalSheet(1));
+
+    expect(result.current).toEqual({});
   });
 
   it("[G63 — invariante] accesses[].password nunca aparece no objeto lido da nuvem, mesmo presente em raw_payload", () => {
-    setTechnicalSheetExperimentalEnabled(true);
-    setTechnicalSheetDataSource(1, "supabase");
-    vi.mocked(useSupabaseTechnicalSheet).mockReturnValue({
-      supabaseClientId: "87ebd1d2-b17a-46f4-b0eb-70beac445221", sheet: {
-        branding: {},
-        raw_payload: {
-          accesses: [{ id: "a1", platform: "WordPress", login: "admin", password: "s3nh4-secreta" }],
-        },
-      },
-    } as never);
+    cloud({
+      branding: {},
+      raw_payload: { accesses: [{ id: "a1", platform: "WordPress", login: "admin", password: "s3nh4-secreta" }] },
+    });
 
     const { result } = renderHook(() => useBifurcatedTechnicalSheet(1));
 
@@ -102,18 +119,42 @@ describe("useBifurcatedTechnicalSheet — seletor Supabase (explícito, pós-G63
   });
 });
 
-// G82 — a lista de Clientes em nuvem entrega ids UUID. Os testes acima usam
-// `id: 1` (cliente local) e por isso nunca exercitaram o par (id uuid, mapa
-// local→uuid) — o buraco que deixava os 4 consumidores do G74 "vazios" para
-// qualquer cliente só-nuvem. Fixtures com uuid REAL.
-describe("useBifurcatedTechnicalSheet — G82 (id uuid vindo da lista em nuvem)", () => {
-  const UUID = "87ebd1d2-b17a-46f4-b0eb-70beac445221";
+describe("useBifurcatedTechnicalSheet — acessos só-locais (FP2)", () => {
+  it("fonte nuvem: os acessos vêm do armazenamento LOCAL deste dispositivo (chave = id da rota), nunca da nuvem", () => {
+    vi.mocked(useClients).mockReturnValue({ clients: [] } as never);
+    writeLocalAccesses(UUID, [{ id: "a1", platform: "Instagram", login: "x@y.z", password: "local-only" } as never]);
+    cloud({
+      branding: { colors: ["#00ff00"] },
+      raw_payload: { accesses: [{ id: "nuvem", platform: "NUVEM", login: "n", password: "da-nuvem" }] },
+    });
 
-  it("cliente só-nuvem (uuid, sem cliente local): lê da nuvem MESMO com todos os flags no default — não é mais 'vazio'", () => {
-    vi.mocked(useClients).mockReturnValue({ clients: [makeLocalClient()] } as never);
-    vi.mocked(useSupabaseTechnicalSheet).mockReturnValue({
-      supabaseClientId: "87ebd1d2-b17a-46f4-b0eb-70beac445221", sheet: { branding: { colors: ["#00ff00"] } },
+    const { result } = renderHook(() => useBifurcatedTechnicalSheet(UUID));
+
+    expect(result.current.accesses?.map((a) => a.id)).toEqual(["a1"]);
+    expect(JSON.stringify(result.current)).not.toContain("da-nuvem");
+  });
+
+  it("cliente legado (cópia local com acessos) em fonte nuvem sem entrada no armazenamento: usa os acessos da cópia local", () => {
+    localStorage.setItem("kora.clients.supabaseImport.v1", JSON.stringify({ importedMap: { "7": UUID } }));
+    vi.mocked(useClients).mockReturnValue({
+      clients: [makeLocalClient({
+        id: 7,
+        technicalSheet: { accesses: [{ id: "legacy", platform: "WP", login: "a", password: "p" } as never] },
+      })],
     } as never);
+    cloud({ branding: {} });
+
+    const { result } = renderHook(() => useBifurcatedTechnicalSheet(UUID));
+
+    expect(result.current.accesses?.map((a) => a.id)).toEqual(["legacy"]);
+  });
+});
+
+// G82 — a lista de Clientes em nuvem entrega ids UUID. Fixtures com uuid REAL.
+describe("useBifurcatedTechnicalSheet — G82 (id uuid vindo da lista em nuvem)", () => {
+  it("cliente só-nuvem (uuid, sem cliente local): lê da nuvem com todos os flags no default", () => {
+    vi.mocked(useClients).mockReturnValue({ clients: [makeLocalClient()] } as never);
+    cloud({ branding: { colors: ["#00ff00"] } });
 
     const { result } = renderHook(() => useBifurcatedTechnicalSheet(UUID));
 
@@ -123,35 +164,32 @@ describe("useBifurcatedTechnicalSheet — G82 (id uuid vindo da lista em nuvem)"
 
   it("cliente só-nuvem sem ficha na nuvem ⇒ objeto vazio (sem lançar)", () => {
     vi.mocked(useClients).mockReturnValue({ clients: [] } as never);
-    vi.mocked(useSupabaseTechnicalSheet).mockReturnValue({ supabaseClientId: "87ebd1d2-b17a-46f4-b0eb-70beac445221", sheet: null } as never);
+    cloud(null);
 
     const { result } = renderHook(() => useBifurcatedTechnicalSheet(UUID));
 
     expect(result.current).toEqual({});
   });
 
-  it("cliente legado importado (local id 7 ↔ uuid no mapa), flags no default: devolve a ficha LOCAL do cliente 7 (modo local/legado preservado)", () => {
+  it("cliente legado importado (local id 7 ↔ uuid) com seletor \"local\" explícito: devolve a ficha LOCAL do cliente 7", () => {
     localStorage.setItem("kora.clients.supabaseImport.v1", JSON.stringify({ importedMap: { "7": UUID } }));
+    setTechnicalSheetDataSource(UUID, "local");
     vi.mocked(useClients).mockReturnValue({
       clients: [makeLocalClient({ id: 7, technicalSheet: { branding: { colors: ["#123456"] } } })],
     } as never);
-    vi.mocked(useSupabaseTechnicalSheet).mockReturnValue({
-      supabaseClientId: "87ebd1d2-b17a-46f4-b0eb-70beac445221", sheet: { branding: { colors: ["#ff0000"] } },
-    } as never);
+    cloud({ branding: { colors: ["#ff0000"] } });
 
     const { result } = renderHook(() => useBifurcatedTechnicalSheet(UUID));
 
     expect(result.current.branding).toEqual({ colors: ["#123456"] });
   });
 
-  it("[G63 — invariante] ficha só-nuvem por uuid também nunca devolve accesses/password", () => {
+  it("[G63 — invariante] ficha só-nuvem por uuid também nunca devolve accesses/password da nuvem", () => {
     vi.mocked(useClients).mockReturnValue({ clients: [] } as never);
-    vi.mocked(useSupabaseTechnicalSheet).mockReturnValue({
-      supabaseClientId: "87ebd1d2-b17a-46f4-b0eb-70beac445221", sheet: {
-        branding: {},
-        raw_payload: { accesses: [{ id: "a1", platform: "WP", login: "admin", password: "s3nh4-secreta" }] },
-      },
-    } as never);
+    cloud({
+      branding: {},
+      raw_payload: { accesses: [{ id: "a1", platform: "WP", login: "admin", password: "s3nh4-secreta" }] },
+    });
 
     const { result } = renderHook(() => useBifurcatedTechnicalSheet(UUID));
 

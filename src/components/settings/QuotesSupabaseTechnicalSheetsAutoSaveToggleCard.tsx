@@ -16,10 +16,10 @@ export function QuotesSupabaseTechnicalSheetsAutoSaveToggleCard() {
   };
 
   return (
-    <SettingsCard title="Fichas Técnicas Supabase - Autosave Experimental">
+    <SettingsCard title="Fichas Técnicas Supabase - Autosave">
       <div className="space-y-4">
         <p className="text-xs text-muted-foreground leading-normal">
-          Permite salvar de forma automática e reativa as edições de fichas técnicas diretamente na nuvem (Supabase), substituindo o modelo de backup manual.
+          Salva automaticamente cada seção editada da ficha técnica na nuvem (Supabase). Desativado, a edição só vai para a nuvem ao clicar em "Salvar versão atual no Supabase". Os acessos (logins/senhas) nunca são enviados.
         </p>
         <div className="flex items-center justify-between gap-4 py-2 px-3 border border-border/60 bg-muted/10 rounded-lg">
           <div className="flex items-center gap-2">

@@ -1725,14 +1725,14 @@ function SupabaseExperimentalToggleCard() {
     const nextVal = !enabled;
     setTechnicalSheetExperimentalEnabled(nextVal);
     setEnabled(nextVal);
-    toast.success(`Modo experimental da Ficha Técnica ${nextVal ? "ativado" : "desativado"}.`);
+    toast.success(`Ficha Técnica na nuvem ${nextVal ? "ativada" : "desativada"} neste navegador.`);
   };
 
   return (
-    <SettingsCard title="Modo Supabase Experimental da Ficha Técnica">
+    <SettingsCard title="Ficha Técnica na nuvem (Supabase)">
       <div className="space-y-4">
         <p className="text-xs text-muted-foreground leading-normal">
-          Permite testar a leitura e salvamento manual da Ficha Técnica no Supabase. O modo local continua preservado.
+          A Ficha Técnica é lida e salva na nuvem (Supabase) para clientes vinculados. Desativar é o rollback: volta a usar só a cópia local neste navegador (nada é apagado). Os acessos (logins/senhas) nunca vão para a nuvem.
         </p>
         <div className="flex items-center justify-between gap-4 py-2 px-3 border border-border/60 bg-muted/10 rounded-lg">
           <div className="flex items-center gap-2">

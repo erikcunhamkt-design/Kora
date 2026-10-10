@@ -242,7 +242,22 @@ describe("ClientTechnicalSheet — G82 (cliente legado importado: local id 7 ↔
     } as never);
   });
 
-  it("modo local (flags no default): a ficha local do cliente 7 é carregada e salvar chama updateClient(7), nunca o upsert da nuvem", async () => {
+  it("F4 — default pós-flip: o cliente legado mapeado usa a NUVEM (upsert com o uuid), avisa da cópia local não enviada e não chama updateClient", async () => {
+    renderPage();
+    await screen.findByText("Ficha técnica");
+    expect(await screen.findByText(/ficha salva só neste dispositivo que ainda não foi enviada/i)).toBeInTheDocument();
+    await openSection("Briefing & Notas");
+
+    fireEvent.change(await screen.findByPlaceholderText(/Histórico, objetivos/i), { target: { value: "novo na nuvem" } });
+    fireEvent.click(screen.getByRole("button", { name: /Salvar seção/i }));
+
+    await waitFor(() => expect(clientTechnicalSheetsRepository.upsertTechnicalSheet).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(clientTechnicalSheetsRepository.upsertTechnicalSheet).mock.calls[0][1]).toBe(UUID);
+    expect(updateClient).not.toHaveBeenCalled();
+  });
+
+  it("rollback por cliente (seletor \"local\" explícito): a ficha local do cliente 7 é carregada e salvar chama updateClient(7), nunca o upsert da nuvem", async () => {
+    localStorage.setItem("kora.technicalSheets.dataSource.v1", JSON.stringify({ [UUID]: "local" }));
     renderPage();
     await screen.findByText("Ficha técnica");
     await openSection("Briefing & Notas");

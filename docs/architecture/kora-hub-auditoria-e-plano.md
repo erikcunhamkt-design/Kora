@@ -928,6 +928,8 @@ Fix autorizado pelo revisor após o adendo de verificação (0 linhas expostas).
 - **Não tocado:** `CRM.tsx`, `Financeiro.tsx`, arquivos de outras lanes — escopo estritamente
   Fichas Técnicas.
 
+- **Adendo 3 — F4 (flip dos defaults de Fichas, branch `etapa-5-fichas-f4-flip`, `docs/qa/etapa-5-flip-fichas-f4.md`; mescla só com "vai" explícito):** as 3 flags deste domínio voltam a opt-OUT (fonte "supabase" salvo "local" explícito; experimental/autosave só `"false"` desliga), agora com o payload **sem `accesses`** (teste explícito do autosave), round-trip fechado (G83), vínculo resolvido (G82) e `accesses` **só-locais** com aviso (decisão FP2 do revisor: `kora.technicalSheets.accessesLocal.v1`). A invariante "`accesses[].password` nunca na nuvem" segue permanente. Rollback nível 1 por override de localStorage documentado em `flags.ts` e no runbook.
+
 ---
 
 **G64 — Funis customizados: `NewLeadDialog` coagia o estágio pros 6 valores do pipeline padrão na criação, e `moveOpportunityStage` derivava won/lost comparando string literal "fechado"/"perdido" em vez de `PipelineStage.type` — os dois quebram silenciosamente pra qualquer funil criado via "Gerenciar funis". [MÉDIO — confirmado e FECHADO, mesma classe do G33/G55/G58-G59/G62 (gate/lógica presa a um vocabulário que deixou de ser universal), aqui aplicada a `stage`/`status`, não a um gate de escrita]**
