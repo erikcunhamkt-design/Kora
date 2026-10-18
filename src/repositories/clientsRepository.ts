@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeSupabaseError } from "@/lib/supabase/errors";
+import { isMissingLibraryColumnError, LibraryUnavailableError } from "@/repositories/clientLibraryRepositoryShared";
 
 export interface SupabaseClientInput {
   name: string;
@@ -77,6 +78,29 @@ export const clientsRepository = {
       .single();
 
     if (error) throw normalizeSupabaseError(error);
+    return data;
+  },
+
+  // G94 · M1 — escrita da Biblioteca do cliente (`clients.library_assets`,
+  // draft 6.8, ainda NÃO aplicado). Separado de `updateClient` (genérico, ~20
+  // campos sempre existentes) de propósito: só este caminho precisa saber
+  // converter "coluna ausente" em `LibraryUnavailableError` (degradação
+  // legível, G94/M2) em vez de deixar o erro genérico do Postgres estourar.
+  async updateClientLibrary(workspaceId: string, clientId: string, assets: unknown[]) {
+    const { data, error } = await supabase
+      .from("clients")
+      .update({ library_assets: assets } as never)
+      .eq("id", clientId)
+      .eq("workspace_id", workspaceId)
+      .select()
+      .single();
+
+    if (error) {
+      if (isMissingLibraryColumnError(error)) {
+        throw new LibraryUnavailableError(error.message, error);
+      }
+      throw normalizeSupabaseError(error);
+    }
     return data;
   },
 

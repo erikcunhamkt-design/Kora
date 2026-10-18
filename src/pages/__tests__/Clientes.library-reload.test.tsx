@@ -19,6 +19,7 @@ import { useSignupRequests } from "@/hooks/useSignupRequests";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { useBifurcatedTechnicalSheet } from "@/hooks/useBifurcatedTechnicalSheet";
 import { CLIENT_LIBRARY_LOCAL_STORE_KEY } from "@/services/clients/clientLibraryLocalStore";
+import { LibraryUnavailableError } from "@/repositories/clientLibraryRepositoryShared";
 
 // só useClients é mockado — as constantes/labels reais (CLIENT_ASSET_TYPE_LABELS…) ficam.
 vi.mock("@/hooks/useClients", async () => {
@@ -75,6 +76,13 @@ const cloudRow = {
 };
 
 const supabaseUpdate = vi.fn().mockResolvedValue(cloudRow);
+// G94 · M2 — este arquivo prova especificamente o fallback M0 (coluna
+// `library_assets` AINDA NÃO existe nesta rodada de testes, mesma realidade
+// de produção hoje): `updateClientLibrary` sempre rejeita com
+// LibraryUnavailableError, o mesmo "schema pendente" que Clientes.tsx
+// trata caindo pro store local. Leitura real da coluna (quando presente)
+// tem cobertura própria em useClientsDataSource.library.test.ts.
+const updateClientLibrary = vi.fn().mockRejectedValue(new LibraryUnavailableError());
 
 function setupMocks(localClients: unknown[] = []) {
   vi.mocked(useClients).mockReturnValue({
@@ -83,7 +91,7 @@ function setupMocks(localClients: unknown[] = []) {
   } as never);
   vi.mocked(useSupabaseClients).mockReturnValue({
     workspace: { id: "ws1" }, workspaceLoading: false, clients: [cloudRow], loading: false, error: null,
-    addClient: vi.fn(), updateClient: supabaseUpdate, archiveClient: vi.fn(), deleteClient: vi.fn(),
+    addClient: vi.fn(), updateClient: supabaseUpdate, updateClientLibrary, archiveClient: vi.fn(), deleteClient: vi.fn(),
     refreshClients: vi.fn(),
   } as never);
   vi.mocked(useClientTypes).mockReturnValue({ activeTypes: [] } as never);
@@ -125,6 +133,7 @@ beforeEach(() => {
   localStorage.clear();
   vi.clearAllMocks();
   supabaseUpdate.mockResolvedValue(cloudRow);
+  updateClientLibrary.mockRejectedValue(new LibraryUnavailableError());
 });
 
 describe("Clientes · G97/M0 — Biblioteca em fonte nuvem sobrevive ao reload (neste dispositivo)", () => {
@@ -156,6 +165,21 @@ describe("Clientes · G97/M0 — Biblioteca em fonte nuvem sobrevive ao reload (
     expect(stored[UUID][0].title).toBe("HOMOLOG-MAT-item-2");
     expect(supabaseUpdate).not.toHaveBeenCalled();
     expect(toast.success).not.toHaveBeenCalledWith("Cliente atualizado no Supabase.");
+  });
+
+  it("G94/M2 — coluna já existe (updateClientLibrary resolve): grava na nuvem direto, NUNCA cai pro store M0", async () => {
+    updateClientLibrary.mockResolvedValue({ id: UUID, library_assets: [{ id: "x", title: "HOMOLOG-MAT-nuvem", type: "drive", url: "https://example.com/mat-nuvem", accessStatus: "liberado", createdAt: "", updatedAt: "" }] });
+    setupMocks();
+    renderAt(`/clientes?client=${UUID}&tab=materials`);
+
+    await addMaterial("HOMOLOG-MAT-nuvem", "https://example.com/mat-nuvem");
+
+    await waitFor(() => expect(updateClientLibrary).toHaveBeenCalledWith(UUID, expect.arrayContaining([
+      expect.objectContaining({ title: "HOMOLOG-MAT-nuvem" }),
+    ])));
+    expect(toast.success).toHaveBeenCalledWith("Biblioteca do cliente atualizada na nuvem.");
+    expect(toast.warning).not.toHaveBeenCalled();
+    expect(localStorage.getItem(CLIENT_LIBRARY_LOCAL_STORE_KEY)).toBeNull();
   });
 
   it("fechar e REABRIR o cliente na mesma sessão mostra o item (a lista é recomposta após a escrita)", async () => {

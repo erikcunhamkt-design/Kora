@@ -55,6 +55,11 @@ vi.mock("@/components/settings/QuotesSupabaseTechnicalSheetsAutoSaveToggleCard",
 vi.mock("@/components/settings/SupabaseOperationalDashboardToggleCard", () => ({ SupabaseOperationalDashboardToggleCard: () => null }));
 vi.mock("@/components/settings/SupabaseExperimentalToggleCard", () => ({ SupabaseExperimentalToggleCard: () => null }));
 vi.mock("@/components/settings/SupabaseQuotesViewerCard", () => ({ SupabaseQuotesViewerCard: () => null }));
+// G94 · M3 — ClientLibraryImportCard (novo) chama useClientLibraryImport() ->
+// useSupabaseClients() -> useQueryClient(), sem QueryClientProvider na
+// árvore deste teste (assunto é o resgate do dashboard órfão, não a
+// Biblioteca) — mesmo stub das demais cards de import acima.
+vi.mock("@/components/settings/ClientLibraryImportCard", () => ({ ClientLibraryImportCard: () => null }));
 
 const mockWorkspace = {
   id: "ws-1", name: "QA Workspace", slug: "qa-workspace", owner_id: "owner-1",

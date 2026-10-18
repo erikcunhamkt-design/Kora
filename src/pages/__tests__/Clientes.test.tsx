@@ -23,6 +23,7 @@ import { useBifurcatedTechnicalSheet } from "@/hooks/useBifurcatedTechnicalSheet
 import type { Client } from "@/types/domain";
 import { crmOpportunitiesRepository } from "@/repositories/crmOpportunitiesRepository";
 import { clientAssetsStorage } from "@/services/storage/clientAssetsStorage";
+import { LibraryUnavailableError } from "@/repositories/clientLibraryRepositoryShared";
 
 vi.mock("@/hooks/useClientsDataSource", () => ({ useClientsDataSource: vi.fn() }));
 // MaterialsTab (dentro de ClientProfileDrawer, aba "Materiais") passou a ler
@@ -154,6 +155,10 @@ function setupCommonMocks(source: "local" | "supabase", client: Client) {
     loading: false,
     addClient: vi.fn(),
     updateClient: vi.fn().mockResolvedValue(client),
+    // G94 · M2 — este arquivo prova o fallback M0 (coluna library_assets
+    // AINDA NÃO existe nesta rodada de testes, mesma realidade de produção
+    // hoje — ver Clientes.library-reload.test.tsx pro caminho de sucesso).
+    updateClientLibrary: vi.fn().mockRejectedValue(new LibraryUnavailableError()),
     archiveClient: vi.fn(),
     deleteClient: vi.fn(),
   } as never);

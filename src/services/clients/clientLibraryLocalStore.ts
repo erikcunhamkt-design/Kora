@@ -80,8 +80,15 @@ function legacyLocalAssets(localClients: Client[], uuid: string, map: Record<str
 }
 
 /**
- * Compõe a Biblioteca de um cliente da NUVEM: store local (uuid) → cópia local legada → nada.
+ * Compõe a Biblioteca de um cliente da NUVEM: coluna `library_assets` (se a
+ * coluna já existir, G94/M2) → store local (uuid) → cópia local legada → nada.
  * Devolve o cliente SEM `assets` extras quando não há nada a mesclar (referência intacta).
+ *
+ * G94 · M2 — precedência: se `client.assets` já chegou definido (array, MESMO
+ * `[]`) é porque `mapCloudLibraryAssets` leu a coluna da nuvem com sucesso —
+ * ela é autoritativa e nunca é sobreposta pelo store M0/legado. Um array
+ * vazio da coluna é estado TERMINAL ("esvaziado pelo usuário não
+ * ressuscita"), diferente de `undefined` (coluna ausente — schema pendente).
  */
 export function withLocalLibrary(
   client: Client,
@@ -89,6 +96,7 @@ export function withLocalLibrary(
   localClients: Client[],
   importedMap: Record<string, string> = readImportedMap(),
 ): Client {
+  if (Array.isArray(client.assets)) return client;
   const key = String(client.id);
   const fromStore = store[key];
   const assets = Array.isArray(fromStore) ? fromStore : legacyLocalAssets(localClients, key, importedMap);

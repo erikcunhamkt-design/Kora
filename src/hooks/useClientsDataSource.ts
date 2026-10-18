@@ -7,6 +7,7 @@ import {
   readClientLibraryStore,
   withLocalLibrary,
 } from "@/services/clients/clientLibraryLocalStore";
+import { mapCloudLibraryAssets } from "@/services/clients/clientLibraryMapper";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function mapSupabaseClientToLocalClient(s: any): Client {
@@ -43,6 +44,10 @@ export function mapSupabaseClientToLocalClient(s: any): Client {
     contacts: [],
     avatarUrl: s.avatar_url || undefined,
     archived: !!s.archived,
+    // G94 · M2 — `undefined` quando a coluna library_assets ainda não existe
+    // (schema pendente, cai no fallback do store M0 em withLocalLibrary);
+    // array (mesmo `[]`) quando a coluna já existe — nuvem autoritativa.
+    assets: mapCloudLibraryAssets(s.library_assets),
   };
 }
 
@@ -90,6 +95,7 @@ export function useClientsDataSource() {
     refresh: refreshClients,
     addClient: supa.addClient,
     updateClient: supa.updateClient,
+    updateClientLibrary: supa.updateClientLibrary,
     archiveClient: supa.archiveClient,
     deleteClient: supa.deleteClient,
   };

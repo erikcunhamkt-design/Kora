@@ -79,6 +79,7 @@ import { LocalProjectsImportCard } from "@/components/settings/LocalProjectsImpo
 import { LocalTasksImportCard } from "@/components/settings/LocalTasksImportCard";
 import { LocalCatalogImportCard } from "@/components/settings/LocalCatalogImportCard";
 import { CatalogSupabaseSourceToggleCard, CatalogSupabaseWriteToggleCard } from "@/components/settings/CatalogSupabaseToggleCards";
+import { ClientLibraryImportCard } from "@/components/settings/ClientLibraryImportCard";
 import { SupabaseQuotesViewerCard } from "@/components/settings/SupabaseQuotesViewerCard";
 import { CrmSupabaseCreateQuoteToggleCard } from "@/components/settings/CrmSupabaseCreateQuoteToggleCard";
 import { QuotesSupabaseReceivableToggleCard } from "@/components/settings/QuotesSupabaseReceivableToggleCard";
@@ -865,6 +866,7 @@ const Configuracoes = () => {
                   <LocalProjectsImportCard />
                   <LocalTasksImportCard />
                   <LocalCatalogImportCard />
+                  <ClientLibraryImportCard />
                 </div>
               </div>
 

@@ -96,4 +96,38 @@ describe("withLocalLibrary — composição da Biblioteca de um cliente da nuvem
 
     expect(out.assets).toBeUndefined();
   });
+
+  // G94 · M2 — precedência: nuvem (coluna library_assets, quando já lida por
+  // mapCloudLibraryAssets) > store M0 > legado. `client.assets` já vem
+  // definido (array) quando a coluna existe — withLocalLibrary nunca deve
+  // sobrepor isso com store/legado.
+  describe("G94/M2 — a nuvem (quando já respondeu) é autoritativa, nunca é sobreposta", () => {
+    it("client.assets já preenchido pela nuvem: devolve o MESMO objeto, ignora store com outro conteúdo", () => {
+      const c = { ...cloudClient(UUID), assets: [asset("cloud1", "Da nuvem")] };
+      const store = { [UUID]: [asset("m0-1", "Do store M0")] };
+
+      const out = withLocalLibrary(c, store, []);
+
+      expect(out).toBe(c);
+      expect(out.assets?.map((a) => a.title)).toEqual(["Da nuvem"]);
+    });
+
+    it("client.assets = [] (coluna existe, Biblioteca vazia na nuvem) — terminal, NÃO ressuscita o store M0", () => {
+      const c = { ...cloudClient(UUID), assets: [] as ClientAsset[] };
+      const store = { [UUID]: [asset("m0-1")] };
+
+      const out = withLocalLibrary(c, store, []);
+
+      expect(out.assets).toEqual([]);
+    });
+
+    it("client.assets ausente (undefined — coluna ainda não existe): cai pro store M0 normalmente", () => {
+      const c = cloudClient(UUID); // sem .assets
+      const store = { [UUID]: [asset("m0-1", "Do store M0")] };
+
+      const out = withLocalLibrary(c, store, []);
+
+      expect(out.assets?.map((a) => a.title)).toEqual(["Do store M0"]);
+    });
+  });
 });

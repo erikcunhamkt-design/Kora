@@ -25,6 +25,8 @@ import {
 } from "@/hooks/useClients";
 import { useClientsDataSource } from "@/hooks/useClientsDataSource";
 import { writeClientLibrary } from "@/services/clients/clientLibraryLocalStore";
+import { isLibraryUnavailable } from "@/repositories/clientLibraryRepositoryShared";
+import { mapLocalLibraryAssetsToCloud, exceedsLibraryLimit, CLIENT_LIBRARY_MAX_ITEMS } from "@/services/clients/clientLibraryMapper";
 import type { SupabaseClientInput } from "@/repositories/clientsRepository";
 import { useTranslation } from "@/contexts/language-context-value";
 import {
@@ -159,7 +161,10 @@ const TempPill = ({ t }: { t?: ClientTemperature }) => {
 const Clientes = () => {
   const { t } = useTranslation();
   const { addClient: localAdd, updateClient: localUpdate, archiveClient: localArchive, restoreClient: localRestore, deleteClient: localDelete } = useClients();
-  const { source, clients, loading, addClient: supabaseAdd, updateClient: supabaseUpdate, archiveClient: supabaseArchive, deleteClient: supabaseDelete } = useClientsDataSource();
+  const {
+    source, clients, loading, addClient: supabaseAdd, updateClient: supabaseUpdate,
+    updateClientLibrary: supabaseUpdateLibrary, archiveClient: supabaseArchive, deleteClient: supabaseDelete,
+  } = useClientsDataSource();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { activeTypes } = useClientTypes();
@@ -230,19 +235,37 @@ const Clientes = () => {
         if (Object.keys(patch).length > 0) {
           await supabaseUpdate(id.toString(), patch);
         }
-        // G75 (docs/qa/etapa-5-flip-materiais-pacote.md) — "Biblioteca do
-        // cliente" (Client.assets) não tem coluna cloud, de propósito fora
-        // da whitelist acima (destino definitivo: coluna `clients.library_assets`,
-        // G94 M1–M3). Antes do G75 o toast.success genérico mentia sucesso mesmo
-        // com o patch vazio; a mitigação do G75 trocou por um aviso — que era
-        // FALSO (G97: o item não ficava em lugar nenhum). M0: o item passa a ser
-        // gravado localmente por uuid, então o aviso descreve o comportamento
-        // real. Nunca bloqueia.
+        // G94 · M2 (docs/architecture/etapa-5-flip-catalogo-materiais-fase-a.md
+        // §9.2) — fecha o G75/G97: a Biblioteca do cliente agora tenta a
+        // coluna nativa `clients.library_assets` primeiro (ainda NÃO aplicada
+        // pelo operador — draft 6.8, pacote §8-b-catálogo). Enquanto a coluna
+        // não existir, `updateClientLibrary` sobe `LibraryUnavailableError`
+        // (clientLibraryRepositoryShared.ts) e o caminho cai pro store M0
+        // (clientLibraryLocalStore.ts) com o MESMO aviso honesto de antes —
+        // nunca bloqueia, nunca finge sucesso. Qualquer outro erro (rede,
+        // etc.) é honesto também: nem finge sucesso, nem esconde no fallback
+        // local silenciosamente (G29).
         if (data.assets !== undefined) {
-          // G97/M0: agora é VERDADE — o item é gravado no armazenamento local por uuid
-          // (antes só vivia em memória e sumia no refetch, com o aviso dizendo o contrário).
-          writeClientLibrary(id.toString(), data.assets);
-          toast.warning("Material salvo só neste dispositivo — a Biblioteca do cliente ainda não sincroniza com a nuvem.");
+          if (exceedsLibraryLimit(data.assets)) {
+            toast.error(`A Biblioteca do cliente excede ${CLIENT_LIBRARY_MAX_ITEMS} itens — remova alguns antes de salvar.`);
+          } else {
+            try {
+              await supabaseUpdateLibrary(id.toString(), mapLocalLibraryAssetsToCloud(data.assets));
+              toast.success("Biblioteca do cliente atualizada na nuvem.");
+            } catch (libErr) {
+              if (isLibraryUnavailable(libErr)) {
+                writeClientLibrary(id.toString(), data.assets);
+                toast.warning("Material salvo só neste dispositivo — a Biblioteca do cliente ainda não sincroniza com a nuvem.");
+              } else {
+                // Tratado aqui mesmo (não propaga pro catch externo): o patch
+                // dos demais campos (acima) pode já ter sido salvo com
+                // sucesso — um toast genérico de "erro ao atualizar cliente"
+                // mentiria sobre isso. Mensagem específica, sem fallback
+                // silencioso pro store local (G29: colisão sinalizada).
+                toast.error(`Erro ao salvar a Biblioteca do cliente: ${getRealErrorMessage(libErr)}`);
+              }
+            }
+          }
         } else {
           toast.success("Cliente atualizado no Supabase.");
         }

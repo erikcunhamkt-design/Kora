@@ -55,6 +55,24 @@ export function useSupabaseClients() {
     },
   });
 
+  // G94 · M2 — escrita nativa da Biblioteca do cliente (`library_assets`,
+  // draft 6.8). G30 igual às demais mutations deste hook: grava a resposta
+  // do próprio UPDATE no cache, nunca invalidate-only. Erro de "coluna
+  // ausente" (schema pendente) sobe como `LibraryUnavailableError` — o
+  // caller (Clientes.tsx) decide o fallback pro store M0.
+  const updateLibraryMutation = useMutation({
+    mutationFn: ({ clientId, assets }: { clientId: string; assets: unknown[] }) => {
+      if (!workspace) throw new Error("No active workspace found");
+      return clientsRepository.updateClientLibrary(workspace.id, clientId, assets);
+    },
+    onSuccess: (updated) => {
+      queryClient.setQueryData<SupabaseClientRecord[]>(
+        queryKey,
+        (prev) => (prev ?? []).map((c) => (c.id === updated.id ? updated : c)),
+      );
+    },
+  });
+
   // archiveClient não some da lista — listClients não filtra por archived
   // (é uma flag exibida/filtrada pelo consumidor, não uma exclusão de
   // query), então o merge é update-in-place, mesmo padrão de updateMutation.
@@ -97,6 +115,8 @@ export function useSupabaseClients() {
     addClient: (input: SupabaseClientInput) => addMutation.mutateAsync(input),
     updateClient: (clientId: string, patch: Partial<SupabaseClientInput>) =>
       updateMutation.mutateAsync({ clientId, patch }),
+    updateClientLibrary: (clientId: string, assets: unknown[]) =>
+      updateLibraryMutation.mutateAsync({ clientId, assets }),
     archiveClient: (clientId: string, archived = true) =>
       archiveMutation.mutateAsync({ clientId, archived }),
     deleteClient: (clientId: string) => deleteMutation.mutateAsync(clientId),
