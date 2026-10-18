@@ -1,7 +1,12 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useClients } from "@/hooks/useClients";
 import { useSupabaseClients } from "@/hooks/useSupabaseClients";
 import type { Client } from "@/types/domain";
+import {
+  CLIENT_LIBRARY_CHANGED_EVENT,
+  readClientLibraryStore,
+  withLocalLibrary,
+} from "@/services/clients/clientLibraryLocalStore";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function mapSupabaseClientToLocalClient(s: any): Client {
@@ -51,12 +56,27 @@ export function useClientsDataSource() {
     return !!workspace;
   }, [workspace]);
 
+  // G97/M0: a Biblioteca do cliente (`Client.assets`) ainda não tem coluna na nuvem — em
+  // fonte nuvem ela vive no armazenamento local por uuid (clientLibraryLocalStore) e é
+  // mesclada aqui, pra sobreviver ao reload/reabertura. Reage às escritas do store.
+  const [libraryTick, setLibraryTick] = useState(0);
+  useEffect(() => {
+    const bump = () => setLibraryTick((t) => t + 1);
+    window.addEventListener(CLIENT_LIBRARY_CHANGED_EVENT, bump);
+    return () => window.removeEventListener(CLIENT_LIBRARY_CHANGED_EVENT, bump);
+  }, []);
+
   const clients = useMemo(() => {
     if (source === "supabase") {
-      return (supabaseClients || []).map(mapSupabaseClientToLocalClient);
+      const store = readClientLibraryStore();
+      return (supabaseClients || []).map((c) =>
+        withLocalLibrary(mapSupabaseClientToLocalClient(c), store, localClients),
+      );
     }
     return localClients;
-  }, [source, localClients, supabaseClients]);
+    // libraryTick: recompõe a lista depois de uma escrita no store da Biblioteca.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [source, localClients, supabaseClients, libraryTick]);
 
   const loading = workspaceLoading || (source === "supabase" ? supabaseLoading : false);
   const error = source === "supabase" ? supabaseError : null;

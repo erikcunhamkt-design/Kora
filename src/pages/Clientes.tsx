@@ -24,6 +24,7 @@ import {
   useClients, type Client, type ClientStatus, type ClientTemperature,
 } from "@/hooks/useClients";
 import { useClientsDataSource } from "@/hooks/useClientsDataSource";
+import { writeClientLibrary } from "@/services/clients/clientLibraryLocalStore";
 import type { SupabaseClientInput } from "@/repositories/clientsRepository";
 import { useTranslation } from "@/contexts/language-context-value";
 import {
@@ -231,12 +232,16 @@ const Clientes = () => {
         }
         // G75 (docs/qa/etapa-5-flip-materiais-pacote.md) — "Biblioteca do
         // cliente" (Client.assets) não tem coluna cloud, de propósito fora
-        // da whitelist acima (não há onde persistir ainda — decisão de
-        // produto pendente, 3 opções no pacote). Antes disto o
-        // toast.success genérico mentia sucesso mesmo quando o patch acima
-        // ficava vazio (nada foi de fato gravado, updateAssets grava só
-        // aqui). Nunca bloqueia — só troca a mensagem por uma honesta.
+        // da whitelist acima (destino definitivo: coluna `clients.library_assets`,
+        // G94 M1–M3). Antes do G75 o toast.success genérico mentia sucesso mesmo
+        // com o patch vazio; a mitigação do G75 trocou por um aviso — que era
+        // FALSO (G97: o item não ficava em lugar nenhum). M0: o item passa a ser
+        // gravado localmente por uuid, então o aviso descreve o comportamento
+        // real. Nunca bloqueia.
         if (data.assets !== undefined) {
+          // G97/M0: agora é VERDADE — o item é gravado no armazenamento local por uuid
+          // (antes só vivia em memória e sumia no refetch, com o aviso dizendo o contrário).
+          writeClientLibrary(id.toString(), data.assets);
           toast.warning("Material salvo só neste dispositivo — a Biblioteca do cliente ainda não sincroniza com a nuvem.");
         } else {
           toast.success("Cliente atualizado no Supabase.");
