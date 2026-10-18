@@ -175,7 +175,7 @@ describe("R7 · nó 'mensagem' — conexões (lista 'Conexões do fluxo')", () =
     fireEvent.click(list.getByText("Encerrar o fluxo — padrão"));
     expect(connections().some((li) => li.getAttribute("data-edge-kind") === "next")).toBe(false);
 
-    fireEvent.click(screen.getByRole("button", { name: /Salvar Fluxo/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Salvar (Fluxo|mesmo assim)/i }));
     await waitFor(() => expect(mocks.update).toHaveBeenCalledTimes(1));
     const payload = mocks.update.mock.calls[0][0] as { flow_data: Array<{ id: string; properties: Record<string, unknown> }> };
     const saved = payload.flow_data.find((n) => n.id === "msg-horario")!;
@@ -277,7 +277,7 @@ describe("R7 · nó 'mensagem' — exclusão e persistência", () => {
       message({ properties: { mensagem: "Seg–sex 9h–18h", nextNodeId: "menu-a" } }),
     ]);
 
-    fireEvent.click(screen.getByRole("button", { name: /Salvar Fluxo/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Salvar (Fluxo|mesmo assim)/i }));
     await waitFor(() => expect(mocks.update).toHaveBeenCalledTimes(1));
     const payload = mocks.update.mock.calls[0][0] as {
       flow_data: Array<{ id: string; type: string; properties: Record<string, unknown>; position?: { x: number; y: number } }>;

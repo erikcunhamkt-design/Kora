@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, lazy, Suspense } from "react";
 import {
-  Save, Loader2, Key,
+  Save, AlertCircle, Loader2, Key,
   Sparkles, Settings2, HelpCircle,
   ShieldAlert, UserCog, Network,
   Lock,
@@ -21,6 +21,8 @@ import {
   applyNodeDeletion, countNodeConnections, findDanglingEdges, gridPosition, isNodeDeletable,
   withAutoLayout, type FlowPosition,
 } from "@/components/whatsapp/flowCanvasModel";
+import { summarizeFlowIssues, validateFlow } from "@/components/whatsapp/flowValidation";
+import { buildFlowExample, canLoadFlowExample } from "@/components/whatsapp/flowExample";
 import { FlowSimulatorPanel } from "@/components/whatsapp/FlowSimulatorPanel";
 import {
   INITIAL_SIM_STATE,
@@ -295,6 +297,11 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
   // desenhada no canvas; o aviso aparece no inspector do nó de origem).
   const danglingEdges = findDanglingEdges(nodes);
 
+  // R10 — problemas do fluxo (função pura). NUNCA bloqueiam salvar: o usuário manda,
+  // mas a contagem aparece no botão, na lista e no simulador (G29: não esconder).
+  const flowIssues = validateFlow(nodes);
+  const issueSummary = summarizeFlowIssues(flowIssues);
+
   const loadSettings = useCallback(async () => {
     setLoading(true);
     try {
@@ -432,6 +439,17 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
   // applyNodeDeletion limpa TODA referência (opcoes[].nextNodeId, fallbackNodeId,
   // trigger.nextNodeId); nó fixo → no-op. O nó ativo volta pro gatilho.
   const [confirmDeleteNodeId, setConfirmDeleteNodeId] = useState<string | null>(null);
+
+  // R10 — "Carregar fluxo de exemplo": confirmação em 2 passos; só existe enquanto o
+  // fluxo não tem nenhum menu/mensagem do usuário (nunca sobrescreve o que ele montou).
+  const [confirmExample, setConfirmExample] = useState(false);
+  const loadFlowExample = () => {
+    const built = buildFlowExample(nodes);
+    setConfirmExample(false);
+    if (built === nodes) return;
+    setNodes(built);
+    setSelectedNodeId(built.find((n) => n.type === "menu")?.id ?? "node-trigger");
+  };
   const deleteMenuNode = useCallback((nodeId: string) => {
     setNodes(prev => applyNodeDeletion(prev, nodeId));
     setSelectedNodeId(current => (current === nodeId ? "node-trigger" : current));
@@ -750,10 +768,36 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
           {/* Workflow Canvas — R6: React Flow (nós soltos, arrastar, ligar com
               linha). A edição de campos continua no inspector abaixo. */}
           <div className="rounded-xl border border-border/40 bg-card/60 p-4 shadow-md relative flex flex-col gap-4">
-            <div className="flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Visual Canvas</span>
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Visual Canvas</span>
+              </div>
+              {canLoadFlowExample(nodes) && !confirmExample && (
+                <Button
+                  type="button" size="sm" variant="outline" className="h-7 text-[11px] gap-1"
+                  onClick={() => setConfirmExample(true)}
+                >
+                  <Sparkles className="h-3 w-3" /> Carregar fluxo de exemplo
+                </Button>
+              )}
             </div>
+
+            {canLoadFlowExample(nodes) && confirmExample && (
+              <div role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border border-violet-500/40 bg-violet-500/5 p-3 text-xs">
+                <span className="flex-1 min-w-[240px] text-foreground/90 leading-relaxed">
+                  Montar um fluxo de exemplo? Adiciona 1 menu e 2 mensagens (horário e saudação da IA), liga o gatilho ao menu,
+                  habilita o Transbordo Humano e define “menu” como palavra de retorno do Agente IA (se ainda estiver vazia).
+                  Nada é salvo até “Salvar Fluxo” e você pode editar ou excluir tudo depois.
+                </span>
+                <Button type="button" size="sm" className="h-7 text-[11px]" onClick={loadFlowExample}>
+                  Carregar exemplo
+                </Button>
+                <Button type="button" size="sm" variant="outline" className="h-7 text-[11px]" onClick={() => setConfirmExample(false)}>
+                  Cancelar
+                </Button>
+              </div>
+            )}
 
             <Suspense
               fallback={
@@ -774,6 +818,41 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
               />
             </Suspense>
 
+            {/* R10 — Problemas do fluxo. Lista clicável (seleciona o nó). Erro NÃO
+                bloqueia salvar; só nunca é escondido. */}
+            {flowIssues.length > 0 && (
+              <section
+                aria-label="Problemas do fluxo"
+                className={`rounded-xl border p-3 text-xs ${
+                  issueSummary.errors > 0 ? "border-destructive/40 bg-destructive/5" : "border-amber-500/40 bg-amber-500/5"
+                }`}
+              >
+                <h4 className="flex items-center gap-1.5 font-bold text-foreground">
+                  <AlertCircle className={`h-3.5 w-3.5 ${issueSummary.errors > 0 ? "text-destructive" : "text-amber-500"}`} />
+                  Problemas do fluxo — {issueSummary.label}
+                </h4>
+                <ul className="mt-2 space-y-1">
+                  {flowIssues.map((it, i) => (
+                    <li key={`${it.code}-${it.nodeId}-${i}`} data-issue-severity={it.severity} data-issue-code={it.code}>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedNodeId(it.nodeId)}
+                        className="w-full text-left rounded-md px-2 py-1 hover:bg-background/60 flex items-start gap-1.5 leading-relaxed"
+                      >
+                        <span className={`shrink-0 font-bold ${it.severity === "error" ? "text-destructive" : "text-amber-600 dark:text-amber-400"}`}>
+                          {it.severity === "error" ? "Erro" : "Aviso"}
+                        </span>
+                        <span className="text-foreground/90">{it.message}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-[10px] text-muted-foreground/80">
+                  Você pode salvar mesmo assim — o robô segue o que está desenhado, e estes pontos podem não se comportar como você espera.
+                </p>
+              </section>
+            )}
+
             <div className="flex justify-between items-center bg-violet-950/10 border border-violet-500/20 rounded-xl p-3 relative z-10">
               <span className="text-[10px] text-muted-foreground flex items-center gap-1.5 leading-normal">
                 <ShieldAlert className="h-4 w-4 text-violet-400" /> Salve o fluxo antes de testar no simulador ao lado ou no celular.
@@ -781,7 +860,11 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
               {isAdmin ? (
                 <Button size="sm" onClick={handleSaveSettings} disabled={saving} className="bg-gradient-to-r from-violet-600 to-indigo-600 hover:brightness-110 text-xs h-8 text-white px-4 border-0">
                   {saving ? <Loader2 className="h-3 w-3 animate-spin mr-1.5" /> : <Save className="h-3 w-3 mr-1.5" />}
-                  Salvar Fluxo
+                  {issueSummary.errors > 0
+                    ? `Salvar mesmo assim (${issueSummary.label})`
+                    : issueSummary.warnings > 0
+                      ? `Salvar Fluxo (${issueSummary.label})`
+                      : "Salvar Fluxo"}
                 </Button>
               ) : (
                 <TooltipProvider>
@@ -1402,6 +1485,7 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
           onSubmit={handleSimulateMessage}
           onReset={handleResetSimulation}
           stateSummary={describeSimState(simState, nodes)}
+          flowIssuesLabel={issueSummary.errors > 0 ? issueSummary.label : undefined}
         />
 
       </div>

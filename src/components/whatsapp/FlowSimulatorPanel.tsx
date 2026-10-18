@@ -15,6 +15,7 @@ export function FlowSimulatorPanel({
   onSubmit,
   onReset,
   stateSummary,
+  flowIssuesLabel,
 }: {
   messages: SimMessage[];
   simulating: boolean;
@@ -23,6 +24,8 @@ export function FlowSimulatorPanel({
   onSubmit: (e: React.FormEvent) => void;
   onReset: () => void;
   stateSummary: SimStateSummary;
+  /** R10 — resumo dos problemas do fluxo (ex.: "2 erros e 1 aviso"); só vem quando há ERROS. */
+  flowIssuesLabel?: string;
 }) {
   const chatEndRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -51,6 +54,16 @@ export function FlowSimulatorPanel({
           Reiniciar simulação
         </Button>
       </div>
+
+      {flowIssuesLabel && (
+        <div
+          role="status"
+          aria-label="Problemas do fluxo no simulador"
+          className="px-4 py-2 border-b border-border/40 text-[11px] bg-destructive/10 text-destructive shrink-0"
+        >
+          <span className="font-semibold">Problemas do fluxo: {flowIssuesLabel}</span> — o robô pode não se comportar como desenhado (veja a lista abaixo do canvas).
+        </div>
+      )}
 
       {/* Estado atual da simulação (nó / tentativas / entregue a humano) */}
       <div

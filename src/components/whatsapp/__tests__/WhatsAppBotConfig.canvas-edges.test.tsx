@@ -252,7 +252,7 @@ describe("WhatsAppBotConfig · canvas React Flow (R6 + G80) — render", () => {
     const withPos = FIXED.map((n) => (n.id === "node-ai" ? { ...n, position: { x: 777, y: 55 } } : n)) as WorkflowNode[];
     await renderWithFlow(withPos);
 
-    fireEvent.click(screen.getByRole("button", { name: /Salvar Fluxo/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Salvar (Fluxo|mesmo assim)/i }));
     await waitFor(() => expect(mocks.update).toHaveBeenCalledTimes(1));
     const payload = mocks.update.mock.calls[0][0] as { flow_data: Array<{ id: string; position?: { x: number; y: number } }> };
     expect(payload.flow_data.find((n) => n.id === "node-ai")?.position).toEqual({ x: 777, y: 55 });
@@ -264,7 +264,7 @@ describe("WhatsAppBotConfig · canvas React Flow (R6 + G80) — render", () => {
     fireEvent.click(screen.getByRole("button", { name: /Adicionar nó de menu/i }));
     expect(screen.getByText("Menu 1")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /Salvar Fluxo/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Salvar (Fluxo|mesmo assim)/i }));
     await waitFor(() => expect(mocks.update).toHaveBeenCalledTimes(1));
 
     const payload = mocks.update.mock.calls[0][0] as { flow_data: Array<{ id: string; position?: { x: number; y: number } }> };

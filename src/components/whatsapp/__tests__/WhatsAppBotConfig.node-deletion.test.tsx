@@ -124,7 +124,7 @@ describe("exclusão de nó de menu — botão do inspector", () => {
     fireEvent.click(screen.getByRole("button", { name: /Excluir nó/ }));
     fireEvent.click(screen.getByRole("button", { name: "Confirmar exclusão" }));
 
-    fireEvent.click(screen.getByRole("button", { name: /Salvar Fluxo/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Salvar (Fluxo|mesmo assim)/i }));
     await waitFor(() => expect(mocks.update).toHaveBeenCalledTimes(1));
     const payload = mocks.update.mock.calls[0][0] as { flow_data: Array<{ id: string; properties: Record<string, unknown> }> };
     expect(payload.flow_data.map((n) => n.id)).not.toContain("menu-a");
