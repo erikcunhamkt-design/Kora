@@ -72,7 +72,7 @@
 | Passo | Ação | Esperado | Prova |
 |---|---|---|---|
 | 0.1 | §17 passo 0: worktree + branch + URL do dev server; abrir o console | `[Kora] BUILD <hash> (<branch>)` | Print do console |
-| 0.2 | **Hash mínimo:** o build contém o **G95 do catálogo** (esta rodada) **e** o CT4 (`5fdda90`). Operador: `git merge-base --is-ancestor 5fdda90 <hash-do-build> && echo OK` e idem para o hash desta rodada (**preencher no merge:** `<HASH-G95>`) | `OK` nos dois | Saída do comando |
+| 0.2 | **Hash mínimo:** o build contém o **G95 do catálogo** (esta rodada) **e** o CT4 (`5fdda90`). Operador: `git merge-base --is-ancestor 5fdda90 <hash-do-build> && echo OK` e idem para o hash desta rodada (`f5d0187`) | `OK` nos dois | Saída do comando |
 | 0.3 | **Pacote §8-b aplicado** — rodar as provas §3 do [`pacote`](etapa-5-g94-pacote-operador-8b.md) (3.1–3.5). Resumo numa consulta só: ver abaixo | todas as colunas "Esperado" batem | Resultado colado |
 | 0.4 | **EXPORT MANUAL** (protocolo §1) de `service_categories`, `services`, `products`, `commercial_plans` (vazias — confirmar), de `clients` (coluna `library_assets`) e de `quote_items` | Arquivos salvos | Nomes dos arquivos |
 | 0.5 | Estado das flags no navegador de teste: sessão **limpa**; anotar o que existir de `kora.catalog.dataSource.v1`, `kora.catalog.supabaseWrite.v1`, `kora.catalog.supabaseImport.v1`, `kora.install.id.v1` | Sem `dataSource`/`supabaseWrite` (= local/desligada) | Print do Application → Local Storage |
