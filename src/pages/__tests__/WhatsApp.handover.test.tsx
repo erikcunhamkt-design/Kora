@@ -13,6 +13,11 @@ import { useWhatsAppInstance } from "@/hooks/useWhatsAppInstance";
 import { useWhatsAppConversations } from "@/hooks/useWhatsAppConversations";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import {
+  END_HANDOVER_BOT_STILL_MUTED_DESCRIPTION,
+  END_HANDOVER_BOT_STILL_MUTED_TITLE,
+  END_HANDOVER_UNASSIGNED_DESCRIPTION,
+} from "@/lib/whatsapp/handover";
 
 vi.mock("@/hooks/useCurrentWorkspace");
 vi.mock("@/hooks/useWhatsAppInstance");
@@ -143,7 +148,7 @@ describe("WhatsApp.tsx · R4 — UI de Atendimento do handover", () => {
       expect(screen.getByRole("button", { name: /Devolver ao robô/ })).toBeInTheDocument();
     });
 
-    it("a lista de conversas mostra o badge 'Humano' na conversa entregue (e só nela)", () => {
+    it("a lista mostra 'Aguardando humano' na conversa entregue e SEM atendente (e só nela)", () => {
       mockConversations(
         [
           makeConversation({ id: "conv-1", handover_at: "2026-10-02T12:00:00.000Z" }),
@@ -153,7 +158,19 @@ describe("WhatsApp.tsx · R4 — UI de Atendimento do handover", () => {
       );
       renderPage();
 
+      expect(screen.getAllByText("Aguardando humano")).toHaveLength(1);
+      expect(screen.queryByText("Humano")).not.toBeInTheDocument();
+    });
+
+    it("entregue e COM atendente atribuído: badge calmo 'Humano' (não 'Aguardando humano')", () => {
+      mockConversations(
+        [makeConversation({ id: "conv-1", handover_at: "2026-10-02T12:00:00.000Z", assigned_to: "user-9" })],
+        null,
+      );
+      renderPage();
+
       expect(screen.getAllByText("Humano")).toHaveLength(1);
+      expect(screen.queryByText("Aguardando humano")).not.toBeInTheDocument();
     });
 
     it("DEGRADAÇÃO — linha SEM a coluna handover_at (migration pendente): nem banner nem badge, a página renderiza normal", () => {
@@ -165,6 +182,7 @@ describe("WhatsApp.tsx · R4 — UI de Atendimento do handover", () => {
       expect(screen.queryByText(/Entregue a atendimento humano/)).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: /Devolver ao robô/ })).not.toBeInTheDocument();
       expect(screen.queryByText("Humano")).not.toBeInTheDocument();
+      expect(screen.queryByText("Aguardando humano")).not.toBeInTheDocument();
     });
 
     it("handover_at null (devolvida/nunca entregue) -> sem banner", () => {
@@ -186,12 +204,51 @@ describe("WhatsApp.tsx · R4 — UI de Atendimento do handover", () => {
 
       fireEvent.click(screen.getByRole("button", { name: /Devolver ao robô/ }));
 
-      await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Conversa devolvida ao robô", expect.anything()));
+      await waitFor(() =>
+        expect(toast.success).toHaveBeenCalledWith("Conversa devolvida ao robô", {
+          description: "O robô volta a responder a próxima mensagem do cliente.",
+        }),
+      );
+      expect(toast.warning).not.toHaveBeenCalled();
       expect(endHandoverCalls()).toHaveLength(1);
       expect(endHandoverCalls()[0]).toEqual([
         "whatsapp-instance",
         { body: { action: "end_human_handover", workspaceId: "ws-1", conversationId: "conv-1" } },
       ]);
+      expect(toast.error).not.toHaveBeenCalled();
+    });
+
+    // Os 3 desfechos que o servidor reporta (unassigned / botStillMuted).
+    it("devolução que DESATRIBUIU a atribuição automática -> confirma 'robô de volta e conversa sem atribuição'", async () => {
+      mockEndHandover(Promise.resolve({ data: { ok: true, cleared: {}, unassigned: true, botStillMuted: false }, error: null }));
+      renderPage();
+
+      fireEvent.click(screen.getByRole("button", { name: /Devolver ao robô/ }));
+
+      await waitFor(() =>
+        expect(toast.success).toHaveBeenCalledWith("Conversa devolvida ao robô", {
+          description: END_HANDOVER_UNASSIGNED_DESCRIPTION,
+        }),
+      );
+      expect(END_HANDOVER_UNASSIGNED_DESCRIPTION).toMatch(/Robô de volta e conversa sem atribuição/);
+      expect(toast.warning).not.toHaveBeenCalled();
+      expect(toast.error).not.toHaveBeenCalled();
+    });
+
+    it("segue atribuída (manual) com o gatilho em Triagem -> AVISO honesto, não o sucesso 'robô volta a responder'", async () => {
+      mockEndHandover(Promise.resolve({ data: { ok: true, cleared: {}, unassigned: false, botStillMuted: true }, error: null }));
+      renderPage();
+
+      fireEvent.click(screen.getByRole("button", { name: /Devolver ao robô/ }));
+
+      await waitFor(() =>
+        expect(toast.warning).toHaveBeenCalledWith(END_HANDOVER_BOT_STILL_MUTED_TITLE, {
+          description: END_HANDOVER_BOT_STILL_MUTED_DESCRIPTION,
+        }),
+      );
+      // vocabulário real da tela, e nada de prometer que o robô voltou
+      expect(END_HANDOVER_BOT_STILL_MUTED_DESCRIPTION).toContain("Apenas Conversas Novas (Triagem)");
+      expect(toast.success).not.toHaveBeenCalled();
       expect(toast.error).not.toHaveBeenCalled();
     });
 

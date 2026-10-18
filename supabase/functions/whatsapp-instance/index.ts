@@ -4,7 +4,9 @@ import { buildHandoverReturnUpdates } from "../_shared/botHandover.ts";
 import {
   buildManualAssignmentOriginUpdate,
   buildReturnUnassignUpdate,
+  computeReturnOutcome,
   parseAssignmentSnapshot,
+  resolveRespondAllFromSettings,
   shouldUnassignOnReturn,
 } from "../_shared/botAssignment.ts";
 
@@ -926,29 +928,54 @@ Deno.serve(async (req) => {
       // lê a origem; coluna ausente (erro de SELECT) ou origem manual/desconhecida
       // => nada é desatribuído (comportamento de antes). O UPDATE é condicional
       // (só se ainda for a MESMA atribuição automática) pra não pisar numa
-      // atribuição humana feita entre o SELECT e o UPDATE.
+      // atribuição humana feita entre o SELECT e o UPDATE (e `unassigned` só é true
+      // se o UPDATE pegou MESMO uma linha — a UI confirma "sem atribuição" a partir dele).
+      // `select("*")`: coluna `assignment_origin` ausente => vem `undefined` => origem
+      // desconhecida (tratada como humana), mas `assigned_to` continua legível.
       let unassigned = false;
       const { data: assignRow, error: assignReadErr } = await admin
         .from("whatsapp_conversations")
-        .select("assigned_to, assignment_origin")
+        .select("*")
         .eq("id", conversationId)
         .eq("workspace_id", workspaceId)
         .maybeSingle();
       const snapshot = parseAssignmentSnapshot(assignReadErr ? null : assignRow);
       if (shouldUnassignOnReturn(snapshot)) {
-        const { error: unassignErr } = await admin
+        const { data: unassignedRows, error: unassignErr } = await admin
           .from("whatsapp_conversations")
           .update(buildReturnUnassignUpdate(new Date().toISOString()))
           .eq("id", conversationId)
           .eq("workspace_id", workspaceId)
           .eq("assignment_origin", "auto")
-          .eq("assigned_to", snapshot.assignedTo as string);
-        unassigned = !unassignErr;
+          .eq("assigned_to", snapshot.assignedTo as string)
+          .select("id");
+        unassigned = !unassignErr && Array.isArray(unassignedRows) && unassignedRows.length > 0;
         if (unassignErr) {
           console.warn("[whatsapp-instance] end_human_handover: failed to clear automatic assignment:", unassignErr.message);
         }
       }
-      return json({ ok: true, cleared, unassigned });
+
+      // Aviso honesto (Pergunta 5 do doc da proposta): a conversa pode seguir atribuída
+      // (atribuição humana) e, com o trigger em "Apenas Conversas Novas (Triagem)", o robô
+      // continua mudo apesar do "devolvido". `botStillMuted` é o MESMO gate do robô
+      // (shouldBotYieldToAssignee) sobre o estado de depois da devolução, com o respond_all
+      // efetivo lido de whatsapp_bot_settings pela regra única do robô. Só lê as
+      // configurações se ainda sobrou alguém atribuído; erro de leitura => irrestrito (sem aviso).
+      let respondAll = true;
+      if (!unassigned && snapshot.assignedTo !== null) {
+        const { data: botSettings, error: botSettingsErr } = await admin
+          .from("whatsapp_bot_settings")
+          .select("flow_data, respond_all")
+          .eq("workspace_id", workspaceId)
+          .maybeSingle();
+        if (botSettingsErr) {
+          console.warn("[whatsapp-instance] end_human_handover: failed to read bot settings (sem aviso de robô mudo):", botSettingsErr.message);
+        } else {
+          respondAll = resolveRespondAllFromSettings(botSettings);
+        }
+      }
+      const { botStillMuted } = computeReturnOutcome({ snapshot, unassigned, respondAll });
+      return json({ ok: true, cleared, unassigned, botStillMuted });
     }
 
     if (action === "update_conversation_tags") {

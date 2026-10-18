@@ -3,9 +3,13 @@
 // r4-ui-atendimento-handover.md). Lógica pura: o `invoke` é injetado.
 import { describe, it, expect, vi } from "vitest";
 import {
+  END_HANDOVER_BOT_STILL_MUTED_DESCRIPTION,
+  END_HANDOVER_BOT_STILL_MUTED_TITLE,
   END_HANDOVER_MIGRATION_PENDING_MESSAGE,
+  END_HANDOVER_UNASSIGNED_DESCRIPTION,
   endHumanHandover,
   getHandoverAt,
+  isAwaitingHuman,
   isHandedOver,
   type InvokeFn,
 } from "@/lib/whatsapp/handover";
@@ -46,7 +50,8 @@ describe("endHumanHandover (ação 'Devolver ao robô')", () => {
     const invoke = vi.fn().mockResolvedValue({ data: { ok: true }, error: null });
     const result = await endHumanHandover(invoke as unknown as InvokeFn, "ws-1", "conv-1");
 
-    expect(result).toEqual({ kind: "ok" });
+    // servidor sem os campos novos (resposta só { ok: true }) => ambos false: comportamento de antes
+    expect(result).toEqual({ kind: "ok", unassigned: false, botStillMuted: false });
     expect(invoke).toHaveBeenCalledTimes(1);
     expect(invoke).toHaveBeenCalledWith("whatsapp-instance", {
       body: { action: "end_human_handover", workspaceId: "ws-1", conversationId: "conv-1" },
@@ -95,5 +100,74 @@ describe("endHumanHandover (ação 'Devolver ao robô')", () => {
     expect(END_HANDOVER_MIGRATION_PENDING_MESSAGE).toMatch(/migration/i);
     expect(END_HANDOVER_MIGRATION_PENDING_MESSAGE).toMatch(/operador/i);
     expect(END_HANDOVER_MIGRATION_PENDING_MESSAGE).toMatch(/Nada foi alterado/);
+  });
+
+  // Os 3 desfechos da devolução (contrato do servidor: { ok, cleared, unassigned, botStillMuted }).
+  describe("resultado da devolução nos 3 casos", () => {
+    const run = async (data: unknown) =>
+      endHumanHandover(vi.fn().mockResolvedValue({ data, error: null }) as unknown as InvokeFn, "ws-1", "conv-1");
+
+    it("atribuição AUTOMÁTICA desfeita -> unassigned: true, robô livre", async () => {
+      expect(await run({ ok: true, cleared: {}, unassigned: true, botStillMuted: false })).toEqual({
+        kind: "ok",
+        unassigned: true,
+        botStillMuted: false,
+      });
+    });
+
+    it("atribuição MANUAL + gatilho em Triagem -> botStillMuted: true (nada desatribuído)", async () => {
+      expect(await run({ ok: true, cleared: {}, unassigned: false, botStillMuted: true })).toEqual({
+        kind: "ok",
+        unassigned: false,
+        botStillMuted: true,
+      });
+    });
+
+    it("SEM atribuição -> nenhum dos dois", async () => {
+      expect(await run({ ok: true, cleared: {}, unassigned: false, botStillMuted: false })).toEqual({
+        kind: "ok",
+        unassigned: false,
+        botStillMuted: false,
+      });
+    });
+
+    it("só `true` literal conta: corpo vazio/null/texto/valores truthy não-booleanos viram false", async () => {
+      for (const data of [null, undefined, "ok", 1, [], { unassigned: "true", botStillMuted: 1 }]) {
+        expect(await run(data)).toEqual({ kind: "ok", unassigned: false, botStillMuted: false });
+      }
+    });
+  });
+
+  it("os textos usam o vocabulário real da tela e não mandam 'remover atribuição' (não há controle pra isso)", () => {
+    expect(END_HANDOVER_UNASSIGNED_DESCRIPTION).toMatch(/Robô de volta e conversa sem atribuição/);
+    expect(END_HANDOVER_BOT_STILL_MUTED_TITLE).toMatch(/robô continua em silêncio/);
+    expect(END_HANDOVER_BOT_STILL_MUTED_DESCRIPTION).toContain("Apenas Conversas Novas (Triagem)");
+    expect(END_HANDOVER_BOT_STILL_MUTED_DESCRIPTION).toContain("Qualquer Conversa (Irrestrito)");
+    expect(END_HANDOVER_BOT_STILL_MUTED_DESCRIPTION).toContain("Robô IA");
+    expect(END_HANDOVER_BOT_STILL_MUTED_DESCRIPTION).not.toMatch(/remov/i);
+  });
+});
+
+describe("isAwaitingHuman — badge 'Aguardando humano' (entregue E sem atendente)", () => {
+  const HANDED = "2026-10-02T12:00:00.000Z";
+
+  it("entregue e SEM atendente (null / ausente / vazio) -> aguardando", () => {
+    expect(isAwaitingHuman({ handover_at: HANDED, assigned_to: null })).toBe(true);
+    expect(isAwaitingHuman({ handover_at: HANDED })).toBe(true); // linha sem a chave
+    expect(isAwaitingHuman({ handover_at: HANDED, assigned_to: "" })).toBe(true);
+  });
+
+  it("entregue e COM atendente -> não é 'aguardando' (é o 'Humano' calmo)", () => {
+    expect(isAwaitingHuman({ handover_at: HANDED, assigned_to: "user-1" })).toBe(false);
+  });
+
+  it("NÃO entregue -> nunca aguardando, atribuída ou não (inclui coluna handover_at ausente)", () => {
+    expect(isAwaitingHuman({ handover_at: null, assigned_to: null })).toBe(false);
+    expect(isAwaitingHuman({ assigned_to: null })).toBe(false); // sem a coluna (migration pendente)
+    expect(isAwaitingHuman({ handover_at: null, assigned_to: "user-1" })).toBe(false);
+  });
+
+  it("entrada que nem é objeto -> false, sem lançar", () => {
+    for (const bad of [null, undefined, "c", 7]) expect(isAwaitingHuman(bad)).toBe(false);
   });
 });

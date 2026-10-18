@@ -44,26 +44,48 @@ describe("WhatsAppHandoverBanner", () => {
   });
 });
 
-describe("WhatsAppConversationItem — badge 'Humano'", () => {
+describe("WhatsAppConversationItem — badges 'Humano' / 'Aguardando humano'", () => {
   const base: WAConvLike = {
     id: "c1", contact_name: "Maria", contact_phone: "5511999990000", avatar_url: null,
     last_message: "oi", last_message_at: "2026-10-02T12:00:00.000Z", unread_count: 0,
   };
 
-  it("conversa com handover_at -> mostra o badge 'Humano'", () => {
-    render(<WhatsAppConversationItem conversation={{ ...base, handover_at: "2026-10-02T12:00:00.000Z" }} active={false} onClick={vi.fn()} />);
+  it("entregue (handover_at) e SEM atendente atribuído -> badge destacado 'Aguardando humano'", () => {
+    render(<WhatsAppConversationItem conversation={{ ...base, handover_at: "2026-10-02T12:00:00.000Z", assigned_to: null }} active={false} onClick={vi.fn()} />);
 
-    expect(screen.getByText("Humano")).toBeInTheDocument();
+    const badge = screen.getByText("Aguardando humano");
+    expect(badge).toBeInTheDocument();
+    expect(badge.closest("[title]")).toHaveAttribute("title", expect.stringMatching(/sem atendente atribuído/));
+    expect(screen.queryByText("Humano")).not.toBeInTheDocument();
   });
 
-  it("conversa SEM handover_at (null ou coluna ausente) -> sem badge, item renderiza normal", () => {
+  it("entregue e COM atendente atribuído -> badge calmo 'Humano'", () => {
+    render(<WhatsAppConversationItem conversation={{ ...base, handover_at: "2026-10-02T12:00:00.000Z", assigned_to: "user-1" }} active={false} onClick={vi.fn()} />);
+
+    expect(screen.getByText("Humano")).toBeInTheDocument();
+    expect(screen.queryByText("Aguardando humano")).not.toBeInTheDocument();
+  });
+
+  it("entregue em linha SEM a chave assigned_to (parcial) -> tratada como sem atendente", () => {
+    render(<WhatsAppConversationItem conversation={{ ...base, handover_at: "2026-10-02T12:00:00.000Z" }} active={false} onClick={vi.fn()} />);
+
+    expect(screen.getByText("Aguardando humano")).toBeInTheDocument();
+  });
+
+  it("conversa SEM handover_at (null ou coluna ausente) -> nenhum badge, item renderiza normal (atribuída ou não)", () => {
     const { rerender } = render(<WhatsAppConversationItem conversation={{ ...base, handover_at: null }} active={false} onClick={vi.fn()} />);
     expect(screen.queryByText("Humano")).not.toBeInTheDocument();
+    expect(screen.queryByText("Aguardando humano")).not.toBeInTheDocument();
     expect(screen.getByText("Maria")).toBeInTheDocument();
 
     // Coluna ausente: a linha real não traz o campo nenhum.
     rerender(<WhatsAppConversationItem conversation={base} active={false} onClick={vi.fn()} />);
     expect(screen.queryByText("Humano")).not.toBeInTheDocument();
+    expect(screen.queryByText("Aguardando humano")).not.toBeInTheDocument();
     expect(screen.getByText("Maria")).toBeInTheDocument();
+
+    // Sem entrega nem atribuição, "sem atendente" NÃO vira "aguardando humano".
+    rerender(<WhatsAppConversationItem conversation={{ ...base, assigned_to: null }} active={false} onClick={vi.fn()} />);
+    expect(screen.queryByText("Aguardando humano")).not.toBeInTheDocument();
   });
 });

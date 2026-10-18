@@ -11,9 +11,11 @@
 // não aplicada, draft §2 do doc da rodada) e o bot fica em silêncio nela
 // até alguém devolver (`end_human_handover` em whatsapp-instance).
 //
-// `assigned_to` NÃO é tocado: "pra quem atribuir" segue sendo decisão de
-// produto em aberto (G48/Fase A §2.3) — o estado de handover é
-// independente da atribuição e vale mesmo sem ninguém atribuído.
+// O estado de handover é independente da atribuição e vale mesmo sem ninguém
+// atribuído. Este módulo NÃO toca `assigned_to`; a atribuição AUTOMÁTICA no
+// momento da entrega (último atendente humano) vive em botAssignment.ts e é
+// disparada por `enterHumanHandover` depois de `handover_at` gravado (G48,
+// docs/architecture/etapa-9-handover-assigned-to-proposta.md §10).
 
 import type { MenuTurnResult } from "./botFlowMenu.ts";
 

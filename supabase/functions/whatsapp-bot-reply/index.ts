@@ -32,7 +32,14 @@ import {
   withKnowledgeInfo,
   type SimulationInfo,
 } from "../_shared/botFlowSimulation.ts";
-import { shouldBotYieldToAssignee } from "../_shared/botAssignment.ts";
+import {
+  autoAssignOnHandover,
+  buildAutoAssignmentUpdate,
+  effectiveRespondAll,
+  isAssignableRole,
+  shouldBotYieldToAssignee,
+  type AutoAssignDeps,
+} from "../_shared/botAssignment.ts";
 import { loadKnowledgeForPrompt } from "../_shared/knowledgeLoader.ts";
 import { QUOTED_STATUSES } from "../_shared/knowledgeSources.ts";
 
@@ -284,6 +291,7 @@ async function enterHumanHandover(
 ): Promise<void> {
   console.log(`[bot-reply] human handover for conversation ${ctx.conversationId} (reason: ${reason})`);
   await sendBotText(admin, ctx, courtesyText);
+  let handoverPersisted = false;
   for (const update of buildHandoverEntryUpdates(new Date().toISOString())) {
     const { error } = await admin
       .from("whatsapp_conversations")
@@ -294,7 +302,79 @@ async function enterHumanHandover(
         `[bot-reply] failed to persist handover state ${JSON.stringify(Object.keys(update))} (coluna pode ainda não existir — §8-b — degradando sem quebrar o fluxo):`,
         error.message,
       );
+    } else if ("handover_at" in update) {
+      handoverPersisted = true;
     }
+  }
+  // Atribuição automática (D1): só se a conversa REALMENTE ficou entregue — sem
+  // `handover_at` gravado não há handover, e atribuir seria inventar um dono.
+  if (handoverPersisted) {
+    await tryAutoAssignOnHandover(admin, ctx);
+  }
+}
+
+// Etapa 9 · item 4 — atribuição AUTOMÁTICA no handover (G48, decisão D1 do revisor;
+// docs/architecture/etapa-9-handover-assigned-to-proposta.md §10). Cobre os 4
+// gatilhos da R4 e o destino handover da R8 porque todos passam por
+// `enterHumanHandover`. A decisão (último atendente humano por `sender_id`, robô e
+// fromMe ignorados, dono existente preservado) está em `autoAssignOnHandover`; aqui
+// só o acesso a dados. O UPDATE é ÚNICO e traz `assignment_origin = 'auto'` junto:
+// coluna ausente (4ª migration §8-b pendente) => o PostgREST recusa tudo e a
+// conversa só é entregue, sem dono — NUNCA fica atribuída sem a origem marcada.
+// Melhor esforço: nada aqui derruba o handover, que já foi persistido.
+async function tryAutoAssignOnHandover(admin: SupabaseClient, ctx: OutboundContext): Promise<void> {
+  const { workspaceId, conversationId, conv } = ctx;
+  const deps: AutoAssignDeps = {
+    fetchHumanOutbound: async () => {
+      const { data, error } = await admin
+        .from("whatsapp_messages")
+        .select("direction, sender_id, created_at")
+        .eq("conversation_id", conversationId)
+        .eq("workspace_id", workspaceId)
+        .eq("direction", "outbound")
+        .not("sender_id", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(20);
+      return { rows: data, error: error ? error.message : null };
+    },
+    isEligibleAssignee: async (userId) => {
+      const { data, error } = await admin
+        .from("workspace_members")
+        .select("user_id, role")
+        .eq("workspace_id", workspaceId)
+        .eq("user_id", userId)
+        .maybeSingle();
+      return {
+        eligible: !error && !!data && isAssignableRole((data as { role?: unknown }).role),
+        error: error ? error.message : null,
+      };
+    },
+    writeAutoAssignment: async (userId) => {
+      const { data, error } = await admin
+        .from("whatsapp_conversations")
+        .update(buildAutoAssignmentUpdate(userId, new Date().toISOString()))
+        .eq("id", conversationId)
+        .eq("workspace_id", workspaceId)
+        .is("assigned_to", null)
+        .select("id");
+      return {
+        applied: !error && Array.isArray(data) && data.length > 0,
+        error: error ? error.message : null,
+      };
+    },
+  };
+  try {
+    const outcome = await autoAssignOnHandover({ currentAssignedTo: conv.assigned_to }, deps);
+    if (outcome.kind === "unavailable") {
+      console.warn(
+        `[bot-reply] auto-assignment skipped at ${outcome.step} (coluna assignment_origin pode ainda não existir — 4ª migration §8-b — só entregou, sem dono):`,
+        outcome.detail,
+      );
+    } else {
+      console.log(`[bot-reply] auto-assignment for conversation ${conversationId}: ${outcome.kind}`);
+    }
+  } catch (err) {
+    console.warn("[bot-reply] auto-assignment failed unexpectedly (handover mantido):", err);
   }
 }
 
@@ -595,10 +675,10 @@ Deno.serve(async (req) => {
       const aiNode = flowNodes.find((n) => n.type === "ai" && n.enabled);
       const handoverNode = flowNodes.find((n) => n.type === "handover" && n.enabled);
 
-      const respondAll = triggerNode ? triggerNode.properties?.respondAll : bot.respond_all;
-
-      // Respect respond_all setting
-      const isUnrestricted = respondAll ?? true;
+      // Respect respond_all setting. A regra (trigger habilitado manda; senão a
+      // coluna; ausente => true) vive em _shared/botAssignment.ts pra o aviso da
+      // devolução (whatsapp-instance) usar EXATAMENTE a mesma.
+      const isUnrestricted = effectiveRespondAll(triggerNode, bot.respond_all);
       // Gate histórico "atribuída a humano + respond_all desligado => robô fora",
       // ajustado (G48): uma atribuição AUTOMÁTICA esquecida depois da devolução ao
       // robô não cala mais a conversa. Origem desconhecida (coluna ausente) =

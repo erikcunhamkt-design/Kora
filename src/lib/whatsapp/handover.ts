@@ -20,9 +20,25 @@ export function isHandedOver(conversation: unknown): boolean {
   return getHandoverAt(conversation) !== null;
 }
 
+// Entregue a humano E sem ninguém atribuído = "Aguardando humano" (badge da lista,
+// decisão D1 do revisor: sem atendente derivável a conversa fica sem dono, com
+// destaque). `assigned_to` existe no schema real; mesmo assim a leitura é por
+// `unknown`, igual à de `handover_at` — linha sem a chave = sem atribuição.
+export function isAwaitingHuman(conversation: unknown): boolean {
+  if (!isHandedOver(conversation)) return false;
+  const assignedTo = (conversation as Record<string, unknown>).assigned_to;
+  return !(typeof assignedTo === "string" && assignedTo.length > 0);
+}
+
 export type EndHandoverResult =
-  /** 200 — o robô volta a responder. */
-  | { kind: "ok" }
+  /**
+   * 200 — o robô volta a responder, SALVO `botStillMuted`.
+   * - `unassigned`: a devolução desfez uma atribuição AUTOMÁTICA (a conversa ficou sem dono).
+   * - `botStillMuted`: a conversa segue atribuída (atribuição humana) e o gatilho do
+   *   fluxo está em "Apenas Conversas Novas (Triagem)" — o robô continua em silêncio.
+   * Servidor antigo (sem os campos) => ambos `false`: o comportamento de antes.
+   */
+  | { kind: "ok"; unassigned: boolean; botStillMuted: boolean }
   /** 409 — `handover_at` ainda não existe no banco (migration §8-b pendente). */
   | { kind: "migration_pending" }
   /** Qualquer outra falha (rede, 403, 400, 5xx...). */
@@ -45,6 +61,11 @@ function readHttpStatus(error: unknown): number | null {
   return typeof status === "number" ? status : null;
 }
 
+// Só `true` literal conta; ausente/qualquer outra coisa => false (servidor antigo, corpo vazio).
+function readFlag(data: unknown, key: string): boolean {
+  return !!data && typeof data === "object" && (data as Record<string, unknown>)[key] === true;
+}
+
 function readMessage(error: unknown): string {
   if (error && typeof error === "object" && typeof (error as { message?: unknown }).message === "string") {
     return (error as { message: string }).message;
@@ -62,16 +83,30 @@ export async function endHumanHandover(
   conversationId: string,
 ): Promise<EndHandoverResult> {
   try {
-    const { error } = await invoke("whatsapp-instance", {
+    const { data, error } = await invoke("whatsapp-instance", {
       body: { action: "end_human_handover", workspaceId, conversationId },
     });
-    if (!error) return { kind: "ok" };
+    if (!error) {
+      return { kind: "ok", unassigned: readFlag(data, "unassigned"), botStillMuted: readFlag(data, "botStillMuted") };
+    }
     if (readHttpStatus(error) === 409) return { kind: "migration_pending" };
     return { kind: "error", message: readMessage(error) };
   } catch (e) {
     return { kind: "error", message: readMessage(e) };
   }
 }
+
+// Textos do resultado da devolução. Vocabulário = o da tela (G29): o gatilho do fluxo
+// se chama "Apenas Conversas Novas (Triagem)" / "Qualquer Conversa (Irrestrito)" na aba
+// "Robô IA". A orientação só cita o que a UI realmente oferece hoje — o painel de
+// contato não tem controle de atribuição, então não se manda "remover a atribuição".
+export const END_HANDOVER_UNASSIGNED_DESCRIPTION =
+  "Robô de volta e conversa sem atribuição — ele volta a responder a próxima mensagem do cliente.";
+
+export const END_HANDOVER_BOT_STILL_MUTED_TITLE = "Devolvida, mas o robô continua em silêncio";
+
+export const END_HANDOVER_BOT_STILL_MUTED_DESCRIPTION =
+  "A conversa continua atribuída a um atendente e o gatilho do fluxo está em “Apenas Conversas Novas (Triagem)” — nesse modo o robô só responde conversas sem atendente atribuído. Para o robô voltar a responder, mude o gatilho para “Qualquer Conversa (Irrestrito)” na aba “Robô IA”.";
 
 export const END_HANDOVER_MIGRATION_PENDING_MESSAGE =
   "O estado “entregue a humano” ainda não existe no banco — a migration do handover (Etapa 9 · R4) precisa ser aplicada pelo operador. Nada foi alterado nesta conversa.";

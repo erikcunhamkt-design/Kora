@@ -52,7 +52,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { WhatsAppMessageBubble } from "@/components/whatsapp/WhatsAppMessageBubble";
 import { WhatsAppConversationItem } from "@/components/whatsapp/WhatsAppConversationItem";
 import { WhatsAppHandoverBanner } from "@/components/whatsapp/WhatsAppHandoverBanner";
-import { END_HANDOVER_MIGRATION_PENDING_MESSAGE, endHumanHandover, getHandoverAt } from "@/lib/whatsapp/handover";
+import {
+  END_HANDOVER_BOT_STILL_MUTED_DESCRIPTION,
+  END_HANDOVER_BOT_STILL_MUTED_TITLE,
+  END_HANDOVER_MIGRATION_PENDING_MESSAGE,
+  END_HANDOVER_UNASSIGNED_DESCRIPTION,
+  endHumanHandover,
+  getHandoverAt,
+} from "@/lib/whatsapp/handover";
 import { WhatsAppStatusBadge } from "@/components/whatsapp/WhatsAppStatusBadge";
 import { WhatsAppChatInput } from "@/components/whatsapp/WhatsAppChatInput";
 import { WhatsAppContactPanel } from "@/components/whatsapp/WhatsAppContactPanel";
@@ -435,9 +442,19 @@ export default function WhatsAppPage() {
         conversationId,
       );
       if (result.kind === "ok") {
-        toast.success("Conversa devolvida ao robô", {
-          description: "O robô volta a responder a próxima mensagem do cliente.",
-        });
+        // Três desfechos honestos (o servidor diz o que de fato aconteceu):
+        // - segue atribuída + gatilho "Triagem": o robô CONTINUA mudo -> aviso, não sucesso;
+        // - desatribuiu a atribuição automática: "robô de volta e conversa sem atribuição";
+        // - caso comum (sem atribuição): a confirmação de sempre.
+        if (result.botStillMuted) {
+          toast.warning(END_HANDOVER_BOT_STILL_MUTED_TITLE, { description: END_HANDOVER_BOT_STILL_MUTED_DESCRIPTION });
+        } else {
+          toast.success("Conversa devolvida ao robô", {
+            description: result.unassigned
+              ? END_HANDOVER_UNASSIGNED_DESCRIPTION
+              : "O robô volta a responder a próxima mensagem do cliente.",
+          });
+        }
       } else if (result.kind === "migration_pending") {
         toast.error("Migration pendente", { description: END_HANDOVER_MIGRATION_PENDING_MESSAGE });
       } else {
