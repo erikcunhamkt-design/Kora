@@ -11,10 +11,10 @@ import { useLeads } from "@/hooks/useLeads";
 import { useSupabaseOpportunities } from "@/hooks/useSupabaseOpportunities";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { useBifurcatedTasks } from "@/hooks/useBifurcatedTasks";
-import { useQuotes } from "@/hooks/useQuotes";
+import { useBifurcatedQuotes } from "@/hooks/useBifurcatedQuotes";
 import { useBifurcatedProjects } from "@/hooks/useBifurcatedProjects";
 import { useBifurcatedFinance } from "@/hooks/useBifurcatedFinance";
-import { useClients } from "@/hooks/useClients";
+import { useClientsDataSource } from "@/hooks/useClientsDataSource";
 import { useAllClientActivityLogs } from "@/hooks/useClientActivityLogs";
 import { CRM_DATA_SOURCE_KEY } from "@/config/flags";
 import { mapSupabaseOpportunityToLocalLead } from "@/services/crm/crmOpportunityMapper";
@@ -23,10 +23,15 @@ vi.mock("@/hooks/useLeads", () => ({ useLeads: vi.fn() }));
 vi.mock("@/hooks/useSupabaseOpportunities", () => ({ useSupabaseOpportunities: vi.fn() }));
 vi.mock("@/hooks/useCurrentWorkspace", () => ({ useCurrentWorkspace: vi.fn() }));
 vi.mock("@/hooks/useBifurcatedTasks", () => ({ useBifurcatedTasks: vi.fn() }));
-vi.mock("@/hooks/useQuotes", () => ({ useQuotes: vi.fn() }));
+// G92/B4 (lane E) — quotes/clients passaram a vir dos hooks bifurcados
+// (useBifurcatedQuotes/useClientsDataSource), não mais de useQuotes()/
+// useClients() crus — sem este mock, os hooks reais disparariam
+// useSupabaseQuotes()/useSupabaseClients() -> useQueryClient() sem
+// QueryClientProvider na árvore deste teste (renderHook puro).
+vi.mock("@/hooks/useBifurcatedQuotes", () => ({ useBifurcatedQuotes: vi.fn() }));
 vi.mock("@/hooks/useBifurcatedProjects", () => ({ useBifurcatedProjects: vi.fn() }));
 vi.mock("@/hooks/useBifurcatedFinance", () => ({ useBifurcatedFinance: vi.fn() }));
-vi.mock("@/hooks/useClients", () => ({ useClients: vi.fn() }));
+vi.mock("@/hooks/useClientsDataSource", () => ({ useClientsDataSource: vi.fn() }));
 vi.mock("@/hooks/useClientActivityLogs", () => ({ useAllClientActivityLogs: vi.fn() }));
 
 const OPP_UUID = "5d3f1f0a-6c2b-4c1e-9a77-0b7a2f4d8e11";
@@ -50,10 +55,10 @@ beforeEach(() => {
   localStorage.clear();
   vi.clearAllMocks();
   vi.mocked(useBifurcatedTasks).mockReturnValue([] as never);
-  vi.mocked(useQuotes).mockReturnValue({ quotes: [] } as never);
+  vi.mocked(useBifurcatedQuotes).mockReturnValue([] as never);
   vi.mocked(useBifurcatedProjects).mockReturnValue([] as never);
   vi.mocked(useBifurcatedFinance).mockReturnValue([] as never);
-  vi.mocked(useClients).mockReturnValue({ clients: [] } as never);
+  vi.mocked(useClientsDataSource).mockReturnValue({ clients: [] } as never);
   vi.mocked(useAllClientActivityLogs).mockReturnValue([] as never);
   vi.mocked(useLeads).mockReturnValue({ leads: [localLead] } as never);
   vi.mocked(useSupabaseOpportunities).mockReturnValue({ opportunities: [cloudOpp] } as never);
