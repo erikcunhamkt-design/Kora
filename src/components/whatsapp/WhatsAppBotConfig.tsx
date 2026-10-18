@@ -23,6 +23,7 @@ import {
 } from "@/components/whatsapp/flowCanvasModel";
 import { summarizeFlowIssues, validateFlow } from "@/components/whatsapp/flowValidation";
 import { buildFlowExample, canLoadFlowExample } from "@/components/whatsapp/flowExample";
+import { FlowTransferBar } from "@/components/whatsapp/FlowTransferBar";
 import { FlowSimulatorPanel } from "@/components/whatsapp/FlowSimulatorPanel";
 import {
   INITIAL_SIM_STATE,
@@ -782,6 +783,15 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
                 </Button>
               )}
             </div>
+
+            {/* R11 — exportar/importar o fluxo em JSON (importar mostra prévia + problemas e pede confirmação). */}
+            <FlowTransferBar
+              nodes={nodes}
+              onApply={(merged, selectId) => {
+                setNodes(merged);
+                if (selectId) setSelectedNodeId(selectId);
+              }}
+            />
 
             {canLoadFlowExample(nodes) && confirmExample && (
               <div role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border border-violet-500/40 bg-violet-500/5 p-3 text-xs">
