@@ -5,7 +5,7 @@
 > "menu", R1/R3)**, o **handover real (R4, fecha o G48)** e a **base de
 > conhecimento do robô (item 3, categoria "itens já orçados")** ficarem VIVOS. O
 > código já está em `main` e foi escrito pra degradar sem as colunas/tabela (ver
-> §6) — mas **enquanto as 3 migrations abaixo não forem aplicadas, o menu não
+> §6) — mas **enquanto as 4 migrations abaixo não forem aplicadas, o menu não
 > funciona de ponta a ponta, o handover não persiste e a base de conhecimento
 > fica desligada (o robô responde como antes)**. Molde de formato:
 > [`g71-credenciais-terceiros-pacote-operador.md`](g71-credenciais-terceiros-pacote-operador.md).
@@ -23,11 +23,11 @@
 | # | Passo | Quem | Onde |
 |---|---|---|---|
 | 1 | Verificação prévia (SELECTs read-only) | operador | §1 |
-| 2 | 3 migrations (`bot_flow_state`, `handover_at`, `ai_knowledge_consents`) — **mesma sessão** | operador | §2 |
+| 2 | 4 migrations (`bot_flow_state`, `handover_at`, `ai_knowledge_consents`, `assignment_origin`) — **mesma sessão** | operador | §2 |
 | 3 | SELECTs de prova depois | operador | §3 |
 | 4 | Deploy de 3 functions (`whatsapp-instance`, `whatsapp-bot-reply`, `whatsapp-webhook`) | operador | §4 |
 | 5 | Verificação ao vivo + smoke ponta a ponta | operador | §5 |
-| 6 | Espelho das 3 migrations em `supabase/migrations/`, regenerar `types.ts`, tipar as leituras | operador (comandos) + **lane** | §8 |
+| 6 | Espelho das 4 migrations em `supabase/migrations/`, regenerar `types.ts`, tipar as leituras | operador (comandos) + **lane** | §8 |
 
 **Por que migrations ANTES do deploy:** o código novo degrada sem as colunas, mas
 degrada de forma **diferente** pro menu e pro handover:
@@ -50,6 +50,14 @@ tabela, o servidor trata "nenhuma categoria ativa" e o robô é **idêntico ao d
 hoje** (nenhum loop, nenhuma mensagem diferente). Ela entra na mesma sessão só pra
 a UI de Configurações ("Base de conhecimento do Robô") ficar operável e pra a
 sessão §8-b ser uma só. Ordem continua: **migrations → prova → deploy → smoke**.
+
+**A 4ª migration (`assignment_origin`) também não tem armadilha de ordem:** sem a
+coluna, o servidor trata toda atribuição como "origem desconhecida" = humana — o gate
+`respond_all = false + assigned_to` e a devolução ao robô se comportam **exatamente
+como antes** (testado: tabela-verdade completa). Ela prepara a **atribuição
+automática ao último atendente** (G48, [proposta](../architecture/etapa-9-handover-assigned-to-proposta.md)),
+que **ainda não existe**: hoje nada grava `'auto'`; só `assign_conversation` grava
+`'manual'`. Aplicá-la agora é seguro e deixa a próxima rodada sem uma sessão §8-b a mais.
 
 ---
 
@@ -105,9 +113,20 @@ SELECT table_name FROM information_schema.tables
 WHERE table_schema = 'public' AND table_name = 'ai_knowledge_consents';
 ```
 
+### 1.5 A coluna `assignment_origin` ainda não existe (esperado: **0 linhas**)
+
+```sql
+SELECT column_name
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name = 'whatsapp_conversations'
+  AND column_name = 'assignment_origin';
+-- Esperado: 0 linhas.
+```
+
 ---
 
-## 2. As 3 migrations (verbatim dos docs de origem; idempotentes)
+## 2. As 4 migrations (verbatim dos docs de origem; idempotentes)
 
 Rodar **nesta ordem**, no SQL Editor do dashboard (ou via CLI). Podem ir numa
 única execução. As colunas usam `ADD COLUMN IF NOT EXISTS` e a tabela usa
@@ -116,7 +135,7 @@ Rodar **nesta ordem**, no SQL Editor do dashboard (ou via CLI). Podem ir numa
 a tabela, lock instantâneo. **Atenção à 3ª:** `CREATE POLICY` e `CREATE TRIGGER` **não**
 são idempotentes — numa reaplicação a tabela é pulada mas as policies/trigger dão
 erro "already exists"; isso é esperado e inofensivo (as 3 policies e o trigger já
-estão lá, ver §3.4) — **não** improvisar `DROP POLICY`.
+estão lá, ver §3.4) — **não** improvisar `DROP POLICY`. A 4ª (`ADD COLUMN IF NOT EXISTS` com o CHECK inline) é idempotente por inteiro.
 
 ### 2.1 `whatsapp_conversations.bot_flow_state` (origem: [R1 §2](etapa-9-bot-fluxo-scriptado-r1-fundacao.md))
 
@@ -243,6 +262,31 @@ FOR EACH ROW
 EXECUTE FUNCTION public.update_updated_at_column();
 ```
 
+### 2.4 `whatsapp_conversations.assignment_origin` (origem: [proposta de `assigned_to` §3.2/§8](../architecture/etapa-9-handover-assigned-to-proposta.md))
+
+Registra **quem atribuiu** a conversa, pra a devolução ao robô desfazer só o que o
+próprio handover fez. SQL **deste pacote** (única fonte — a proposta aponta pra cá):
+
+```sql
+-- Etapa 9 · Item 4 (G48) — ORIGEM da atribuição da conversa
+-- (docs/architecture/etapa-9-handover-assigned-to-proposta.md §3.2/§8; decisão do
+-- revisor: a devolução ao robô desatribui SOMENTE atribuição automática).
+--   'manual' = atribuída por uma pessoa (assign_conversation grava);
+--   'auto'   = atribuída pelo handover ao último atendente que respondeu
+--              (RODADA FUTURA — nada grava 'auto' hoje);
+--   NULL     = sem atribuição, ou atribuição anterior a esta coluna (origem
+--              desconhecida: tratada como humana, nunca desfeita pela devolução).
+-- Coluna nullable, sem default, sem backfill. O CHECK vai inline no
+-- ADD COLUMN IF NOT EXISTS: reaplicar é no-op inteiro (coluna E constraint).
+-- NULL passa no CHECK.
+--
+-- PROPOSTA — NÃO aplicada pelo Code (protocolo §0/§6/§8-b).
+ALTER TABLE public.whatsapp_conversations
+  ADD COLUMN IF NOT EXISTS assignment_origin text
+    CONSTRAINT whatsapp_conversations_assignment_origin_chk
+    CHECK (assignment_origin IN ('auto', 'manual'));
+```
+
 ---
 
 ## 3. SELECTs de prova (depois de §2)
@@ -298,8 +342,31 @@ ORDER BY conname;
 -- (+ o CHECK de categoria, nome gerado pelo Postgres)
 ```
 
-**Regra de parada:** §3.1 com ≠ 2 linhas, §3.2 com contagem > 0 antes do deploy, ou
-§3.4 com ≠ 3 policies / linhas > 0 → parar e reportar; não seguir pra §4.
+### 3.5 A coluna `assignment_origin` existe, com o CHECK, e nenhuma linha foi tocada
+
+```sql
+SELECT column_name, data_type, is_nullable, column_default
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name = 'whatsapp_conversations'
+  AND column_name = 'assignment_origin';
+-- Esperado: assignment_origin | text | YES | (null)
+
+SELECT conname FROM pg_constraint
+WHERE conrelid = 'public.whatsapp_conversations'::regclass
+  AND conname = 'whatsapp_conversations_assignment_origin_chk';
+-- Esperado: 1 linha
+
+SELECT assignment_origin, count(*) AS conversas
+FROM public.whatsapp_conversations
+GROUP BY assignment_origin;
+-- Esperado logo após §2 (ANTES do deploy): uma única linha, assignment_origin = NULL.
+-- Depois do deploy, atribuir pela tela cria linhas 'manual' — esperado.
+```
+
+**Regra de parada:** §3.1 com ≠ 2 linhas, §3.2 com contagem > 0 antes do deploy, §3.4
+com ≠ 3 policies / linhas > 0, ou §3.5 com coluna/constraint ausente ou qualquer
+valor ≠ NULL antes do deploy → parar e reportar; não seguir pra §4.
 
 ---
 
@@ -329,8 +396,8 @@ npx supabase functions deploy whatsapp-webhook   --project-ref ewamvzncsloagtcvk
 
 | Function | O que muda | Arquivos que DEVEM aparecer no output do deploy (no mínimo) |
 |---|---|---|
-| `whatsapp-instance` | ação nova `end_human_handover` (devolver ao robô) | `index.ts`, `_shared/botHandover.ts` |
-| `whatsapp-bot-reply` | motor do nó menu (R3), handover real (R4), simulador do fluxo (opt-in, ver [`etapa-9-bot-simulador-fluxo-cobertura.md`](etapa-9-bot-simulador-fluxo-cobertura.md)), **base de conhecimento (item 3, [`etapa-9-item3-r1-base-conhecimento-liga.md`](etapa-9-item3-r1-base-conhecimento-liga.md))** | `index.ts`, `_shared/botFlowMenu.ts`, `_shared/botHandover.ts`, `_shared/botFlowSimulation.ts`, **`_shared/knowledgeLoader.ts`, `_shared/knowledgeSources.ts`, `_shared/knowledgeConsent.ts`** (+ `_shared/brainComposer.ts`, já existente) |
+| `whatsapp-instance` | ação `end_human_handover` (devolver ao robô; **desatribui só atribuição automática**); `assign_conversation` registra a origem `'manual'`; **as 4 mensagens de saída humanas passam a gravar `sender_id`** (autor — `send`, `send_media`, 2× `forward_message`; sem migration) | `index.ts`, `_shared/botHandover.ts`, **`_shared/botAssignment.ts`** |
+| `whatsapp-bot-reply` | motor do nó menu (R3), handover real (R4), simulador do fluxo (opt-in, ver [`etapa-9-bot-simulador-fluxo-cobertura.md`](etapa-9-bot-simulador-fluxo-cobertura.md)), **base de conhecimento (item 3, [`etapa-9-item3-r1-base-conhecimento-liga.md`](etapa-9-item3-r1-base-conhecimento-liga.md))** | `index.ts`, `_shared/botFlowMenu.ts`, `_shared/botHandover.ts`, `_shared/botFlowSimulation.ts`, **`_shared/knowledgeLoader.ts`, `_shared/knowledgeSources.ts`, `_shared/knowledgeConsent.ts`** (+ `_shared/brainComposer.ts`, já existente), **`_shared/botAssignment.ts`** (gate `respond_all=false + assigned_to` ajustado) |
 | `whatsapp-webhook` | **NÃO invoca** `whatsapp-bot-reply` em conversa já entregue a humano (poupa rate-limit) | `index.ts`, `_shared/botTrigger.ts`, `_shared/botHandover.ts` |
 
 "No mínimo" porque o bundler pode listar também módulos `_shared/` importados só
@@ -403,6 +470,15 @@ passos 1→7 acima, ainda no workspace de teste:
 selo/log; itens que aparecem em **um** orçamento só **não** entram (`included` < nº de
 itens distintos, se houver). B/C/D/E aparecem **desabilitadas** na tela — não tentar ligar.
 
+**Smoke de autoria e origem da atribuição (4ª migration aplicada):**
+
+| # | Ação | Esperado |
+|---|---|---|
+| 13 | Na tela de Atendimento (conversa de teste) enviar **uma mensagem de texto**, **uma mídia** e **encaminhar uma mensagem** | `SELECT direction, type, sender_id, created_at FROM public.whatsapp_messages WHERE conversation_id = '<CONV>' ORDER BY created_at DESC LIMIT 5;` → as **3 linhas novas** (`outbound`) com `sender_id` = o **seu** user id. Mensagens do **robô** e as **digitadas no celular** seguem com `sender_id` NULL (esperado — nunca houve autor); mensagens **antigas** também (sem backfill) |
+| 14 | Atribuir a conversa a alguém pela tela; depois remover a atribuição | `SELECT assigned_to, assignment_origin FROM public.whatsapp_conversations WHERE id = '<CONV>';` → `<user> | manual`; depois `NULL | NULL` |
+| 15 | Conversa **entregue** (`handover_at` preenchido) **e atribuída manualmente** → **Devolver ao robô** | resposta `{ ok: true, cleared: {...}, unassigned: false }`; a atribuição **continua** (`assigned_to` e `manual` intactos) — decisão humana não é desfeita |
+| 16 | *(opcional, prova a lógica adormecida)* em conversa **de teste** entregue, simular o que a atribuição automática fará: `UPDATE public.whatsapp_conversations SET assigned_to = '<USER>', assignment_origin = 'auto' WHERE id = '<CONV_TESTE>';` → **Devolver ao robô** | `unassigned: true`; `assigned_to` e `assignment_origin` voltam a NULL. (Nada em produção grava `'auto'` ainda — este passo só exercita a devolução.) |
+
 Query de observação (trocar os dois valores):
 
 ```sql
@@ -417,6 +493,7 @@ WHERE workspace_id = '<WORKSPACE_DE_TESTE>'
 - **Esperado** nos passos 3/7: `[bot-reply] human handover for conversation <id> (reason: menu_exhausted)` (passo 3) e `(reason: menu_option)` (passo 7).
 - **Esperado** no passo 4: com o webhook deployado, **nenhuma** invocação do `whatsapp-bot-reply` nessa mensagem; sem o webhook novo, uma linha `skipped … handed over to human`.
 - **PROIBIDO** depois das migrations: `failed to persist handover state` ou `failed to persist bot_flow_state`. Se aparecer, a coluna correspondente não existe de fato — voltar a §3.
+- **PROIBIDO** depois da 4ª migration: `failed to record assignment_origin` (em `assign_conversation`) ou `failed to clear automatic assignment` (na devolução) — a coluna/constraint não está funcionando; voltar a §3.5. (Antes da migration o primeiro **é esperado** e inofensivo — é a degradação.)
 - **PROIBIDO** depois da 3ª migration: `knowledge consents unavailable`. Se aparecer, a tabela `ai_knowledge_consents` não está acessível ao servidor — voltar a §3.4. (Antes da migration essa linha **é esperada** e inofensiva — é a degradação.)
 
 ### 5.4 Regra de parada
@@ -432,6 +509,7 @@ WHERE workspace_id = '<WORKSPACE_DE_TESTE>'
 | Código novo, **sem** `handover_at` | bot volta ao comportamento pré-R4 (cortesia sem persistir); webhook invoca como antes; UI não mostra banner; ação "Devolver ao robô" responde **409** e a UI mostra "Migration pendente" |
 | Código novo, **sem** `bot_flow_state` | fluxo **sem** nó menu: zero efeito. Fluxo **com** nó menu habilitado: loop de menu (§0) — **o único cenário ruim** |
 | Código novo, **sem** a tabela `ai_knowledge_consents` | nenhuma categoria ativa: `warn` no log + **robô idêntico ao de hoje**; a tela mostra "ainda não está disponível neste ambiente" e os toggles ficam desabilitados |
+| Código novo, **sem** a coluna `assignment_origin` | origem sempre "desconhecida" = humana: `assign_conversation` faz só a atribuição (warn no log da origem); a devolução **não** desatribui nada; o gate `respond_all=false + assigned_to` é **idêntico ao de antes** (tabela-verdade testada) |
 | Colunas/tabela aplicadas, código antigo | inerte (nenhum caminho antigo as lê) |
 | Colunas aplicadas + código novo | comportamento completo |
 
@@ -456,6 +534,7 @@ WHERE workspace_id = '<WORKSPACE_DE_TESTE>'
   **Destrói o estado** (conversas entregues deixam de estar marcadas; o bot volta a
   responder nelas). O app degrada sem as colunas (§6), então o DROP não derruba nada —
   mas não é reversível sem backup do que estava gravado.
+- **DDL de `assignment_origin` (só se necessário):** `ALTER TABLE public.whatsapp_conversations DROP COLUMN IF EXISTS assignment_origin;` (o `DROP` leva o CHECK junto). Perde só a distinção manual/automática — e hoje nada grava `'auto'`; o app degrada para "origem desconhecida" (§6).
 - **DDL da base de conhecimento (só se necessário):** `DROP TABLE IF EXISTS public.ai_knowledge_consents;`.
   **Apaga os registros de consentimento/revogação** (trilha de auditoria LGPD: quem ligou
   e quando) — exportar antes. O robô degrada para "nenhuma categoria ativa" (idêntico a hoje).
@@ -467,10 +546,10 @@ WHERE workspace_id = '<WORKSPACE_DE_TESTE>'
 
 ### 8.1 Espelho das migrations em `supabase/migrations/` (lane escreve, operador registra)
 
-As 3 migrations hoje vivem **só nos docs** (R1 §2 / R4 §2 / item 3 fundação §4) — não
+As 4 migrations hoje vivem **só nos docs** (R1 §2 / R4 §2 / item 3 fundação §4 / este pacote §2.4) — não
 existem em `supabase/migrations/`. Depois de aplicadas, o repo precisa refletir o banco
 (mesmo padrão de [`migrations-espelho-8b.md`](migrations-espelho-8b.md)): uma
-lane promove os 3 SQLs a arquivos com a **série real de aplicação** (a data da
+lane promove os 4 SQLs a arquivos com a **série real de aplicação** (a data da
 sessão §8-b — o operador informa), e o operador registra no histórico do CLI
 **sem rodar o SQL de novo**:
 
@@ -478,6 +557,7 @@ sessão §8-b — o operador informa), e o operador registra no histórico do CL
 supabase migration repair --status applied <VERSÃO_bot_flow_state>
 supabase migration repair --status applied <VERSÃO_handover_at>
 supabase migration repair --status applied <VERSÃO_ai_knowledge_consents>
+supabase migration repair --status applied <VERSÃO_assignment_origin>
 ```
 
 ### 8.2 Regenerar `types.ts` (operador, introspecção read-only — G10)
@@ -488,7 +568,7 @@ supabase gen types typescript --project-id ewamvzncsloagtcvkbxv > src/integratio
 
 Só lê o catálogo (não executa DDL/DML). Commitar o arquivo regenerado numa branch
 de lane. Efeito colateral esperado: o `Row` de `whatsapp_conversations` passa a
-ter `bot_flow_state` e `handover_at`, **e a tabela `ai_knowledge_consents` passa a existir
+ter `bot_flow_state` e `handover_at`, **`assignment_origin`**, **e a tabela `ai_knowledge_consents` passa a existir
 em `Database["public"]["Tables"]`**.
 
 ### 8.3 Trocar a leitura por `unknown` de `handover_at` por acesso tipado (rodada de **lane**, não do operador)
@@ -516,7 +596,8 @@ Depois de §8.2, checklist da rodada:
    `aiBrainRepository.ts`) e **manter** `isMissingTableError` (a degradação continua valendo
    em ambientes sem a migration). Os fixtures de `AiKnowledgeSection.test.tsx` e
    `aiKnowledgeConsentsRepository.test.ts` seguem válidos.
-8. **`WhatsAppContactPanel`** recebe `handoverAt` já resolvido pela página (via
+8. **`assignment_origin`** nas interfaces locais do server (`ConversationRow` em `whatsapp-bot-reply/index.ts`): continua `unknown` de propósito — tipo local da edge function, não depende de `types.ts`; só a leitura defensiva (`parseAssignmentOrigin`) importa.
+9. **`WhatsAppContactPanel`** recebe `handoverAt` já resolvido pela página (via
    `getHandoverAt`); ao tipar o item 1, nada muda no painel.
 
 ### 8.4 Pendências de outras lanes que tocam este fluxo
@@ -537,6 +618,7 @@ Depois de §8.2, checklist da rodada:
 - [`etapa-9-bot-fluxo-scriptado-r4-ui-atendimento-handover.md`](etapa-9-bot-fluxo-scriptado-r4-ui-atendimento-handover.md) — UI de Atendimento.
 - [`etapa-9-item3-r1-base-conhecimento-fundacao.md`](etapa-9-item3-r1-base-conhecimento-fundacao.md) §4 — origem de `ai_knowledge_consents` (SQL verbatim).
 - [`etapa-9-item3-r1-base-conhecimento-liga.md`](etapa-9-item3-r1-base-conhecimento-liga.md) — o que a base de conhecimento lê, sanitização, modos de falha.
+- [`etapa-9-handover-assigned-to-proposta.md`](../architecture/etapa-9-handover-assigned-to-proposta.md) — origem de `assignment_origin`, decisões do revisor, ajuste do gate.
 - [`etapa-6-g5-rate-limit.md`](etapa-6-g5-rate-limit.md) §8 — molde da pré-prova de hash / rollback de deploy.
 - [`migrations-espelho-8b.md`](migrations-espelho-8b.md) — molde do espelho pós-aplicação.
 - [`g71-credenciais-terceiros-pacote-operador.md`](g71-credenciais-terceiros-pacote-operador.md) — molde deste pacote.

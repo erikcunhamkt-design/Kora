@@ -179,9 +179,13 @@ POST /functions/v1/whatsapp-instance
 { "action": "end_human_handover", "workspaceId": "<uuid>", "conversationId": "<uuid>" }
 ```
 
-- **200** `{ ok: true, cleared: { handover_at: true, bot_flow_state: true|false } }`
+- **200** `{ ok: true, cleared: { handover_at: true, bot_flow_state: true|false }, unassigned: boolean }`
   — o bot volta a responder; `bot_flow_state` zerado faz a próxima mensagem
-  re-apresentar o menu do zero.
+  re-apresentar o menu do zero. `unassigned` (rodada do `assigned_to`, ver
+  `docs/architecture/etapa-9-handover-assigned-to-proposta.md` §9): `true` só quando a
+  conversa tinha uma atribuição **automática** e ela foi desfeita; atribuição
+  manual ou de origem desconhecida nunca é desfeita. Antes da 4ª migration do
+  pacote §8-b é sempre `false`.
 - **409** `{ ok: false, error: "handover state unavailable (migration pending)", cleared: {...} }`
   — `handover_at` ainda não existe (migration §8-b pendente). Diferente do
   bot (que degrada em silêncio), a ação é EXPLÍCITA: reporta em vez de
