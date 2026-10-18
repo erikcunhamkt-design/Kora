@@ -371,9 +371,9 @@ Padrão das Fases C anteriores: `getCatalogDataSource()` só `"local"` explícit
 - **R7 — Ressalva de produto:** toggles `availableInQuotes`/`showInPublicCatalog` sem efeito (§3.4 B/C) — migrar para a nuvem **sem decidir** cristaliza o defeito.
 - **R8 — Tamanho:** `library_assets` ≤ 200 itens (CHECK) e o `clients` row cresce; aceito (links curtos).
 
-## 11. Decisões pendentes (revisor/operador)
+## 11. Decisões (Q1–Q10) — **adotadas conforme recomendação (revisor)**
 
-| # | Decisão | Recomendação |
+| # | Decisão | Recomendação — **adotada** |
 |---|---|---|
 | Q1 | Escopo do ciclo | categorias + serviços + produtos + planos; **checkout fica local** ("Em breve", sem consumidor) |
 | Q2 | RLS de escrita | member (precedente tasks/quotes) na v1; admin-only só se o operador quiser blindar preço (G71) |
