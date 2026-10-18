@@ -168,10 +168,16 @@ export type MenuTurnResult =
   // R4: estourou `maxTentativas` sem destino de nó utilizável. Quem decide
   // o que fazer é o chamador (botHandover.ts → entrega a humano).
   | { kind: "exhausted" }
+  // R8: destino direto (opção de menu ou fallback `acao: "node"`) é um nó
+  // "ai" HABILITADO. A conversa SAI do menu e entra em MODO IA: `state` é o
+  // marcador (`currentNodeId` = id do nó ai) — o chamador o persiste e a IA
+  // responde NESTA MESMA virada à mensagem do cliente (semântica "a"); as
+  // mensagens seguintes ficam em "ai-mode".
+  | { kind: "to-ai"; nodeId: string; state: BotFlowState }
   // R8: a conversa já está em modo IA (`state.currentNodeId` é um nó ai
-  // habilitado, gravado por um nó "message" que apontou pra ele). O motor do
-  // menu NÃO age — o chamador segue pro fluxo normal (IA), sem enviar nada nem
-  // mexer no estado.
+  // habilitado, gravado por `to-ai` ou por um nó "message" que apontou pra
+  // ele). O motor do menu NÃO age — o chamador segue pro fluxo normal (IA), sem
+  // enviar nada nem mexer no estado.
   | { kind: "ai-mode"; nodeId: string }
   // R7: a virada passou por 1+ nós "message". `message` já vem MONTADO (textos
   // das mensagens da cadeia + o menu de destino, se houver, separados por uma
@@ -349,8 +355,8 @@ function runMessageChain(
 // `messageNodes` (R7, opcional — omitido = comportamento da R3/R6 idêntico):
 // os nós "message" habilitados, alcançáveis por entrada, por opção de menu ou
 // por fallback; ver `runMessageChain`.
-// `terminals` (R8, opcional): os nós "handover"/"ai" HABILITADOS — fecha as
-// cadeias de mensagem nos terminais e reconhece o modo IA persistido.
+// `terminals` (R8, opcional): os nós "handover"/"ai" HABILITADOS — habilita o
+// destino "ai" (modo IA persistido) e fecha cadeias de mensagem nos terminais.
 export function resolveMenuTurn(
   menuNodes: MenuNode[],
   state: BotFlowState | null,
@@ -401,11 +407,19 @@ export function resolveMenuTurn(
     }
     const nextMessage = messageById.get(matched.nextNodeId);
     if (nextMessage) return runMessageChain(nextMessage, byId, messageById, terminals);
-    // nextNodeId aponta pra um nó que não é "menu" nem "message" habilitados
-    // (ai, handover, outro tipo, desabilitado, ou id sem correspondência) — sai
-    // do acompanhamento scriptado (estado zerado); quem entrega a humano, se
-    // for o caso, é botHandover (R4); "ai" segue pro fluxo normal e a IA
-    // responde já a esta mensagem (R3, mantido na R8 — ver doc §4).
+    // R8: opção que leva direto a um nó "ai" habilitado → MODO IA (marcador no
+    // estado; a IA responde já, a conversa NÃO volta ao menu depois).
+    if (terminals.aiIds.includes(matched.nextNodeId)) {
+      return {
+        kind: "to-ai",
+        nodeId: matched.nextNodeId,
+        state: { currentNodeId: matched.nextNodeId, attempts: 0 },
+      };
+    }
+    // nextNodeId aponta pra um nó que não é "menu", "message" nem "ai"
+    // habilitados (handover, outro tipo, desabilitado, ou id sem
+    // correspondência) — sai do acompanhamento scriptado (estado zerado); quem
+    // entrega a humano, se for o caso, é botHandover (R4).
     return { kind: "advanced-away", nextNodeId: matched.nextNodeId };
   }
 
@@ -417,6 +431,14 @@ export function resolveMenuTurn(
       // R7: fallback pra um nó "message" → envia o texto (+ segue a cadeia).
       const fallbackMessage = messageById.get(fallbackNodeId);
       if (fallbackMessage) return runMessageChain(fallbackMessage, byId, messageById, terminals);
+      // R8: fallback pra um nó "ai" habilitado → modo IA (mesma regra da opção).
+      if (terminals.aiIds.includes(fallbackNodeId)) {
+        return {
+          kind: "to-ai",
+          nodeId: fallbackNodeId,
+          state: { currentNodeId: fallbackNodeId, attempts: 0 },
+        };
+      }
       return { kind: "handover-fallback", fallbackNodeId };
     }
     // R4: sem destino de nó utilizável (`acao: "reprompt"`, ou `"node"` sem

@@ -722,6 +722,26 @@ Deno.serve(async (req) => {
           return json({ ok: true, menu: turn.kind });
         }
 
+        // R8 — opção/fallback que leva direto a um nó "ai" habilitado: persiste o
+        // marcador de modo IA (`bot_flow_state.currentNodeId` = nó ai; as próximas
+        // mensagens NÃO reapresentam o menu) e SEGUE pro fluxo normal abaixo — a
+        // IA responde já, nesta mesma virada, à mensagem do cliente.
+        if (turn.kind === "to-ai") {
+          console.log(
+            `[bot-reply] menu flow handed to AI node ${turn.nodeId} for conversation ${conversationId}`,
+          );
+          const { error: aiStateErr } = await adminClient
+            .from("whatsapp_conversations")
+            .update({ bot_flow_state: turn.state })
+            .eq("id", conversationId);
+          if (aiStateErr) {
+            console.warn(
+              "[bot-reply] failed to persist AI-mode bot_flow_state (coluna pode ainda não existir — §8-b — degradando sem quebrar o fluxo):",
+              aiStateErr.message,
+            );
+          }
+        }
+
         // Etapa 9 · item 4, R4 — handover REAL. Os 3 gatilhos do menu (opção
         // que leva a um nó handover; estouro com acao "node" apontando pra um
         // handover; estouro sem destino de nó utilizável) entregam a

@@ -61,7 +61,9 @@ export function FlowSimulatorPanel({
             ? "bg-amber-500/10 text-amber-700 dark:text-amber-400"
             : stateSummary.tone === "menu"
               ? "bg-violet-500/10 text-violet-700 dark:text-violet-300"
-              : "bg-background/30 text-muted-foreground"
+              : stateSummary.tone === "ai"
+                ? "bg-sky-500/10 text-sky-700 dark:text-sky-300"
+                : "bg-background/30 text-muted-foreground"
         }`}
       >
         {stateSummary.tone === "handover" && <Headset className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
@@ -111,11 +113,15 @@ export function FlowSimulatorPanel({
                     className={`mt-1 flex items-center gap-1 text-[10px] font-medium ${
                       msg.tagKind === "knowledge"
                         ? "text-violet-700 dark:text-violet-300"
-                        : "text-amber-700 dark:text-amber-400"
+                        : msg.tagKind === "ai"
+                          ? "text-sky-700 dark:text-sky-300"
+                          : "text-amber-700 dark:text-amber-400"
                     }`}
                   >
                     {msg.tagKind === "knowledge" ? (
                       <BookOpen className="h-3 w-3" aria-hidden="true" />
+                    ) : msg.tagKind === "ai" ? (
+                      <Bot className="h-3 w-3" aria-hidden="true" />
                     ) : (
                       <Headset className="h-3 w-3" aria-hidden="true" />
                     )}

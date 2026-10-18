@@ -130,14 +130,18 @@ describe("Simulador do fluxo (UI) — menu: opção válida avança (U3)", () =>
     expect(lastInvokeBody().simState).toEqual({ botFlowState: { currentNodeId: "menu-fin", attempts: 0 }, handedOver: false });
   });
 
-  it("opção que leva a um nó de IA sai do menu e segue pra IA (estado volta a 'fora do menu')", async () => {
+  // R8 — DIVERGÊNCIA DELIBERADA (contrato mudou por decisão do revisor): antes o estado voltava a
+  // 'Fora do menu' (e a mensagem seguinte reapresentava o menu); agora a conversa FICA em modo IA.
+  it("opção que leva a um nó de IA sai do menu, segue pra IA e a conversa fica em modo IA (selo + estado)", async () => {
     await mountWith([trigger(), menuPrincipal, menuFinanceiro, aiNode, handoverNode]);
     await say("oi");
     await say("1"); // -> menu financeiro
     await say("1"); // -> node-ai
 
     expect(within(chat()).getByText("RESPOSTA DA IA")).toBeInTheDocument();
-    expect(stateBar()).toHaveTextContent("Fora do menu");
+    expect(within(chat()).getByText("Passou para a IA — robô scriptado encerrado")).toBeInTheDocument();
+    expect(stateBar()).toHaveTextContent("Conversa com a IA — robô scriptado encerrado");
+    expect(stateBar()).not.toHaveTextContent("Fora do menu");
   });
 
   it("resposta inválida reprompta e o contador sobe no painel", async () => {

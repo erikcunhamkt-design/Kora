@@ -110,9 +110,17 @@ describe("simulateFlowTurn — motor do menu (R3) no simulador", () => {
     expect(turn.simulation).toEqual({ engine: "menu", botFlowState: { currentNodeId: "menu-1", attempts: 1 }, handedOver: false });
   });
 
-  it("opção que leva a nó NÃO-handover (ex.: ai) -> sai do menu e segue pra IA, estado zerado", () => {
+  // R8 — DIVERGÊNCIA DELIBERADA (contrato mudou por decisão do revisor): antes, opção → ai
+  // devolvia estado ZERADO (e a mensagem seguinte reapresentava o menu). Agora grava o
+  // marcador de MODO IA ({ currentNodeId: <nó ai> }) e a conversa fica com a IA. A
+  // propriedade protegida continua a mesma: o simulador devolve a MESMA decisão da
+  // produção (continue → IA já nesta virada, sem texto de menu).
+  it("opção que leva a nó ai -> sai do menu, entra em MODO IA (marcador no estado) e segue pra IA já", () => {
     const turn = simulateFlowTurn(nodes, { botFlowState: { currentNodeId: "menu-1", attempts: 0 }, handedOver: false }, "3");
-    expect(turn).toEqual({ kind: "continue", simulation: { engine: "ai", botFlowState: null, handedOver: false } });
+    expect(turn).toEqual({
+      kind: "continue",
+      simulation: { engine: "ai", botFlowState: { currentNodeId: "node-ai", attempts: 0 }, handedOver: false, enteredAi: true },
+    });
   });
 });
 
@@ -151,14 +159,18 @@ describe("simulateFlowTurn — handover real (R4) no simulador", () => {
     });
   });
 
-  it("estouro com acao \"node\" apontando pra nó NÃO-handover -> sai do menu e segue pra IA (não entrega)", () => {
+  // R8 — divergência deliberada (ver o teste de opção → ai): fallback → ai também entra em modo IA.
+  it("estouro com acao \"node\" apontando pra nó ai -> modo IA (marcador) e segue pra IA (não entrega)", () => {
     const toAi = [
       menuRaw("menu-1", { fallback: { maxTentativas: 1, acao: "node", fallbackNodeId: "node-ai" } }),
       HANDOVER_ON,
       AI_ON,
     ];
     const turn = simulateFlowTurn(toAi, inMenu, "xyz");
-    expect(turn).toEqual({ kind: "continue", simulation: { engine: "ai", botFlowState: null, handedOver: false } });
+    expect(turn).toEqual({
+      kind: "continue",
+      simulation: { engine: "ai", botFlowState: { currentNodeId: "node-ai", attempts: 0 }, handedOver: false, enteredAi: true },
+    });
   });
 
   it("nó handover DESABILITADO: opção que aponta pra ele não entrega (mesma regra de produção)", () => {
@@ -276,7 +288,11 @@ describe("simulateFlowTurn — entrada por trigger.nextNodeId (paridade com prod
     const first = simulateFlowTurn(f, FRESH, "oi");
     if (first.kind !== "respond") throw new Error("esperava respond");
     const second = simulateFlowTurn(f, { botFlowState: first.simulation.botFlowState, handedOver: false }, "1");
-    expect(second).toEqual({ kind: "continue", simulation: { engine: "ai", botFlowState: null, handedOver: false } });
+    // R8 — divergência deliberada: o destino ai grava o modo IA (antes: estado zerado).
+    expect(second).toEqual({
+      kind: "continue",
+      simulation: { engine: "ai", botFlowState: { currentNodeId: "node-ai", attempts: 0 }, handedOver: false, enteredAi: true },
+    });
   });
 });
 

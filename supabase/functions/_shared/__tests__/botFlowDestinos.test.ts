@@ -3,8 +3,8 @@
 // sobre os MESMOS primitivos. Matriz origem × destino:
 //
 //   origem            → handover habilitado          → ai habilitado
-//   opção de menu     → R4 (advanced-away→entrega)   → R3 mantido: sai do menu, estado zerado, IA responde já
-//   fallback "node"   → R4 (handover-fallback)       → R3 mantido (idem)
+//   opção de menu     → R4 (advanced-away→entrega)   → R8: modo IA (marcador) + IA responde já
+//   fallback "node"   → R4 (handover-fallback)       → R8: modo IA (marcador) + IA responde já
 //   nó "message"      → R8: texto = cortesia         → R8: texto + modo IA persistido (IA na PRÓXIMA)
 //   entrada (trigger) → inválida (só menu/mensagem)  → inválida
 //
@@ -88,7 +88,7 @@ describe("extractTerminalNodes / describeDestination (R8)", () => {
   });
 });
 
-describe("origem = opção de menu (R4/R3 mantidos — o R8 não muda o que já existia)", () => {
+describe("origem = opção de menu (handover = R4 inalterado; ai = modo IA, R8-ajuste)", () => {
   it("→ handover HABILITADO: entrega a humano (menu_option) com a cortesia padrão", () => {
     const t = turn([menu(), HANDOVER(), AI()], IN_MENU, "1");
     expect(t).toEqual({ kind: "advanced-away", nextNodeId: "node-handover" });
@@ -102,11 +102,37 @@ describe("origem = opção de menu (R4/R3 mantidos — o R8 não muda o que já 
     expect(decideHandoverFromMenuTurn(t, nodes)).toEqual({ handover: false });
   });
 
-  it("→ ai HABILITADO: sai do menu com estado zerado (advanced-away) e a IA responde já (semântica R3 mantida)", () => {
+  it("→ ai HABILITADO: sai do menu em MODO IA (marcador) e a IA responde já; sem entrega", () => {
     const nodes = [menu(), HANDOVER(), AI()];
     const t = turn(nodes, IN_MENU, "2");
-    expect(t).toEqual({ kind: "advanced-away", nextNodeId: "node-ai" });
+    expect(t).toEqual({ kind: "to-ai", nodeId: "node-ai", state: { currentNodeId: "node-ai", attempts: 0 } });
     expect(decideHandoverFromMenuTurn(t, nodes)).toEqual({ handover: false });
+  });
+
+  it("→ ai DESABILITADO: destino inválido — sem marcador (advanced-away, estado zerado); nunca passa à IA por nó desligado", () => {
+    const nodes = [menu(), HANDOVER(), AI(false)];
+    expect(turn(nodes, IN_MENU, "2")).toEqual({ kind: "advanced-away", nextNodeId: "node-ai" });
+  });
+
+  it("consistência entre as 3 origens: opção, fallback e mensagem → ai gravam o MESMO marcador", () => {
+    const viaOption = turn([menu(), HANDOVER(), AI()], IN_MENU, "2");
+    const viaFallback = turn(
+      [menu({ fallback: { maxTentativas: 1, acao: "node", fallbackNodeId: "node-ai" } }), HANDOVER(), AI()],
+      IN_MENU,
+      "banana",
+    );
+    const viaMessage = turn([menu(), msg("node-ai"), HANDOVER(), AI()], IN_MENU, "3");
+    const states = [viaOption, viaFallback, viaMessage].map((t) => (t as { state: unknown }).state);
+    expect(states).toEqual([{ currentNodeId: "node-ai", attempts: 0 }, { currentNodeId: "node-ai", attempts: 0 }, { currentNodeId: "node-ai", attempts: 0 }]);
+  });
+
+  it("DALI EM DIANTE também pela opção direta: as mensagens seguintes ficam em ai-mode (menu não volta)", () => {
+    const nodes = [menu(), HANDOVER(), AI()];
+    const first = turn(nodes, IN_MENU, "2");
+    if (first.kind !== "to-ai") throw new Error("esperava to-ai");
+    for (const text of ["oi", "2", "banana"]) {
+      expect(turn(nodes, first.state, text)).toEqual({ kind: "ai-mode", nodeId: "node-ai" });
+    }
   });
 });
 
@@ -123,11 +149,18 @@ describe("origem = fallback acao 'node'", () => {
     expect(decideHandoverFromMenuTurn(turn(off, IN_MENU, "banana"), off)).toEqual({ handover: false });
   });
 
-  it("→ ai habilitado: sai do menu (handover-fallback, sem entrega) e a IA responde", () => {
+  it("→ ai habilitado: modo IA (marcador), sem entrega, a IA responde já", () => {
     const nodes = [fb("node-ai"), HANDOVER(), AI()];
     const t = turn(nodes, IN_MENU, "banana");
-    expect(t).toEqual({ kind: "handover-fallback", fallbackNodeId: "node-ai" });
+    expect(t).toEqual({ kind: "to-ai", nodeId: "node-ai", state: { currentNodeId: "node-ai", attempts: 0 } });
     expect(decideHandoverFromMenuTurn(t, nodes)).toEqual({ handover: false });
+  });
+
+  it("→ ai desabilitado: handover-fallback comum (destino inválido, sem marcador)", () => {
+    expect(turn([fb("node-ai"), HANDOVER(), AI(false)], IN_MENU, "banana")).toEqual({
+      kind: "handover-fallback",
+      fallbackNodeId: "node-ai",
+    });
   });
 });
 
@@ -275,7 +308,7 @@ describe("simulador — paridade com produção (R8)", () => {
     expect(first).toEqual({
       kind: "respond",
       reply: "Pode me contar!",
-      simulation: { engine: "menu", botFlowState: { currentNodeId: "node-ai", attempts: 0 }, handedOver: false },
+      simulation: { engine: "menu", botFlowState: { currentNodeId: "node-ai", attempts: 0 }, handedOver: false, enteredAi: true },
     });
     if (first.kind !== "respond") throw new Error("esperava respond");
 
@@ -302,12 +335,32 @@ describe("simulador — paridade com produção (R8)", () => {
     expect(first).toMatchObject({ kind: "respond", simulation: { engine: "menu", botFlowState: null } });
   });
 
-  it("opção → ai direto continua como na R3/lane D: estado zerado e a IA responde já", () => {
-    const nodes = [TRIGGER(), menu(), msg("node-ai"), HANDOVER(), AI()];
-    expect(simulateFlowTurn(nodes, inMenu, "2")).toEqual({
+  it("opção → ai direto: modo IA (marcador) e a IA responde já; a mensagem seguinte segue em IA, sem selo de novo", () => {
+    const nodes = [TRIGGER(), menu(), msg("node-ai"), HANDOVER(false), AI()];
+    const first = simulateFlowTurn(nodes, inMenu, "2");
+    expect(first).toEqual({
       kind: "continue",
-      simulation: { engine: "ai", botFlowState: null, handedOver: false },
+      simulation: { engine: "ai", botFlowState: { currentNodeId: "node-ai", attempts: 0 }, handedOver: false, enteredAi: true },
     });
+    if (first.kind !== "continue") throw new Error("esperava continue");
+    expect(simulateFlowTurn(nodes, { botFlowState: first.simulation.botFlowState, handedOver: false }, "e o horário?")).toEqual({
+      kind: "continue",
+      simulation: { engine: "ai", botFlowState: { currentNodeId: "node-ai", attempts: 0 }, handedOver: false },
+    });
+  });
+
+  it("PARIDADE produção↔simulador nas 3 origens → ai: mesmo estado gravado", () => {
+    const origins: Array<[RawFlowNode[], typeof inMenu, string]> = [
+      [[TRIGGER(), menu(), HANDOVER(false), AI()], inMenu, "2"],
+      [[TRIGGER(), menu({ fallback: { maxTentativas: 1, acao: "node", fallbackNodeId: "node-ai" } }), HANDOVER(false), AI()], inMenu, "banana"],
+      [[TRIGGER(), menu(), msg("node-ai"), HANDOVER(false), AI()], inMenu, "3"],
+    ];
+    for (const [nodes, st, text] of origins) {
+      const prod = turn(nodes, st.botFlowState, text);
+      const sim = simulateFlowTurn(nodes, st, text);
+      const prodState = (prod as { state: unknown }).state;
+      expect(sim).toMatchObject({ simulation: { botFlowState: prodState, enteredAi: true } });
+    }
   });
 
   it("sem nós message/terminais novos o simulador é idêntico (menu presente na primeira virada)", () => {

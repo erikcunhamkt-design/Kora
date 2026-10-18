@@ -22,7 +22,12 @@ export interface SimFlowState {
 export const INITIAL_SIM_STATE: SimFlowState = { botFlowState: null, handedOver: false };
 
 export type SimEngine = "menu" | "handover" | "silent" | "skipped" | "ai";
-export type SimHandoverReason = "keyword" | "menu_option" | "menu_fallback_node" | "menu_exhausted";
+export type SimHandoverReason =
+  | "keyword"
+  | "menu_option"
+  | "menu_fallback_node"
+  | "menu_exhausted"
+  | "message_next";
 
 /** Selo da base de conhecimento (item 3): só vem quando um bloco REALMENTE entrou no prompt. */
 export interface SimKnowledgeInfo {
@@ -35,6 +40,8 @@ export interface SimulationInfo extends SimFlowState {
   engine: SimEngine;
   handoverReason?: SimHandoverReason;
   knowledge?: SimKnowledgeInfo;
+  /** R8 — esta virada colocou a conversa em modo IA (opção/fallback/mensagem → nó ai). */
+  enteredAi?: boolean;
 }
 
 /** "system" = aviso do próprio simulador (não é fala do robô nem do cliente — nunca entra no histórico enviado). */
@@ -45,8 +52,8 @@ export interface SimMessage {
   text: string;
   /** Selo curto abaixo da bolha do robô (ex.: "Entregue a atendimento humano · tentativas esgotadas"). */
   tag?: string;
-  /** Semântica do selo — define a aparência no painel (handover = atendimento; knowledge = base de conhecimento). */
-  tagKind?: "handover" | "knowledge";
+  /** Semântica do selo — define a aparência no painel (handover = atendimento; knowledge = base de conhecimento; ai = passou à IA). */
+  tagKind?: "handover" | "knowledge" | "ai";
 }
 
 export const SIM_GREETING =
@@ -58,7 +65,11 @@ const HANDOVER_REASON_LABEL: Record<SimHandoverReason, string> = {
   menu_option: "opção do menu",
   menu_fallback_node: "fallback do menu",
   menu_exhausted: "tentativas esgotadas",
+  message_next: "mensagem do fluxo",
 };
+
+/** R8 — selo da virada que PASSOU a conversa à IA (a bolha pode ser a saudação ou a própria resposta da IA). */
+export const SIM_ENTERED_AI_TAG = "Passou para a IA — robô scriptado encerrado";
 
 export const SIM_SILENT_TEXT =
   "🔇 Robô em silêncio — esta conversa foi entregue a um atendente humano. Use “Reiniciar simulação” para devolver ao robô.";
@@ -167,6 +178,7 @@ function parseSimulation(raw: unknown): SimulationInfo | null {
     botFlowState: parseBotFlowState(o.botFlowState),
     handedOver: o.handedOver,
     knowledge: parseKnowledge(o.knowledge),
+    enteredAi: o.enteredAi === true ? true : undefined,
   };
 }
 
@@ -210,15 +222,28 @@ export function applySimulationResponse(
 
   // Resposta de IA: se um bloco da base de conhecimento entrou no prompt, o
   // selo vem do MESMO primitivo de produção (o server só o repassa).
-  const tag = sim.engine === "ai" && sim.knowledge ? describeKnowledgeSeal(sim.knowledge) : undefined;
-  return { messages: [{ role: "model", text: reply, ...(tag ? { tag, tagKind: "knowledge" as const } : {}) }], nextState };
+  const knowledgeSeal = sim.engine === "ai" && sim.knowledge ? describeKnowledgeSeal(sim.knowledge) : undefined;
+
+  // R8: a virada que passou a conversa à IA ganha selo próprio (saudação do nó de
+  // mensagem ou a própria resposta da IA); se a resposta da IA também usou a base de
+  // conhecimento, os dois selos viram UM (a bolha só tem um selo). As seguintes
+  // (modo IA já ativo) saem só com o selo de conhecimento, quando houver.
+  if (sim.enteredAi) {
+    const tag = knowledgeSeal ? `${SIM_ENTERED_AI_TAG} · ${knowledgeSeal}` : SIM_ENTERED_AI_TAG;
+    return { messages: [{ role: "model", text: reply, tag, tagKind: "ai" as const }], nextState };
+  }
+
+  return {
+    messages: [{ role: "model", text: reply, ...(knowledgeSeal ? { tag: knowledgeSeal, tagKind: "knowledge" as const } : {}) }],
+    nextState,
+  };
 }
 
 // ---------------------------------------------------------------------------
 // Estado legível
 // ---------------------------------------------------------------------------
 
-export type SimStateTone = "idle" | "menu" | "handover";
+export type SimStateTone = "idle" | "menu" | "handover" | "ai";
 
 export interface SimStateSummary {
   tone: SimStateTone;
@@ -232,6 +257,11 @@ export function describeSimState(state: SimFlowState, nodes: WorkflowNode[]): Si
   }
   if (state.botFlowState) {
     const node = nodes.find((n) => n.id === state.botFlowState!.currentNodeId);
+    // R8 — marcador de modo IA: o estado aponta pro nó "ai" (habilitado). Nó ai
+    // desabilitado/removido depois = estado órfão (cai no aviso abaixo, igual ao motor).
+    if (node && node.type === "ai" && node.enabled) {
+      return { tone: "ai", label: "Conversa com a IA — robô scriptado encerrado" };
+    }
     if (!node || node.type !== "menu") {
       return { tone: "menu", label: "Em um menu que não existe mais no fluxo — a próxima mensagem recomeça pela entrada" };
     }

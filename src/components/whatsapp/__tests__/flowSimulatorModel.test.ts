@@ -214,6 +214,9 @@ describe("describeSimState (estado legível — nó/tentativas)", () => {
     const orphan = describeSimState({ botFlowState: { currentNodeId: "sumiu", attempts: 0 }, handedOver: false }, nodes);
     expect(orphan.tone).toBe("menu");
     expect(orphan.label).toMatch(/não existe mais/);
-    expect(describeSimState({ botFlowState: { currentNodeId: "node-ai", attempts: 0 }, handedOver: false }, nodes).label).toMatch(/não existe mais/);
+    // R8: o nó "ai" HABILITADO é o marcador de modo IA (ver flowSimulatorModel.ai-mode.test.ts);
+    // ai DESABILITADO = estado órfão, igual ao motor.
+    const aiOff = nodes.map((n) => (n.id === "node-ai" ? { ...n, enabled: false } : n));
+    expect(describeSimState({ botFlowState: { currentNodeId: "node-ai", attempts: 0 }, handedOver: false }, aiOff).label).toMatch(/não existe mais/);
   });
 });

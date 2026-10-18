@@ -24,6 +24,7 @@
 //        message (R7) → responde a cadeia de textos (+ menu de destino), sem IA
 //        message → handover (R8) → entrega, o texto da mensagem é a cortesia
 //        message → ai (R8) → responde o texto e grava o modo IA (IA na PRÓXIMA)
+//        to-ai (R8: opção/fallback → nó ai) → grava o modo IA e a IA responde já
 //        ai-mode (R8) → motor do menu não age; segue pra IA com o estado mantido
 //        handover (3 gatilhos do menu) → entrega
 //        advanced-away/handover-fallback p/ nó não-handover → sai do menu
@@ -77,6 +78,12 @@ export interface SimulationInfo {
   /** Estado a devolver ao servidor na PRÓXIMA mensagem do simulador. */
   botFlowState: BotFlowState | null;
   handedOver: boolean;
+  /**
+   * R8 — só quando ESTA virada colocou a conversa em modo IA (opção/fallback →
+   * ai, ou mensagem → ai). Permite à UI etiquetar a transição sem inferir tipo
+   * de nó a partir do id.
+   */
+  enteredAi?: true;
 }
 
 export type SimulationTurn =
@@ -119,6 +126,8 @@ export function simulateFlowTurn(
   }
 
   let botFlowState = state.botFlowState;
+  // R8: esta virada colocou a conversa em modo IA (só pra etiquetar na UI).
+  let enteredAiThisTurn = false;
 
   // 2. Motor do menu (R3) + handover real (R4).
   const menuNodes = extractMenuNodes(nodes);
@@ -132,6 +141,9 @@ export function simulateFlowTurn(
     const triggerNode = nodes.find((n) => n.type === "trigger" && n.enabled);
     const entryNodeId = (triggerNode?.properties as { nextNodeId?: unknown } | undefined)?.nextNodeId;
     const turn = resolveMenuTurn(menuNodes, botFlowState, messageText, entryNodeId, messageNodes, terminals);
+
+    // R8: entrou em modo IA nesta virada (opção/fallback → ai, ou mensagem → ai).
+    enteredAiThisTurn = turn.kind === "to-ai" || (turn.kind === "message" && turn.destination?.kind === "ai");
 
     // R8: mensagem → handover habilitado. Mesmo desfecho da produção: o texto da
     // mensagem é a cortesia e a conversa fica "entregue a humano" (bot mudo).
@@ -155,9 +167,18 @@ export function simulateFlowTurn(
       return {
         kind: "respond",
         reply: turn.message,
-        simulation: { engine: "menu", botFlowState: turn.state, handedOver: false },
+        simulation: {
+          engine: "menu",
+          botFlowState: turn.state,
+          handedOver: false,
+          ...(enteredAiThisTurn ? { enteredAi: true as const } : {}),
+        },
       };
     }
+
+    // R8: opção/fallback → nó ai habilitado: grava o modo IA no estado e segue
+    // pro caminho de IA (abaixo) nesta mesma virada — igual à produção.
+    if (turn.kind === "to-ai") botFlowState = turn.state;
 
     const decision = decideHandoverFromMenuTurn(turn, nodes);
     if (decision.handover && decision.reason) {
@@ -202,7 +223,10 @@ export function simulateFlowTurn(
   }
 
   // 5. Segue pra IA.
-  return { kind: "continue", simulation: { engine: "ai", botFlowState, handedOver: false } };
+  return {
+    kind: "continue",
+    simulation: { engine: "ai", botFlowState, handedOver: false, ...(enteredAiThisTurn ? { enteredAi: true as const } : {}) },
+  };
 }
 
 // Anexa o selo de conhecimento a uma simulação que seguiu pro caminho de IA.
