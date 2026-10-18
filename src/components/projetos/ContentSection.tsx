@@ -26,7 +26,7 @@ import {
   type ContentItem, type ContentChannel, type ContentFormat,
   type ContentStage, type ContentApproval,
 } from "@/hooks/useContentItems";
-import { useClients } from "@/hooks/useClients";
+import { useClientsDataSource } from "@/hooks/useClientsDataSource";
 import { toast } from "@/hooks/use-toast";
 
 /* ------------------------------------------------------------------ */
@@ -52,7 +52,14 @@ const initialsOf = (name: string) => name.split(" ").map(p => p[0]).filter(Boole
 
 export function ContentSection() {
   const { items, clients: contentClients, addContentItem, addManyContentItems, updateContentItem, updateContentStage, deleteContentItem } = useContentItems();
-  const { clients: realClients } = useClients();
+  // G92/B4 — seletor de cliente lia useClients() local direto, mesmo em modo
+  // Supabase (classe G92, ver docs/qa/varredura-g92-consumidores-nao-bifurcados.md
+  // §4). useClientsDataSource() devolve o mesmo shape Client[] nos dois modos —
+  // `c.id`/`c.company`/`c.name` aqui só alimentam exibição (nome do cliente no
+  // picker) e o <datalist> do form abaixo, nunca um clientId persistido (este
+  // módulo vincula conteúdo a cliente por `clientName`, string, não por id —
+  // confirmado por leitura completa de ContentItem/useContentItems.ts).
+  const { clients: realClients } = useClientsDataSource();
 
   const [activeClient, setActiveClient] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -643,7 +650,9 @@ const NewContentDialog = ({ open, onOpenChange, defaultClient, defaultDate, onCr
   defaultDate?: string;
   onCreate: (data: Omit<ContentItem, "id" | "isDemo" | "createdAt">) => void;
 }) => {
-  const { clients } = useClients();
+  // G92/B4 — mesmo motivo do call site de ContentSection() acima: só alimenta
+  // o <datalist> de sugestão de nome, nunca um id persistido.
+  const { clients } = useClientsDataSource();
   const handle = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
