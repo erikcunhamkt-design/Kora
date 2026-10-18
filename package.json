@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "gates": "tsc -p tsconfig.app.json --noEmit && npm run lint && vitest run"
+    "gates": "tsc -p tsconfig.app.json --noEmit && npm run lint && vitest run",
+    "gates:quiet": "node scripts/gates-quiet.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

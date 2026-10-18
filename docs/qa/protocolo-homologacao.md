@@ -587,7 +587,8 @@ Regra dura, sem exceção — vale inclusive para QA:
    (`npm run lint && npm run test`, chamadas separadas de `tsc`/`vitest`) continuam válidos
    funcionalmente, mas `npm run gates` existe justamente pra remover a chance de escolher o
    comando de `tsc` errado por engano.
-4. **Demais gates permanentes (seções 0–18) inalterados.**
+4. **Gates com outro `vitest` ativo na máquina = resultado NÃO vale (regra O13 atualizada, G100).** Várias lanes rodam a suíte ao mesmo tempo (§16); sob 3 execuções simultâneas os testes ficam 6–18× mais lentos por contenção de CPU/RAM (medido: o teste mais lento foi de ~1 s para 18 s) e podem estourar `waitFor`/`findBy`/`testTimeout` **sem haver regressão**. Consequências: **(a)** um gate vermelho por timeout/`Unable to find` com outro vitest ativo **não é prova de regressão** — re-rodar em máquina quieta antes de diagnosticar; **(b)** um gate verde sob carga continua válido (passou apesar da carga), mas **o tempo medido não vale**. `npm run gates:quiet` aplica a regra (recusa se houver outro vitest; `-- --wait` espera; `-- --force` roda mas avisa). A config limita `maxWorkers` a ~40% dos núcleos (`vitest.config.ts`) pra suportar ~3 execuções em paralelo; o `testTimeout` de 20 s **não** deve ser aumentado pra "resolver" um vermelho. O relatório de merge continua colando a saída **literal** do `npm run gates` (item 2) — o `gates:quiet` não a substitui, só protege contra rodar na hora errada.
+5. **Demais gates permanentes (seções 0–18) inalterados.**
 
 ---
 
