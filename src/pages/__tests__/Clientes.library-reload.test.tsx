@@ -33,6 +33,16 @@ vi.mock("@/contexts/language-context-value", () => ({ useTranslation: vi.fn() })
 vi.mock("@/hooks/useSignupRequests", () => ({ useSignupRequests: vi.fn() }));
 vi.mock("@/hooks/useCurrentWorkspace", () => ({ useCurrentWorkspace: vi.fn() }));
 vi.mock("@/components/clientes/SignupLinkDrawer", () => ({ SignupLinkDrawer: () => null }));
+// Clientes.tsx (G93/G99, lane B) passou a ler useSupabaseOpportunities() e a montar o painel de
+// solicitações — nada disso é o assunto deste teste (Biblioteca): stubs.
+vi.mock("@/components/clientes/SignupRequestsPanel", () => ({ SignupRequestsPanel: () => null }));
+vi.mock("@/hooks/useSupabaseOpportunities", () => ({
+  useSupabaseOpportunities: () => ({ opportunities: [], refresh: vi.fn() }),
+}));
+vi.mock("@/services/storage/clientAssetsStorage", () => ({ clientAssetsStorage: { uploadClientAvatar: vi.fn() } }));
+vi.mock("@/repositories/crmOpportunitiesRepository", () => ({
+  crmOpportunitiesRepository: { createOpportunity: vi.fn() },
+}));
 vi.mock("sonner", () => ({
   toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() }),
 }));
