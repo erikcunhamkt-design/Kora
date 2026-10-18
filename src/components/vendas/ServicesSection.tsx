@@ -10,6 +10,15 @@ import { useProducts, type Product, type ProductType, type ProductStatus } from 
 import { useCommercialPlans, type CommercialPlan, type BillingCycle, type PlanItem } from "@/hooks/useCommercialPlans";
 import { useCheckoutSettings } from "@/hooks/useCheckoutSettings";
 import { useQuotes } from "@/hooks/useQuotes";
+import {
+  useBifurcatedServices,
+  useBifurcatedServiceCategories,
+  useBifurcatedProducts,
+  useBifurcatedCommercialPlans,
+} from "@/hooks/useBifurcatedCatalog";
+import { useCatalogMode } from "@/hooks/catalogCloudContext";
+import { CatalogDataProvider } from "@/components/vendas/CatalogDataProvider";
+import { Button } from "@/components/ui/button";
 import { formatCurrency as intlCurrency } from "@/lib/format";
 
 const BRL = (n: number) =>
@@ -44,6 +53,16 @@ const TABS: { id: CatalogTab; label: string; icon: typeof Briefcase }[] = [
 /* ============================ Shell ============================ */
 
 export function ServicesSection() {
+  // G94 / CT4 — a nuvem do catálogo só entra no React com a flag em "supabase" (default LOCAL: nenhum hook de
+  // nuvem, nenhum request). Ver hooks/catalogCloudContext.ts.
+  return (
+    <CatalogDataProvider>
+      <ServicesSectionBody />
+    </CatalogDataProvider>
+  );
+}
+
+function ServicesSectionBody() {
   const [tab, setTab] = useState<CatalogTab>("servicos");
 
   return (
@@ -60,6 +79,8 @@ export function ServicesSection() {
           Serviços, produtos, planos e checkout em um único lugar.
         </p>
       </header>
+
+      <CatalogModeBanner tab={tab} />
 
       <div className="flex flex-wrap gap-1 rounded-xl border border-border/60 bg-card p-1">
         {TABS.map(({ id, label, icon: Icon }) => (
@@ -84,6 +105,61 @@ export function ServicesSection() {
       {tab === "produtos" && <ProductsTab />}
       {tab === "planos" && <PlansTab />}
       {tab === "checkout" && <CheckoutTab />}
+    </div>
+  );
+}
+
+/* ============================ Banner de fonte (G94 / CT4) ============================ */
+
+// Textos honestos (G29/G40): a tela diz DE ONDE o catálogo está sendo lido, se dá pra gravar, e o que ainda
+// não funciona na nuvem. Fonte local (padrão) ⇒ nada aparece (a tela fica idêntica à de antes do CT4).
+function CatalogModeBanner({ tab }: { tab: CatalogTab }) {
+  const mode = useCatalogMode();
+  if (mode.requested !== "supabase") return null;
+
+  const box = "rounded-xl border px-4 py-3 text-sm";
+
+  if (mode.unavailable) {
+    return (
+      <div role="alert" className={`${box} border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400`}>
+        <p className="font-medium">Schema pendente (pacote §8-b) — exibindo o catálogo local deste navegador.</p>
+        <p className="mt-1 text-xs">
+          A fonte está em “Supabase”, mas as tabelas do catálogo ainda não existem neste ambiente
+          (ausentes: <strong>{mode.tables.join(", ")}</strong>). Enquanto isso o que você vê e grava aqui é o catálogo
+          local. O operador precisa aplicar a migration do catálogo.
+        </p>
+        <Button size="sm" variant="outline" className="mt-2 h-7 text-xs" onClick={mode.retry}>
+          Verificar de novo
+        </Button>
+      </div>
+    );
+  }
+
+  if (mode.noWorkspace) {
+    return (
+      <div role="alert" className={`${box} border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400`}>
+        Fonte “Supabase” selecionada, mas não há workspace ativo — exibindo o catálogo local deste navegador.
+      </div>
+    );
+  }
+
+  return (
+    <div role="status" className={`${box} border-border/60 bg-muted/20 text-foreground`}>
+      <p className="font-medium">
+        Catálogo lido da nuvem (Supabase)
+        {mode.loading ? " — carregando…" : ""}
+      </p>
+      <p className="mt-1 text-xs text-muted-foreground">
+        O catálogo local deste navegador não aparece aqui (use Configurações → Dados → “Importar catálogo comercial”
+        para levá-lo à nuvem).{" "}
+        {mode.writeBlocked
+          ? "A gravação na nuvem está DESLIGADA: você só consegue visualizar — criar, editar, arquivar e excluir são bloqueados e nada é salvo."
+          : "A gravação na nuvem está LIGADA: as alterações são salvas no Supabase."}
+        {" O seletor de serviços dos orçamentos ainda usa o catálogo local deste navegador."}
+        {tab === "servicos" ? " A métrica “Mais usado em orçamentos” ainda não lê a nuvem." : ""}
+        {tab === "checkout" ? " O Checkout continua local (“Em breve”) e usa o catálogo deste navegador." : ""}
+      </p>
+      {mode.error && <p className="mt-1 text-xs text-destructive">Não foi possível carregar o catálogo da nuvem: {mode.error}</p>}
     </div>
   );
 }
@@ -181,8 +257,8 @@ function CategoryPill({ cat }: { cat?: ServiceCategory }) {
 /* ============================ TAB: Serviços ============================ */
 
 function ServicesTab() {
-  const { services, addService, updateService, duplicateService, toggleActive, removeService } = useServices();
-  const { categories, addCategory, removeCategory } = useServiceCategories();
+  const { services, addService, updateService, duplicateService, toggleActive, removeService } = useBifurcatedServices();
+  const { categories, addCategory, removeCategory } = useBifurcatedServiceCategories();
   const { quotes } = useQuotes();
 
   const [query, setQuery] = useState("");
@@ -287,13 +363,12 @@ function ServicesTab() {
               category={catById.get(s.categoryId || "")}
               usageCount={usageMap.get(s.id) || 0}
               onEdit={() => setServiceModal({ open: true, service: s })}
-              onDuplicate={() => { duplicateService(s.id); toast.success("Serviço duplicado"); }}
-              onToggle={() => toggleActive(s.id)}
-              onRemove={() => {
+              onDuplicate={async () => { if (await duplicateService(s.id)) toast.success("Serviço duplicado"); }}
+              onToggle={() => { void toggleActive(s.id); }}
+              onRemove={async () => {
                 if (s.isDemo) return toast.info("Serviços demo não podem ser excluídos");
                 if (confirm(`Excluir "${s.name}"?`)) {
-                  removeService(s.id);
-                  toast.success("Serviço excluído");
+                  if (await removeService(s.id)) toast.success("Serviço excluído");
                 }
               }}
             />
@@ -306,12 +381,13 @@ function ServicesTab() {
           service={serviceModal.service}
           categories={categories}
           onClose={() => setServiceModal({ open: false })}
-          onSave={(data) => {
+          onSave={async (data) => {
+            // G75/G94: só "criado/atualizado" (e fechar o modal) se a gravação de fato aconteceu.
             if (serviceModal.service) {
-              updateService(serviceModal.service.id, data);
+              if (!(await updateService(serviceModal.service.id, data))) return;
               toast.success("Serviço atualizado");
             } else {
-              addService(data);
+              if (!(await addService(data))) return;
               toast.success("Serviço criado");
             }
             setServiceModal({ open: false });
@@ -328,7 +404,7 @@ function ServicesTab() {
           onRemove={(id) => {
             const inUse = services.some((s) => s.categoryId === id);
             if (inUse) return toast.error("Categoria em uso por um serviço");
-            removeCategory(id);
+            void removeCategory(id);
           }}
         />
       )}
@@ -526,16 +602,16 @@ function CategoriesModal({
   categories: ServiceCategory[];
   services: Service[];
   onClose: () => void;
-  onAdd: (data: Omit<ServiceCategory, "id" | "isDemo">) => void;
+  onAdd: (data: Omit<ServiceCategory, "id" | "isDemo">) => boolean | Promise<boolean>;
   onRemove: (id: string) => void;
 }) {
   const [name, setName] = useState("");
   const [color, setColor] = useState("#F81040");
 
-  function submit(e: FormEvent) {
+  async function submit(e: FormEvent) {
     e.preventDefault();
     if (!name.trim()) return toast.error("Informe o nome");
-    onAdd({ name: name.trim(), color });
+    if (!(await onAdd({ name: name.trim(), color }))) return;
     setName("");
     toast.success("Categoria criada");
   }
@@ -577,8 +653,8 @@ function CategoriesModal({
 /* ============================ TAB: Produtos ============================ */
 
 function ProductsTab() {
-  const { products, addProduct, updateProduct, removeProduct } = useProducts();
-  const { categories } = useServiceCategories();
+  const { products, addProduct, updateProduct, removeProduct } = useBifurcatedProducts();
+  const { categories } = useBifurcatedServiceCategories();
   const [modal, setModal] = useState<{ open: boolean; product?: Product }>({ open: false });
   const [query, setQuery] = useState("");
 
@@ -642,11 +718,11 @@ function ProductsTab() {
                 </div>
                 <div className="flex gap-1">
                   <IconBtn label="Editar" onClick={() => setModal({ open: true, product: p })}><Pencil className="h-3.5 w-3.5" /></IconBtn>
-                  <IconBtn label={p.status === "active" ? "Desativar" : "Ativar"} onClick={() => updateProduct(p.id, { status: p.status === "active" ? "inactive" : "active" })}>
+                  <IconBtn label={p.status === "active" ? "Desativar" : "Ativar"} onClick={() => { void updateProduct(p.id, { status: p.status === "active" ? "inactive" : "active" }); }}>
                     <Archive className="h-3.5 w-3.5" />
                   </IconBtn>
                   {!p.isDemo && (
-                    <IconBtn label="Excluir" danger onClick={() => { if (confirm(`Excluir "${p.name}"?`)) { removeProduct(p.id); toast.success("Produto excluído"); } }}>
+                    <IconBtn label="Excluir" danger onClick={async () => { if (confirm(`Excluir "${p.name}"?`)) { if (await removeProduct(p.id)) toast.success("Produto excluído"); } }}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </IconBtn>
                   )}
@@ -662,12 +738,12 @@ function ProductsTab() {
           product={modal.product}
           categories={categories}
           onClose={() => setModal({ open: false })}
-          onSave={(data) => {
+          onSave={async (data) => {
             if (modal.product) {
-              updateProduct(modal.product.id, data);
+              if (!(await updateProduct(modal.product.id, data))) return;
               toast.success("Produto atualizado");
             } else {
-              addProduct(data);
+              if (!(await addProduct(data))) return;
               toast.success("Produto criado");
             }
             setModal({ open: false });
@@ -763,9 +839,9 @@ function ProductModal({
 /* ============================ TAB: Planos ============================ */
 
 function PlansTab() {
-  const { plans, addPlan, updatePlan, removePlan, duplicatePlan } = useCommercialPlans();
-  const { services } = useServices();
-  const { products } = useProducts();
+  const { plans, addPlan, updatePlan, removePlan, duplicatePlan } = useBifurcatedCommercialPlans();
+  const { services } = useBifurcatedServices();
+  const { products } = useBifurcatedProducts();
   const [modal, setModal] = useState<{ open: boolean; plan?: CommercialPlan }>({ open: false });
 
   const active = plans.filter((p) => p.status === "active");
@@ -840,12 +916,12 @@ function PlansTab() {
               </ul>
               <div className="flex gap-1 pt-2 border-t border-border/60 mt-auto">
                 <IconBtn label="Editar" onClick={() => setModal({ open: true, plan: p })}><Pencil className="h-3.5 w-3.5" /></IconBtn>
-                <IconBtn label="Duplicar" onClick={() => { duplicatePlan(p.id); toast.success("Plano duplicado"); }}><Copy className="h-3.5 w-3.5" /></IconBtn>
-                <IconBtn label={p.status === "active" ? "Arquivar" : "Ativar"} onClick={() => updatePlan(p.id, { status: p.status === "active" ? "inactive" : "active" })}>
+                <IconBtn label="Duplicar" onClick={async () => { if (await duplicatePlan(p.id)) toast.success("Plano duplicado"); }}><Copy className="h-3.5 w-3.5" /></IconBtn>
+                <IconBtn label={p.status === "active" ? "Arquivar" : "Ativar"} onClick={() => { void updatePlan(p.id, { status: p.status === "active" ? "inactive" : "active" }); }}>
                   <Archive className="h-3.5 w-3.5" />
                 </IconBtn>
                 {!p.isDemo && (
-                  <IconBtn label="Excluir" danger onClick={() => { if (confirm(`Excluir "${p.name}"?`)) { removePlan(p.id); toast.success("Plano excluído"); } }}>
+                  <IconBtn label="Excluir" danger onClick={async () => { if (confirm(`Excluir "${p.name}"?`)) { if (await removePlan(p.id)) toast.success("Plano excluído"); } }}>
                     <Trash2 className="h-3.5 w-3.5" />
                   </IconBtn>
                 )}
@@ -861,12 +937,12 @@ function PlansTab() {
           services={services}
           products={products}
           onClose={() => setModal({ open: false })}
-          onSave={(data) => {
+          onSave={async (data) => {
             if (modal.plan) {
-              updatePlan(modal.plan.id, data);
+              if (!(await updatePlan(modal.plan.id, data))) return;
               toast.success("Plano atualizado");
             } else {
-              addPlan(data);
+              if (!(await addPlan(data))) return;
               toast.success("Plano criado");
             }
             setModal({ open: false });

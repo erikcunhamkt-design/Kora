@@ -170,6 +170,24 @@ export const FINANCE_DATA_SOURCE_KEY = "kora.finance.dataSource.v1";
  */
 export const TASKS_DATA_SOURCE_KEY = "kora.tasks.dataSource.v1";
 
+/**
+ * G94 / CT4 (Fase B do catálogo comercial, `docs/qa/etapa-5-g94-ct4-fase-b.md`) — seletor de fonte do catálogo
+ * (categorias, serviços, produtos e planos: UM domínio, UMA flag).
+ *
+ * Nasce NO MOLDE de nascimento de quotes/projects/finance/tasks (antes do respectivo flip): default
+ * **"local"**, só o literal **"supabase"** explícito seleciona a nuvem (P5 do protocolo — nunca herdar o
+ * default às cegas antes de qualquer homologação existir). O flip do default é a fatia CT7, rodada própria.
+ */
+export const CATALOG_DATA_SOURCE_KEY = "kora.catalog.dataSource.v1";
+
+/**
+ * G94 / CT4 — flag mestre de ESCRITA do catálogo na nuvem. Nasce opt-in (default DESLIGADA; só o literal
+ * "true" liga), mesmo nascimento de `kora.tasks.supabaseWrite.v1`/finance/projects antes dos respectivos flips.
+ * Com a fonte em "supabase" e a escrita desligada, a tela BLOQUEIA a gravação com aviso honesto (G76) — nunca
+ * grava no store local um item que o usuário está vendo como "da nuvem".
+ */
+export const CATALOG_WRITE_FLAG_KEY = "kora.catalog.supabaseWrite.v1";
+
 // ── acesso seguro a localStorage (SSR-safe / storage desabilitado) ──────────
 
 function safeGet(key: string): string | null {
@@ -277,6 +295,26 @@ export function getTasksDataSource(): DataSource {
 
 export function setTasksDataSource(source: DataSource): void {
   safeSet(TASKS_DATA_SOURCE_KEY, source);
+}
+
+// ── seletor de fonte do catálogo (string plana; default "local" — CT4, só "supabase" explícito liga a nuvem) ──
+
+/** Só o literal "supabase" seleciona a nuvem; qualquer outro valor (ausente, "local", malformado) ⇒ "local". */
+export function getCatalogDataSource(): DataSource {
+  return safeGet(CATALOG_DATA_SOURCE_KEY) === "supabase" ? "supabase" : "local";
+}
+
+export function setCatalogDataSource(source: DataSource): void {
+  safeSet(CATALOG_DATA_SOURCE_KEY, source);
+}
+
+/** Escrita do catálogo na nuvem: opt-in, só o literal "true" liga (default desligada). */
+export function getCatalogWriteEnabled(): boolean {
+  return safeGet(CATALOG_WRITE_FLAG_KEY) === "true";
+}
+
+export function setCatalogWriteEnabled(value: boolean): void {
+  safeSet(CATALOG_WRITE_FLAG_KEY, String(value));
 }
 
 // ── seletor de fonte da ficha técnica (mapa JSON por cliente; default "supabase" — F4) ──
