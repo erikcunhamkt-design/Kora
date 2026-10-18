@@ -14,6 +14,7 @@ import { useSupabaseQuotes } from "@/hooks/useSupabaseQuotes";
 import { getQuotesDataSource, setQuotesDataSource } from "@/config/flags";
 import { isSupabaseQuotesWriteEnabled } from "@/hooks/useSupabaseQuotesWriteFlag";
 import { useServices } from "@/hooks/useServices";
+import { isServiceSelectableInQuotes } from "@/services/quotes/quoteServiceCatalog";
 import { useClientsDataSource } from "@/hooks/useClientsDataSource";
 import { useBifurcatedFinance } from "@/hooks/useBifurcatedFinance";
 import { useLeads } from "@/hooks/useLeads";
@@ -1049,7 +1050,7 @@ function NewQuoteWizard({
               defaultValue=""
             >
               <option value="" disabled>+ Adicionar serviço do catálogo</option>
-              {services.filter((s) => s.active).map((s) => (
+              {services.filter(isServiceSelectableInQuotes).map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name} — {BRL(s.price)}
                 </option>
@@ -1063,6 +1064,9 @@ function NewQuoteWizard({
               + Item manual
             </button>
           </div>
+          <p className="text-xs text-muted-foreground">
+            O catálogo só lista serviços ativos e marcados como “Disponível em orçamentos”. Para outro item, use “+ Item manual”.
+          </p>
 
           {items.length === 0 ? (
             <Card className="p-6 text-center text-sm text-muted-foreground">

@@ -272,8 +272,8 @@ describe("quoteMapper — item", () => {
   it("maps a local QuoteItem to a Supabase item", () => {
     const item: QuoteItem = { id: "i1", name: "Design", quantity: 2, unitPrice: 150 };
 
-    expect(mapLocalQuoteItemToSupabaseItem(item)).toEqual({
-      service_id: undefined,
+    expect(mapLocalQuoteItemToSupabaseItem(item, {})).toEqual({
+      service_id: null,
       name: "Design",
       quantity: 2,
       unit_price: 150,
@@ -650,5 +650,79 @@ describe("quoteMapper — approved_at/rejected_at (G68)", () => {
     const out = mapLocalQuoteToSupabaseQuote(baseQuote({ status: "rascunho" }));
     expect(out.approved_at).toBeNull();
     expect(out.rejected_at).toBeNull();
+  });
+});
+
+// G98 — `quote_items.service_id` (uuid sem FK) estava morto nos dois sentidos: a escrita hardcodava
+// `undefined` e a leitura nunca devolvia `serviceId`. Fixtures com uuid REAL (lição G82).
+describe("G98 — quote_items.service_id round-trip", () => {
+  const SERVICE_UUID = "3f2b7c1e-9a4d-4e8b-8c55-1d2e3f4a5b6c";
+  const MAPPED_UUID = "9c8b7a6d-5e4f-4a3b-9c2d-1e0f9a8b7c6d";
+  const catalogItem = (serviceId?: string): QuoteItem => ({ id: "i1", serviceId, name: "Identidade", quantity: 1, unitPrice: 3500 });
+
+  it("serviço da nuvem (uuid): passa direto, mesmo com o mapa do import vazio", () => {
+    expect(mapLocalQuoteItemToSupabaseItem(catalogItem(SERVICE_UUID), {}).service_id).toBe(SERVICE_UUID);
+  });
+
+  it("id local legado (svc-…) já importado: traduzido pelo mapa do catálogo", () => {
+    expect(mapLocalQuoteItemToSupabaseItem(catalogItem("svc-123"), { "svc-123": MAPPED_UUID }).service_id).toBe(MAPPED_UUID);
+  });
+
+  it("id local legado SEM tradução: null — nunca o id cru numa coluna uuid", () => {
+    expect(mapLocalQuoteItemToSupabaseItem(catalogItem("svc-123"), {}).service_id).toBeNull();
+    expect(mapLocalQuoteItemToSupabaseItem(catalogItem("svc-123"), { "svc-999": MAPPED_UUID }).service_id).toBeNull();
+  });
+
+  it("item manual (sem serviceId): null", () => {
+    expect(mapLocalQuoteItemToSupabaseItem(catalogItem(undefined), {}).service_id).toBeNull();
+  });
+
+  it("sem mapa explícito lê o mapa persistido do import do catálogo (kora.catalog.supabaseImport.v1)", () => {
+    localStorage.setItem(
+      "kora.catalog.supabaseImport.v1",
+      JSON.stringify({ lastImportedAt: "2026-10-01", maps: { services: { "svc-777": MAPPED_UUID } } }),
+    );
+    try {
+      expect(mapLocalQuoteItemToSupabaseItem(catalogItem("svc-777")).service_id).toBe(MAPPED_UUID);
+      expect(mapLocalQuoteItemToSupabaseItem(catalogItem("svc-888")).service_id).toBeNull();
+    } finally {
+      localStorage.removeItem("kora.catalog.supabaseImport.v1");
+    }
+  });
+
+  it("leitura: service_id volta como serviceId do item (antes: sumia)", () => {
+    const si = {
+      id: "i1", quote_id: "q1", service_id: SERVICE_UUID, name: "Identidade", quantity: 1, unit_price: "3500.00",
+      created_at: "2026-10-01T00:00:00.000Z", updated_at: "2026-10-01T00:00:00.000Z",
+    } as unknown as SupabaseQuoteItem;
+    expect(mapSupabaseQuoteItemToLocalItem(si).serviceId).toBe(SERVICE_UUID);
+  });
+
+  it("leitura: service_id nulo (item manual / orçamento antigo) → serviceId undefined", () => {
+    const si = {
+      id: "i2", quote_id: "q1", service_id: null, name: "Manual", quantity: 1, unit_price: 10,
+      created_at: "2026-10-01T00:00:00.000Z", updated_at: "2026-10-01T00:00:00.000Z",
+    } as unknown as SupabaseQuoteItem;
+    expect(mapSupabaseQuoteItemToLocalItem(si).serviceId).toBeUndefined();
+  });
+
+  it("round-trip completo: o item do catálogo sobrevive local → nuvem → local com o mesmo serviceId", () => {
+    const written = mapLocalQuoteItemToSupabaseItem(catalogItem(SERVICE_UUID), {});
+    const back = mapSupabaseQuoteItemToLocalItem({
+      ...written, id: "i1", quote_id: "q1",
+      created_at: "2026-10-01T00:00:00.000Z", updated_at: "2026-10-01T00:00:00.000Z",
+    } as SupabaseQuoteItem);
+    expect(back).toMatchObject({ serviceId: SERVICE_UUID, name: "Identidade", quantity: 1, unitPrice: 3500 });
+  });
+
+  it("classe (G37): TODAS as colunas de quote_items que o local tem sobrevivem ao round-trip (id/serviceId/name/quantity/unit_price)", () => {
+    const item: QuoteItem = { id: "i9", serviceId: SERVICE_UUID, name: "Pacote", quantity: 2.5, unitPrice: 99.9 };
+    const written = mapLocalQuoteItemToSupabaseItem(item, {});
+    expect(Object.keys(written).sort()).toEqual(["name", "quantity", "service_id", "unit_price"]);
+    const back = mapSupabaseQuoteItemToLocalItem({
+      ...written, id: "i9", quote_id: "q9",
+      created_at: "2026-10-01T00:00:00.000Z", updated_at: "2026-10-01T00:00:00.000Z",
+    } as SupabaseQuoteItem);
+    expect(back).toEqual(item);
   });
 });

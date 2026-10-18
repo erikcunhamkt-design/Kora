@@ -8,6 +8,7 @@
 import type { Quote, QuoteItem } from "@/hooks/useQuotes";
 import type { SupabaseQuote, SupabaseQuoteItem } from "@/repositories/quotesRepository";
 import { roundMoney, roundQuantity } from "@/services/quotes/quoteMoney";
+import { readCatalogImportMeta } from "@/services/catalog/catalogImport";
 
 /**
  * Import-maps local→Supabase usados para resolver as FKs de um orçamento.
@@ -235,35 +236,24 @@ export function mapSupabaseQuoteToLocalQuote(sq: SupabaseQuote): Quote {
 /**
  * Convert a local QuoteItem to Supabase record.
  *
- * ACHADO registrado, NÃO corrigido nesta rodada (rodada de verificação do
- * backlog, `docs/qa/etapa-5-auditoria-leitura-nuvem-local.md` §1.5) —
- * `service_id: undefined` é hardcoded aqui, mesmo quando `item.serviceId`
- * tem um valor real: `QuotesSection.tsx` (`addServiceItem`, fluxo "+
- * Adicionar serviço do catálogo") grava `serviceId: svc.id` genuinamente.
- * Consumidor real do lado de leitura: `ServicesSection.tsx:216-224`
- * (`usageMap`/"serviço mais usado" — conta `item.serviceId` em todas as
- * quotes) — hoje SUBCONTA silenciosamente qualquer item de quote nuvem,
- * porque `serviceId` nunca sobrevive ao espelho (nem na escrita, aqui, nem
- * na leitura, `mapSupabaseQuoteItemToLocalItem` abaixo).
+ * G98 (docs/architecture/kora-hub-auditoria-e-plano.md) — `service_id` (uuid, sem FK) estava
+ * morto nos DOIS sentidos: aqui era `undefined` hardcoded e a leitura nunca devolvia
+ * `serviceId`. Agora:
+ *  - **uuid** (serviço já da nuvem — `Service.id` do catálogo em nuvem): passa direto (G67/G68);
+ *  - **id local legado** (`svc-…`): traduzido pelo mapa do import do catálogo
+ *    (`kora.catalog.supabaseImport.v1`, `maps.services`) se o serviço já foi importado;
+ *  - senão `null` — NUNCA o id local cru numa coluna uuid (regra Q4).
+ * A coluna não tem FK (a FK vem no pacote §8-b do catálogo, da lane A); este mapper não depende dela.
  *
- * NÃO é um fix de 1 linha, diferente dos outros achados desta auditoria:
- * `service_id` é uma coluna `uuid` (`quote_items`, migration
- * `20260531030000_create_quotes_schema.sql:28`), mas o catálogo de Serviços
- * (`useServices.ts`) é 100% local — sem tabela Supabase própria, sem
- * import-map (`grep` por `servicesRepository`/`SupabaseService` no repo
- * inteiro → zero resultados). `Service.id` local (`svc-${Date.now()}`)
- * NUNCA é um uuid válido — mandar cru pra essa coluna violaria a mesma
- * regra de segurança (Q4) que todo `resolve*Fk` deste repo já aplica.
- * Enviar `service_id` de verdade exigiria primeiro um catálogo de Serviços
- * na nuvem (tabela + import-map, mesmo desenho de clients/quotes/projects/
- * tasks/crm) — fora do escopo de um fix pontual. Fica registrado como
- * proposta de escopo maior, decisão de priorização com o revisor.
+ * `serviceMap` é injetável pra teste; sem ele lê o mapa persistido. (Não passe esta função direto
+ * em `items.map(...)`: o 2º argumento do `map` é o índice — use `(i) => mapLocalQuoteItemToSupabaseItem(i)`.)
  */
 export function mapLocalQuoteItemToSupabaseItem(
   item: QuoteItem,
+  serviceMap?: Record<string, string>,
 ): Omit<SupabaseQuoteItem, "id" | "quote_id" | "created_at" | "updated_at"> {
   return {
-    service_id: undefined,
+    service_id: resolveQuoteFk(item.serviceId, serviceMap ?? readCatalogImportMeta().maps.services),
     name: item.name,
     // Q5b: quantity é numeric no schema (promovido de integer) — preserva fração, quantizada a 3 casas.
     quantity: roundQuantity(item.quantity),
@@ -275,6 +265,10 @@ export function mapLocalQuoteItemToSupabaseItem(
 export function mapSupabaseQuoteItemToLocalItem(si: SupabaseQuoteItem): QuoteItem {
   return {
     id: si.id,
+    // G98 — `service_id` agora volta pro item local (antes a leitura nunca devolvia `serviceId`).
+    // Sem isso "Mais usado em orçamentos" subcontava qualquer item de orçamento da nuvem.
+    // uuid vem como string da coluna; `QuoteItem.serviceId` é string — sem cast.
+    serviceId: si.service_id ?? undefined,
     name: si.name,
     quantity: si.quantity,
     unitPrice: Number(si.unit_price),

@@ -202,3 +202,39 @@ describe("useSupabaseQuotes · G30 (G60) — replaceQuoteItems substitui só os 
     expect(result.current.quotes[0].title).toBe("Original");
   });
 });
+
+// G98 — o item do catálogo leva `service_id` (uuid real) até a RPC e o `serviceId` volta no cache.
+describe("useSupabaseQuotes · G98 — item do catálogo grava service_id e mantém serviceId", () => {
+  const SERVICE_UUID = "3f2b7c1e-9a4d-4e8b-8c55-1d2e3f4a5b6c";
+
+  it("createQuoteWithItems manda service_id (uuid) pra RPC e o item entra no cache com serviceId", async () => {
+    vi.mocked(quotesRepository.listQuotes).mockResolvedValue([]);
+    vi.mocked(quotesRepository.importQuoteWithItems).mockResolvedValue(baseSupabaseQuote({ id: "sq-9" }));
+
+    const { result } = renderHook(() => useSupabaseQuotes(), { wrapper });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    const catalogItem: QuoteItem = { id: "i1", serviceId: SERVICE_UUID, name: "Identidade", quantity: 1, unitPrice: 3500 };
+    const manualItem: QuoteItem = { id: "i2", name: "Avulso", quantity: 1, unitPrice: 10 };
+    await act(async () => {
+      await result.current.createQuoteWithItems(baseLocalQuote(), [catalogItem, manualItem]);
+    });
+
+    const sentItems = vi.mocked(quotesRepository.importQuoteWithItems).mock.calls[0][3];
+    expect(sentItems.map((i) => i.service_id)).toEqual([SERVICE_UUID, null]);
+    await waitFor(() => expect(result.current.quotes[0]?.items).toHaveLength(2));
+    expect(result.current.quotes[0]?.items[0].serviceId).toBe(SERVICE_UUID);
+    expect(result.current.quotes[0]?.items[1].serviceId).toBeUndefined();
+  });
+
+  it("leitura: itens vindos da listagem trazem serviceId (service_id lido de volta)", async () => {
+    vi.mocked(quotesRepository.listQuotes).mockResolvedValue([baseSupabaseQuote({ id: "sq-1" })]);
+    vi.mocked(quotesRepository.listQuoteItemsForQuotes).mockResolvedValue({
+      "sq-1": [{ id: "i1", quote_id: "sq-1", service_id: SERVICE_UUID, name: "Identidade", quantity: 1, unit_price: 10, created_at: "", updated_at: "" }],
+    });
+
+    const { result } = renderHook(() => useSupabaseQuotes(), { wrapper });
+
+    await waitFor(() => expect(result.current.quotes[0]?.items[0]?.serviceId).toBe(SERVICE_UUID));
+  });
+});

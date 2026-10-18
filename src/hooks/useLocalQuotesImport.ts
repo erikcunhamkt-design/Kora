@@ -231,7 +231,7 @@ export function useLocalQuotesImport() {
           clients: clientMap,
           opportunities: oppMap,
         });
-        const supaItems = local.items.map(mapLocalQuoteItemToSupabaseItem);
+        const supaItems = local.items.map((i) => mapLocalQuoteItemToSupabaseItem(i));
 
         // Q3 (RPC, B.3): upsert do pai + reposição atômica dos itens filhos numa
         // única chamada — nunca fica quote sem itens (import_quote_with_items).

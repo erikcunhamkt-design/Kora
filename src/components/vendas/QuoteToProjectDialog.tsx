@@ -27,7 +27,7 @@ import { useSupabaseProjects } from "@/hooks/useSupabaseProjects";
 import { useSupabaseTasksAll } from "@/hooks/useSupabaseTasksAll";
 import { useSupabaseTasksWriteFlag } from "@/hooks/useSupabaseTasksWriteFlag";
 import { tasksRepository } from "@/repositories/tasksRepository";
-import { getFriendlyMessage } from "@/lib/supabase/errors";
+import { getRealErrorMessage } from "@/lib/supabase/errors";
 
 const addDaysISO = (base: Date, days: number) => {
   const d = new Date(base);
@@ -254,7 +254,7 @@ export function QuoteToProjectDialog({
         onOpenChange(false);
       } catch (err) {
         console.error("Falha ao criar projeto no Supabase:", err);
-        toast.error("Falha ao criar projeto no Supabase", { description: getFriendlyMessage(err) });
+        toast.error("Falha ao criar projeto no Supabase", { description: getRealErrorMessage(err) });
       } finally {
         setSubmitting(false);
       }
@@ -290,7 +290,7 @@ export function QuoteToProjectDialog({
     mirrorProjectToSupabase(workspace.id, project).catch((mirrorErr) => {
       console.error("Espelho nuvem do projeto falhou (local já gravado):", mirrorErr);
       toast.warning("Projeto salvo localmente, mas o espelho no Supabase falhou.", {
-        description: "Rode a importação manual em Configurações → Dados quando possível.",
+        description: `${getRealErrorMessage(mirrorErr)} — rode a importação manual em Configurações → Dados quando possível.`,
       });
     });
   };

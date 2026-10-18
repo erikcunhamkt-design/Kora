@@ -1266,3 +1266,49 @@ describe("QuotesSection · G93 — vínculo orçamento→oportunidade grava na n
     expect(crmOpportunitiesRepository.updateOpportunity).not.toHaveBeenCalled();
   });
 });
+
+// G96 — `availableInQuotes` ("Disponível em orçamentos", no cadastro do serviço) só era gravado: o
+// wizard filtrava só `active`. Agora honra o toggle, e o texto de ajuda diz o critério.
+describe("QuotesSection · G96 — wizard só oferece serviços ativos E disponíveis em orçamentos", () => {
+  const baseService = { description: "", category: "Geral", price: 100, billingType: "único", deliveryDays: 1 };
+
+  async function openStep2() {
+    vi.mocked(useQuotes).mockReturnValue({
+      quotes: [], addQuote: vi.fn(), updateStatus: vi.fn(), updateQuote: vi.fn(),
+      duplicateQuote: vi.fn(), deleteQuote: vi.fn(),
+    } as never);
+    vi.mocked(useSupabaseQuotes).mockReturnValue({ quotes: [], loading: false, error: null } as never);
+    renderSection();
+    fireEvent.click(screen.getByText("Novo orçamento"));
+    fireEvent.change(screen.getByPlaceholderText("Nome do cliente"), { target: { value: "Cliente G96" } });
+    fireEvent.change(screen.getByPlaceholderText("Ex: Rebranding 2026"), { target: { value: "Orçamento G96" } });
+    fireEvent.click(screen.getByText("Continuar"));
+    await screen.findByText("+ Item manual");
+  }
+
+  it("serviço com availableInQuotes=false NÃO aparece; ativo+disponível e legado (sem o campo) aparecem; inativo não", async () => {
+    localStorage.setItem("orbyt.services.v1", JSON.stringify([
+      { ...baseService, id: "svc-a", name: "Serviço Disponível", active: true, availableInQuotes: true },
+      { ...baseService, id: "svc-b", name: "Serviço Escondido", active: true, availableInQuotes: false },
+      { ...baseService, id: "svc-c", name: "Serviço Legado", active: true },
+      { ...baseService, id: "svc-d", name: "Serviço Inativo", active: false, availableInQuotes: true },
+    ]));
+
+    await openStep2();
+
+    expect(screen.getByRole("option", { name: /Serviço Disponível/ })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /Serviço Legado/ })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /Serviço Escondido/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /Serviço Inativo/ })).not.toBeInTheDocument();
+  });
+
+  it("texto de ajuda honesto sobre o critério do catálogo", async () => {
+    localStorage.setItem("orbyt.services.v1", JSON.stringify([
+      { ...baseService, id: "svc-a", name: "Serviço Disponível", active: true, availableInQuotes: true },
+    ]));
+
+    await openStep2();
+
+    expect(screen.getByText(/só lista serviços ativos e marcados como/i)).toBeInTheDocument();
+  });
+});

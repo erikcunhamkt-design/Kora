@@ -191,9 +191,10 @@ describe("QuoteToProjectDialog · cutover (Caso 7.2) — falhas", () => {
     fireEvent.click(screen.getByRole("button", { name: "Gerar projeto" }));
 
     await waitFor(() => expect(createProject).toHaveBeenCalled());
+    // G95 — a descrição leva a mensagem REAL ({ message } do PostgrestError), não a genérica.
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith(
       "Falha ao criar projeto no Supabase",
-      expect.anything(),
+      expect.objectContaining({ description: "network down" }),
     ));
     expect(createTask).not.toHaveBeenCalled();
     expect(onGenerated).not.toHaveBeenCalled();

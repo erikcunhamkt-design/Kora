@@ -114,9 +114,10 @@ describe("QuoteToProjectDialog · espelho best-effort (padrão G22, resolve R5)"
     fireEvent.click(screen.getByRole("button", { name: "Gerar projeto" }));
 
     await waitFor(() => expect(addProject).toHaveBeenCalled());
+    // G95 — o aviso leva o motivo real do espelho, além de mandar rodar a importação.
     await waitFor(() => expect(toast.warning).toHaveBeenCalledWith(
       expect.stringContaining("espelho no Supabase falhou"),
-      expect.anything(),
+      expect.objectContaining({ description: expect.stringContaining("network down") }),
     ));
   });
 });

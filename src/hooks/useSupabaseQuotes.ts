@@ -102,7 +102,7 @@ export function useSupabaseQuotes() {
         clients: readClientImportMap(),
         opportunities: readOpportunityImportMap(),
       });
-      const supaItems = items.map(mapLocalQuoteItemToSupabaseItem);
+      const supaItems = items.map((i) => mapLocalQuoteItemToSupabaseItem(i));
       return quotesRepository.importQuoteWithItems(
         workspaceId,
         buildNativeSourceLocalId(),
@@ -169,7 +169,7 @@ export function useSupabaseQuotes() {
   // cache, os demais campos (status/título/etc.) ficam intocados.
   const replaceItemsMutation = useMutation({
     mutationFn: ({ quoteId, items }: { quoteId: string; items: QuoteItem[] }) =>
-      quotesRepository.replaceQuoteItems(workspaceId, quoteId, items.map(mapLocalQuoteItemToSupabaseItem)),
+      quotesRepository.replaceQuoteItems(workspaceId, quoteId, items.map((i) => mapLocalQuoteItemToSupabaseItem(i))),
     onSuccess: (newItems, variables) => {
       const mappedItems = newItems.map(mapSupabaseQuoteItemToLocalItem);
       queryClient.setQueryData<Quote[]>(
