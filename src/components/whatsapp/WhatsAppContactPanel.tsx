@@ -3,6 +3,7 @@ import {
   Briefcase,
   Copy,
   FileText,
+  Headset,
   Link2,
   ListChecks,
   Phone,
@@ -40,6 +41,13 @@ export interface WhatsAppContactPanelProps {
   status?: string | null;
   tags?: string[] | null;
   assignedTo?: string | null;
+  /**
+   * Etapa 9 · item 4 (R4) — quando a conversa foi ENTREGUE a humano (robô em silêncio).
+   * Vem de `getHandoverAt()` (leitura por `unknown`: a coluna `handover_at` é DRAFT de
+   * migration §8-b). `null`/ausente = não entregue OU coluna inexistente → nada é mostrado.
+   * Independente de `assignedTo` (G48: a atribuição segue decisão de produto em aberto).
+   */
+  handoverAt?: string | null;
   avatarUrl?: string | null;
   lastActivity?: string | null;
   clientId?: string | null;
@@ -141,6 +149,7 @@ export function WhatsAppContactPanel({
   status,
   tags: initialTags,
   assignedTo: initialAssignedTo,
+  handoverAt,
   avatarUrl,
   lastActivity,
   clientId: initialClientId,
@@ -415,6 +424,21 @@ export function WhatsAppContactPanel({
             <Copy className="h-2.5 w-2.5 opacity-60" />
           </button>
           {status && <WhatsAppStatusBadge status={status} className="mt-3" />}
+          {handoverAt && (
+            <div
+              role="status"
+              aria-label="Estado do atendimento"
+              className="mt-3 flex flex-col items-center gap-0.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2"
+            >
+              <span className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-700 dark:text-amber-400">
+                <Headset className="h-3 w-3" aria-hidden="true" />
+                Entregue a atendimento humano
+              </span>
+              <span className="text-[10px] text-muted-foreground">
+                desde {intlDateTime(handoverAt, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })} — o robô está em silêncio nesta conversa
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Quick actions */}

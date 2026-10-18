@@ -43,8 +43,11 @@ vi.mock("@/components/whatsapp/campaigns/CampaignsBackendPage", () => ({
 vi.mock("@/components/whatsapp/WhatsAppChatInput", () => ({
   WhatsAppChatInput: () => <div>STUB: ChatInput</div>,
 }));
+// O stub expõe a prop `handoverAt` recebida — é o que prova a fiação página -> painel.
 vi.mock("@/components/whatsapp/WhatsAppContactPanel", () => ({
-  WhatsAppContactPanel: () => <div>STUB: ContactPanel</div>,
+  WhatsAppContactPanel: (props: { handoverAt?: string | null }) => (
+    <div data-testid="contact-panel-stub" data-handover-at={props.handoverAt ?? ""}>STUB: ContactPanel</div>
+  ),
 }));
 
 if (typeof window !== "undefined" && !("PointerEvent" in window)) {
@@ -236,5 +239,51 @@ describe("WhatsApp.tsx · R4 — UI de Atendimento do handover", () => {
       await act(async () => { resolveInvoke({ data: { ok: true }, error: null }); });
       await waitFor(() => expect(btn()).toBeEnabled());
     });
+  });
+});
+
+// Acabamento de Atendimento: o painel de contato também mostra o estado.
+describe("WhatsApp.tsx · estado 'entregue a humano' chega ao painel de contato", () => {
+  beforeEach(() => {
+    Element.prototype.hasPointerCapture = Element.prototype.hasPointerCapture || (() => false);
+    Element.prototype.scrollIntoView = Element.prototype.scrollIntoView || (() => {});
+    vi.clearAllMocks();
+    invoke.mockResolvedValue({ data: null, error: null } as never);
+    vi.mocked(useCurrentWorkspace).mockReturnValue({
+      workspace: mockWorkspace, membership: null, loading: false, error: null,
+    } as never);
+    vi.mocked(useWhatsAppInstance).mockReturnValue({
+      instance: {
+        id: "inst-1", workspace_id: "ws-1", status: "connected",
+        phone: "5511999999999", phone_name: "Linha QA", qr_code: null,
+        connected_at: "2024-01-01T00:00:00Z", last_status_at: "2024-01-01T00:00:00Z",
+        created_at: "2024-01-01T00:00:00Z", updated_at: "2024-01-01T00:00:00Z",
+      },
+      loading: false,
+    } as never);
+  });
+
+  it("conversa entregue: o painel de contato recebe handoverAt (lido por unknown, como no banner)", () => {
+    mockConversations([makeConversation({ handover_at: "2026-10-02T12:00:00.000Z" })], "conv-1");
+    renderPage();
+    fireEvent.click(screen.getByTitle("Mostrar painel"));
+
+    expect(screen.getByTestId("contact-panel-stub")).toHaveAttribute("data-handover-at", "2026-10-02T12:00:00.000Z");
+  });
+
+  it("DEGRADAÇÃO — linha SEM a coluna handover_at: o painel recebe nada (string vazia no stub), nada quebra", () => {
+    mockConversations([makeConversation()], "conv-1");
+    renderPage();
+    fireEvent.click(screen.getByTitle("Mostrar painel"));
+
+    expect(screen.getByTestId("contact-panel-stub")).toHaveAttribute("data-handover-at", "");
+  });
+
+  it("handover_at null (devolvida): o painel recebe nada", () => {
+    mockConversations([makeConversation({ handover_at: null })], "conv-1");
+    renderPage();
+    fireEvent.click(screen.getByTitle("Mostrar painel"));
+
+    expect(screen.getByTestId("contact-panel-stub")).toHaveAttribute("data-handover-at", "");
   });
 });

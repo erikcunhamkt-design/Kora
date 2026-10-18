@@ -983,6 +983,7 @@ export default function WhatsAppPage() {
                   status={selected.status}
                   tags={selected.tags}
                   assignedTo={selected.assigned_to}
+                  handoverAt={getHandoverAt(selected)}
                   avatarUrl={selected.avatar_url}
                   lastActivity={selected.last_message_at}
                   clientId={selected.client_id}
@@ -1005,6 +1006,7 @@ export default function WhatsAppPage() {
                     status={selected.status}
                     tags={selected.tags}
                     assignedTo={selected.assigned_to}
+                    handoverAt={getHandoverAt(selected)}
                     avatarUrl={selected.avatar_url}
                     lastActivity={selected.last_message_at}
                     clientId={selected.client_id}
