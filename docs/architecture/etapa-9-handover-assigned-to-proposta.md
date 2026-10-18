@@ -75,11 +75,12 @@ Proposta original: quando `handover_at` está preenchido **e** `assigned_to` é 
 
 | Fatia | Status |
 |---|---|
-| **1.** `sender_id` gravado nos 4 inserts de saída de `whatsapp-instance` | ✅ **FEITO** (testes por insert) |
+| **1.** `sender_id` gravado nos 4 inserts de saída de `whatsapp-instance` | ✅ **FEITO** em `c393d02` (testes por insert) |
 | **2a.** Preparação **com degradação**: origem lida/gravada, devolução desatribui só o automático, gate ajustado (§9) | ✅ **FEITO** |
 | **2b.** DRAFT da coluna `assignment_origin` | ✅ no pacote §8-b como **4ª migration** — **NÃO aplicada** |
-| **2c.** **Atribuição automática** no handover (último atendente por `sender_id`, UPDATE único e condicional) | ✅ **FEITO (código)** — **só age depois que a coluna existir** (coluna ausente ⇒ só entrega, sem dono; §10) |
-| **3.** UI: badge **"Aguardando humano"** na lista, confirmação/aviso na devolução (§9, §10.4) | ✅ **FEITO** — sem aba nova de filtro (§10.5) |
+| **2c.** **Atribuição automática** no handover (último atendente por `sender_id`, UPDATE único e condicional) | ✅ **FEITO (código)** em `b40bb5a` — **só age depois que a coluna existir** (coluna ausente ⇒ só entrega, sem dono; §10) |
+| **3.** UI: badge **"Aguardando humano"** na lista, confirmação/aviso na devolução (§9, §10.4) | ✅ **FEITO** em `b40bb5a` — sem aba nova de filtro (§10.5) |
+| **4.** Controle de atribuição no painel de contato (**G101**) e "assumir ao responder" (**G102**) — §10.6 | ⏳ **ABERTOS** no catálogo (`kora-hub-auditoria-e-plano.md`) |
 
 **Ordem obrigatória:** a atribuição automática só **produz efeito** depois da coluna aplicada **e** de existir histórico com `sender_id` (a fatia 1 precisa estar no ar há algum tempo, senão toda conversa cai em "sem atendente"). Antes disso o código é inerte: o único efeito visível é o badge "Aguardando humano" nas conversas entregues e sem dono.
 
@@ -177,6 +178,6 @@ Entregue e **sem atendente** ⇒ badge preenchido **"Aguardando humano"** (âmba
 
 ### 10.6 Achado que precisa de decisão (fora do escopo desta rodada)
 1. **Não existe controle de atribuição na UI.** `WhatsAppContactPanel` declara `members`, `assigned` e `onAssign`, mas nunca renderiza nada com eles (`setAssigned` nunca é chamado; o histórico mostra que não foi removido — nunca existiu). `assign_conversation` só é alcançável por chamada direta. Consequência: atribuição **manual** (`'manual'`) praticamente não ocorre hoje, o que torna o caso residual do §9 raro — **mas** também significa que ninguém consegue "assumir" nem reatribuir uma conversa pela tela.
-2. **"Aguardando humano" não some quando o humano responde.** Atribuição automática olha o histórico **no instante do handover**; uma conversa entregue antes de qualquer resposta humana fica sem dono, e responder nela **não a atribui** (pela decisão D1 só o handover atribui). Sem o controle de (1), o badge só some com "Devolver ao robô". Possível próximo passo (não feito, **precisa de ID e decisão**): "assumir ao responder" (primeira resposta humana numa conversa entregue e sem dono a atribui àquele atendente) e/ou o controle de atribuição no painel.
+2. **"Aguardando humano" não some quando o humano responde.** Atribuição automática olha o histórico **no instante do handover**; uma conversa entregue antes de qualquer resposta humana fica sem dono, e responder nela **não a atribui** (pela decisão D1 só o handover atribui). Sem o controle de (1), o badge só some com "Devolver ao robô". Registrados no catálogo como **G101** (controle de atribuição no painel) e **G102** (assumir ao responder), ambos **ABERTOS**. Próximo passo previsto: "assumir ao responder" (primeira resposta humana numa conversa entregue e sem dono a atribui àquele atendente) e/ou o controle de atribuição no painel.
 
 **Esta proposta não altera runtime por si;** o código das fatias 1–3 está em `main` atrás da degradação. Sem a 4ª migration o único efeito é o badge e a confirmação da devolução.

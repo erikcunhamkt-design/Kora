@@ -394,6 +394,8 @@ npx supabase functions deploy whatsapp-webhook   --project-ref ewamvzncsloagtcvk
 
 (`project-ref` conferido contra `supabase/config.toml` — `project_id = "ewamvzncsloagtcvkbxv"`.)
 
+**Commits desta parte do pacote (hashes em `main`):** `sender_id` nos 4 inserts de saída + origem da atribuição `c393d02`; atribuição automática no handover + devolução com `unassigned`/`botStillMuted` + badge "Aguardando humano" `b40bb5a`. Pendências abertas no catálogo: **G101** (controle de atribuição no painel) e **G102** (assumir ao responder).
+
 | Function | O que muda | Arquivos que DEVEM aparecer no output do deploy (no mínimo) |
 |---|---|---|
 | `whatsapp-instance` | ação `end_human_handover` (devolver ao robô; **desatribui só atribuição automática** e responde `unassigned` + `botStillMuted`); `assign_conversation` registra a origem `'manual'`; **as 4 mensagens de saída humanas passam a gravar `sender_id`** (autor — `send`, `send_media`, 2× `forward_message`; sem migration) | `index.ts`, `_shared/botHandover.ts`, **`_shared/botAssignment.ts`** |
