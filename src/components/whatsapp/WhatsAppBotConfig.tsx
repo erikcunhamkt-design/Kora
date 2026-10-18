@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback, useRef, lazy, Suspense } from "react";
 import {
-  Save, AlertCircle, Loader2, Server, Key, BrainCircuit,
-  Sparkles, MessageSquareCode, Settings2, HelpCircle,
-  CheckCircle2, ShieldAlert, UserCog, Network,
-  ArrowRight, ToggleLeft, ToggleRight, Play, Lock,
+  Save, Loader2, Key,
+  Sparkles, Settings2, HelpCircle,
+  ShieldAlert, UserCog, Network,
+  Lock,
   Plus, Trash2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
