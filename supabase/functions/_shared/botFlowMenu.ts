@@ -72,6 +72,8 @@ export interface RawFlowNode {
     fallback?: unknown;
     /** R7 — só o nó "message" usa (destino depois de enviar). */
     nextNodeId?: unknown;
+    /** R9 — só o nó "ai" usa: palavra do cliente que SAI do modo IA e volta ao início do fluxo. */
+    palavraRetorno?: unknown;
   };
 }
 
@@ -161,7 +163,7 @@ export function matchMenuOption(messageText: string, opcoes: MenuNodeOption[]): 
 
 export type MenuTurnResult =
   | { kind: "none" }
-  | { kind: "present"; message: string; state: BotFlowState }
+  | { kind: "present"; message: string; state: BotFlowState; returnedFromAi?: string }
   | { kind: "reprompt"; message: string; state: BotFlowState }
   | { kind: "advanced-away"; nextNodeId: string }
   | { kind: "handover-fallback"; fallbackNodeId: string }
@@ -207,6 +209,8 @@ export interface MessageTurnResult {
    * Ausente nos demais finais (menu / sem destino / desconhecido).
    */
   destination?: { kind: "handover" | "ai"; nodeId: string };
+  /** R9 — esta virada SAIU do modo IA (id do nó ai) pela palavra de retorno e reentrou pelo nó de entrada. */
+  returnedFromAi?: string;
 }
 
 // R8 — nós TERMINAIS habilitados que um menu/mensagem pode apontar. O motor só
@@ -217,12 +221,37 @@ export interface MessageTurnResult {
 export interface FlowTerminals {
   handoverIds: string[];
   aiIds: string[];
+  /**
+   * R9 — palavra de retorno JÁ NORMALIZADA, por id de nó ai (só os que definiram
+   * uma palavra não vazia). Ausente/vazia = o modo IA não tem saída.
+   */
+  aiReturnWords?: Record<string, string>;
+}
+
+// R9 — normalização da palavra de retorno (e da mensagem do cliente): trim,
+// espaços internos colapsados, sem acento, sem diferença de caixa. NÃO remove
+// pontuação e NÃO é substring: só a mensagem INTEIRA igual à palavra dispara.
+export function normalizeReturnWord(text: unknown): string {
+  if (typeof text !== "string") return "";
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 export function extractTerminalNodes(nodes: RawFlowNode[]): FlowTerminals {
+  const ai = nodes.filter((n) => n.type === "ai" && n.enabled);
+  const aiReturnWords: Record<string, string> = {};
+  for (const n of ai) {
+    const word = normalizeReturnWord(n.properties?.palavraRetorno);
+    if (word) aiReturnWords[n.id] = word;
+  }
   return {
     handoverIds: nodes.filter((n) => n.type === "handover" && n.enabled).map((n) => n.id),
-    aiIds: nodes.filter((n) => n.type === "ai" && n.enabled).map((n) => n.id),
+    aiIds: ai.map((n) => n.id),
+    ...(Object.keys(aiReturnWords).length > 0 ? { aiReturnWords } : {}),
   };
 }
 
@@ -365,16 +394,39 @@ export function resolveMenuTurn(
   messageNodes: MessageNode[] = [],
   terminals: FlowTerminals = { handoverIds: [], aiIds: [] },
 ): MenuTurnResult {
+  const byId = new Map(menuNodes.map((n) => [n.id, n]));
+  const messageById = new Map(messageNodes.map((n) => [n.id, n]));
+
   // R8 — modo IA: o estado aponta pra um nó "ai" habilitado. A conversa já saiu
   // do fluxo scriptado; o motor do menu não age (nem re-apresenta o menu).
   // Nó ai desabilitado/removido depois → cai no caminho de estado obsoleto
   // abaixo (re-apresenta a entrada), como qualquer estado que aponta pro nada.
+  //
+  // R9 — SAÍDA: se o nó ai definiu uma palavra de retorno e a mensagem INTEIRA do
+  // cliente (normalizada) é igual a ela, zera o marcador e reentra pelo nó de
+  // entrada NA MESMA virada (menu apresentado / cadeia de mensagens), sem IA.
+  // Sem palavra definida, ou sem nó de entrada utilizável (nenhum menu nem
+  // mensagem de entrada) → continua em modo IA, como antes.
   if (state && terminals.aiIds.includes(state.currentNodeId)) {
+    const word = terminals.aiReturnWords?.[state.currentNodeId];
+    if (word && normalizeReturnWord(messageText) === word) {
+      const entry = resolveEntryNode(menuNodes, messageNodes, entryNodeId);
+      if (entry) {
+        const returnedFromAi = state.currentNodeId;
+        if (entry.kind === "message") {
+          return { ...runMessageChain(entry.node, byId, messageById, terminals), returnedFromAi };
+        }
+        return {
+          kind: "present",
+          message: renderMenuPrompt(entry.node),
+          state: { currentNodeId: entry.node.id, attempts: 0 },
+          returnedFromAi,
+        };
+      }
+    }
     return { kind: "ai-mode", nodeId: state.currentNodeId };
   }
 
-  const byId = new Map(menuNodes.map((n) => [n.id, n]));
-  const messageById = new Map(messageNodes.map((n) => [n.id, n]));
   const activeNode = state ? byId.get(state.currentNodeId) : undefined;
 
   // `!state ||` é redundante em runtime (state nulo ⇒ activeNode já é undefined)

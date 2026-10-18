@@ -26,6 +26,7 @@
 //        message → ai (R8) → responde o texto e grava o modo IA (IA na PRÓXIMA)
 //        to-ai (R8: opção/fallback → nó ai) → grava o modo IA e a IA responde já
 //        ai-mode (R8) → motor do menu não age; segue pra IA com o estado mantido
+//        ai-mode + palavra de retorno (R9) → sai do modo IA e reentra pelo nó de entrada
 //        handover (3 gatilhos do menu) → entrega
 //        advanced-away/handover-fallback p/ nó não-handover → sai do menu
 //   3. gate "AI node disabled": fluxo com nós mas sem "ai" habilitado → skip
@@ -84,6 +85,8 @@ export interface SimulationInfo {
    * de nó a partir do id.
    */
   enteredAi?: true;
+  /** R9 — só quando ESTA virada SAIU do modo IA pela palavra de retorno (reentrou pelo nó de entrada). */
+  leftAi?: true;
 }
 
 export type SimulationTurn =
@@ -128,6 +131,7 @@ export function simulateFlowTurn(
   let botFlowState = state.botFlowState;
   // R8: esta virada colocou a conversa em modo IA (só pra etiquetar na UI).
   let enteredAiThisTurn = false;
+  let leftAiThisTurn = false;
 
   // 2. Motor do menu (R3) + handover real (R4).
   const menuNodes = extractMenuNodes(nodes);
@@ -144,6 +148,8 @@ export function simulateFlowTurn(
 
     // R8: entrou em modo IA nesta virada (opção/fallback → ai, ou mensagem → ai).
     enteredAiThisTurn = turn.kind === "to-ai" || (turn.kind === "message" && turn.destination?.kind === "ai");
+    // R9: saiu do modo IA pela palavra de retorno (present/message com returnedFromAi).
+    leftAiThisTurn = (turn.kind === "present" || turn.kind === "message") && !!turn.returnedFromAi;
 
     // R8: mensagem → handover habilitado. Mesmo desfecho da produção: o texto da
     // mensagem é a cortesia e a conversa fica "entregue a humano" (bot mudo).
@@ -172,6 +178,7 @@ export function simulateFlowTurn(
           botFlowState: turn.state,
           handedOver: false,
           ...(enteredAiThisTurn ? { enteredAi: true as const } : {}),
+          ...(leftAiThisTurn ? { leftAi: true as const } : {}),
         },
       };
     }

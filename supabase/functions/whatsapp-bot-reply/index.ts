@@ -680,6 +680,12 @@ Deno.serve(async (req) => {
           // R7: cadeia de nós "message" cortada (ciclo / teto de saltos) ou que
           // terminou num destino que o motor não conhece — só LOGA; a resposta
           // sai normalmente com o que foi acumulado (nunca derruba a virada).
+          // R9: saiu do modo IA pela palavra de retorno e reentrou pelo nó de entrada.
+          if ((turn.kind === "present" || turn.kind === "message") && turn.returnedFromAi) {
+            console.log(
+              `[bot-reply] conversation ${conversationId} left AI mode (node ${turn.returnedFromAi}) by return word — back to the scripted flow`,
+            );
+          }
           if (turn.kind === "message") {
             if (turn.truncated) {
               console.warn(

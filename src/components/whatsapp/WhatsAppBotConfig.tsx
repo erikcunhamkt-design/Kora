@@ -70,6 +70,12 @@ export interface AiWorkflowNode extends WorkflowNodeBase {
     gcpRegion: string;
     gcpServiceAccount: string;
     customModelName: string;
+    /**
+     * R9 — palavra que o cliente envia pra SAIR do modo IA e voltar ao início do
+     * fluxo (menu). Opcional: ausente/vazia = o modo IA não tem saída (comportamento
+     * da R8). Comparação no motor: mensagem INTEIRA, sem acento, sem diferença de caixa.
+     */
+    palavraRetorno?: string;
   };
 }
 
@@ -193,6 +199,10 @@ function renderDestinationItem(n: WorkflowNode) {
     </SelectItem>
   );
 }
+
+// R9 — sugestão de palavra de retorno (só preenche quando o usuário pede; o
+// default do fluxo continua SEM saída — nunca prometer uma palavra que não existe).
+const SUGGESTED_RETURN_WORD = "menu";
 
 // Valor do item "Automático" do Select "Começar por" (Radix Select não aceita
 // value ""); ausente em trigger.properties.nextNodeId.
@@ -1010,6 +1020,36 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
                     </div>
                   )}
 
+                  {/* R9 — saída do MODO IA. Fica aqui (e não no gatilho) porque é o
+                      nó ai que define "onde o modo começa"; o motor lê a palavra do
+                      nó ai em que a conversa está. */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">
+                      Palavra para voltar ao menu (opcional)
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={activeNode.properties.palavraRetorno ?? ""}
+                        onChange={(e) => updateNodeProperty(activeNode.id, "palavraRetorno", e.target.value)}
+                        placeholder={SUGGESTED_RETURN_WORD}
+                        className="h-9 text-xs bg-background/30"
+                      />
+                      {!(activeNode.properties.palavraRetorno ?? "").trim() && (
+                        <Button
+                          type="button" size="sm" variant="outline" className="h-9 text-[11px] shrink-0"
+                          onClick={() => updateNodeProperty(activeNode.id, "palavraRetorno", SUGGESTED_RETURN_WORD)}
+                        >
+                          Usar “{SUGGESTED_RETURN_WORD}”
+                        </Button>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground/70 leading-relaxed">
+                      {(activeNode.properties.palavraRetorno ?? "").trim()
+                        ? `Quando a conversa estiver com a IA (depois de um menu ou mensagem levar até este nó), se o cliente enviar só “${activeNode.properties.palavraRetorno!.trim()}” a conversa volta ao início do fluxo e o menu é apresentado de novo. Vale a mensagem inteira — maiúsculas e acentos não importam; uma frase que apenas contenha a palavra não conta.`
+                        : "Vazio: depois que a conversa passa para a IA, o cliente não tem como voltar ao menu por conta própria — só um atendente devolvendo a conversa ao robô. Defina uma palavra pra dar essa saída; só então vale a pena avisar o cliente dela."}
+                    </p>
+                  </div>
+
                 </div>
               )}
 
@@ -1319,6 +1359,31 @@ export function WhatsAppBotConfig({ workspaceId }: { workspaceId: string }) {
                     <p className="text-[10px] text-muted-foreground/70 leading-relaxed">
                       Voltar a um menu apresenta o menu na mesma resposta. Para a IA, este texto vai como saudação e a IA responde a partir da próxima mensagem do cliente. Para o atendimento humano, este texto vira a cortesia da entrega. Sem destino, o fluxo scriptado termina aqui e a próxima mensagem do cliente recomeça pelo nó de entrada.
                     </p>
+                    {/* R9 (G29): só sugere avisar a palavra de retorno se o nó ai de destino
+                        TEM uma definida — nunca promete uma palavra que não existe. O texto
+                        da mensagem continua 100% do usuário (nada é acrescentado sozinho). */}
+                    {(() => {
+                      const dest = nodes.find((n) => n.id === activeNode.properties.nextNodeId);
+                      const word = dest && dest.type === "ai" && dest.enabled ? (dest.properties.palavraRetorno ?? "").trim() : "";
+                      if (!word) return null;
+                      const hint = `Para voltar ao menu, envie “${word}”.`;
+                      return activeNode.properties.mensagem.includes(hint) ? null : (
+                        <div className="flex items-center gap-2 rounded-lg border border-border/40 bg-background/30 p-2.5">
+                          <span className="flex-1 text-[10px] text-muted-foreground leading-relaxed">
+                            O nó de IA de destino tem a palavra de retorno “{word}”. Quer avisar o cliente no texto?
+                          </span>
+                          <Button
+                            type="button" size="sm" variant="outline" className="h-7 text-[11px] shrink-0"
+                            onClick={() => updateNodeProperty(
+                              activeNode.id, "mensagem",
+                              `${activeNode.properties.mensagem.trimEnd()}${activeNode.properties.mensagem.trim() ? "\n\n" : ""}${hint}`,
+                            )}
+                          >
+                            Acrescentar ao texto
+                          </Button>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               )}

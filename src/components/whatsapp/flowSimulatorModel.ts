@@ -42,6 +42,8 @@ export interface SimulationInfo extends SimFlowState {
   knowledge?: SimKnowledgeInfo;
   /** R8 — esta virada colocou a conversa em modo IA (opção/fallback/mensagem → nó ai). */
   enteredAi?: boolean;
+  /** R9 — esta virada SAIU do modo IA pela palavra de retorno (reentrou pelo nó de entrada). */
+  leftAi?: boolean;
 }
 
 /** "system" = aviso do próprio simulador (não é fala do robô nem do cliente — nunca entra no histórico enviado). */
@@ -70,6 +72,9 @@ const HANDOVER_REASON_LABEL: Record<SimHandoverReason, string> = {
 
 /** R8 — selo da virada que PASSOU a conversa à IA (a bolha pode ser a saudação ou a própria resposta da IA). */
 export const SIM_ENTERED_AI_TAG = "Passou para a IA — robô scriptado encerrado";
+
+/** R9 — selo da virada que SAIU do modo IA (palavra de retorno) e voltou ao início do fluxo. */
+export const SIM_LEFT_AI_TAG = "Voltou ao menu — conversa com a IA encerrada";
 
 export const SIM_SILENT_TEXT =
   "🔇 Robô em silêncio — esta conversa foi entregue a um atendente humano. Use “Reiniciar simulação” para devolver ao robô.";
@@ -179,6 +184,7 @@ function parseSimulation(raw: unknown): SimulationInfo | null {
     handedOver: o.handedOver,
     knowledge: parseKnowledge(o.knowledge),
     enteredAi: o.enteredAi === true ? true : undefined,
+    leftAi: o.leftAi === true ? true : undefined,
   };
 }
 
@@ -232,6 +238,9 @@ export function applySimulationResponse(
     const tag = knowledgeSeal ? `${SIM_ENTERED_AI_TAG} · ${knowledgeSeal}` : SIM_ENTERED_AI_TAG;
     return { messages: [{ role: "model", text: reply, tag, tagKind: "ai" as const }], nextState };
   }
+
+  // R9: voltou ao menu pela palavra de retorno (a bolha é o menu/mensagem de entrada, sem IA).
+  if (sim.leftAi) return { messages: [{ role: "model", text: reply, tag: SIM_LEFT_AI_TAG, tagKind: "ai" as const }], nextState };
 
   return {
     messages: [{ role: "model", text: reply, ...(knowledgeSeal ? { tag: knowledgeSeal, tagKind: "knowledge" as const } : {}) }],
