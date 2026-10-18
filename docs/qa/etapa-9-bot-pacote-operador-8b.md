@@ -1,11 +1,13 @@
-# Etapa 9 · Item 4 — fluxo scriptado + handover — pacote do operador (§8-b)
+# Etapa 9 · Itens 3 e 4 — fluxo scriptado + handover + base de conhecimento — pacote do operador (§8-b)
 
 > **Nada aplicado, nada deployado.** Este doc junta tudo que depende de ação do
 > operador contra o banco/infra de produção pra o **fluxo scriptado (nó
-> "menu", R1/R3)** e o **handover real (R4, fecha o G48)** ficarem VIVOS. O
-> código já está em `main` e foi escrito pra degradar sem as colunas (ver §6) —
-> mas **enquanto as 2 migrations abaixo não forem aplicadas, o menu não
-> funciona de ponta a ponta e o handover não persiste**. Molde de formato:
+> "menu", R1/R3)**, o **handover real (R4, fecha o G48)** e a **base de
+> conhecimento do robô (item 3, categoria "itens já orçados")** ficarem VIVOS. O
+> código já está em `main` e foi escrito pra degradar sem as colunas/tabela (ver
+> §6) — mas **enquanto as 3 migrations abaixo não forem aplicadas, o menu não
+> funciona de ponta a ponta, o handover não persiste e a base de conhecimento
+> fica desligada (o robô responde como antes)**. Molde de formato:
 > [`g71-credenciais-terceiros-pacote-operador.md`](g71-credenciais-terceiros-pacote-operador.md).
 >
 > **Gate de aplicação — vale pra tudo aqui:**
@@ -21,11 +23,11 @@
 | # | Passo | Quem | Onde |
 |---|---|---|---|
 | 1 | Verificação prévia (SELECTs read-only) | operador | §1 |
-| 2 | 2 migrations (`bot_flow_state`, `handover_at`) | operador | §2 |
+| 2 | 3 migrations (`bot_flow_state`, `handover_at`, `ai_knowledge_consents`) — **mesma sessão** | operador | §2 |
 | 3 | SELECTs de prova depois | operador | §3 |
 | 4 | Deploy de 3 functions (`whatsapp-instance`, `whatsapp-bot-reply`, `whatsapp-webhook`) | operador | §4 |
 | 5 | Verificação ao vivo + smoke ponta a ponta | operador | §5 |
-| 6 | Espelho das migrations em `supabase/migrations/`, regenerar `types.ts`, tipar a leitura | operador (1 comando) + **lane** | §8 |
+| 6 | Espelho das 3 migrations em `supabase/migrations/`, regenerar `types.ts`, tipar as leituras | operador (comandos) + **lane** | §8 |
 
 **Por que migrations ANTES do deploy:** o código novo degrada sem as colunas, mas
 degrada de forma **diferente** pro menu e pro handover:
@@ -40,8 +42,14 @@ degrada de forma **diferente** pro menu e pro handover:
   cenário não existe.
 
 Migrations são **aditivas e inertes** pro código antigo (colunas nullable sem
-default, nenhum caminho antigo lê/escreve elas) — aplicar antes do deploy é
-seguro mesmo que o deploy atrase.
+default / tabela nova que nenhum caminho antigo lê ou escreve) — aplicar antes do
+deploy é seguro mesmo que o deploy atrase.
+
+**A 3ª migration (`ai_knowledge_consents`) não tem armadilha de ordem:** sem a
+tabela, o servidor trata "nenhuma categoria ativa" e o robô é **idêntico ao de
+hoje** (nenhum loop, nenhuma mensagem diferente). Ela entra na mesma sessão só pra
+a UI de Configurações ("Base de conhecimento do Robô") ficar operável e pra a
+sessão §8-b ser uma só. Ordem continua: **migrations → prova → deploy → smoke**.
 
 ---
 
@@ -90,14 +98,25 @@ WHERE pubname = 'supabase_realtime'
 -- só some com reload — não bloqueia, mas registre.
 ```
 
+### 1.4 A tabela de consentimento ainda não existe (esperado: **0 linhas**)
+
+```sql
+SELECT table_name FROM information_schema.tables
+WHERE table_schema = 'public' AND table_name = 'ai_knowledge_consents';
+```
+
 ---
 
-## 2. As 2 migrations (verbatim dos docs de origem; idempotentes)
+## 2. As 3 migrations (verbatim dos docs de origem; idempotentes)
 
 Rodar **nesta ordem**, no SQL Editor do dashboard (ou via CLI). Podem ir numa
-única execução. Ambas usam `ADD COLUMN IF NOT EXISTS`: reaplicar é no-op (o
-Postgres só emite um `NOTICE ... already exists, skipping`). Coluna nullable
-sem default — não reescreve a tabela, lock instantâneo.
+única execução. As colunas usam `ADD COLUMN IF NOT EXISTS` e a tabela usa
+`CREATE TABLE IF NOT EXISTS`: reaplicar é no-op (o Postgres só emite um
+`NOTICE ... already exists, skipping`). Coluna nullable sem default — não reescreve
+a tabela, lock instantâneo. **Atenção à 3ª:** `CREATE POLICY` e `CREATE TRIGGER` **não**
+são idempotentes — numa reaplicação a tabela é pulada mas as policies/trigger dão
+erro "already exists"; isso é esperado e inofensivo (as 3 policies e o trigger já
+estão lá, ver §3.4) — **não** improvisar `DROP POLICY`.
 
 ### 2.1 `whatsapp_conversations.bot_flow_state` (origem: [R1 §2](etapa-9-bot-fluxo-scriptado-r1-fundacao.md))
 
@@ -159,6 +178,71 @@ ALTER TABLE public.whatsapp_conversations
   ADD COLUMN IF NOT EXISTS handover_at timestamptz;
 ```
 
+### 2.3 `public.ai_knowledge_consents` (origem: [item 3 — fundação §4](etapa-9-item3-r1-base-conhecimento-fundacao.md))
+
+Tabela de **consentimento por categoria** da base de conhecimento do robô.
+Default **tudo desligado**; leitura por membro, **escrita só por admin** (precedente
+G71, `is_workspace_admin`); sem policy de DELETE de propósito (revogar = UPDATE com
+`revoked_at`, nunca apagar). SQL **verbatim** do doc da fundação (extraído por script,
+não retranscrito):
+
+```sql
+-- Etapa 9 · Item 3 (base de conhecimento) — consentimento por categoria
+-- (docs/architecture/etapa-9-item3-base-conhecimento-fase-a.md §2.3;
+-- docs/qa/etapa-9-item3-r1-base-conhecimento-fundacao.md §4).
+-- Uma linha por (workspace, categoria). Default OFF. A linha é o GATE REAL no
+-- servidor (a flag de UI não conta). Nunca hard-delete: revogar = enabled=false
+-- + revoked_at (auditoria de quando parou).
+CREATE TABLE IF NOT EXISTS public.ai_knowledge_consents (
+  id               uuid        NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+  workspace_id     uuid        NOT NULL REFERENCES public.workspaces(id) ON DELETE CASCADE,
+  category         text        NOT NULL
+                   CHECK (category IN ('catalog', 'internal_ops', 'crm', 'conversations', 'financial')),
+  enabled          boolean     NOT NULL DEFAULT false,
+  -- Atesto do OPERADOR de que tem base legal própria perante o cliente dele
+  -- (Fase A §1.1: o "sim" é uma declaração, não consentimento coletado pela Kora).
+  legal_basis_ack  boolean     NOT NULL DEFAULT false,
+  legal_basis_note text,
+  enabled_by       uuid        REFERENCES auth.users(id) ON DELETE SET NULL,
+  enabled_at       timestamptz,
+  revoked_at       timestamptz,
+  created_at       timestamptz NOT NULL DEFAULT now(),
+  updated_at       timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT ai_knowledge_consents_workspace_category_key UNIQUE (workspace_id, category),
+  -- 3ª camada do gate (1ª: UI, 2ª: servidor — knowledgeConsent.ts): C/D/E não
+  -- ficam ligadas sem o atesto, nem por UPDATE direto.
+  CONSTRAINT ai_knowledge_consents_ack_required_chk
+    CHECK (NOT (enabled AND category IN ('crm', 'conversations', 'financial') AND NOT legal_basis_ack))
+);
+
+COMMENT ON TABLE public.ai_knowledge_consents IS
+  'Etapa 9 · item 3 — opt-in por categoria pra o robô usar dado do workspace como contexto. Default OFF; C/D/E exigem atesto de base legal. Gate real no servidor (supabase/functions/_shared/knowledgeConsent.ts).';
+
+ALTER TABLE public.ai_knowledge_consents ENABLE ROW LEVEL SECURITY;
+
+-- Leitura: membros. Escrita: ADMIN (atesto jurídico) — precedente G71
+-- (is_workspace_admin, role IN ('owner','admin')). Sem policy de DELETE de
+-- propósito: nunca hard-delete (revogar = UPDATE). Service role (servidor)
+-- ignora RLS.
+CREATE POLICY "Workspace members can view knowledge consents"
+  ON public.ai_knowledge_consents FOR SELECT TO authenticated
+  USING (public.is_workspace_member(workspace_id));
+
+CREATE POLICY "Workspace admins can insert knowledge consents"
+  ON public.ai_knowledge_consents FOR INSERT TO authenticated
+  WITH CHECK (public.is_workspace_admin(workspace_id));
+
+CREATE POLICY "Workspace admins can update knowledge consents"
+  ON public.ai_knowledge_consents FOR UPDATE TO authenticated
+  USING (public.is_workspace_admin(workspace_id))
+  WITH CHECK (public.is_workspace_admin(workspace_id));
+
+CREATE TRIGGER update_ai_knowledge_consents_updated_at
+BEFORE UPDATE ON public.ai_knowledge_consents
+FOR EACH ROW
+EXECUTE FUNCTION public.update_updated_at_column();
+```
+
 ---
 
 ## 3. SELECTs de prova (depois de §2)
@@ -194,8 +278,28 @@ FROM public.whatsapp_conversations;
 Reexecutar §2.1 e §2.2. Esperado: **sem erro**, só 2 `NOTICE ... already exists,
 skipping`. Se der erro, **parar** — não improvisar `DROP`/`ALTER`.
 
-**Regra de parada:** §3.1 com ≠ 2 linhas, ou §3.2 com contagem > 0 antes do
-deploy → parar e reportar; não seguir pra §4.
+### 3.4 A tabela de consentimento existe, com RLS e vazia (esperado: 1 tabela, 3 policies, 0 linhas)
+
+```sql
+SELECT count(*) AS linhas FROM public.ai_knowledge_consents;                       -- 0
+SELECT polname, polcmd FROM pg_policy
+WHERE polrelid = 'public.ai_knowledge_consents'::regclass ORDER BY polname;         -- 3
+```
+
+```sql
+-- RLS ligada + constraints (CHECK de categoria, CHECK do atesto C/D/E, UNIQUE)
+SELECT relrowsecurity AS rls_ligada
+FROM pg_class WHERE oid = 'public.ai_knowledge_consents'::regclass;          -- true
+
+SELECT conname FROM pg_constraint
+WHERE conrelid = 'public.ai_knowledge_consents'::regclass AND contype IN ('c', 'u')
+ORDER BY conname;
+-- Esperado: ai_knowledge_consents_ack_required_chk, ai_knowledge_consents_workspace_category_key
+-- (+ o CHECK de categoria, nome gerado pelo Postgres)
+```
+
+**Regra de parada:** §3.1 com ≠ 2 linhas, §3.2 com contagem > 0 antes do deploy, ou
+§3.4 com ≠ 3 policies / linhas > 0 → parar e reportar; não seguir pra §4.
 
 ---
 
@@ -226,7 +330,7 @@ npx supabase functions deploy whatsapp-webhook   --project-ref ewamvzncsloagtcvk
 | Function | O que muda | Arquivos que DEVEM aparecer no output do deploy (no mínimo) |
 |---|---|---|
 | `whatsapp-instance` | ação nova `end_human_handover` (devolver ao robô) | `index.ts`, `_shared/botHandover.ts` |
-| `whatsapp-bot-reply` | motor do nó menu (R3), handover real (R4), simulador do fluxo (opt-in, ver [`etapa-9-bot-simulador-fluxo-cobertura.md`](etapa-9-bot-simulador-fluxo-cobertura.md)) | `index.ts`, `_shared/botFlowMenu.ts`, `_shared/botHandover.ts`, `_shared/botFlowSimulation.ts` |
+| `whatsapp-bot-reply` | motor do nó menu (R3), handover real (R4), simulador do fluxo (opt-in, ver [`etapa-9-bot-simulador-fluxo-cobertura.md`](etapa-9-bot-simulador-fluxo-cobertura.md)), **base de conhecimento (item 3, [`etapa-9-item3-r1-base-conhecimento-liga.md`](etapa-9-item3-r1-base-conhecimento-liga.md))** | `index.ts`, `_shared/botFlowMenu.ts`, `_shared/botHandover.ts`, `_shared/botFlowSimulation.ts`, **`_shared/knowledgeLoader.ts`, `_shared/knowledgeSources.ts`, `_shared/knowledgeConsent.ts`** (+ `_shared/brainComposer.ts`, já existente) |
 | `whatsapp-webhook` | **NÃO invoca** `whatsapp-bot-reply` em conversa já entregue a humano (poupa rate-limit) | `index.ts`, `_shared/botTrigger.ts`, `_shared/botHandover.ts` |
 
 "No mínimo" porque o bundler pode listar também módulos `_shared/` importados só
@@ -284,6 +388,21 @@ Do celular de teste:
 | 6 | `oi` | recebe o menu de novo, do zero | `bot_flow_state` volta a `{"currentNodeId":…,"attempts":0}` |
 | 7 | (repetir 1→6 escolhendo `2` no passo 3) | `2` ⇒ cortesia imediata (gatilho "opção do menu leva ao nó handover") | `handover_at` preenchido |
 
+**Smoke do bloco de conhecimento (categoria A "itens já orçados" LIGADA)** — depois dos
+passos 1→7 acima, ainda no workspace de teste:
+
+| # | Ação | Esperado |
+|---|---|---|
+| 8 | Pré-requisito: o workspace de teste precisa de **≥ 2 orçamentos enviados/aprovados/recusados** (não rascunho, não arquivado) que tenham **o mesmo item** (ex.: "Landing Page") — o robô só usa itens que aparecem em **2+ orçamentos** e que **não citam cliente cadastrado** | — |
+| 9 | Configurações → "Cérebro do Robô" → "Base de conhecimento do Robô" → ligar o interruptor "Mostrar a base de conhecimento" → ligar **"Itens já orçados"** (como dono/admin) | toast "Base de conhecimento ligada"; `SELECT category, enabled, revoked_at FROM public.ai_knowledge_consents WHERE workspace_id = '<WS>';` → 1 linha `catalog | true | NULL` |
+| 10 | Aba Robô IA → Simulador → mandar uma mensagem que caia na **IA** (fora do menu) | resposta da IA com o selo **"Base de conhecimento · N itens já orçados no contexto"** |
+| 11 | Log do `whatsapp-bot-reply` (§5.3) | `[bot-reply] knowledge block entered: categories=catalog included=N omitted=M` |
+| 12 | Desligar "Itens já orçados" | toast "Base de conhecimento desligada"; a linha passa a `enabled=false` + `revoked_at` preenchido; a próxima resposta de IA **sem** selo e **sem** a linha de log |
+
+**Conferir também** (privacidade): nenhum nome de cliente, e-mail ou telefone no
+selo/log; itens que aparecem em **um** orçamento só **não** entram (`included` < nº de
+itens distintos, se houver). B/C/D/E aparecem **desabilitadas** na tela — não tentar ligar.
+
 Query de observação (trocar os dois valores):
 
 ```sql
@@ -298,6 +417,7 @@ WHERE workspace_id = '<WORKSPACE_DE_TESTE>'
 - **Esperado** nos passos 3/7: `[bot-reply] human handover for conversation <id> (reason: menu_exhausted)` (passo 3) e `(reason: menu_option)` (passo 7).
 - **Esperado** no passo 4: com o webhook deployado, **nenhuma** invocação do `whatsapp-bot-reply` nessa mensagem; sem o webhook novo, uma linha `skipped … handed over to human`.
 - **PROIBIDO** depois das migrations: `failed to persist handover state` ou `failed to persist bot_flow_state`. Se aparecer, a coluna correspondente não existe de fato — voltar a §3.
+- **PROIBIDO** depois da 3ª migration: `knowledge consents unavailable`. Se aparecer, a tabela `ai_knowledge_consents` não está acessível ao servidor — voltar a §3.4. (Antes da migration essa linha **é esperada** e inofensiva — é a degradação.)
 
 ### 5.4 Regra de parada
 
@@ -311,7 +431,8 @@ WHERE workspace_id = '<WORKSPACE_DE_TESTE>'
 |---|---|
 | Código novo, **sem** `handover_at` | bot volta ao comportamento pré-R4 (cortesia sem persistir); webhook invoca como antes; UI não mostra banner; ação "Devolver ao robô" responde **409** e a UI mostra "Migration pendente" |
 | Código novo, **sem** `bot_flow_state` | fluxo **sem** nó menu: zero efeito. Fluxo **com** nó menu habilitado: loop de menu (§0) — **o único cenário ruim** |
-| Colunas aplicadas, código antigo | inerte (nenhum caminho antigo as lê) |
+| Código novo, **sem** a tabela `ai_knowledge_consents` | nenhuma categoria ativa: `warn` no log + **robô idêntico ao de hoje**; a tela mostra "ainda não está disponível neste ambiente" e os toggles ficam desabilitados |
+| Colunas/tabela aplicadas, código antigo | inerte (nenhum caminho antigo as lê) |
 | Colunas aplicadas + código novo | comportamento completo |
 
 ---
@@ -335,6 +456,10 @@ WHERE workspace_id = '<WORKSPACE_DE_TESTE>'
   **Destrói o estado** (conversas entregues deixam de estar marcadas; o bot volta a
   responder nelas). O app degrada sem as colunas (§6), então o DROP não derruba nada —
   mas não é reversível sem backup do que estava gravado.
+- **DDL da base de conhecimento (só se necessário):** `DROP TABLE IF EXISTS public.ai_knowledge_consents;`.
+  **Apaga os registros de consentimento/revogação** (trilha de auditoria LGPD: quem ligou
+  e quando) — exportar antes. O robô degrada para "nenhuma categoria ativa" (idêntico a hoje).
+  Preferível a apagar: **desligar** a categoria pela tela (grava `revoked_at`).
 
 ---
 
@@ -342,16 +467,17 @@ WHERE workspace_id = '<WORKSPACE_DE_TESTE>'
 
 ### 8.1 Espelho das migrations em `supabase/migrations/` (lane escreve, operador registra)
 
-As 2 migrations hoje vivem **só nos docs** (R1 §2 / R4 §2) — não existem em
-`supabase/migrations/`. Depois de aplicadas, o repo precisa refletir o banco
+As 3 migrations hoje vivem **só nos docs** (R1 §2 / R4 §2 / item 3 fundação §4) — não
+existem em `supabase/migrations/`. Depois de aplicadas, o repo precisa refletir o banco
 (mesmo padrão de [`migrations-espelho-8b.md`](migrations-espelho-8b.md)): uma
-lane promove os 2 SQLs a arquivos com a **série real de aplicação** (a data da
+lane promove os 3 SQLs a arquivos com a **série real de aplicação** (a data da
 sessão §8-b — o operador informa), e o operador registra no histórico do CLI
 **sem rodar o SQL de novo**:
 
 ```bash
 supabase migration repair --status applied <VERSÃO_bot_flow_state>
 supabase migration repair --status applied <VERSÃO_handover_at>
+supabase migration repair --status applied <VERSÃO_ai_knowledge_consents>
 ```
 
 ### 8.2 Regenerar `types.ts` (operador, introspecção read-only — G10)
@@ -362,7 +488,8 @@ supabase gen types typescript --project-id ewamvzncsloagtcvkbxv > src/integratio
 
 Só lê o catálogo (não executa DDL/DML). Commitar o arquivo regenerado numa branch
 de lane. Efeito colateral esperado: o `Row` de `whatsapp_conversations` passa a
-ter `bot_flow_state` e `handover_at`.
+ter `bot_flow_state` e `handover_at`, **e a tabela `ai_knowledge_consents` passa a existir
+em `Database["public"]["Tables"]`**.
 
 ### 8.3 Trocar a leitura por `unknown` de `handover_at` por acesso tipado (rodada de **lane**, não do operador)
 
@@ -383,13 +510,22 @@ Depois de §8.2, checklist da rodada:
 6. **Não** mexer nas interfaces locais do server (`ConversationRow` em
    `whatsapp-bot-reply/index.ts`): são tipos locais da edge function, não dependem
    de `types.ts`.
+7. **Base de conhecimento:** `src/repositories/aiKnowledgeConsentsRepository.ts` usa hoje
+   um cliente **"untyped"** (`supabase as unknown as { from(table) }`) porque a tabela não
+   está em `types.ts`. Depois de §8.2, trocar pelo cliente tipado (como
+   `aiBrainRepository.ts`) e **manter** `isMissingTableError` (a degradação continua valendo
+   em ambientes sem a migration). Os fixtures de `AiKnowledgeSection.test.tsx` e
+   `aiKnowledgeConsentsRepository.test.ts` seguem válidos.
+8. **`WhatsAppContactPanel`** recebe `handoverAt` já resolvido pela página (via
+   `getHandoverAt`); ao tipar o item 1, nada muda no painel.
 
 ### 8.4 Pendências de outras lanes que tocam este fluxo
 
-- **Lane C — UI do simulador** (`WhatsAppBotConfig.tsx`, R6 canvas): o server já aceita o
-  simulador do fluxo scriptado em modo opt-in; a UI precisa incorporar o contrato de
-  [`etapa-9-bot-simulador-fluxo-cobertura.md`](etapa-9-bot-simulador-fluxo-cobertura.md) §4
-  (hoje o simulador exige nó IA e fabrica o handover no navegador).
+- ~~**Lane C — UI do simulador**~~ **FEITO** (`818a2c3`, U1–U4 de
+  [`etapa-9-bot-simulador-fluxo-cobertura.md`](etapa-9-bot-simulador-fluxo-cobertura.md) §7):
+  o simulador agora simula fluxo só-menu, mostra o handover real do server, carrega o estado
+  de ida e volta e o selo da base de conhecimento. Nada pendente aqui — a UI **antiga** (sem
+  `simState`) segue funcionando contra o server novo, e a nova contra o server antigo.
 
 ---
 
@@ -399,6 +535,8 @@ Depois de §8.2, checklist da rodada:
 - [`etapa-9-bot-fluxo-scriptado-r3-motor-runtime-menu.md`](etapa-9-bot-fluxo-scriptado-r3-motor-runtime-menu.md) — motor do menu.
 - [`etapa-9-bot-fluxo-scriptado-r4-handover-real.md`](etapa-9-bot-fluxo-scriptado-r4-handover-real.md) §2/§4 — origem de `handover_at`, ação `end_human_handover`.
 - [`etapa-9-bot-fluxo-scriptado-r4-ui-atendimento-handover.md`](etapa-9-bot-fluxo-scriptado-r4-ui-atendimento-handover.md) — UI de Atendimento.
+- [`etapa-9-item3-r1-base-conhecimento-fundacao.md`](etapa-9-item3-r1-base-conhecimento-fundacao.md) §4 — origem de `ai_knowledge_consents` (SQL verbatim).
+- [`etapa-9-item3-r1-base-conhecimento-liga.md`](etapa-9-item3-r1-base-conhecimento-liga.md) — o que a base de conhecimento lê, sanitização, modos de falha.
 - [`etapa-6-g5-rate-limit.md`](etapa-6-g5-rate-limit.md) §8 — molde da pré-prova de hash / rollback de deploy.
 - [`migrations-espelho-8b.md`](migrations-espelho-8b.md) — molde do espelho pós-aplicação.
 - [`g71-credenciais-terceiros-pacote-operador.md`](g71-credenciais-terceiros-pacote-operador.md) — molde deste pacote.
