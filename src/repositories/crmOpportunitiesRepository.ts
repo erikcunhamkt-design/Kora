@@ -203,28 +203,6 @@ export const crmOpportunitiesRepository = {
     return this.updateOpportunity(workspaceId, opportunityId, patch);
   },
 
-  async markOpportunityWon(workspaceId: string, opportunityId: string) {
-    const patch: Partial<SupabaseOpportunityInput> = {
-      stage: "fechado",
-      status: "won",
-      won_at: new Date().toISOString(),
-      lost_at: null,
-      lost_reason: null,
-    };
-    return this.updateOpportunity(workspaceId, opportunityId, patch);
-  },
-
-  async markOpportunityLost(workspaceId: string, opportunityId: string, reason?: string) {
-    const patch: Partial<SupabaseOpportunityInput> = {
-      stage: "perdido",
-      status: "lost",
-      lost_at: new Date().toISOString(),
-      won_at: null,
-      lost_reason: reason ?? null,
-    };
-    return this.updateOpportunity(workspaceId, opportunityId, patch);
-  },
-
   async archiveOpportunity(workspaceId: string, opportunityId: string, archived = true) {
     const { data, error } = await supabase
       .from("crm_opportunities")
@@ -253,46 +231,6 @@ export const crmOpportunitiesRepository = {
       .eq("workspace_id", workspaceId)
       .select()
       .single();
-    if (error) throw normalizeSupabaseError(error);
-    return data;
-  },
-
-  /**
-   * Restore a soft‑deleted opportunity.
-   * Clears deleted_at, deleted_reason and sets archived = false.
-   */
-  async restoreSoftDeletedOpportunity(workspaceId: string, opportunityId: string) {
-    const patch = { deleted_at: null, deleted_reason: null, archived: false };
-    const { data, error } = await supabase
-      .from("crm_opportunities")
-      .update(patch)
-      .eq("id", opportunityId)
-      .eq("workspace_id", workspaceId)
-      .select()
-      .single();
-    if (error) throw normalizeSupabaseError(error);
-    return data;
-  },
-
-  /**
-   * Etapa 5 · Preparação G30 (`useSupabaseOpportunities` R2) — ganhou
-   * `.select().single()` (antes era `void`): a migração pra `useMutation`
-   * precisa da linha apagada pra remover a entrada certa do cache via
-   * `setQueryData` (resposta da própria mutation, nunca só
-   * `invalidateQueries`) — sem isso, o hook não tem como saber qual item
-   * tirar da lista sem inventar o shape. Único chamador é
-   * `useSupabaseOpportunities.ts` (`CRM.tsx` nunca chama `deleteOpportunity`,
-   * só os outros métodos deste repository) — mudança de contrato segura.
-   */
-  async deleteOpportunity(workspaceId: string, opportunityId: string) {
-    const { data, error } = await supabase
-      .from("crm_opportunities")
-      .delete()
-      .eq("id", opportunityId)
-      .eq("workspace_id", workspaceId)
-      .select()
-      .single();
-
     if (error) throw normalizeSupabaseError(error);
     return data;
   },

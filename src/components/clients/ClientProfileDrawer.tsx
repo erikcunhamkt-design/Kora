@@ -32,6 +32,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { clientAssetsStorage } from "@/services/storage/clientAssetsStorage";
+import { getRealErrorMessage } from "@/lib/supabase/errors";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { useSupabaseClientContacts } from "@/hooks/useSupabaseClientContacts";
 import { cn } from "@/lib/utils";
@@ -205,7 +206,7 @@ export const ClientProfileDrawer = ({
       toast.success("Foto do cliente atualizada.");
     } catch (err) {
       console.error(err);
-      toast.error(err instanceof Error ? err.message : "Erro ao enviar foto.");
+      toast.error(`Erro ao enviar a foto: ${getRealErrorMessage(err)}`);
     } finally {
       setUploadingAvatar(false);
     }
@@ -507,7 +508,7 @@ export const ContactsTab = ({
         toast.success(exists ? "Contato atualizado" : "Contato adicionado");
         setEditing(null);
       } catch (err) {
-        toast.error(`Erro ao salvar contato: ${err instanceof Error ? err.message : "desconhecido"}`);
+        toast.error(`Erro ao salvar contato: ${getRealErrorMessage(err)}`);
       }
       return;
     }
@@ -526,7 +527,7 @@ export const ContactsTab = ({
         toast.success("Contato removido");
         setDeleting(null);
       } catch (err) {
-        toast.error(`Erro ao remover contato: ${err instanceof Error ? err.message : "desconhecido"}`);
+        toast.error(`Erro ao remover contato: ${getRealErrorMessage(err)}`);
       }
       return;
     }

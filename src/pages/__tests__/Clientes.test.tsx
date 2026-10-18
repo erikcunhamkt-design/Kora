@@ -329,7 +329,7 @@ describe("Clientes · copy G29 — arquivar/restaurar/excluir refletem o modo re
     await openRowMenu();
     fireEvent.click(await screen.findByRole("menuitem", { name: /Arquivar/ }));
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Erro ao arquivar cliente no Supabase."));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Erro ao arquivar cliente no Supabase: rls"));
     expect(toast.success).not.toHaveBeenCalled();
   });
 
@@ -360,7 +360,7 @@ describe("Clientes · copy G29 — arquivar/restaurar/excluir refletem o modo re
     const dialog = (await screen.findByText("Excluir cliente?")).closest("[role=\"alertdialog\"]") as HTMLElement;
     fireEvent.click(within(dialog).getByRole("button", { name: "Excluir" }));
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Erro ao excluir cliente do Supabase."));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Erro ao excluir cliente do Supabase: fk"));
     expect(toast.success).not.toHaveBeenCalled();
   });
 
@@ -606,7 +606,57 @@ describe("Clientes · G99 — foto do cliente só é confirmada se a gravação 
     const updateClient = vi.fn().mockRejectedValue(new Error("rls"));
     await pickAvatar(updateClient);
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Erro ao atualizar cliente no Supabase."));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Erro ao atualizar cliente no Supabase: rls"));
     expect(toast.success).not.toHaveBeenCalledWith("Foto do cliente atualizada.");
+  });
+});
+
+// G95-Clientes — arquivar/restaurar/excluir/atualizar cliente mostravam só "Erro ao … no Supabase."
+// sem a causa; erro estilo PostgrestError (objeto `{ message }`, não `Error`) vira a mensagem real.
+describe("Clientes · G95 — erros de escrita do cliente levam a mensagem real (inclusive PostgrestError)", () => {
+  async function openRowMenuAndClick(item: RegExp) {
+    await screen.findByText("Cliente Teste");
+    const trigger = document.querySelector("tbody button[aria-haspopup=\"menu\"]") as HTMLElement;
+    fireEvent.pointerDown(trigger, { button: 0, pointerId: 1, isPrimary: true });
+    fireEvent.pointerUp(trigger, { button: 0, pointerId: 1, isPrimary: true });
+    fireEvent.click(trigger);
+    fireEvent.click(await screen.findByRole("menuitem", { name: item }));
+  }
+
+  function setupFailing(overrides: Record<string, unknown>) {
+    const client = makeClient();
+    setupCommonMocks("supabase", client);
+    vi.mocked(useClientsDataSource).mockReturnValue({
+      source: "supabase", clients: [client], loading: false, addClient: vi.fn(),
+      updateClient: vi.fn().mockResolvedValue(client), archiveClient: vi.fn(), deleteClient: vi.fn(),
+      ...overrides,
+    } as never);
+  }
+
+  it("arquivar: PostgrestError ({ message }) → a mensagem do banco, não um genérico", async () => {
+    setupFailing({ archiveClient: vi.fn().mockRejectedValue({ code: "42501", message: "permission denied for table clients" }) });
+    renderClientesAt("/clientes");
+
+    await openRowMenuAndClick(/Arquivar/);
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(
+      "Erro ao arquivar cliente no Supabase: permission denied for table clients",
+    ));
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it("restaurar (cliente arquivado): a falha leva a causa", async () => {
+    const archived = makeClient({ archived: true });
+    setupCommonMocks("supabase", archived);
+    vi.mocked(useClientsDataSource).mockReturnValue({
+      source: "supabase", clients: [archived], loading: false, addClient: vi.fn(),
+      updateClient: vi.fn(), archiveClient: vi.fn().mockRejectedValue(new Error("timeout")), deleteClient: vi.fn(),
+    } as never);
+    renderClientesAt("/clientes");
+    fireEvent.click(await screen.findByRole("button", { name: /Ativos|Arquivados/ }));
+
+    await openRowMenuAndClick(/Restaurar/);
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Erro ao restaurar cliente no Supabase: timeout"));
   });
 });

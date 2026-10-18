@@ -76,3 +76,22 @@ describe("crmOpportunitiesRepository.moveOpportunityStage — deriva won/lost po
     expect(patch.status).toBe("won");
   });
 });
+
+// API morta removida: markOpportunityWon/markOpportunityLost/deleteOpportunity/restoreSoftDeletedOpportunity
+// (sem nenhum consumidor — o CRM move estágio por moveOpportunityStage(stageType), arquiva por
+// archiveOpportunity e exclui por softDeleteOpportunity). Teste-guarda: religar um deles exige um
+// consumidor real, não um método órfão que contorna a derivação por PipelineStage.type (G64).
+describe("crmOpportunitiesRepository — superfície pública (sem métodos órfãos)", () => {
+  it("expõe só os métodos com consumidor", () => {
+    expect(Object.keys(crmOpportunitiesRepository).sort()).toEqual([
+      "archiveOpportunity",
+      "createOpportunity",
+      "getOpportunity",
+      "listOpportunities",
+      "moveOpportunityStage",
+      "softDeleteOpportunity",
+      "updateOpportunity",
+      "upsertImportedOpportunity",
+    ]);
+  });
+});

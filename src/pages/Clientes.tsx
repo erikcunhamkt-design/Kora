@@ -247,7 +247,7 @@ const Clientes = () => {
           toast.success("Cliente atualizado no Supabase.");
         }
       } catch (err) {
-        toast.error("Erro ao atualizar cliente no Supabase.");
+        toast.error(`Erro ao atualizar cliente no Supabase: ${getRealErrorMessage(err)}`);
         throw err;
       }
     } else {
@@ -262,7 +262,7 @@ const Clientes = () => {
         await supabaseArchive(id.toString(), true);
         toast.success("Cliente arquivado no Supabase.");
       } catch (err) {
-        toast.error("Erro ao arquivar cliente no Supabase.");
+        toast.error(`Erro ao arquivar cliente no Supabase: ${getRealErrorMessage(err)}`);
       }
     } else {
       localArchive(id);
@@ -276,7 +276,7 @@ const Clientes = () => {
         await supabaseArchive(id.toString(), false);
         toast.success("Cliente restaurado no Supabase.");
       } catch (err) {
-        toast.error("Erro ao restaurar cliente no Supabase.");
+        toast.error(`Erro ao restaurar cliente no Supabase: ${getRealErrorMessage(err)}`);
       }
     } else {
       localRestore(id);
@@ -290,7 +290,7 @@ const Clientes = () => {
         await supabaseDelete(id.toString());
         toast.success("Cliente excluído do Supabase.");
       } catch (err) {
-        toast.error("Erro ao excluir cliente do Supabase.");
+        toast.error(`Erro ao excluir cliente do Supabase: ${getRealErrorMessage(err)}`);
       }
     } else {
       localDelete(id);

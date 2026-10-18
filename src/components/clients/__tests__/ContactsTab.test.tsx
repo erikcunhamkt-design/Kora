@@ -8,6 +8,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createElement, type ReactNode } from "react";
+import { toast } from "sonner";
 
 import { ContactsTab } from "@/components/clients/ClientProfileDrawer";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
@@ -15,6 +16,9 @@ import { clientsRepository } from "@/repositories/clientsRepository";
 import type { Client } from "@/types/domain";
 
 vi.mock("@/hooks/useCurrentWorkspace", () => ({ useCurrentWorkspace: vi.fn() }));
+vi.mock("sonner", () => ({
+  toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() }),
+}));
 vi.mock("@/repositories/clientsRepository", () => ({
   clientsRepository: {
     listClientContacts: vi.fn(),
@@ -109,5 +113,25 @@ describe("ContactsTab — caminho Supabase (smoke, complementa o teste do hook)"
     expect(typeof clientIdArg).toBe("string");
     expect(clientIdArg).toBe("50f894e9-c81c-4420-b673-9335ad17a6bf");
     expect(onUpdateContacts).not.toHaveBeenCalled();
+  });
+});
+
+// G95-Clientes — o erro ao salvar contato dizia "desconhecido" quando a causa era um PostgrestError
+// (objeto `{ message }`, não `Error`). Agora leva a mensagem real.
+describe("ContactsTab — G95: erro ao salvar contato leva a mensagem real", () => {
+  it("createClientContact rejeita com PostgrestError: toast com a mensagem do banco, nunca \"desconhecido\"", async () => {
+    vi.mocked(clientsRepository.createClientContact).mockRejectedValue({
+      code: "42501", message: "new row violates row-level security policy for table client_contacts",
+    });
+
+    const client = makeClient({ id: "50f894e9-c81c-4420-b673-9335ad17a6bf" as unknown as number });
+    renderWithQuery(createElement(ContactsTab, { client, source: "supabase", onUpdateContacts: vi.fn() }));
+    await addContact("Fulano");
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    const msg = String(vi.mocked(toast.error).mock.calls[0][0]);
+    expect(msg).toContain("new row violates row-level security policy");
+    expect(msg).not.toContain("desconhecido");
+    expect(toast.success).not.toHaveBeenCalled();
   });
 });
