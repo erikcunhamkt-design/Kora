@@ -8,12 +8,18 @@ import { formatDateTime as intlDateTime } from "@/lib/format";
 // (src/lib/whatsapp/handover.ts): `null` quando a conversa não está entregue
 // OU quando a coluna `handover_at` ainda não existe (migration §8-b pendente)
 // — nos dois casos nada é renderizado, nunca quebra.
+//
+// G101: `assignmentLabel` (de `assignmentLabel()` em lib/whatsapp/assignment.ts) mostra de quem é
+// a conversa — "Atribuída a Maria (automática)" ou "Sem atendente atribuído" — com o NOME real,
+// não um genérico. Ausente (chamadores antigos) = a frase não aparece.
 export function WhatsAppHandoverBanner({
   handedOverAt,
+  assignmentLabel,
   returning,
   onReturn,
 }: {
   handedOverAt: string | null;
+  assignmentLabel?: string;
   returning: boolean;
   onReturn: () => void;
 }) {
@@ -31,6 +37,7 @@ export function WhatsAppHandoverBanner({
           {" "}desde {intlDateTime(handedOverAt, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
           {" "}— o robô está em silêncio nesta conversa.
         </span>
+        {assignmentLabel && <span className="ml-1 font-medium text-foreground/80">{assignmentLabel}.</span>}
       </p>
       <Button
         size="sm"

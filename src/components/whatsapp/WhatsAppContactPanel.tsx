@@ -12,6 +12,7 @@ import {
   Tag,
   Trash2,
   User,
+  UserCog,
   UserPlus,
   X,
   Search,
@@ -27,8 +28,16 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  assignableAttendants,
+  assignmentLabel,
+  returnHint,
+  type AssignmentOrigin,
+  type WorkspaceAttendant,
+} from "@/lib/whatsapp/assignment";
 import { WhatsAppStatusBadge } from "./WhatsAppStatusBadge";
 import { Link } from "react-router-dom";
 import { formatCurrency as intlCurrency, formatDateTime as intlDateTime } from "@/lib/format";
@@ -42,6 +51,24 @@ export interface WhatsAppContactPanelProps {
   tags?: string[] | null;
   assignedTo?: string | null;
   /**
+   * G101 — como a atribuição atual nasceu ('auto' = handover/assumir ao responder; 'manual' =
+   * alguém atribuiu). Vem de `getAssignmentOrigin()` (leitura por `unknown`: a coluna é DRAFT
+   * de migration §8-b). `null`/ausente = desconhecida => o rótulo não afirma nada.
+   */
+  assignmentOrigin?: AssignmentOrigin | null;
+  /**
+   * G101 — membros do workspace (id, nome, papel) vindos de `useWorkspaceAttendants`. O Select
+   * oferece só quem atende (`assignableAttendants`: owner/admin/member); o nome de quem já está
+   * atribuído resolve por aqui mesmo se o papel mudou. Vazio/ausente = Select desabilitado.
+   */
+  attendants?: WorkspaceAttendant[];
+  /**
+   * G101 — gate de papel: o controle (Select + "Remover atribuição") só é operável com `true`
+   * (a página passa `useWorkspaceRole().isAdmin`, o mesmo gate do Robô IA). Sem permissão a
+   * atribuição aparece só como texto.
+   */
+  canAssign?: boolean;
+  /**
    * Etapa 9 · item 4 (R4) — quando a conversa foi ENTREGUE a humano (robô em silêncio).
    * Vem de `getHandoverAt()` (leitura por `unknown`: a coluna `handover_at` é DRAFT de
    * migration §8-b). `null`/ausente = não entregue OU coluna inexistente → nada é mostrado.
@@ -53,7 +80,8 @@ export interface WhatsAppContactPanelProps {
   clientId?: string | null;
   onClose?: () => void;
   onClientLinked?: (clientId: string | null) => void;
-  onAssign?: (userId: string | null) => void;
+  /** `userId = null` remove a atribuição. Pode ser assíncrono: o controle fica travado até resolver. */
+  onAssign?: (userId: string | null) => void | Promise<unknown>;
   onUpdateTags?: (tags: string[]) => void;
 }
 
@@ -62,12 +90,6 @@ interface Note {
   content: string;
   created_at: string;
   author_id: string | null;
-}
-
-interface WorkspaceMemberQueryRow {
-  user_id: string;
-  role: string;
-  users: { email: string | null; raw_user_meta_data: { name?: string | null } | null } | null;
 }
 
 interface ClientLite {
@@ -148,7 +170,10 @@ export function WhatsAppContactPanel({
   contactPhone,
   status,
   tags: initialTags,
-  assignedTo: initialAssignedTo,
+  assignedTo,
+  assignmentOrigin,
+  attendants,
+  canAssign,
   handoverAt,
   avatarUrl,
   lastActivity,
@@ -172,28 +197,22 @@ export function WhatsAppContactPanel({
   const [creatingOpportunity, setCreatingOpportunity] = useState(false);
   const [panelTags, setPanelTags] = useState<string[]>(initialTags ?? []);
   const [newTag, setNewTag] = useState("");
-  const [members, setMembers] = useState<{ id: string; name: string | null; email: string | null }[]>([]);
-  const [assigned, setAssigned] = useState<string | null>(initialAssignedTo ?? null);
-
-  // Load workspace members for assignment
-  useEffect(() => {
-    if (!workspaceId) return;
-    let active = true;
-    supabase
-      .from("workspace_members")
-      .select("user_id, role, users:user_id(email, raw_user_meta_data)")
-      .eq("workspace_id", workspaceId)
-      .then(({ data }) => {
-        if (!active || !data) return;
-        const list = (data as unknown as WorkspaceMemberQueryRow[]).map((d) => ({
-          id: d.user_id as string,
-          name: (d.users?.raw_user_meta_data?.name ?? d.users?.email ?? "") as string | null,
-          email: (d.users?.email ?? "") as string | null,
-        }));
-        setMembers(list);
-      });
-    return () => { active = false; };
-  }, [workspaceId]);
+  // G101 — atribuição. O dono vem SEMPRE da prop (`assignedTo`, que o realtime da conversa
+  // atualiza); o painel só trava o controle enquanto a chamada roda. (A leitura de membros que
+  // morava aqui apontava pra uma relação inexistente e o resultado nunca era renderizado;
+  // a lista agora vem pronta do servidor via `attendants`.)
+  const [assigning, setAssigning] = useState(false);
+  const assignable = assignableAttendants(attendants ?? []);
+  const hint = returnHint(!!handoverAt, assignedTo, assignmentOrigin);
+  const handleAssign = async (userId: string | null) => {
+    if (!onAssign || assigning) return;
+    setAssigning(true);
+    try {
+      await onAssign(userId);
+    } finally {
+      setAssigning(false);
+    }
+  };
 
   useEffect(() => {
     setClientId(initialClientId ?? null);
@@ -440,6 +459,48 @@ export function WhatsAppContactPanel({
             </div>
           )}
         </div>
+
+        {/* G101 — atribuição: quem é o dono da conversa e (para quem pode) o controle pra mudar. */}
+        <Section title="Atendente" icon={UserCog}>
+          <p className="text-xs text-foreground/90" aria-label="Atribuição da conversa">
+            {assignmentLabel(assignedTo, attendants ?? [], assignmentOrigin)}
+          </p>
+          {canAssign && onAssign && (
+            <div className="mt-2 space-y-2">
+              <Select
+                // Valor só se o dono atual está entre os que podem ser escolhidos; senão vazio
+                // (placeholder) — o rótulo acima continua dizendo quem é.
+                value={assignedTo && assignable.some((a) => a.id === assignedTo) ? assignedTo : ""}
+                onValueChange={(userId) => void handleAssign(userId)}
+                disabled={assigning || assignable.length === 0}
+              >
+                <SelectTrigger className="h-8 text-xs" aria-label="Atribuir conversa a um atendente">
+                  <SelectValue placeholder={assignable.length === 0 ? "Nenhum atendente disponível" : "Atribuir a…"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {assignable.map((a) => (
+                    <SelectItem key={a.id} value={a.id} className="text-xs">
+                      {a.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {assignedTo && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  disabled={assigning}
+                  onClick={() => void handleAssign(null)}
+                >
+                  Remover atribuição
+                </Button>
+              )}
+            </div>
+          )}
+          {/* O que "Devolver ao robô" faz com ESTA atribuição (D2) — só com origem conhecida e conversa entregue. */}
+          {hint && <p className="mt-2 text-[10px] text-muted-foreground">{hint}</p>}
+        </Section>
 
         {/* Quick actions */}
         <Section title="Ações rápidas" icon={Plus}>

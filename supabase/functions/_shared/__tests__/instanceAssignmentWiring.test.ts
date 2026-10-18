@@ -81,7 +81,7 @@ describe("whatsapp-instance — sender_id nos inserts de saída humanos (pré-re
 
 describe("whatsapp-instance — assign_conversation registra a origem 'manual' (UPDATE separado)", () => {
   const start = instanceSrc.indexOf('if (action === "assign_conversation")');
-  const block = instanceSrc.slice(start, instanceSrc.indexOf('if (action === "end_human_handover")'));
+  const block = instanceSrc.slice(start, instanceSrc.indexOf('if (action === "list_attendants")'));
 
   it("usa buildManualAssignmentOriginUpdate num update PRÓPRIO, depois do que grava assigned_to", () => {
     expect(block).toContain("buildManualAssignmentOriginUpdate(assignUserId)");
@@ -90,13 +90,13 @@ describe("whatsapp-instance — assign_conversation registra a origem 'manual' (
     expect(assignedAt).toBeGreaterThan(-1);
     expect(originAt).toBeGreaterThan(assignedAt);
     // o update que grava assigned_to NÃO carrega a coluna nova (coluna ausente não pode quebrá-lo)
-    const firstUpdate = block.slice(assignedAt - 40, block.indexOf(".eq(\"workspace_id\", workspaceId);", assignedAt));
+    const firstUpdate = block.slice(assignedAt - 40, block.indexOf('.select("id");', assignedAt));
     expect(firstUpdate).not.toContain("assignment_origin");
   });
 
-  it("falha ao gravar a origem vira warn (degrada), nunca muda a resposta", () => {
+  it("falha ao gravar a origem vira warn (degrada) e é REPORTADA à UI (`originRecorded`), sem mudar o ok", () => {
     expect(block).toMatch(/if \(originErr\) \{\s*console\.warn/);
-    expect(block).toContain("return json({ ok: true });");
+    expect(block).toContain("return json({ ok: true, originRecorded: !originErr });");
   });
 });
 

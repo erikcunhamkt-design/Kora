@@ -3,10 +3,10 @@
 // r4-ui-atendimento-handover.md). Lógica pura: o `invoke` é injetado.
 import { describe, it, expect, vi } from "vitest";
 import {
-  END_HANDOVER_BOT_STILL_MUTED_DESCRIPTION,
   END_HANDOVER_BOT_STILL_MUTED_TITLE,
   END_HANDOVER_MIGRATION_PENDING_MESSAGE,
   END_HANDOVER_UNASSIGNED_DESCRIPTION,
+  endHandoverBotStillMutedDescription,
   endHumanHandover,
   getHandoverAt,
   isAwaitingHuman,
@@ -138,13 +138,23 @@ describe("endHumanHandover (ação 'Devolver ao robô')", () => {
     });
   });
 
-  it("os textos usam o vocabulário real da tela e não mandam 'remover atribuição' (não há controle pra isso)", () => {
+  it("o aviso usa o vocabulário real da tela e o NOME de quem segue atribuído (G29), não um genérico", () => {
     expect(END_HANDOVER_UNASSIGNED_DESCRIPTION).toMatch(/Robô de volta e conversa sem atribuição/);
     expect(END_HANDOVER_BOT_STILL_MUTED_TITLE).toMatch(/robô continua em silêncio/);
-    expect(END_HANDOVER_BOT_STILL_MUTED_DESCRIPTION).toContain("Apenas Conversas Novas (Triagem)");
-    expect(END_HANDOVER_BOT_STILL_MUTED_DESCRIPTION).toContain("Qualquer Conversa (Irrestrito)");
-    expect(END_HANDOVER_BOT_STILL_MUTED_DESCRIPTION).toContain("Robô IA");
-    expect(END_HANDOVER_BOT_STILL_MUTED_DESCRIPTION).not.toMatch(/remov/i);
+
+    const text = endHandoverBotStillMutedDescription("Ana Lima");
+    expect(text).toContain("atribuída a Ana Lima");
+    expect(text).toContain("Apenas Conversas Novas (Triagem)");
+    expect(text).toContain("Qualquer Conversa (Irrestrito)");
+    expect(text).toContain("Robô IA");
+    // as duas saídas existem na tela (G101 trouxe "Remover atribuição") e são de administrador
+    expect(text).toMatch(/administrador pode remover a atribuição/);
+    // sem placeholder esquecido
+    expect(text).not.toMatch(/<nome>|undefined|null/);
+  });
+
+  it("sem nome conhecido o chamador passa 'um atendente' e a frase continua inteira", () => {
+    expect(endHandoverBotStillMutedDescription("um atendente")).toContain("atribuída a um atendente e o gatilho");
   });
 });
 

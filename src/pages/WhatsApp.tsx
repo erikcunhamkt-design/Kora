@@ -53,13 +53,25 @@ import { WhatsAppMessageBubble } from "@/components/whatsapp/WhatsAppMessageBubb
 import { WhatsAppConversationItem } from "@/components/whatsapp/WhatsAppConversationItem";
 import { WhatsAppHandoverBanner } from "@/components/whatsapp/WhatsAppHandoverBanner";
 import {
-  END_HANDOVER_BOT_STILL_MUTED_DESCRIPTION,
   END_HANDOVER_BOT_STILL_MUTED_TITLE,
   END_HANDOVER_MIGRATION_PENDING_MESSAGE,
   END_HANDOVER_UNASSIGNED_DESCRIPTION,
+  endHandoverBotStillMutedDescription,
   endHumanHandover,
   getHandoverAt,
 } from "@/lib/whatsapp/handover";
+import {
+  ASSIGN_ORIGIN_NOT_RECORDED_DESCRIPTION,
+  ASSIGN_ORIGIN_NOT_RECORDED_TITLE,
+  ASSIGN_REMOVED_TITLE,
+  ASSIGN_SUCCESS_TITLE,
+  assigneeName,
+  assignConversation,
+  assignmentLabel,
+  getAssignmentOrigin,
+} from "@/lib/whatsapp/assignment";
+import { useWorkspaceAttendants } from "@/hooks/useWorkspaceAttendants";
+import { useWorkspaceRole } from "@/hooks/useWorkspaceRole";
 import { WhatsAppStatusBadge } from "@/components/whatsapp/WhatsAppStatusBadge";
 import { WhatsAppChatInput } from "@/components/whatsapp/WhatsAppChatInput";
 import { WhatsAppContactPanel } from "@/components/whatsapp/WhatsAppContactPanel";
@@ -97,6 +109,11 @@ export default function WhatsAppPage() {
   const { instance, loading: loadingInstance } = useWhatsAppInstance();
   const { conversations, messages, selectedId, setSelectedId, loading, markRead } =
     useWhatsAppConversations(workspace?.id, instance?.id);
+  // G101 — atribuição: o gate de papel é o de sempre (`useWorkspaceRole().isAdmin`, o mesmo do
+  // Robô IA); a lista de atendentes vem do servidor (RLS de profiles não deixa o navegador
+  // montá-la) e serve também pra mostrar o NOME de quem está atribuído (banner e aviso).
+  const { isAdmin } = useWorkspaceRole();
+  const { attendants } = useWorkspaceAttendants(workspace?.id);
 
   type MainTab = "chat" | "audiences" | "campaigns" | "templates" | "bot";
   const [activeMainTab, setActiveMainTab] = useState<MainTab>("chat");
@@ -413,17 +430,30 @@ export default function WhatsAppPage() {
     }
   };
 
-  const handleAssign = async (conversationId: string, userId: string | null) => {
-    if (!workspace) return;
-    try {
-      const { error } = await supabase.functions.invoke("whatsapp-instance", {
-        body: { action: "assign_conversation", workspaceId: workspace.id, conversationId, userId },
-      });
-      if (error) throw error;
-      toast.success(userId ? "Conversa atribuída" : "Atribuição removida");
-    } catch (e) {
-      toast.error("Falha", { description: (e as Error).message });
+  // G101 — chamado pelo controle de atribuição do painel de contato. Devolve se a atribuição
+  // valeu (o painel só trava o controle enquanto roda). Coluna `assignment_origin` ausente
+  // (migration §8-b pendente) => a atribuição vale, mas a UI AVISA que "Devolver ao robô" não
+  // vai desfazê-la, em vez de confirmar como se tudo estivesse registrado.
+  const handleAssign = async (conversationId: string, userId: string | null): Promise<boolean> => {
+    if (!workspace) return false;
+    const result = await assignConversation(
+      (name, options) => supabase.functions.invoke(name, options),
+      workspace.id,
+      conversationId,
+      userId,
+    );
+    if (result.kind === "error") {
+      toast.error("Falha", { description: result.message });
+      return false;
     }
+    if (!userId) {
+      toast.success(ASSIGN_REMOVED_TITLE);
+    } else if (!result.originRecorded) {
+      toast.warning(ASSIGN_ORIGIN_NOT_RECORDED_TITLE, { description: ASSIGN_ORIGIN_NOT_RECORDED_DESCRIPTION });
+    } else {
+      toast.success(ASSIGN_SUCCESS_TITLE, { description: `Atribuída a ${assigneeName(attendants, userId)}.` });
+    }
+    return true;
   };
 
   // Etapa 9 · Item 4, R4 (UI de Atendimento) — "Devolver ao robô": chama a ação
@@ -447,7 +477,11 @@ export default function WhatsAppPage() {
         // - desatribuiu a atribuição automática: "robô de volta e conversa sem atribuição";
         // - caso comum (sem atribuição): a confirmação de sempre.
         if (result.botStillMuted) {
-          toast.warning(END_HANDOVER_BOT_STILL_MUTED_TITLE, { description: END_HANDOVER_BOT_STILL_MUTED_DESCRIPTION });
+          // O NOME de quem segue atribuído (G29), da conversa que acabou de ser devolvida.
+          const stillAssignedTo = conversations.find((c) => c.id === conversationId)?.assigned_to;
+          toast.warning(END_HANDOVER_BOT_STILL_MUTED_TITLE, {
+            description: endHandoverBotStillMutedDescription(assigneeName(attendants, stillAssignedTo)),
+          });
         } else {
           toast.success("Conversa devolvida ao robô", {
             description: result.unassigned
@@ -819,6 +853,7 @@ export default function WhatsAppPage() {
                   {/* Etapa 9 · Item 4, R4 — conversa entregue a humano (handover_at); coluna ausente → não renderiza */}
                   <WhatsAppHandoverBanner
                     handedOverAt={getHandoverAt(selected)}
+                    assignmentLabel={assignmentLabel(selected.assigned_to, attendants, getAssignmentOrigin(selected))}
                     returning={returningHandoverId === selected.id}
                     onReturn={() => handleEndHandover(selected.id)}
                   />
@@ -1000,6 +1035,9 @@ export default function WhatsAppPage() {
                   status={selected.status}
                   tags={selected.tags}
                   assignedTo={selected.assigned_to}
+                  assignmentOrigin={getAssignmentOrigin(selected)}
+                  attendants={attendants}
+                  canAssign={isAdmin}
                   handoverAt={getHandoverAt(selected)}
                   avatarUrl={selected.avatar_url}
                   lastActivity={selected.last_message_at}
@@ -1023,6 +1061,9 @@ export default function WhatsAppPage() {
                     status={selected.status}
                     tags={selected.tags}
                     assignedTo={selected.assigned_to}
+                    assignmentOrigin={getAssignmentOrigin(selected)}
+                    attendants={attendants}
+                    canAssign={isAdmin}
                     handoverAt={getHandoverAt(selected)}
                     avatarUrl={selected.avatar_url}
                     lastActivity={selected.last_message_at}

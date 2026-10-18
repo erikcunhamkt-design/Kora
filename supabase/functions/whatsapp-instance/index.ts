@@ -5,10 +5,13 @@ import {
   buildManualAssignmentOriginUpdate,
   buildReturnUnassignUpdate,
   computeReturnOutcome,
+  isAssignableRole,
   parseAssignmentSnapshot,
   resolveRespondAllFromSettings,
   shouldUnassignOnReturn,
 } from "../_shared/botAssignment.ts";
+import { buildClaimUpdate, claimConversationOnReply } from "../_shared/claimOnReply.ts";
+import { buildAttendants } from "../_shared/workspaceAttendants.ts";
 
 const ADMIN_TOKEN = Deno.env.get("UAZAPI_ADMIN_TOKEN")!;
 const SUBDOMAIN = Deno.env.get("UAZAPI_SUBDOMAIN")!;
@@ -109,11 +112,12 @@ Deno.serve(async (req) => {
     // Verify membership
     const { data: member } = await userClient
       .from("workspace_members")
-      .select("id")
+      .select("id, role")
       .eq("workspace_id", workspaceId)
       .eq("user_id", userId)
       .maybeSingle();
     if (!member) return json({ error: "Forbidden" }, 403);
+    const memberRole = (member as { role?: unknown }).role;
 
     // Load existing instance
     const { data: existing } = await admin
@@ -121,6 +125,48 @@ Deno.serve(async (req) => {
       .select("*")
       .eq("workspace_id", workspaceId)
       .maybeSingle();
+
+    // Etapa 9 · item 4 (G102) — "assumir ao responder" (docs/architecture/etapa-9-handover-
+    // assigned-to-proposta.md §10.6; _shared/claimOnReply.ts tem a decisão). Chamado logo
+    // depois de cada insert de saída humano: se a conversa foi ENTREGUE a humano, está sem
+    // dono e o envio saiu, o remetente a assume com origem 'auto' (a devolução ao robô a
+    // desfaz). UM update atômico e condicional (`assigned_to IS NULL` + `handover_at IS NOT
+    // NULL`): `assignment_origin` ausente (4ª migration §8-b pendente) => recusado inteiro =>
+    // nada é atribuído (warn, mesma degradação do handover). Melhor esforço: nunca muda a
+    // resposta do envio. Devolve se assumiu (o `forward_message` usa pra não repetir).
+    const claimOnReply = async (conversationId: string, conversationRow: unknown, sendOk: boolean): Promise<boolean> => {
+      try {
+        const outcome = await claimConversationOnReply(
+          { conversation: conversationRow, senderId: userId, senderRole: memberRole, sendOk },
+          {
+            writeClaim: async (claimantId) => {
+              const { data, error } = await admin
+                .from("whatsapp_conversations")
+                .update(buildClaimUpdate(claimantId, new Date().toISOString()))
+                .eq("id", conversationId)
+                .eq("workspace_id", workspaceId)
+                .is("assigned_to", null)
+                .not("handover_at", "is", null)
+                .select("id");
+              return {
+                applied: !error && Array.isArray(data) && data.length > 0,
+                error: error ? error.message : null,
+              };
+            },
+          },
+        );
+        if (outcome.kind === "unavailable") {
+          console.warn(
+            "[whatsapp-instance] claim-on-reply skipped (coluna assignment_origin pode ainda não existir — 4ª migration §8-b — só respondeu, sem assumir):",
+            outcome.detail,
+          );
+        }
+        return outcome.kind === "claimed";
+      } catch (err) {
+        console.warn("[whatsapp-instance] claim-on-reply failed unexpectedly (resposta mantida):", err);
+        return false;
+      }
+    };
 
     if (action === "create" || action === "connect") {
       let instance = existing;
@@ -691,6 +737,8 @@ Deno.serve(async (req) => {
         updated_at: new Date().toISOString(),
       }).eq("id", conversationId);
 
+      await claimOnReply(conversationId, conv, send.ok);
+
       return json({ ok: send.ok, message: inserted });
     }
 
@@ -776,13 +824,17 @@ Deno.serve(async (req) => {
         .eq("workspace_id", workspaceId)
         .maybeSingle();
       if (!msg) return json({ error: "Message not found" }, 404);
+      // `select("*")` (não colunas nomeadas): o claim (G102) lê `handover_at`/`assigned_to`, que
+      // podem não existir ainda — coluna nomeada ausente derrubaria o encaminhamento inteiro.
       const { data: targetConv } = await admin
         .from("whatsapp_conversations")
-        .select("contact_phone")
+        .select("*")
         .eq("id", targetConversationId)
         .eq("workspace_id", workspaceId)
         .maybeSingle();
       if (!targetConv) return json({ error: "Target conversation not found" }, 404);
+      // Depois do 1º claim a linha em memória fica velha: marca o dono pra o 2º envio não repetir.
+      let targetRow: unknown = targetConv;
 
       // Forward text via uazapi
       if (msg.content) {
@@ -810,6 +862,9 @@ Deno.serve(async (req) => {
           last_message_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         }).eq("id", targetConversationId);
+        if (await claimOnReply(targetConversationId, targetRow, send.ok)) {
+          targetRow = { ...(targetConv as Record<string, unknown>), assigned_to: userId };
+        }
       }
 
       // Forward media via uazapi (best-effort)
@@ -838,6 +893,7 @@ Deno.serve(async (req) => {
           last_message_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         }).eq("id", targetConversationId);
+        await claimOnReply(targetConversationId, targetRow, send.ok);
       }
 
       return json({ ok: true });
@@ -871,11 +927,31 @@ Deno.serve(async (req) => {
     if (action === "assign_conversation") {
       const { conversationId, userId: assignUserId } = body as { conversationId?: string; userId?: string | null };
       if (!conversationId) return json({ error: "conversationId is required" }, 400);
-      await admin
+      // G101: o painel passou a ter o controle, então o servidor confere o que a UI promete —
+      // só vira dono quem é membro DESTE workspace com papel que atende (§3.5: owner/admin/
+      // member; `viewer` não). Desatribuir (userId nulo) não precisa de checagem.
+      if (assignUserId) {
+        const { data: target, error: targetErr } = await admin
+          .from("workspace_members")
+          .select("role")
+          .eq("workspace_id", workspaceId)
+          .eq("user_id", assignUserId)
+          .maybeSingle();
+        if (targetErr) return json({ error: "failed to check attendant" }, 500);
+        if (!target || !isAssignableRole((target as { role?: unknown }).role)) {
+          return json({ error: "user is not an eligible attendant of this workspace" }, 400);
+        }
+      }
+      // Antes o erro deste UPDATE era descartado e a ação respondia ok mesmo sem gravar;
+      // com um controle na tela, "Conversa atribuída" tem que ser verdade.
+      const { data: assignedRows, error: assignErr } = await admin
         .from("whatsapp_conversations")
         .update({ assigned_to: assignUserId ?? null, updated_at: new Date().toISOString() })
         .eq("id", conversationId)
-        .eq("workspace_id", workspaceId);
+        .eq("workspace_id", workspaceId)
+        .select("id");
+      if (assignErr) return json({ error: assignErr.message }, 500);
+      if (!Array.isArray(assignedRows) || assignedRows.length === 0) return json({ error: "Conversation not found" }, 404);
       // Origem da atribuição (G48, docs/architecture/etapa-9-handover-assigned-to-
       // proposta.md): atribuir por aqui é decisão de uma PESSOA => 'manual'
       // (desatribuir zera). UPDATE SEPARADO: se `assignment_origin` ainda não
@@ -890,7 +966,36 @@ Deno.serve(async (req) => {
       if (originErr) {
         console.warn("[whatsapp-instance] assign_conversation: failed to record assignment_origin (coluna pode ainda não existir — §8-b):", originErr.message);
       }
-      return json({ ok: true });
+      // `originRecorded: false` => a atribuição valeu, mas sem origem (coluna ausente): a UI
+      // avisa que "Devolver ao robô" não vai desfazê-la.
+      return json({ ok: true, originRecorded: !originErr });
+    }
+
+    // Etapa 9 · item 4 (G101) — atendentes do workspace pro Select do painel de contato e pra
+    // resolver o NOME de quem está atribuído (banner/aviso). Server-side porque o navegador
+    // não monta essa lista: `workspace_members.user_id` referencia `public.profiles` e a RLS de
+    // profiles só deixa ler a própria linha (_shared/workspaceAttendants.ts). Já passou pela
+    // checagem de membro lá em cima; devolve só id, nome e papel — nunca o e-mail.
+    if (action === "list_attendants") {
+      const { data: memberRows, error: membersErr } = await admin
+        .from("workspace_members")
+        .select("user_id, role")
+        .eq("workspace_id", workspaceId);
+      if (membersErr) return json({ error: "failed to list members" }, 500);
+      const memberIds = (memberRows ?? []).map((m: { user_id: string }) => m.user_id);
+      let profileRows: unknown[] = [];
+      if (memberIds.length > 0) {
+        const { data: profiles, error: profilesErr } = await admin
+          .from("profiles")
+          .select("user_id, display_name, email")
+          .in("user_id", memberIds);
+        if (profilesErr) {
+          console.warn("[whatsapp-instance] list_attendants: failed to read profiles (nomes padrão):", profilesErr.message);
+        } else {
+          profileRows = profiles ?? [];
+        }
+      }
+      return json({ ok: true, attendants: buildAttendants(memberRows, profileRows) });
     }
 
     // Etapa 9 · item 4, R4 — "Encerrar atendimento humano" (devolve a
@@ -1062,6 +1167,8 @@ Deno.serve(async (req) => {
         last_message_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }).eq("id", conversationId);
+
+      await claimOnReply(conversationId, conv, send.ok);
 
       if (!send.ok) {
         console.error("send_media failed", send.status, sd);

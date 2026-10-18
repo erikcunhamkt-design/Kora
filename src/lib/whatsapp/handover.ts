@@ -98,15 +98,22 @@ export async function endHumanHandover(
 
 // Textos do resultado da devolução. Vocabulário = o da tela (G29): o gatilho do fluxo
 // se chama "Apenas Conversas Novas (Triagem)" / "Qualquer Conversa (Irrestrito)" na aba
-// "Robô IA". A orientação só cita o que a UI realmente oferece hoje — o painel de
-// contato não tem controle de atribuição, então não se manda "remover a atribuição".
+// "Robô IA". A orientação só cita o que a UI realmente oferece: com o controle de
+// atribuição do painel de contato (G101) a saída "remover a atribuição" existe — mas, como
+// mudar o gatilho, é ação de administrador (por isso o texto diz "um administrador").
 export const END_HANDOVER_UNASSIGNED_DESCRIPTION =
   "Robô de volta e conversa sem atribuição — ele volta a responder a próxima mensagem do cliente.";
 
 export const END_HANDOVER_BOT_STILL_MUTED_TITLE = "Devolvida, mas o robô continua em silêncio";
 
-export const END_HANDOVER_BOT_STILL_MUTED_DESCRIPTION =
-  "A conversa continua atribuída a um atendente e o gatilho do fluxo está em “Apenas Conversas Novas (Triagem)” — nesse modo o robô só responde conversas sem atendente atribuído. Para o robô voltar a responder, mude o gatilho para “Qualquer Conversa (Irrestrito)” na aba “Robô IA”.";
+/**
+ * `assignee`: o NOME de quem segue atribuído (G29 — antes era um "<nome>" genérico); quem
+ * chama passa `assigneeName(atendentes, conversa.assigned_to)`, que cai em "um atendente"
+ * quando o nome não é conhecido (ex.: saiu do workspace).
+ */
+export function endHandoverBotStillMutedDescription(assignee: string): string {
+  return `A conversa continua atribuída a ${assignee} e o gatilho do fluxo está em “Apenas Conversas Novas (Triagem)” — nesse modo o robô só responde conversas sem atendente atribuído. Um administrador pode remover a atribuição (painel de contato) ou mudar o gatilho para “Qualquer Conversa (Irrestrito)” na aba “Robô IA”.`;
+}
 
 export const END_HANDOVER_MIGRATION_PENDING_MESSAGE =
   "O estado “entregue a humano” ainda não existe no banco — a migration do handover (Etapa 9 · R4) precisa ser aplicada pelo operador. Nada foi alterado nesta conversa.";
