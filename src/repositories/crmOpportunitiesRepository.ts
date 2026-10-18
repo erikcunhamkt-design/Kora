@@ -111,18 +111,6 @@ export const crmOpportunitiesRepository = {
     return data;
   },
 
-  async getOpportunity(workspaceId: string, opportunityId: string) {
-    const { data, error } = await supabase
-      .from("crm_opportunities")
-      .select("*")
-      .eq("id", opportunityId)
-      .eq("workspace_id", workspaceId)
-      .single();
-
-    if (error) throw normalizeSupabaseError(error);
-    return data;
-  },
-
   async createOpportunity(workspaceId: string, input: SupabaseOpportunityInput) {
     const { data, error } = await supabase
       .from("crm_opportunities")

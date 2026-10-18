@@ -86,7 +86,6 @@ describe("crmOpportunitiesRepository — superfície pública (sem métodos órf
     expect(Object.keys(crmOpportunitiesRepository).sort()).toEqual([
       "archiveOpportunity",
       "createOpportunity",
-      "getOpportunity",
       "listOpportunities",
       "moveOpportunityStage",
       "softDeleteOpportunity",
