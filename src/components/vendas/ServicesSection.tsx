@@ -16,7 +16,8 @@ import {
   useBifurcatedProducts,
   useBifurcatedCommercialPlans,
 } from "@/hooks/useBifurcatedCatalog";
-import { useCatalogMode } from "@/hooks/catalogCloudContext";
+import { useCatalogCloud, useCatalogMode } from "@/hooks/catalogCloudContext";
+import { countServiceUsage } from "@/services/quotes/quoteServiceCatalog";
 import { CatalogDataProvider } from "@/components/vendas/CatalogDataProvider";
 import { Button } from "@/components/ui/button";
 import { formatCurrency as intlCurrency } from "@/lib/format";
@@ -56,7 +57,7 @@ export function ServicesSection() {
   // G94 / CT4 — a nuvem do catálogo só entra no React com a flag em "supabase" (default LOCAL: nenhum hook de
   // nuvem, nenhum request). Ver hooks/catalogCloudContext.ts.
   return (
-    <CatalogDataProvider>
+    <CatalogDataProvider withQuotes>
       <ServicesSectionBody />
     </CatalogDataProvider>
   );
@@ -155,8 +156,6 @@ function CatalogModeBanner({ tab }: { tab: CatalogTab }) {
         {mode.writeBlocked
           ? "A gravação na nuvem está DESLIGADA: você só consegue visualizar — criar, editar, arquivar e excluir são bloqueados e nada é salvo."
           : "A gravação na nuvem está LIGADA: as alterações são salvas no Supabase."}
-        {" O seletor de serviços dos orçamentos ainda usa o catálogo local deste navegador."}
-        {tab === "servicos" ? " A métrica “Mais usado em orçamentos” ainda não lê a nuvem." : ""}
         {tab === "checkout" ? " O Checkout continua local (“Em breve”) e usa o catálogo deste navegador." : ""}
       </p>
       {mode.error && <p className="mt-1 text-xs text-destructive">Não foi possível carregar o catálogo da nuvem: {mode.error}</p>}
@@ -259,7 +258,13 @@ function CategoryPill({ cat }: { cat?: ServiceCategory }) {
 function ServicesTab() {
   const { services, addService, updateService, duplicateService, toggleActive, removeService } = useBifurcatedServices();
   const { categories, addCategory, removeCategory } = useBifurcatedServiceCategories();
-  const { quotes } = useQuotes();
+  // "Mais usado em orçamentos" (G98/CT5): em modo NUVEM do catálogo conta os orçamentos pela fonte de ORÇAMENTOS
+  // (`useBifurcatedQuotes`, via provider) por `serviceId` (uuid); em modo local (ou schema pendente, que cai no
+  // local) segue contando os orçamentos locais — os ids de serviço locais só casam com os orçamentos locais.
+  const { quotes: localQuotes } = useQuotes();
+  const catalogMode = useCatalogMode();
+  const cloudQuotes = useCatalogCloud()?.quotes;
+  const quotes = catalogMode.source === "supabase" && cloudQuotes ? cloudQuotes : localQuotes;
 
   const [query, setQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -289,15 +294,7 @@ function ServicesTab() {
     .reduce((sum, s) => sum + s.price, 0);
   const ticket = active.length ? active.reduce((sum, s) => sum + s.price, 0) / active.length : 0;
 
-  const usageMap = useMemo(() => {
-    const m = new Map<string, number>();
-    quotes.forEach((q) =>
-      q.items.forEach((it) => {
-        if (it.serviceId) m.set(it.serviceId, (m.get(it.serviceId) || 0) + 1);
-      })
-    );
-    return m;
-  }, [quotes]);
+  const usageMap = useMemo(() => countServiceUsage(quotes), [quotes]);
   const mostUsed = useMemo<{ name: string; count: number } | null>(() => {
     let best: { name: string; count: number } | null = null;
     usageMap.forEach((count, id) => {
@@ -443,7 +440,7 @@ function ServiceCard({
         {service.availableInQuotes && (
           <Badge>Orçamento</Badge>
         )}
-        {service.showInPublicCatalog && <Badge>Portfólio</Badge>}
+        {service.showInPublicCatalog && <Badge title="Selo interno — não publica nada">Portfólio</Badge>}
         <Badge muted>Checkout em breve</Badge>
         {usageCount > 0 && <Badge>{usageCount}× em orçamentos</Badge>}
       </div>
@@ -470,9 +467,10 @@ function ServiceCard({
   );
 }
 
-function Badge({ children, muted = false }: { children: ReactNode; muted?: boolean }) {
+function Badge({ children, muted = false, title }: { children: ReactNode; muted?: boolean; title?: string }) {
   return (
     <span
+      title={title}
       className={[
         "inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium",
         muted ? "bg-muted/60 text-muted-foreground" : "bg-primary/10 text-primary",
@@ -581,7 +579,7 @@ function ServiceModal({
         </Field>
         <div className="space-y-2">
           <Toggle checked={availableInQuotes} onChange={setAvailableInQuotes} label="Disponível em orçamentos" />
-          <Toggle checked={showInPublicCatalog} onChange={setShowInPublicCatalog} label="Mostrar no catálogo público (em breve)" />
+          <Toggle checked={showInPublicCatalog} onChange={setShowInPublicCatalog} label="Selo interno “Portfólio” — não publica nada" />
         </div>
         <Field label="Observações internas">
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} maxLength={300} className="kora-input resize-none" />

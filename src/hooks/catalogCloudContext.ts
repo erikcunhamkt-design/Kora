@@ -19,6 +19,7 @@ import type { useSupabaseServiceCategories } from "@/hooks/useSupabaseServiceCat
 import type { useSupabaseServices } from "@/hooks/useSupabaseServices";
 import type { useSupabaseProducts } from "@/hooks/useSupabaseProducts";
 import type { useSupabaseCommercialPlans } from "@/hooks/useSupabaseCommercialPlans";
+import type { Quote } from "@/hooks/useQuotes";
 
 export interface CatalogCloudState {
   workspaceId: string;
@@ -26,6 +27,11 @@ export interface CatalogCloudState {
   services: ReturnType<typeof useSupabaseServices>;
   products: ReturnType<typeof useSupabaseProducts>;
   plans: ReturnType<typeof useSupabaseCommercialPlans>;
+  /**
+   * Orçamentos pela fonte de ORÇAMENTOS (`useBifurcatedQuotes`) — só existe quando o provider é montado com
+   * `withQuotes` (a tela de Catálogo, p/ "Mais usado em orçamentos"; G98/CT5). O wizard de orçamento não precisa.
+   */
+  quotes?: Quote[];
 }
 
 export const CatalogCloudContext = createContext<CatalogCloudState | null>(null);

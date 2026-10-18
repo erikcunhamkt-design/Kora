@@ -13,7 +13,8 @@ import {
 import { useSupabaseQuotes } from "@/hooks/useSupabaseQuotes";
 import { getQuotesDataSource, setQuotesDataSource } from "@/config/flags";
 import { isSupabaseQuotesWriteEnabled } from "@/hooks/useSupabaseQuotesWriteFlag";
-import { useServices } from "@/hooks/useServices";
+import { useBifurcatedServices } from "@/hooks/useBifurcatedCatalog";
+import { CatalogDataProvider } from "@/components/vendas/CatalogDataProvider";
 import { isServiceSelectableInQuotes } from "@/services/quotes/quoteServiceCatalog";
 import { useClientsDataSource } from "@/hooks/useClientsDataSource";
 import { useBifurcatedFinance } from "@/hooks/useBifurcatedFinance";
@@ -744,11 +745,15 @@ export function QuotesSection() {
       )}
 
       {modalOpen && (
-        <NewQuoteWizard
-          initial={initialData}
-          onClose={() => { setModalOpen(false); setInitialData(null); }}
-          onSave={handleSave}
-        />
+        // CT5 (autorização cruzada, só o bloco "+ Adicionar serviço do catálogo"): o provider entrega a nuvem do
+        // catálogo ao wizard quando a fonte do catálogo é "supabase"; em modo local (padrão) renderiza só o filho.
+        <CatalogDataProvider>
+          <NewQuoteWizard
+            initial={initialData}
+            onClose={() => { setModalOpen(false); setInitialData(null); }}
+            onSave={handleSave}
+          />
+        </CatalogDataProvider>
       )}
 
       {preview && (
@@ -841,7 +846,9 @@ function NewQuoteWizard({
   onClose: () => void;
   onSave: (data: WizardData) => void;
 }) {
-  const { services } = useServices();
+  // CT5 — serviços do catálogo pela fonte do CATÁLOGO (local ou nuvem). Em modo nuvem o `id` é o uuid do serviço,
+  // e `addServiceItem` o grava em `serviceId` (passthrough G67) pra o mapper gravar `quote_items.service_id` (G98).
+  const { services, mode: catalogMode } = useBifurcatedServices();
   // G44 — antes lia useClients() (sempre local). useClientsDataSource() é o
   // mesmo hook bifurcado já usado em Financeiro.tsx/CRM.tsx/Clientes.tsx:
   // devolve os clientes locais OU os da nuvem (mesmo formato Client, id uuid
@@ -1066,6 +1073,7 @@ function NewQuoteWizard({
           </div>
           <p className="text-xs text-muted-foreground">
             O catálogo só lista serviços ativos e marcados como “Disponível em orçamentos”. Para outro item, use “+ Item manual”.
+            {catalogMode.source === "supabase" ? " Catálogo lido da nuvem (Supabase)." : ""}
           </p>
 
           {items.length === 0 ? (

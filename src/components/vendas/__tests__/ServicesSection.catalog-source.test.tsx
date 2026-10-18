@@ -14,8 +14,11 @@ import { servicesRepository } from "@/repositories/servicesRepository";
 import { productsRepository } from "@/repositories/productsRepository";
 import { commercialPlansRepository } from "@/repositories/commercialPlansRepository";
 import { CatalogUnavailableError, toCatalogError } from "@/repositories/catalogRepositoryShared";
+import { useSupabaseQuotes } from "@/hooks/useSupabaseQuotes";
+import type { Quote } from "@/hooks/useQuotes";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), warning: vi.fn(), error: vi.fn(), info: vi.fn() } }));
+vi.mock("@/hooks/useSupabaseQuotes", () => ({ useSupabaseQuotes: vi.fn() }));
 vi.mock("@/hooks/useCurrentWorkspace", () => ({ useCurrentWorkspace: () => ({ workspace: { id: "2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9" } }) }));
 vi.mock("@/repositories/serviceCategoriesRepository", () => ({
   serviceCategoriesRepository: { listCategories: vi.fn(), importCategory: vi.fn(), updateCategory: vi.fn(), softDeleteCategory: vi.fn() },
@@ -56,9 +59,17 @@ function fillAndSaveNewService(name = "Meu serviço") {
   fireEvent.click(screen.getByText("Salvar serviço"));
 }
 
+const quoteWith = (id: string, items: Array<{ serviceId?: string; name: string }>): Quote => ({
+  id, clientName: "C", clientEmail: "", clientWhatsapp: "", title: id, description: "",
+  items: items.map((it, i) => ({ id: `it-${i}`, quantity: 1, unitPrice: 10, ...it })),
+  subtotal: 10, discount: 0, total: 10, paymentCondition: "", deliveryDeadline: "", validityDays: 15,
+  status: "rascunho", createdAt: new Date().toISOString().slice(0, 10),
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
+  vi.mocked(useSupabaseQuotes).mockReturnValue({ quotes: [], loading: false, error: null } as never);
   vi.mocked(serviceCategoriesRepository.listCategories).mockResolvedValue([] as never);
   vi.mocked(servicesRepository.listServices).mockResolvedValue([svcRow()] as never);
   vi.mocked(productsRepository.listProducts).mockResolvedValue([] as never);
@@ -183,13 +194,88 @@ describe("Catálogo · fonte NUVEM", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
-  it("aba Serviços avisa que 'Mais usado em orçamentos' ainda não lê a nuvem; aba Checkout avisa que segue local", async () => {
+  it("banner sem frases fósseis: 'Mais usado' e o seletor do wizard JÁ leem a nuvem; só o Checkout segue local (dito)", async () => {
     localStorage.setItem(CATALOG_DATA_SOURCE_KEY, "supabase");
     renderCatalog();
     await screen.findByText("Serviço da Nuvem");
-    expect(screen.getByRole("status")).toHaveTextContent(/Mais usado em orçamentos.*ainda não lê a nuvem/);
-    expect(screen.getByRole("status")).toHaveTextContent(/seletor de serviços dos orçamentos ainda usa o catálogo local/);
+    const banner = screen.getByRole("status");
+    expect(banner).not.toHaveTextContent(/ainda não lê a nuvem/);
+    expect(banner).not.toHaveTextContent(/seletor de serviços dos orçamentos ainda usa o catálogo local/);
     fireEvent.click(screen.getByText("Checkout"));
     expect(screen.getByRole("status")).toHaveTextContent(/Checkout continua local/);
+  });
+
+  // (c)/G98 — "Mais usado em orçamentos" em modo nuvem: conta orçamentos DA NUVEM por serviceId (uuid real)
+  it("'Mais usado em orçamentos': conta por serviceId (uuid) nos orçamentos da nuvem e mostra o contador no card", async () => {
+    localStorage.setItem(CATALOG_DATA_SOURCE_KEY, "supabase");
+    vi.mocked(servicesRepository.listServices).mockResolvedValue([
+      svcRow({ id: SVC, name: "Serviço da Nuvem" }),
+      svcRow({ id: SVC2, name: "Outro Serviço" }),
+    ] as never);
+    vi.mocked(useSupabaseQuotes).mockReturnValue({
+      quotes: [
+        quoteWith("q1", [{ serviceId: SVC, name: "a" }, { serviceId: SVC2, name: "b" }]),
+        quoteWith("q2", [{ serviceId: SVC, name: "a" }, { name: "item manual (sem serviceId)" }]),
+      ],
+      loading: false, error: null,
+    } as never);
+    renderCatalog();
+    await screen.findByText("Outro Serviço");
+
+    const metric = screen.getByText("Mais usado em orçamentos").parentElement as HTMLElement;
+    expect(metric).toHaveTextContent("Serviço da Nuvem");
+    expect(screen.getByText("2× em orçamentos")).toBeInTheDocument(); // SVC em 2 itens
+    expect(screen.getByText("1× em orçamentos")).toBeInTheDocument(); // SVC2 em 1
+  });
+
+  it("modo nuvem NÃO conta orçamentos LOCAIS (ids de serviço locais não casam com uuid) — a fonte é a de orçamentos", async () => {
+    localStorage.setItem(CATALOG_DATA_SOURCE_KEY, "supabase");
+    localStorage.setItem("orbyt.quotes.v1", JSON.stringify([quoteWith("ql", [{ serviceId: SVC, name: "local apontando pro uuid" }])]));
+    vi.mocked(useSupabaseQuotes).mockReturnValue({ quotes: [], loading: false, error: null } as never);
+    renderCatalog();
+    await screen.findByText("Serviço da Nuvem");
+    expect(screen.queryByText(/× em orçamentos/)).toBeNull();
+    expect(screen.getByText("Mais usado em orçamentos").parentElement).toHaveTextContent("—");
+  });
+
+  it("regressão LOCAL: o catálogo local conta os orçamentos locais por id local, sem tocar nos orçamentos da nuvem", async () => {
+    localStorage.setItem("orbyt.quotes.v1", JSON.stringify([quoteWith("ql", [{ serviceId: "svc-demo-1", name: "x" }, { serviceId: "svc-demo-1", name: "y" }])]));
+    vi.mocked(useSupabaseQuotes).mockReturnValue({
+      quotes: [quoteWith("qc", [{ serviceId: "svc-demo-2", name: "nuvem" }])], loading: false, error: null,
+    } as never);
+    renderCatalog();
+    expect(screen.getByText("Mais usado em orçamentos").parentElement).toHaveTextContent("Identidade Visual");
+    expect(screen.getByText("2× em orçamentos")).toBeInTheDocument();
+    expect(screen.queryByText("1× em orçamentos")).toBeNull();
+    expect(useSupabaseQuotes).not.toHaveBeenCalled(); // nenhum hook de nuvem no modo local
+  });
+
+  it("schema pendente (cai no local): a métrica volta a contar os orçamentos LOCAIS", async () => {
+    localStorage.setItem(CATALOG_DATA_SOURCE_KEY, "supabase");
+    localStorage.setItem("orbyt.quotes.v1", JSON.stringify([quoteWith("ql", [{ serviceId: "svc-demo-3", name: "x" }])]));
+    vi.mocked(servicesRepository.listServices).mockRejectedValue(new CatalogUnavailableError("42P01"));
+    vi.mocked(useSupabaseQuotes).mockReturnValue({
+      quotes: [quoteWith("qc", [{ serviceId: "svc-demo-1", name: "nuvem" }])], loading: false, error: null,
+    } as never);
+    renderCatalog();
+    await screen.findByRole("alert");
+    expect(screen.getByText("Mais usado em orçamentos").parentElement).toHaveTextContent("Landing Page");
+  });
+
+  // showInPublicCatalog — decisão (a): rótulo honesto
+  it("toggle do serviço: 'Selo interno “Portfólio” — não publica nada' (sem prometer catálogo público); badge com title", async () => {
+    renderCatalog();
+    fireEvent.click(screen.getAllByText("Novo serviço")[0]);
+    expect(screen.getByText("Selo interno “Portfólio” — não publica nada")).toBeInTheDocument();
+    expect(screen.queryByText(/Mostrar no catálogo público/)).toBeNull();
+    expect(screen.queryByText(/\(em breve\)/)).toBeNull();
+  });
+
+  it("badge 'Portfólio' do card explica que é um selo interno", () => {
+    localStorage.setItem("orbyt.services.v1", JSON.stringify([
+      { id: "svc-x", name: "Com selo", description: "", category: "", price: 10, billingType: "único", deliveryDays: 1, active: true, availableInQuotes: true, showInPublicCatalog: true },
+    ]));
+    renderCatalog();
+    expect(screen.getByText("Portfólio")).toHaveAttribute("title", "Selo interno — não publica nada");
   });
 });

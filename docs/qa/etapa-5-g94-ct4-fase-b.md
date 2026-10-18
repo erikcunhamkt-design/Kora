@@ -47,7 +47,7 @@ Hook bifurcado **fora** do provider ⇒ local (seguro): a nuvem nunca "aparece" 
   - **schema pendente** — alerta âmbar "Schema pendente (pacote §8-b) — exibindo o catálogo local deste navegador", com as tabelas ausentes e **"Verificar de novo"** (reconsulta as 4 listas, útil logo depois de o operador aplicar o pacote);
   - sem workspace ativo;
   - **nuvem** — "Catálogo lido da nuvem (Supabase)", diz se a gravação está LIGADA/DESLIGADA ("você só consegue visualizar… nada é salvo"), que o catálogo local não aparece aqui e como importá-lo, e as limitações abaixo; erro legível quando houver.
-- **O que a nuvem ainda NÃO cobre (dito na tela e aqui):** a métrica "Mais usado em orçamentos" (depende de `quote_items.service_id` — CT5); o **seletor de serviços do wizard de orçamento** continua no catálogo local (CT5, lane B/E); a aba **Checkout** continua local ("Em breve") e usa o catálogo deste navegador (os ids guardados em `kora.checkoutSettings.v1` são locais — misturar uuids deixaria o checkout dangling ao voltar pro local).
+- **[Atualização: o "Mais usado" e o seletor do wizard passaram a ler a nuvem no CT5 — ver `etapa-5-g94-ct5-ponte.md`; o Checkout segue local.]** **O que a nuvem ainda NÃO cobre (dito na tela e aqui, até o CT5):** a métrica "Mais usado em orçamentos" (depende de `quote_items.service_id` — CT5); o **seletor de serviços do wizard de orçamento** continua no catálogo local (CT5, lane B/E); a aba **Checkout** continua local ("Em breve") e usa o catálogo deste navegador (os ids guardados em `kora.checkoutSettings.v1` são locais — misturar uuids deixaria o checkout dangling ao voltar pro local).
 
 ## 4. Testes (29 novos em 3 arquivos; fixtures com uuid real)
 

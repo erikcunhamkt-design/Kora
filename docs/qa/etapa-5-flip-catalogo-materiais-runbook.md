@@ -1,8 +1,7 @@
 # Etapa 5 · G94 — Catálogo comercial + Biblioteca de Materiais — Runbook da Fase D (**CT7-prep: executável até onde o código existe**)
 
-> **Status:** os casos do **catálogo que já existe em código (CT1–CT4 + import CT3 + G95)** estão fechados com os
-> **caminhos reais** da tela e são executáveis **depois do pacote §8-b**. O que ainda **não existe** (ponte com orçamentos CT5/G98,
-> "Mais usado", seletor do wizard, toggles Q10, robô, flip do default CT7, Biblioteca M1–M4) continua marcado **[pendente — …]** na seção
+> **Status:** os casos do **catálogo que já existe em código (CT1–CT5 + import CT3 + G95 + G98)** estão fechados com os
+> **caminhos reais** da tela e são executáveis **depois do pacote §8-b**. O que ainda **não existe** (Checkout na nuvem, robô, flip do default CT7, Biblioteca M1–M4) continua marcado **[pendente — …]** na seção
 > "Fora do alcance de hoje". Molde: [`etapa-5-flip-tarefas-runbook.md`](etapa-5-flip-tarefas-runbook.md) /
 > [`etapa-5-flip-fichas-runbook.md`](etapa-5-flip-fichas-runbook.md). Os `SELECT` não foram executados por Code (protocolo §0/§6).
 >
@@ -20,6 +19,7 @@
 | Escrita nativa (criar/editar/arquivar/duplicar/excluir), G30 | ❌ | ✅ Casos 6–7 |
 | CHECK do vocabulário (acento de "único"), UNIQUE do import, RLS | ❌ | ✅ Caso 8 |
 | Round-trip por campo (G37), produtos, planos com `refId` uuid | ❌ | ✅ Casos 9–11 |
+| Ponte catálogo↔orçamento (`service_id`, "Mais usado", seletor do wizard, toggles G96) | ❌ | ✅ Caso 16 |
 | Mensagens de erro REAIS (G95) com a causa | ⚠️ parcial (42P10, só se o índice do §2.3 ainda faltar — Caso 12) | ✅ Caso 12 |
 | Honestidade dos textos (limitações na tela) | ✅ | ✅ Caso 13 |
 | Rollback nível 1 | ✅ | ✅ Caso 14 |
@@ -44,7 +44,7 @@
 - **Vendas → Catálogo Comercial** — botões **"Novo serviço"** / **"Criar serviço"** (estado vazio) / **"Categorias"** (modal "Categorias", campo "Nova categoria") / **"Novo produto"** / **"Novo plano"**; modal de serviço com **"Nome\*"**, **"Categoria"**, **"Preço (R$)\*"**, **"Cobrança"**, **"Prazo (dias)"**, **"Tags (separe por vírgula)"**, **"Observações internas"**, toggles **"Disponível em orçamentos"** e **"Mostrar no catálogo público (em breve)"**, botão **"Salvar serviço"**; ícones **Editar · Duplicar · Desativar/Ativar (serviços e produtos) ou Arquivar/Ativar (planos) · Excluir** (produtos não têm Duplicar).
   Validações: **"Informe o nome do serviço"**, **"Informe um preço maior que zero"**, **"Categoria em uso por um serviço"**. Toasts de sucesso: **"Serviço/Produto/Plano criado|atualizado|duplicado|excluído"**, **"Categoria criada"** — **só aparecem se a gravação de fato aconteceu** (G75).
 - **Banner de modo** (aparece só com a fonte em Supabase):
-  - nuvem: **"Catálogo lido da nuvem (Supabase)"** + "A gravação na nuvem está **DESLIGADA** …" / "… está **LIGADA** …" + "O seletor de serviços dos orçamentos ainda usa o catálogo local deste navegador." (+ na aba Serviços: "A métrica “Mais usado em orçamentos” ainda não lê a nuvem."; na aba Checkout: "O Checkout continua local (“Em breve”) e usa o catálogo deste navegador.");
+  - nuvem: **"Catálogo lido da nuvem (Supabase)"** + "A gravação na nuvem está **DESLIGADA** …" / "… está **LIGADA** …" + (só na aba Checkout) "O Checkout continua local (“Em breve”) e usa o catálogo deste navegador." — as frases antigas sobre "Mais usado" e o seletor do wizard **saíram** com o CT5; no wizard de orçamento a ajuda do select termina com **"Catálogo lido da nuvem (Supabase)."**;
   - **"Schema pendente (pacote §8-b) — exibindo o catálogo local deste navegador."** + tabelas ausentes + botão **"Verificar de novo"**;
   - "Fonte “Supabase” selecionada, mas não há workspace ativo — exibindo o catálogo local deste navegador."
 - **Toast de escrita bloqueada:** *"Gravação do catálogo na nuvem está desligada — nada foi salvo. Ative “Catálogo comercial · escrita na nuvem” em Configurações → Dados ou volte a fonte para Local."*
@@ -268,7 +268,7 @@ O que se prova: nenhum erro do catálogo mostra um genérico ("Ocorreu um erro i
 
 ### Caso 13 — Honestidade dos textos (G29/G40): o que a nuvem **ainda não** faz, dito na tela
 
-Com a fonte Supabase: o banner de **todas** as sub-abas diz **"O seletor de serviços dos orçamentos ainda usa o catálogo local deste navegador."**; na aba **Serviços** diz que **"Mais usado em orçamentos" ainda não lê a nuvem**; na aba **Checkout** diz que **o Checkout continua local ("Em breve")**. Conferir também que o texto do card **"Catálogo comercial · fonte de dados"** diz que a nuvem **começa vazia** e que a chave **não migra dado**. **Vermelho** se algum texto prometer o que o código não faz, **ou** se, **depois** de o G98/CT5 existir, o banner ainda dizer que o seletor/métrica usam o local (texto fóssil — tirar junto com o CT5).
+Com a fonte Supabase: o banner **não** traz mais as frases "ainda não lê a nuvem" (Mais usado) nem "seletor … ainda usa o catálogo local" (**saíram com o CT5** — conferir que não voltaram); a aba **Checkout** diz que **o Checkout continua local ("Em breve")** (isso continua verdadeiro). Conferir também que o texto do card **"Catálogo comercial · fonte de dados"** diz que a nuvem **começa vazia** e que a chave **não migra dado**. **Vermelho** se algum texto prometer o que o código não faz, ou se uma frase "fóssil" reaparecer.
 
 ### Caso 14 — Rollback nível 1 (nada apagado)
 
@@ -276,14 +276,50 @@ Card de escrita → **"Desativar"**; card de fonte → **"Voltar para Local"**; 
 
 ---
 
+### Caso 16 — Ponte catálogo ↔ orçamento (CT5/G98): `service_id`, wizard, "Mais usado", toggles (G96)
+
+Pré: Casos 5–6 feitos (há serviços na nuvem); fonte do catálogo **Supabase**; anotar `kora.quotes.dataSource.v1` (default `supabase` desde o flip de Vendas). A escrita do **catálogo** pode estar Ativa ou Inativa — o wizard só **lê** o catálogo; o orçamento grava pelo fluxo de orçamentos. Preparar: `HOMOLOG-CAT-nativo-A` ativo e **"Disponível em orçamentos"** ligado; `HOMOLOG-CAT-servico-B` **desativado**; um terceiro serviço (`HOMOLOG-CAT-nativo-C`) com **"Disponível em orçamentos" desligado**.
+
+| Passo | Ação | Esperado | Prova |
+|---|---|---|---|
+| 16.1 | Vendas → **"Orçamentos"** → **"Novo orçamento"** → cliente `HOMOLOG-CAT-cliente`, título `HOMOLOG-CAT-orcamento` → **"Continuar"** → no passo 2 abrir o select **"+ Adicionar serviço do catálogo"** | Lista **só** serviços **da nuvem**, **ativos e "Disponível em orçamentos"** (aparece o `nativo-A`; **não** aparecem seeds demo, `servico-B` desativado, nem `nativo-C`); a ajuda termina com **"Catálogo lido da nuvem (Supabase)."** | Print |
+| 16.2 | Escolher `HOMOLOG-CAT-nativo-A` | O item entra com **nome e preço copiados** (preço do cadastro, ex. 150); → **"Continuar"** ×2 → **"Salvar orçamento"** | Toast **"Orçamento salvo"** |
+| 16.3 | — (SELECT depois) | `service_id` = **uuid do serviço** (não `NULL`) | SELECT G |
+| 16.4 | **Snapshot:** no Catálogo (escrita **Ativa**) editar o preço do `nativo-A` → 200; reabrir o orçamento | O item **continua com o preço do momento** (150): o orçamento não muda se o serviço mudar | `SELECT unit_price FROM public.quote_items WHERE name='HOMOLOG-CAT-nativo-A';` → `150.00` |
+| 16.5 | F5 e reabrir o orçamento | O item volta **com o vínculo** (`serviceId` lido de volta) | Visual + SELECT G inalterado |
+| 16.6 | Vendas → Catálogo Comercial → **Serviços** | Métrica **"Mais usado em orçamentos"** mostra `HOMOLOG-CAT-nativo-A`; o card mostra **"1× em orçamentos"** (a contagem vem dos orçamentos **da nuvem**, por `serviceId`) | Print + SELECT H |
+| 16.7 | Banner de modo | **Sem** as frases antigas ("ainda não lê a nuvem", "seletor … ainda usa o catálogo local") | Visual |
+| 16.8 | **Regressão local:** card **"Voltar para Local"** → Orçamentos → novo → passo 2 | O select lista o catálogo **local** (seeds etc.), **sem** a frase "Catálogo lido da nuvem"; escolher um serviço **local não importado** e salvar | `service_id IS NULL` para esse item (**nunca** o id cru `svc-…`); para um serviço local **já importado** (Caso 5) o `service_id` = uuid do importado — SELECT G |
+| 16.9 | Volta a **"Usar Supabase"**; **Excluir** (soft) o `nativo-A` depois de orçado | O orçamento **continua íntegro**; `service_id` **permanece** (soft delete); a métrica deixa de nomear o serviço excluído | SELECT G |
+| 16.10 | **(só se o §2.5 do pacote foi aplicado)** `UPDATE public.quote_items SET service_id='00000000-0000-0000-0000-000000000000' WHERE name='HOMOLOG-CAT-nativo-A';` | FALHA de FK (`quote_items_service_id_fkey`). Depois, com um serviço **descartável** referenciado por um item: `DELETE` físico do serviço ⇒ `service_id` do item vira **NULL** (`ON DELETE SET NULL`), orçamento intacto | Erro capturado + SELECT |
+| 16.11 | **Toggles (G96):** desligar **"Disponível em orçamentos"** de um serviço ativo | Some do select do wizard; religar volta | Visual |
+| 16.12 | Modal do serviço | O toggle se chama **"Selo interno “Portfólio” — não publica nada"** (não "Mostrar no catálogo público"); ligado, o card ganha o selo **"Portfólio"** (tooltip "Selo interno — não publica nada"); **nenhuma** página/URL pública é criada | Print |
+
+```sql
+-- SELECT G (16.3 / 16.5 / 16.8 / 16.9)
+SELECT q.title, i.name, i.unit_price, i.service_id, s.name AS servico, s.deleted_at AS servico_excluido_em
+FROM public.quote_items i
+JOIN public.quotes q ON q.id = i.quote_id
+LEFT JOIN public.services s ON s.id = i.service_id
+WHERE q.title LIKE 'HOMOLOG-CAT-%' ORDER BY q.created_at DESC, i.created_at;
+-- 16.3: service_id = uuid de HOMOLOG-CAT-nativo-A, servico = 'HOMOLOG-CAT-nativo-A', unit_price 150.00
+-- 16.8: serviço local NÃO importado ⇒ service_id NULL (nunca 'svc-…'); importado ⇒ uuid do importado
+-- 16.9: servico_excluido_em NÃO nulo e service_id continua preenchido
+
+-- SELECT H (16.6) — o que a métrica deve mostrar
+SELECT s.name, count(*) AS vezes
+FROM public.quote_items i JOIN public.services s ON s.id = i.service_id AND s.deleted_at IS NULL
+GROUP BY s.name ORDER BY vezes DESC LIMIT 3;
+-- o 1º da lista = o serviço que a tela mostra em "Mais usado em orçamentos"; vezes = o contador "N× em orçamentos" do card
+```
+
+---
+
 ## Fora do alcance de hoje (**[pendente — …]**; NÃO executar; não implementado)
 
 | Item | Pendente de | Por quê / o que esperar |
 |---|---|---|
-| **Ponte com orçamentos** — `quote_items.service_id` ≠ NULL, item volta com `serviceId`, FK `quote_items_service_id_fkey` (6.7) | **CT5 + G98 (lane B/E)** | `quoteMapper` ainda grava `service_id: undefined` e não lê `serviceId` (verificado em `main` nesta rodada). Casos 7.1–7.6 do rascunho anterior ficam aqui até lá |
-| **"Mais usado em orçamentos"** contando orçamentos da nuvem | **G98 mergeado na `main`** (lane B) | Depende de `serviceId` voltar dos orçamentos da nuvem; a métrica lerá `useBifurcatedQuotes` — **não** implementar contra fixture |
-| **Seletor do wizard de orçamento** lendo o catálogo da nuvem + toggle **"Disponível em orçamentos"** honrado (Q10/G96) | CT5 (lane B/E) | Hoje o wizard lê o catálogo **local** (dito no banner) |
-| **"Mostrar no catálogo público"** (G96) | decisão Q10 | segue "em breve"; sem consumidor |
+| ~~Ponte com orçamentos / "Mais usado" / seletor do wizard / toggles G96~~ | **FEITO** (G98 da lane B + CT5) | agora é o **Caso 16**. A **FK** `quote_items_service_id_fkey` (pacote §2.5) é opcional — o passo 16.10 só vale se ela foi aplicada |
 | **Checkout** na nuvem | CT6 | segue local; o texto diz |
 | **Robô lê o catálogo** (lane D, Q8: `active` + `deleted_at IS NULL`; custo/estoque/notas nunca) | lane D (item 3) | parcial/pendente |
 | **Flip do default** (`kora.catalog.dataSource.v1` default `supabase`) + Fase D com o catálogo como default | **CT7** | rodada própria, depois desta Fase D |
@@ -305,6 +341,7 @@ SELECT count(*) FROM public.clients WHERE name LIKE 'HOMOLOG-MAT-%';            
 SELECT count(*) FROM public.clients WHERE name LIKE 'HOMOLOG-MAT-%' AND library_assets <> '[]'::jsonb;
 -- 2) DELETE (export manual já feito) — planos antes dos itens; quote_items antes dos serviços (FK), quando CT5 existir
 DELETE FROM public.quote_items WHERE name LIKE 'HOMOLOG-CAT-%';
+DELETE FROM public.quotes WHERE title LIKE 'HOMOLOG-CAT-%';          -- orçamentos do Caso 16 (os itens já saíram acima)
 DELETE FROM public.commercial_plans WHERE name LIKE 'HOMOLOG-CAT-%';
 DELETE FROM public.services WHERE name LIKE 'HOMOLOG-CAT-%';
 DELETE FROM public.products WHERE name LIKE 'HOMOLOG-CAT-%';
@@ -315,7 +352,8 @@ SELECT (SELECT count(*) FROM public.services          WHERE name LIKE 'HOMOLOG-C
        (SELECT count(*) FROM public.products          WHERE name LIKE 'HOMOLOG-CAT-%') AS produtos,
        (SELECT count(*) FROM public.service_categories WHERE name LIKE 'HOMOLOG-CAT-%') AS categorias,
        (SELECT count(*) FROM public.commercial_plans  WHERE name LIKE 'HOMOLOG-CAT-%') AS planos,
-       (SELECT count(*) FROM public.clients           WHERE name LIKE 'HOMOLOG-MAT-%') AS clientes_mat;   -- 0 / 0 / 0 / 0 / 0
+       (SELECT count(*) FROM public.quotes            WHERE title LIKE 'HOMOLOG-CAT-%') AS orcamentos,
+       (SELECT count(*) FROM public.clients           WHERE name LIKE 'HOMOLOG-MAT-%') AS clientes_mat;   -- 0 / 0 / 0 / 0 / 0 / 0
 ```
 
 **Ressalva de `localStorage` (lição de Tarefas):** o catálogo local de teste e as flags ficam no navegador do operador — remover manualmente
@@ -343,9 +381,10 @@ Os cards de Configurações limpam as duas flags (**"Voltar para Local"** / **"D
 | 10 Produtos | — | |
 | 11 Planos | — | `refId` uuid |
 | 12 Erros reais (G95) | — | 12.2 opcional |
-| 13 Textos honestos | — | texto fóssil após CT5 |
+| 13 Textos honestos | — | frases fósseis não podem voltar |
 | 14 Rollback nível 1 | — | |
+| 16 Ponte catálogo↔orçamento (CT5/G98) | — | `service_id` uuid; "Mais usado"; snapshot de preço; regressão local |
 | 15 Limpeza | — | `count = 0` + `localStorage` |
-| **Pendentes** (CT5/G98, "mais usado", wizard, Q10, checkout, robô, CT7, Biblioteca M1–M4) | **não executados** | ver "Fora do alcance de hoje" |
+| **Pendentes** (Checkout na nuvem, robô, CT7, Biblioteca M1–M4) | **não executados** | ver "Fora do alcance de hoje" |
 
 **§18: este runbook cobre o que existe hoje. Os itens pendentes só viram executáveis depois de seus pré-requisitos mesclarem com "vai" explícito.**
