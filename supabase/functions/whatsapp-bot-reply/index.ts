@@ -32,6 +32,7 @@ import {
   withKnowledgeInfo,
   type SimulationInfo,
 } from "../_shared/botFlowSimulation.ts";
+import { shouldBotYieldToAssignee } from "../_shared/botAssignment.ts";
 import { loadKnowledgeForPrompt } from "../_shared/knowledgeLoader.ts";
 import { QUOTED_STATUSES } from "../_shared/knowledgeSources.ts";
 
@@ -96,6 +97,10 @@ interface ConversationRow {
   // enquanto a migration não for aplicada (§8-b) — isHandedOver() trata
   // `undefined` como "não entregue".
   handover_at?: unknown;
+  // Etapa 9 · item 4 (G48) — origem da atribuição ('auto' | 'manual'); coluna PROPOSTA
+  // (4ª migration do pacote §8-b, NÃO aplicada). `select("*")` não a traz até lá =>
+  // `undefined` => origem desconhecida => o gate abaixo se comporta como sempre.
+  assignment_origin?: unknown;
 }
 
 interface InstanceRow {
@@ -594,7 +599,18 @@ Deno.serve(async (req) => {
 
       // Respect respond_all setting
       const isUnrestricted = respondAll ?? true;
-      if (!isUnrestricted && conv.assigned_to) {
+      // Gate histórico "atribuída a humano + respond_all desligado => robô fora",
+      // ajustado (G48): uma atribuição AUTOMÁTICA esquecida depois da devolução ao
+      // robô não cala mais a conversa. Origem desconhecida (coluna ausente) =
+      // exatamente o gate de antes. Ver _shared/botAssignment.ts.
+      if (
+        shouldBotYieldToAssignee({
+          respondAll: isUnrestricted,
+          assignedTo: conv.assigned_to,
+          assignmentOrigin: conv.assignment_origin,
+          handedOver: isHandedOver(conv.handover_at),
+        })
+      ) {
         return json({ ok: true, skipped: "assigned and respond_all is false" });
       }
 

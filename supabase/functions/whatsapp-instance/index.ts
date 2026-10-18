@@ -1,6 +1,12 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { buildHandoverReturnUpdates } from "../_shared/botHandover.ts";
+import {
+  buildManualAssignmentOriginUpdate,
+  buildReturnUnassignUpdate,
+  parseAssignmentSnapshot,
+  shouldUnassignOnReturn,
+} from "../_shared/botAssignment.ts";
 
 const ADMIN_TOKEN = Deno.env.get("UAZAPI_ADMIN_TOKEN")!;
 const SUBDOMAIN = Deno.env.get("UAZAPI_SUBDOMAIN")!;
@@ -664,7 +670,12 @@ Deno.serve(async (req) => {
         instance_id: existing.id,
         conversation_id: conversationId,
         wa_message_id: waMessageId,
+        // Etapa 9 · item 4 (pré-requisito do assigned_to no handover, G48): grava QUEM enviou.
+        // `sender_id` existe desde a migration whatsapp_v2 e a UI já o lê, mas nenhum insert o
+        // preenchia — sem isso "último atendente que respondeu" não é derivável. Mensagens
+        // antigas e as digitadas no celular (fromMe via webhook) seguem sem autor (sem backfill).
         direction: "outbound",
+        sender_id: userId,
         type: "text",
         content: text,
         status: send.ok ? "sent" : "error",
@@ -785,6 +796,7 @@ Deno.serve(async (req) => {
           conversation_id: targetConversationId,
           wa_message_id: waMessageId,
           direction: "outbound",
+          sender_id: userId,
           type: "text",
           content: fwdText,
           status: send.ok ? "sent" : "error",
@@ -811,6 +823,7 @@ Deno.serve(async (req) => {
           conversation_id: targetConversationId,
           wa_message_id: waMessageId,
           direction: "outbound",
+          sender_id: userId,
           type: msg.type,
           content: msg.content ?? null,
           media_url: msg.media_url,
@@ -861,6 +874,20 @@ Deno.serve(async (req) => {
         .update({ assigned_to: assignUserId ?? null, updated_at: new Date().toISOString() })
         .eq("id", conversationId)
         .eq("workspace_id", workspaceId);
+      // Origem da atribuição (G48, docs/architecture/etapa-9-handover-assigned-to-
+      // proposta.md): atribuir por aqui é decisão de uma PESSOA => 'manual'
+      // (desatribuir zera). UPDATE SEPARADO: se `assignment_origin` ainda não
+      // existir (4ª migration do pacote §8-b pendente) só este falha — warn, e a
+      // atribuição acima continua valendo como sempre. É isto que impede a
+      // devolução ao robô de desfazer uma atribuição feita por humano.
+      const { error: originErr } = await admin
+        .from("whatsapp_conversations")
+        .update(buildManualAssignmentOriginUpdate(assignUserId))
+        .eq("id", conversationId)
+        .eq("workspace_id", workspaceId);
+      if (originErr) {
+        console.warn("[whatsapp-instance] assign_conversation: failed to record assignment_origin (coluna pode ainda não existir — §8-b):", originErr.message);
+      }
       return json({ ok: true });
     }
 
@@ -893,7 +920,35 @@ Deno.serve(async (req) => {
       if (!cleared.handover_at) {
         return json({ ok: false, error: "handover state unavailable (migration pending)", cleared }, 409);
       }
-      return json({ ok: true, cleared });
+
+      // Devolução desatribui SOMENTE atribuição AUTOMÁTICA (decisão do revisor,
+      // docs/architecture/etapa-9-handover-assigned-to-proposta.md §2 regra 3):
+      // lê a origem; coluna ausente (erro de SELECT) ou origem manual/desconhecida
+      // => nada é desatribuído (comportamento de antes). O UPDATE é condicional
+      // (só se ainda for a MESMA atribuição automática) pra não pisar numa
+      // atribuição humana feita entre o SELECT e o UPDATE.
+      let unassigned = false;
+      const { data: assignRow, error: assignReadErr } = await admin
+        .from("whatsapp_conversations")
+        .select("assigned_to, assignment_origin")
+        .eq("id", conversationId)
+        .eq("workspace_id", workspaceId)
+        .maybeSingle();
+      const snapshot = parseAssignmentSnapshot(assignReadErr ? null : assignRow);
+      if (shouldUnassignOnReturn(snapshot)) {
+        const { error: unassignErr } = await admin
+          .from("whatsapp_conversations")
+          .update(buildReturnUnassignUpdate(new Date().toISOString()))
+          .eq("id", conversationId)
+          .eq("workspace_id", workspaceId)
+          .eq("assignment_origin", "auto")
+          .eq("assigned_to", snapshot.assignedTo as string);
+        unassigned = !unassignErr;
+        if (unassignErr) {
+          console.warn("[whatsapp-instance] end_human_handover: failed to clear automatic assignment:", unassignErr.message);
+        }
+      }
+      return json({ ok: true, cleared, unassigned });
     }
 
     if (action === "update_conversation_tags") {
@@ -967,6 +1022,7 @@ Deno.serve(async (req) => {
         conversation_id: conversationId,
         wa_message_id: waMessageId,
         direction: "outbound",
+        sender_id: userId,
         type: dbType,
         content: caption ?? null,
         media_url: returnedUrl,
