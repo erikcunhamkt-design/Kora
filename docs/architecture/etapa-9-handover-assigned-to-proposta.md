@@ -9,10 +9,10 @@
 
 ## 1. Estado hoje (fatos, conferidos no código)
 
-- Conversa entregue = `handover_at` preenchido: o robô fica **mudo**. **Ninguém é atribuído** — `assigned_to` fica como estava (geralmente `NULL`). O atendente só descobre pelo badge "Humano" na lista, o banner no cabeçalho e o estado no painel de contato.
-- A atribuição é **100% manual** (`assign_conversation` em `whatsapp-instance`, disparada pela tela de Atendimento) e **uma pessoa só** por conversa — não existe fila, rodízio nem equipe.
+- Conversa entregue = `handover_at` preenchido: o robô fica **mudo**. Antes desta proposta **ninguém era atribuído** — `assigned_to` ficava como estava (geralmente `NULL`). O atendente descobre pelo badge na lista ("Aguardando humano" / "Humano", §10.5), o banner no cabeçalho e o estado no painel de contato.
+- A atribuição era **só manual** (`assign_conversation` em `whatsapp-instance`) e **uma pessoa só** por conversa — não existe fila, rodízio nem equipe. ⚠ **Correção de um fato que este doc dava como certo:** a tela **não** dispara `assign_conversation` — o painel de contato não renderiza controle de atribuição (§10.6). A ação só é alcançável por chamada direta.
 - `assigned_to` **já silencia o robô por outro caminho**, mais antigo e independente do handover: com `respond_all = false` no gatilho, conversa **atribuída** ⇒ robô não responde (`whatsapp-bot-reply`, gate `!isUnrestricted && conv.assigned_to`). Esse gate **continua valendo** e interage com qualquer atribuição automática (§3.3).
-- Devolver ao robô (`end_human_handover`) zera `handover_at` e `bot_flow_state`; **não mexe em `assigned_to`**.
+- Devolver ao robô (`end_human_handover`) zera `handover_at` e `bot_flow_state`. Antes desta proposta **não mexia em `assigned_to`**; hoje desatribui **só a atribuição automática** (§9) e diz à UI o que aconteceu.
 
 ## 2. Proposta
 
@@ -48,11 +48,11 @@ Handover automático e atribuição manual podem acontecer no mesmo instante. A 
 
 ### 3.5 Quem pode ser o "último atendente"
 
-Ainda ser **membro do workspace** com papel que **responde** (owner/admin/member — não `viewer`). Quem saiu do workspace ou virou `viewer` não recebe a conversa ⇒ cai na regra 2.
+Ainda ser **membro do workspace** com papel que **responde** (owner/admin/member — não `viewer`). Quem saiu do workspace ou virou `viewer` não recebe a conversa ⇒ cai na regra 2. **Implementado** (`isAssignableRole` + checagem em `workspace_members`): o servidor deixa qualquer membro enviar, inclusive `viewer`, então um `viewer` pode constar como autor no histórico sem virar dono.
 
-## 4. Destaque do "não atribuído" na lista (UI, rodada separada)
+## 4. Destaque do "não atribuído" na lista — FEITO (ver §10.5)
 
-Hoje o badge é "Humano" (âmbar). Proposta: quando `handover_at` está preenchido **e** `assigned_to` é nulo, o badge vira **"Humano · sem atendente"** (mais forte), e a conversa ganha prioridade de visibilidade — **filtro/ordem "aguardando atendente"**. Obs.: a barra de filtros é um `TabsList` de 5 colunas fixas (já descartei adicionar um 6º chip na R4 por isso); a forma exata (chip, ordenação ou contador no cabeçalho) é decisão de design, não técnica.
+Proposta original: quando `handover_at` está preenchido **e** `assigned_to` é nulo, o badge vira mais forte e ganha filtro/ordem. **Feito:** badge preenchido **"Aguardando humano"** (texto do revisor, no lugar de "Humano · sem atendente"). **Não feito:** filtro/ordem/contador — a barra de filtros é um `TabsList` de 5 colunas fixas (já descartei adicionar um 6º chip na R4 pelo mesmo motivo) e não cabe limpo (§10.5).
 
 ## 5. Alternativas consideradas
 
@@ -76,23 +76,23 @@ Hoje o badge é "Humano" (âmbar). Proposta: quando `handover_at` está preenchi
 | Fatia | Status |
 |---|---|
 | **1.** `sender_id` gravado nos 4 inserts de saída de `whatsapp-instance` | ✅ **FEITO** (testes por insert) |
-| **2a.** Preparação **com degradação**: origem lida/gravada, devolução desatribui só o automático, gate ajustado (§9) | ✅ **FEITO**, **inerte até a coluna existir** (hoje nada grava `'auto'`) |
+| **2a.** Preparação **com degradação**: origem lida/gravada, devolução desatribui só o automático, gate ajustado (§9) | ✅ **FEITO** |
 | **2b.** DRAFT da coluna `assignment_origin` | ✅ no pacote §8-b como **4ª migration** — **NÃO aplicada** |
-| **2c.** **Atribuição automática** no handover (escolher o último atendente por `sender_id`, UPDATE condicional) | ⏳ **NÃO implementada** — depende da coluna **e** da sessão do operador |
-| **3.** UI: badge "Humano · sem atendente", destaque/ordem na lista, aviso do §3.3 | ⏳ |
+| **2c.** **Atribuição automática** no handover (último atendente por `sender_id`, UPDATE único e condicional) | ✅ **FEITO (código)** — **só age depois que a coluna existir** (coluna ausente ⇒ só entrega, sem dono; §10) |
+| **3.** UI: badge **"Aguardando humano"** na lista, confirmação/aviso na devolução (§9, §10.4) | ✅ **FEITO** — sem aba nova de filtro (§10.5) |
 
-**Ordem obrigatória:** a **2c** só depois da coluna aplicada (o `UPDATE` condicional e a devolução dependem dela) e de existir histórico com `sender_id` (a fatia 1 precisa estar no ar há algum tempo, senão toda conversa cai em "sem atendente").
+**Ordem obrigatória:** a atribuição automática só **produz efeito** depois da coluna aplicada **e** de existir histórico com `sender_id` (a fatia 1 precisa estar no ar há algum tempo, senão toda conversa cai em "sem atendente"). Antes disso o código é inerte: o único efeito visível é o badge "Aguardando humano" nas conversas entregues e sem dono.
 
 ## 8. Decisões do revisor — OFICIAIS (o operador pode vetar)
 
 | # | Decisão | Onde está |
 |---|---|---|
-| **D1** | **Atribuição automática ao último atendente humano que respondeu** — quando derivável por `sender_id`; **senão "não atribuído" com destaque na lista** | §2 regras 1–2; fatias 2c e 3 (não implementadas) |
+| **D1** | **Atribuição automática ao último atendente humano que respondeu** — quando derivável por `sender_id`; **senão "não atribuído" com destaque na lista** | §2 regras 1–2; fatias 2c e 3 — **implementadas** (§10), a atribuição só age com a coluna aplicada |
 | **D2** | **A devolução ao robô desatribui SOMENTE atribuição automática.** Pra isso, campo de origem: `whatsapp_conversations.assignment_origin text CHECK ('auto','manual') NULL` | DRAFT = **4ª migration** do pacote §8-b (§2.4), **não aplicada**; lógica já pronta (§9) |
 | **D3** | **O gate antigo `respond_all = false + assigned_to` é revisto** pra não deixar o robô mudo depois de "Devolver" | §9 (ajuste exato, implementado com degradação) |
-| **D4** | **A atribuição automática NÃO é implementada ainda** | fatia 2c |
+| **D4** | ~~A atribuição automática NÃO é implementada ainda~~ — **superada**: o revisor liberou a fatia 2c nesta rodada (código pronto atrás da degradação) | fatia 2c / §10 |
 
-*Veto do operador:* qualquer uma das quatro pode ser vetada na sessão §8-b; D1/D2 são as de produto (D3 é correção de um efeito colateral, D4 é só sequenciamento).
+*Veto do operador:* qualquer uma das quatro pode ser vetada na sessão §8-b; D1/D2 são as de produto (D3 é correção de um efeito colateral, D4 era só sequenciamento). Vetar D1 = não aplicar a 4ª migration (sem a coluna a atribuição automática simplesmente não acontece — nenhum código a desligar).
 
 ## 9. Ajuste exato do gate `respond_all = false + assigned_to`
 
@@ -126,18 +126,57 @@ return !staleAutoAssignment;             // cede, exceto atribuição AUTOMÁTIC
 
 **Por que só isso muda:** uma atribuição **automática** só existe **enquanto o handover que a criou está em vigor** — e então o robô já está mudo por `handover_at` (checado **antes** deste gate). Se a origem é `auto` e a conversa **não** está mais entregue, é sobra: a desatribuição da devolução falhou, ou a mensagem chegou entre os dois UPDATEs da devolução. Esse caso não pode calar o robô. Atribuição **manual** (ou de origem desconhecida) continua calando, como sempre.
 
-**Degradação:** coluna `assignment_origin` ausente => `conv.assignment_origin` é `undefined` => origem "desconhecida" => o gate é **idêntico ao de antes em todas as combinações** (teste exaustivo `botAssignment.test.ts`). E, como nada grava `'auto'` hoje, o ajuste é **inerte** até a fatia 2c.
+**Degradação:** coluna `assignment_origin` ausente => `conv.assignment_origin` é `undefined` => origem "desconhecida" => o gate é **idêntico ao de antes em todas as combinações** (teste exaustivo `botAssignment.test.ts`).
 
-**Devolução (`end_human_handover`):** além de zerar `handover_at`/`bot_flow_state`, lê `assigned_to, assignment_origin`; se a origem é **auto**, desatribui com UPDATE **condicional** (`assignment_origin = 'auto'` e mesmo `assigned_to` — não pisa numa atribuição humana feita no meio). Resposta ganha `unassigned: boolean`. Erro de SELECT (coluna ausente) ⇒ nada é desatribuído. **`assign_conversation`** passa a gravar `assignment_origin = 'manual'` (ou NULL ao desatribuir) em UPDATE **separado**, pra coluna ausente não quebrar a atribuição.
+**Devolução (`end_human_handover`):** além de zerar `handover_at`/`bot_flow_state`, lê a conversa (`select("*")`: coluna ausente vem `undefined`, `assigned_to` segue legível); se a origem é **auto**, desatribui com UPDATE **condicional** (`assignment_origin = 'auto'` e mesmo `assigned_to` — não pisa numa atribuição humana feita no meio). Resposta: `{ ok, cleared, unassigned, botStillMuted }`; `unassigned` só é `true` se o UPDATE **pegou uma linha** (não basta "sem erro" — correção desta rodada: antes, um UPDATE condicional que não casava nada reportava `true`). Erro de SELECT ⇒ nada é desatribuído. **`assign_conversation`** grava `assignment_origin = 'manual'` (ou NULL ao desatribuir) em UPDATE **separado**, pra coluna ausente não quebrar a atribuição.
 
-### Caso residual — NÃO resolvido, decisão do operador
+### Caso residual — RESOLVIDO pela opção 1 (aviso honesto)
 
-**Atribuição manual + `respond_all = false` + "Devolver ao robô"**: a atribuição é humana, a devolução (D2) não a desfaz, e o gate (por desenho antigo) segue calando o robô. Ou seja: o botão "Devolver" **não faz o robô voltar** nesse workspace. Opções (nenhuma implementada):
+**Atribuição manual + `respond_all = false` + "Devolver ao robô"**: a atribuição é humana, a devolução (D2) não a desfaz, e o gate (por desenho antigo) segue calando o robô — o botão "Devolver" **não faz o robô voltar** nesse workspace. Opções que estavam em aberto:
 
-1. **Avisar** na devolução (a Pergunta 5 do §6): o servidor resolveria o `respond_all` efetivo e devolveria um sinal (ex.: `botStillMuted`) pra a UI explicar "o robô continua em silêncio: a conversa está atribuída a <nome> e 'responder a todos' está desligado". Não muda comportamento — só o torna honesto.
-2. **Desatribuir também a manual** quando `respond_all = false` — resolve de vez, mas **contradiz D2** ("somente automática"); só com decisão explícita do operador.
-3. **Manter** (atribuição humana é dona da conversa; devolver exige desatribuir).
+1. **Avisar** na devolução (a Pergunta 5 do §6) ← **implementada**: o servidor resolve o `respond_all` efetivo (a MESMA regra do robô, `effectiveRespondAll`) e devolve `botStillMuted`; a UI mostra um **aviso** (não o toast de sucesso) explicando que o robô continua em silêncio. Não muda comportamento — só o torna honesto.
+2. **Desatribuir também a manual** quando `respond_all = false` — resolveria de vez, mas **contradiz D2** ("somente automática"); só com decisão explícita do operador. *Não implementada.*
+3. **Manter** sem aviso. *Descartada pela (1).*
 
-Recomendo a (1): honesta, reversível, sem tocar na decisão humana.
+**Ressalva importante (achada ao implementar a UI):** o painel de contato **não tem controle de atribuição** — carrega membros e recebe `onAssign`, mas nada disso é renderizado (§10.6). Por isso o aviso só orienta o que a tela realmente oferece (mudar o gatilho para "Qualquer Conversa (Irrestrito)"), e não "remova a atribuição".
 
-**Esta proposta, por si, não altera runtime;** o que foi implementado (§7) é inerte sem a coluna e idêntico ao comportamento anterior quando ela falta.
+## 10. Atribuição automática — como funciona (implementada, atrás da degradação)
+
+### 10.1 Quando
+No instante em que `handover_at` é gravado com sucesso. Todos os gatilhos passam por `enterHumanHandover` (única função que escreve o estado de entrega): os 3 da R4 (palavra-chave, opção de menu, menu esgotado/nó de fallback) e o destino **handover** da R8 (nó "message"). Se `handover_at` não foi gravado (coluna ausente), **não há handover e não há atribuição**.
+
+### 10.2 Quem
+`pickLastHumanResponder`: a mensagem de **saída** com `sender_id` mais recente (`created_at`). Ignorados: o robô (`sendBotText` não grava `sender_id`), mensagens digitadas no celular (`fromMe` via webhook, sem autor), mensagens de antes do pré-requisito (sem autor) e entradas do cliente. Mensagem de envio **com erro** ainda conta (o atendente tentou responder). **Sem janela de validade** (Pergunta 2 do §6, mantida a proposta de partida).
+
+Salvaguardas, nesta ordem (qualquer falha ⇒ só entrega, sem dono):
+
+| Situação | Resultado |
+|---|---|
+| A conversa **já tem dono** (qualquer origem) | não pisa; nem lê mensagens |
+| Ninguém (com autor) respondeu | fica **não atribuída** → badge "Aguardando humano" |
+| O último a responder **não é mais elegível** (saiu do workspace ou virou `viewer`, §3.5) | não atribui a um fantasma |
+| Leitura/checagem/escrita falha (rede, coluna ausente…) | `console.warn` e segue; o handover já está persistido |
+| O UPDATE não pegou linha (alguém atribuiu no meio) | `lost-race`: não pisa |
+
+### 10.3 Como grava — UM update, origem junto
+`UPDATE whatsapp_conversations SET assigned_to, assignment_origin = 'auto', updated_at WHERE id AND workspace_id AND assigned_to IS NULL`. **Regra de ouro:** nunca existir atribuição sem a origem marcada (sem ela a devolução não sabe desfazer e o robô ficaria mudo). Dois UPDATEs deixariam uma janela com isso possível; um só é **atômico**: coluna `assignment_origin` ausente ⇒ o PostgREST recusa o UPDATE inteiro ⇒ nada é gravado ⇒ a conversa só é entregue.
+
+### 10.4 Devolução e UI
+Três desfechos, três mensagens (a UI lê `unassigned`/`botStillMuted`; servidor antigo sem os campos ⇒ comportamento de antes):
+
+| Estado ao devolver | Servidor | UI |
+|---|---|---|
+| Atribuição **automática** | desatribui | sucesso: "Robô de volta e conversa sem atribuição…" |
+| Atribuição **manual** + gatilho "Apenas Conversas Novas (Triagem)" | nada desfeito; `botStillMuted: true` | **aviso**: "Devolvida, mas o robô continua em silêncio…" + como resolver |
+| Sem atribuição, ou manual com "Qualquer Conversa (Irrestrito)" | nada a fazer | sucesso de sempre |
+
+`botStillMuted` é o gate **real** do robô (`shouldBotYieldToAssignee`) aplicado ao estado de depois da devolução, com o `respond_all` efetivo de `whatsapp_bot_settings` — a UI não adivinha, repete o que o robô vai fazer.
+
+### 10.5 Lista de conversas
+Entregue e **sem atendente** ⇒ badge preenchido **"Aguardando humano"** (âmbar sólido); entregue **com** atendente ⇒ o "Humano" discreto de antes. **Sem aba/filtro novo:** o `TabsList` da lista já tem 5 colunas num painel de 340 px (≈61 px por aba, texto de 11 px, com contadores em "Não lidas"/"Atrasadas"); uma 6ª aba ("Aguardando humano" ou mesmo "Humano") faria "Resolvidas"/"Atrasadas" truncarem — não cabe limpo, então ficou só o badge na linha.
+
+### 10.6 Achado que precisa de decisão (fora do escopo desta rodada)
+1. **Não existe controle de atribuição na UI.** `WhatsAppContactPanel` declara `members`, `assigned` e `onAssign`, mas nunca renderiza nada com eles (`setAssigned` nunca é chamado; o histórico mostra que não foi removido — nunca existiu). `assign_conversation` só é alcançável por chamada direta. Consequência: atribuição **manual** (`'manual'`) praticamente não ocorre hoje, o que torna o caso residual do §9 raro — **mas** também significa que ninguém consegue "assumir" nem reatribuir uma conversa pela tela.
+2. **"Aguardando humano" não some quando o humano responde.** Atribuição automática olha o histórico **no instante do handover**; uma conversa entregue antes de qualquer resposta humana fica sem dono, e responder nela **não a atribui** (pela decisão D1 só o handover atribui). Sem o controle de (1), o badge só some com "Devolver ao robô". Possível próximo passo (não feito, **precisa de ID e decisão**): "assumir ao responder" (primeira resposta humana numa conversa entregue e sem dono a atribui àquele atendente) e/ou o controle de atribuição no painel.
+
+**Esta proposta não altera runtime por si;** o código das fatias 1–3 está em `main` atrás da degradação. Sem a 4ª migration o único efeito é o badge e a confirmação da devolução.

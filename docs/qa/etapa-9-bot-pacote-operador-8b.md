@@ -273,7 +273,7 @@ próprio handover fez. SQL **deste pacote** (única fonte — a proposta aponta 
 -- revisor: a devolução ao robô desatribui SOMENTE atribuição automática).
 --   'manual' = atribuída por uma pessoa (assign_conversation grava);
 --   'auto'   = atribuída pelo handover ao último atendente que respondeu
---              (RODADA FUTURA — nada grava 'auto' hoje);
+--              (whatsapp-bot-reply grava; só age com esta coluna aplicada);
 --   NULL     = sem atribuição, ou atribuição anterior a esta coluna (origem
 --              desconhecida: tratada como humana, nunca desfeita pela devolução).
 -- Coluna nullable, sem default, sem backfill. O CHECK vai inline no
@@ -396,8 +396,8 @@ npx supabase functions deploy whatsapp-webhook   --project-ref ewamvzncsloagtcvk
 
 | Function | O que muda | Arquivos que DEVEM aparecer no output do deploy (no mínimo) |
 |---|---|---|
-| `whatsapp-instance` | ação `end_human_handover` (devolver ao robô; **desatribui só atribuição automática**); `assign_conversation` registra a origem `'manual'`; **as 4 mensagens de saída humanas passam a gravar `sender_id`** (autor — `send`, `send_media`, 2× `forward_message`; sem migration) | `index.ts`, `_shared/botHandover.ts`, **`_shared/botAssignment.ts`** |
-| `whatsapp-bot-reply` | motor do nó menu (R3), handover real (R4), simulador do fluxo (opt-in, ver [`etapa-9-bot-simulador-fluxo-cobertura.md`](etapa-9-bot-simulador-fluxo-cobertura.md)), **base de conhecimento (item 3, [`etapa-9-item3-r1-base-conhecimento-liga.md`](etapa-9-item3-r1-base-conhecimento-liga.md))** | `index.ts`, `_shared/botFlowMenu.ts`, `_shared/botHandover.ts`, `_shared/botFlowSimulation.ts`, **`_shared/knowledgeLoader.ts`, `_shared/knowledgeSources.ts`, `_shared/knowledgeConsent.ts`** (+ `_shared/brainComposer.ts`, já existente), **`_shared/botAssignment.ts`** (gate `respond_all=false + assigned_to` ajustado) |
+| `whatsapp-instance` | ação `end_human_handover` (devolver ao robô; **desatribui só atribuição automática** e responde `unassigned` + `botStillMuted`); `assign_conversation` registra a origem `'manual'`; **as 4 mensagens de saída humanas passam a gravar `sender_id`** (autor — `send`, `send_media`, 2× `forward_message`; sem migration) | `index.ts`, `_shared/botHandover.ts`, **`_shared/botAssignment.ts`** |
+| `whatsapp-bot-reply` | motor do nó menu (R3), handover real (R4), simulador do fluxo (opt-in, ver [`etapa-9-bot-simulador-fluxo-cobertura.md`](etapa-9-bot-simulador-fluxo-cobertura.md)), **base de conhecimento (item 3, [`etapa-9-item3-r1-base-conhecimento-liga.md`](etapa-9-item3-r1-base-conhecimento-liga.md))** | `index.ts`, `_shared/botFlowMenu.ts`, `_shared/botHandover.ts`, `_shared/botFlowSimulation.ts`, **`_shared/knowledgeLoader.ts`, `_shared/knowledgeSources.ts`, `_shared/knowledgeConsent.ts`** (+ `_shared/brainComposer.ts`, já existente), **`_shared/botAssignment.ts`** (gate `respond_all=false + assigned_to` ajustado; **atribuição automática ao último atendente humano no handover** — só age com a 4ª migration aplicada) |
 | `whatsapp-webhook` | **NÃO invoca** `whatsapp-bot-reply` em conversa já entregue a humano (poupa rate-limit) | `index.ts`, `_shared/botTrigger.ts`, `_shared/botHandover.ts` |
 
 "No mínimo" porque o bundler pode listar também módulos `_shared/` importados só
@@ -475,9 +475,19 @@ itens distintos, se houver). B/C/D/E aparecem **desabilitadas** na tela — não
 | # | Ação | Esperado |
 |---|---|---|
 | 13 | Na tela de Atendimento (conversa de teste) enviar **uma mensagem de texto**, **uma mídia** e **encaminhar uma mensagem** | `SELECT direction, type, sender_id, created_at FROM public.whatsapp_messages WHERE conversation_id = '<CONV>' ORDER BY created_at DESC LIMIT 5;` → as **3 linhas novas** (`outbound`) com `sender_id` = o **seu** user id. Mensagens do **robô** e as **digitadas no celular** seguem com `sender_id` NULL (esperado — nunca houve autor); mensagens **antigas** também (sem backfill) |
-| 14 | Atribuir a conversa a alguém pela tela; depois remover a atribuição | `SELECT assigned_to, assignment_origin FROM public.whatsapp_conversations WHERE id = '<CONV>';` → `<user> | manual`; depois `NULL | NULL` |
-| 15 | Conversa **entregue** (`handover_at` preenchido) **e atribuída manualmente** → **Devolver ao robô** | resposta `{ ok: true, cleared: {...}, unassigned: false }`; a atribuição **continua** (`assigned_to` e `manual` intactos) — decisão humana não é desfeita |
-| 16 | *(opcional, prova a lógica adormecida)* em conversa **de teste** entregue, simular o que a atribuição automática fará: `UPDATE public.whatsapp_conversations SET assigned_to = '<USER>', assignment_origin = 'auto' WHERE id = '<CONV_TESTE>';` → **Devolver ao robô** | `unassigned: true`; `assigned_to` e `assignment_origin` voltam a NULL. (Nada em produção grava `'auto'` ainda — este passo só exercita a devolução.) |
+| 14 | ⚠ **Não há controle de atribuição na tela** (o painel de contato não o renderiza — proposta §10.6). Para exercitar `assign_conversation`, chamar a função com o JWT de um usuário do workspace: `curl -X POST "https://ewamvzncsloagtcvkbxv.supabase.co/functions/v1/whatsapp-instance" -H "Authorization: Bearer <JWT_USUARIO>" -H "apikey: <ANON_KEY>" -H "Content-Type: application/json" -d '{"action":"assign_conversation","workspaceId":"<WS>","conversationId":"<CONV>","userId":"<USER>"}'`; depois repetir com `"userId":null` | `SELECT assigned_to, assignment_origin FROM public.whatsapp_conversations WHERE id = '<CONV>';` → `<user> | manual`; depois `NULL | NULL` |
+| 15 | Conversa **entregue** (`handover_at` preenchido) **e atribuída manualmente** (passo 14, ou `UPDATE … SET assigned_to = '<USER>', assignment_origin = 'manual'`) → **Devolver ao robô** | resposta `{ ok: true, cleared: {...}, unassigned: false, botStillMuted: <ver 20> }`; a atribuição **continua** (`assigned_to` e `manual` intactos) — decisão humana não é desfeita |
+| 16 | *(opcional, sem depender do robô)* em conversa **de teste** entregue, simular a atribuição automática: `UPDATE public.whatsapp_conversations SET assigned_to = '<USER>', assignment_origin = 'auto' WHERE id = '<CONV_TESTE>';` → **Devolver ao robô** | `unassigned: true`; `assigned_to` e `assignment_origin` voltam a NULL |
+
+**Smoke da atribuição automática** (4ª migration aplicada **e** `whatsapp-bot-reply` + `whatsapp-instance` deployados; workspace de teste com o gatilho em **"Qualquer Conversa (Irrestrito)"**):
+
+| # | Ação | Esperado |
+|---|---|---|
+| 17 | Na conversa de teste, **responder pela tela** (grava `sender_id`); depois, como cliente, mandar uma palavra-chave de handover ("atendente") | cortesia do robô; `SELECT assigned_to, assignment_origin, handover_at FROM public.whatsapp_conversations WHERE id = '<CONV>';` → `<seu user> | auto | <timestamp>`; na lista, badge **"Humano"** (atribuída); log `[bot-reply] auto-assignment for conversation <id>: assigned` |
+| 18 | **Conversa nova** (nenhuma resposta humana) → cliente manda "atendente" | handover normal; `assigned_to` e `assignment_origin` **NULL**; na lista, badge **"Aguardando humano"** (âmbar sólido); log `auto-assignment … : no-responder` |
+| 19 | Na conversa do passo 17, **Devolver ao robô** | toast **"Robô de volta e conversa sem atribuição…"**; `assigned_to` e `assignment_origin` NULL; `handover_at` NULL; resposta `unassigned: true, botStillMuted: false` |
+| 20 | Conversa **entregue e atribuída manualmente** (passo 15) com o gatilho do fluxo em **"Apenas Conversas Novas (Triagem)"** → **Devolver ao robô**; depois o cliente manda outra mensagem | toast de **aviso** "Devolvida, mas o robô continua em silêncio…" (resposta `botStillMuted: true`); a mensagem do cliente → log `skipped: assigned and respond_all is false`. **Voltar o gatilho para "Qualquer Conversa (Irrestrito)"** ao terminar |
+| 21 | *(só se a 4ª migration AINDA não foi aplicada)* repetir o passo 17 | handover normal, **nada atribuído** (`assigned_to` NULL), badge **"Aguardando humano"**; log `auto-assignment skipped at write … assignment_origin` — é o comportamento esperado da degradação, **não** um erro |
 
 Query de observação (trocar os dois valores):
 
@@ -493,7 +503,7 @@ WHERE workspace_id = '<WORKSPACE_DE_TESTE>'
 - **Esperado** nos passos 3/7: `[bot-reply] human handover for conversation <id> (reason: menu_exhausted)` (passo 3) e `(reason: menu_option)` (passo 7).
 - **Esperado** no passo 4: com o webhook deployado, **nenhuma** invocação do `whatsapp-bot-reply` nessa mensagem; sem o webhook novo, uma linha `skipped … handed over to human`.
 - **PROIBIDO** depois das migrations: `failed to persist handover state` ou `failed to persist bot_flow_state`. Se aparecer, a coluna correspondente não existe de fato — voltar a §3.
-- **PROIBIDO** depois da 4ª migration: `failed to record assignment_origin` (em `assign_conversation`) ou `failed to clear automatic assignment` (na devolução) — a coluna/constraint não está funcionando; voltar a §3.5. (Antes da migration o primeiro **é esperado** e inofensivo — é a degradação.)
+- **PROIBIDO** depois da 4ª migration: `failed to record assignment_origin` (em `assign_conversation`) ou `failed to clear automatic assignment` (na devolução) — a coluna/constraint não está funcionando; voltar a §3.5. (Antes da migration o primeiro **é esperado** e inofensivo — é a degradação.) Idem `auto-assignment skipped at write` no `whatsapp-bot-reply`: **esperado** antes da 4ª migration; **PROIBIDO** depois dela (a coluna existe e o UPDATE ainda falha — voltar a §3.5). `auto-assignment … : assigned` / `no-responder` / `already-assigned` são desfechos normais.
 - **PROIBIDO** depois da 3ª migration: `knowledge consents unavailable`. Se aparecer, a tabela `ai_knowledge_consents` não está acessível ao servidor — voltar a §3.4. (Antes da migration essa linha **é esperada** e inofensiva — é a degradação.)
 
 ### 5.4 Regra de parada
@@ -509,7 +519,7 @@ WHERE workspace_id = '<WORKSPACE_DE_TESTE>'
 | Código novo, **sem** `handover_at` | bot volta ao comportamento pré-R4 (cortesia sem persistir); webhook invoca como antes; UI não mostra banner; ação "Devolver ao robô" responde **409** e a UI mostra "Migration pendente" |
 | Código novo, **sem** `bot_flow_state` | fluxo **sem** nó menu: zero efeito. Fluxo **com** nó menu habilitado: loop de menu (§0) — **o único cenário ruim** |
 | Código novo, **sem** a tabela `ai_knowledge_consents` | nenhuma categoria ativa: `warn` no log + **robô idêntico ao de hoje**; a tela mostra "ainda não está disponível neste ambiente" e os toggles ficam desabilitados |
-| Código novo, **sem** a coluna `assignment_origin` | origem sempre "desconhecida" = humana: `assign_conversation` faz só a atribuição (warn no log da origem); a devolução **não** desatribui nada; o gate `respond_all=false + assigned_to` é **idêntico ao de antes** (tabela-verdade testada) |
+| Código novo, **sem** a coluna `assignment_origin` | origem sempre "desconhecida" = humana: `assign_conversation` faz só a atribuição (warn no log da origem); a devolução **não** desatribui nada; **o handover só entrega — NÃO atribui** (o UPDATE único `assigned_to`+`assignment_origin` é recusado inteiro; warn `auto-assignment skipped at write`; nunca existe atribuição sem origem); o gate `respond_all=false + assigned_to` é **idêntico ao de antes** (tabela-verdade testada). A lista mostra "Aguardando humano" nas conversas entregues |
 | Colunas/tabela aplicadas, código antigo | inerte (nenhum caminho antigo as lê) |
 | Colunas aplicadas + código novo | comportamento completo |
 
@@ -534,7 +544,7 @@ WHERE workspace_id = '<WORKSPACE_DE_TESTE>'
   **Destrói o estado** (conversas entregues deixam de estar marcadas; o bot volta a
   responder nelas). O app degrada sem as colunas (§6), então o DROP não derruba nada —
   mas não é reversível sem backup do que estava gravado.
-- **DDL de `assignment_origin` (só se necessário):** `ALTER TABLE public.whatsapp_conversations DROP COLUMN IF EXISTS assignment_origin;` (o `DROP` leva o CHECK junto). Perde só a distinção manual/automática — e hoje nada grava `'auto'`; o app degrada para "origem desconhecida" (§6).
+- **DDL de `assignment_origin` (só se necessário):** `ALTER TABLE public.whatsapp_conversations DROP COLUMN IF EXISTS assignment_origin;` (o `DROP` leva o CHECK junto). Perde a distinção manual/automática; **conversas já auto-atribuídas ficam atribuídas** (e passam a valer como atribuição humana — a devolução não as desfaz mais, e com `respond_all=false` voltam a calar o robô): antes do `DROP`, `UPDATE public.whatsapp_conversations SET assigned_to = NULL WHERE assignment_origin = 'auto';`. Depois disso o app degrada para "origem desconhecida" e o handover volta a só entregar (§6).
 - **DDL da base de conhecimento (só se necessário):** `DROP TABLE IF EXISTS public.ai_knowledge_consents;`.
   **Apaga os registros de consentimento/revogação** (trilha de auditoria LGPD: quem ligou
   e quando) — exportar antes. O robô degrada para "nenhuma categoria ativa" (idêntico a hoje).
