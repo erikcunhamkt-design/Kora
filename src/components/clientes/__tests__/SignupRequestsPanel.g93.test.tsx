@@ -63,3 +63,69 @@ describe("SignupRequestsPanel · G93 — não confirma conversão quando a oport
     expect(toast.success).toHaveBeenCalledWith(expect.stringContaining("convertido em lead no CRM"));
   });
 });
+
+// G99 — "Aprovar como cliente" chamava `onApproveAsClient(req)` sem aguardar e confirmava
+// "aprovado como cliente" + status "approved" mesmo com o paywall barrando ou a criação falhando.
+// Contrato: `false` ⇒ não muda o status nem confirma; duplo clique guardado; falha de status
+// DEPOIS de criar diz a verdade (o cliente existe).
+describe("SignupRequestsPanel · G99 — aprovar como cliente só confirma se o cliente foi criado", () => {
+  async function clickApprove() {
+    fireEvent.click(await screen.findByRole("button", { name: /aprovar|cliente/i }));
+  }
+
+  it("onApproveAsClient devolve false (paywall/erro): status NÃO muda e nenhum toast de sucesso", async () => {
+    const onApproveAsClient = vi.fn().mockResolvedValue(false);
+    render(<SignupRequestsPanel onApproveAsClient={onApproveAsClient} />);
+
+    await clickApprove();
+
+    await waitFor(() => expect(onApproveAsClient).toHaveBeenCalledTimes(1));
+    expect(updateStatus).not.toHaveBeenCalled();
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it("onApproveAsClient devolve true: aguarda, muda o status pra \"approved\" e confirma", async () => {
+    const onApproveAsClient = vi.fn().mockResolvedValue(true);
+    render(<SignupRequestsPanel onApproveAsClient={onApproveAsClient} />);
+
+    await clickApprove();
+
+    await waitFor(() => expect(updateStatus).toHaveBeenCalledWith(REQ.id, "approved"));
+    expect(toast.success).toHaveBeenCalledWith(expect.stringContaining("aprovado como cliente"));
+  });
+
+  it("duplo clique durante a criação: um único cliente (o 2º clique é ignorado)", async () => {
+    let release: (v: boolean) => void = () => {};
+    const pending = new Promise<boolean>((resolve) => { release = resolve; });
+    const onApproveAsClient = vi.fn().mockReturnValue(pending);
+    render(<SignupRequestsPanel onApproveAsClient={onApproveAsClient} />);
+
+    const button = await screen.findByRole("button", { name: /aprovar|cliente/i });
+    fireEvent.click(button);
+    fireEvent.click(button);
+    release(true);
+
+    await waitFor(() => expect(updateStatus).toHaveBeenCalledTimes(1));
+    expect(onApproveAsClient).toHaveBeenCalledTimes(1);
+  });
+
+  it("cliente criado mas o status falhou: o erro diz a verdade (o cliente existe), nunca \"Falha ao aprovar\" seco", async () => {
+    updateStatus.mockResolvedValue(false);
+    render(<SignupRequestsPanel onApproveAsClient={vi.fn().mockResolvedValue(true)} />);
+
+    await clickApprove();
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("O cliente foi criado")));
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it("arquivar com falha: erro (antes: silêncio)", async () => {
+    updateStatus.mockResolvedValue(false);
+    render(<SignupRequestsPanel />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /arquivar/i }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Falha ao arquivar a solicitação."));
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+});

@@ -155,6 +155,21 @@ describe("QuoteToReceivableDialog · espelho G22 (Fase B, §5.1) — gap real do
     ));
   });
 
+  // G95 (Vendas) — o aviso diz o MOTIVO do espelho ter falhado, não só "rode a importação".
+  it("G95 — o aviso de espelho falho leva a mensagem real na descrição", async () => {
+    vi.mocked(financeRepository.createReceivableFromQuote).mockRejectedValue(
+      new Error("insert or update on table financial_transactions violates foreign key constraint"),
+    );
+
+    renderDialog(makeQuote());
+    fireEvent.click(screen.getByRole("button", { name: "Gerar conta a receber" }));
+
+    await waitFor(() => expect(toast.warning).toHaveBeenCalledWith(
+      expect.stringContaining("espelho no Supabase falhou"),
+      expect.objectContaining({ description: expect.stringContaining("violates foreign key constraint") }),
+    ));
+  });
+
   // G56 — achado ao vivo (Fase D, Caso 4.3, 2º round): quando o MESMO orçamento
   // já tem um recebível vivo na nuvem (ex.: gerado antes por
   // CreateReceivableDialog.tsx no CRM, Caso 4.2), `createReceivableFromQuote`

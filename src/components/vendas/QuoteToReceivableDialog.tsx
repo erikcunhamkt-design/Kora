@@ -19,6 +19,7 @@ import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { financeRepository } from "@/repositories/financeRepository";
 import { resolveFinanceFk } from "@/services/finance/financeMapper";
 import { roundMoney } from "@/services/quotes/quoteMoney";
+import { getRealErrorMessage } from "@/lib/supabase/errors";
 
 const paymentLabels: Record<PaymentMethod, string> = {
   pix: "PIX",
@@ -186,7 +187,7 @@ export function QuoteToReceivableDialog({
     }).catch((mirrorErr) => {
       console.error("Espelho nuvem do recebível falhou (local já gravado):", mirrorErr, { localTransactionId });
       toast.warning("Recebível salvo localmente, mas o espelho no Supabase falhou.", {
-        description: "Rode a importação manual em Configurações → Dados quando possível.",
+        description: `${getRealErrorMessage(mirrorErr)} — rode a importação manual em Configurações → Dados quando possível.`,
       });
     });
   };

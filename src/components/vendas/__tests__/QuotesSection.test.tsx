@@ -683,7 +683,7 @@ describe("QuotesSection · item 3 (Fatia 10) — exclusão real quando o master 
 
     await waitFor(() => expect(softDeleteSupabaseQuote).toHaveBeenCalled());
     expect(toast.success).not.toHaveBeenCalled();
-    expect(toast.error).toHaveBeenCalledWith("Erro ao excluir orçamento no Supabase.");
+    expect(toast.error).toHaveBeenCalledWith("Erro ao excluir orçamento no Supabase: falhou");
   });
 });
 
@@ -743,7 +743,7 @@ describe("QuotesSection · item 4 (Fatia 10) — duplicar via RPC compartilhada 
     fireEvent.click(screen.getByText("Duplicar"));
 
     await waitFor(() => expect(createSupabaseQuoteWithItems).toHaveBeenCalled());
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Erro ao duplicar orçamento no Supabase."));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Erro ao duplicar orçamento no Supabase: falhou"));
     expect(toast.success).not.toHaveBeenCalled();
   });
 });
@@ -801,7 +801,7 @@ describe("QuotesSection · item 8 (Fatia 10) — status/criação sob o master f
     fireEvent.click(screen.getByText("Marcar como aprovado"));
 
     await waitFor(() => expect(updateSupabaseQuoteStatus).toHaveBeenCalled());
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Erro ao atualizar status do orçamento no Supabase."));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Erro ao atualizar status do orçamento no Supabase: falhou"));
     expect(toast.success).not.toHaveBeenCalled();
   });
 

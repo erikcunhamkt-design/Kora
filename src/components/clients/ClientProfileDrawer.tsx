@@ -155,7 +155,8 @@ export const ClientProfileDrawer = ({
   onCreateQuote?: (c: Client) => void;
   onUpdateAssets?: (clientId: number, assets: ClientAsset[]) => void;
   onUpdateContacts?: (clientId: number, contacts: ClientContact[]) => void;
-  onUpdateAvatar?: (clientId: number, avatarUrl: string | null) => void;
+  /** Devolve `false` quando a atualização NÃO persistiu — o drawer não confirma "Foto atualizada". */
+  onUpdateAvatar?: (clientId: number, avatarUrl: string | null) => void | boolean | Promise<void | boolean>;
   initialTab?: string;
   highlightedActivityId?: string;
   /** "supabase" liga a aba Contatos em client_contacts real (C8); default "local" preserva o
@@ -199,7 +200,8 @@ export const ClientProfileDrawer = ({
         String(client.id),
         file
       );
-      onUpdateAvatar?.(client.id, url);
+      const persisted = await onUpdateAvatar?.(client.id, url);
+      if (persisted === false) return; // o erro (real) já foi mostrado por quem gravou
       toast.success("Foto do cliente atualizada.");
     } catch (err) {
       console.error(err);

@@ -1,5 +1,5 @@
 import { PageHeader } from "@/components/layout/PageHeader";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { usePlan } from "@/contexts/plan-context-value";
 import { UsageBadge } from "@/components/plan/UsageBadge";
 import { Badge } from "@/components/ui/badge";
@@ -191,7 +191,7 @@ const Clientes = () => {
         toast.success("Cliente adicionado.");
       } catch (err) {
         console.error("Supabase createClient error:", err);
-        toast.error(`Erro ao criar cliente: ${err instanceof Error ? err.message : "desconhecido"}`);
+        toast.error(`Erro ao criar cliente: ${getRealErrorMessage(err)}`);
         throw err;
       }
     } else {
@@ -425,12 +425,21 @@ const Clientes = () => {
   };
 
   // --- Signup request handlers ---
-  const approveAsClient = (req: SignupRequest) => {
+  // G99 — antes: `addClient` (assíncrono na nuvem) não era aguardado e o painel confirmava
+  // "aprovado como cliente" + mudava o status mesmo com o paywall barrando ou a criação falhando.
+  // Agora devolve `true` só quando o cliente foi de fato criado (nuvem: caminho nativo de
+  // Clientes, G58; local: addClient local); `false` ⇒ o painel não confirma nem muda o status.
+  // O erro (mensagem real) já foi mostrado por `addClient`. Duplo clique guardado.
+  const approvingRequestIds = useRef<Set<string>>(new Set());
+  const approveAsClient = async (req: SignupRequest): Promise<boolean> => {
+    if (approvingRequestIds.current.has(req.id)) return false;
     if (wouldExceed("maxClients", realClientsCount)) {
       showPaywall("clients");
-      return;
+      return false;
     }
-    addClient({
+    approvingRequestIds.current.add(req.id);
+    try {
+      await addClient({
       name: req.name,
       company: req.company || "",
       email: req.email || "",
@@ -443,7 +452,13 @@ const Clientes = () => {
       status: "Potencial",
       potentialValue: 0,
       observations: req.message || "",
-    });
+      });
+      return true;
+    } catch {
+      return false;
+    } finally {
+      approvingRequestIds.current.delete(req.id);
+    }
   };
 
   /** Devolve `false` quando a oportunidade NÃO foi criada (o painel não confirma sucesso). */
@@ -886,9 +901,16 @@ const Clientes = () => {
           updateClient(id, { contacts });
           setSelectedClient((prev) => (prev && prev.id === id ? { ...prev, contacts } : prev));
         }}
-        onUpdateAvatar={(id, avatarUrl) => {
-          updateClient(id, { avatarUrl: avatarUrl || "" });
+        onUpdateAvatar={async (id, avatarUrl) => {
+          // G99 — antes: `updateClient` sem await (rejeição não tratada) e o drawer confirmava
+          // "Foto do cliente atualizada" mesmo se a escrita falhasse. `false` ⇒ nada confirmado.
+          try {
+            await updateClient(id, { avatarUrl: avatarUrl || "" });
+          } catch {
+            return false; // `updateClient` já mostrou o erro
+          }
           setSelectedClient((prev) => (prev && prev.id === id ? { ...prev, avatarUrl: avatarUrl || undefined } : prev));
+          return true;
         }}
       />
 

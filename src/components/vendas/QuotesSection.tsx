@@ -296,7 +296,7 @@ export function QuotesSection() {
       }
       updateSupabaseQuoteStatus(quote.id, status)
         .then(onSuccessToast)
-        .catch(() => toast.error("Erro ao atualizar status do orçamento no Supabase."));
+        .catch((err) => toast.error(`Erro ao atualizar status do orçamento no Supabase: ${getRealErrorMessage(err)}`));
       return true;
     }
     updateStatus(quote.id, status);
@@ -397,7 +397,7 @@ export function QuotesSection() {
         quote.items,
       )
         .then(() => toast.success("Orçamento duplicado"))
-        .catch(() => toast.error("Erro ao duplicar orçamento no Supabase."));
+        .catch((err) => toast.error(`Erro ao duplicar orçamento no Supabase: ${getRealErrorMessage(err)}`));
       return true;
     }
     duplicateQuote(quote.id);
@@ -419,8 +419,8 @@ export function QuotesSection() {
         await softDeleteSupabaseQuote(confirmDelete.id);
         toast.success("Orçamento excluído");
         setConfirmDelete(null);
-      } catch {
-        toast.error("Erro ao excluir orçamento no Supabase.");
+      } catch (err) {
+        toast.error(`Erro ao excluir orçamento no Supabase: ${getRealErrorMessage(err)}`);
       }
       return;
     }

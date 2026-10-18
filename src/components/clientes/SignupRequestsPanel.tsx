@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useSignupRequests, type SignupRequest } from "@/hooks/useSignupRequests";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,7 +33,8 @@ type Filter = "pending" | "all" | "archived";
 
 interface Props {
   /** Hook em Clientes para criar cliente real a partir da solicitação. */
-  onApproveAsClient?: (req: SignupRequest) => void;
+  /** Devolve `false` quando o cliente NÃO foi criado — o painel não confirma sucesso nem muda o status. */
+  onApproveAsClient?: (req: SignupRequest) => void | boolean | Promise<void | boolean>;
   /** Hook em Clientes/CRM para criar lead/oportunidade. */
   /** Devolve `false` quando a oportunidade NÃO foi criada — o painel não confirma sucesso nem muda o status. */
   onConvertLead?: (req: SignupRequest) => void | boolean | Promise<void | boolean>;
@@ -56,31 +57,51 @@ export const SignupRequestsPanel = ({ onApproveAsClient, onConvertLead }: Props)
     all: requests.length,
   }), [requests]);
 
-  const handleApprove = async (req: SignupRequest) => {
-    if (onApproveAsClient) onApproveAsClient(req);
-    const ok = await updateStatus(req.id, "approved");
-    if (ok) toast.success(`${req.name} aprovado como cliente.`);
-    else toast.error("Falha ao aprovar.");
+  // G99 — guarda de duplo clique: aprovar/converter são assíncronos (criam cliente/oportunidade
+  // antes de mudar o status); um 2º clique durante a escrita criaria outro registro.
+  const busyIds = useRef<Set<string>>(new Set());
+  const runOnce = async (req: SignupRequest, action: () => Promise<void>) => {
+    if (busyIds.current.has(req.id)) return;
+    busyIds.current.add(req.id);
+    try {
+      await action();
+    } finally {
+      busyIds.current.delete(req.id);
+    }
   };
 
-  const handleLead = async (req: SignupRequest) => {
-    if (onConvertLead) {
-      const created = await onConvertLead(req);
-      if (created === false) return; // o erro (real) já foi mostrado por quem criou
-    }
-    const ok = await updateStatus(req.id, "lead");
-    if (ok) toast.success(`${req.name} convertido em lead no CRM.`);
-    else toast.error("Falha ao converter em lead.");
-  };
+  const handleApprove = (req: SignupRequest) =>
+    runOnce(req, async () => {
+      if (onApproveAsClient) {
+        const created = await onApproveAsClient(req);
+        if (created === false) return; // o erro (real) ou o paywall já foi mostrado por quem criou
+      }
+      const ok = await updateStatus(req.id, "approved");
+      if (ok) toast.success(`${req.name} aprovado como cliente.`);
+      else toast.error("O cliente foi criado, mas não foi possível marcar a solicitação como aprovada.");
+    });
+
+  const handleLead = (req: SignupRequest) =>
+    runOnce(req, async () => {
+      if (onConvertLead) {
+        const created = await onConvertLead(req);
+        if (created === false) return; // o erro (real) já foi mostrado por quem criou
+      }
+      const ok = await updateStatus(req.id, "lead");
+      if (ok) toast.success(`${req.name} convertido em lead no CRM.`);
+      else toast.error("A oportunidade foi criada, mas não foi possível marcar a solicitação como convertida.");
+    });
 
   const handleArchive = async (req: SignupRequest) => {
     const ok = await updateStatus(req.id, "archived");
     if (ok) toast.success("Solicitação arquivada.");
+    else toast.error("Falha ao arquivar a solicitação.");
   };
 
   const handleRestore = async (req: SignupRequest) => {
     const ok = await updateStatus(req.id, "pending");
     if (ok) toast.success("Solicitação restaurada para pendente.");
+    else toast.error("Falha ao restaurar a solicitação.");
   };
 
   const confirmDelete = async () => {
