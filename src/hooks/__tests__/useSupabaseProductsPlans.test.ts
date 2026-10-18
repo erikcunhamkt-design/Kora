@@ -12,7 +12,7 @@ import { useSupabaseCommercialPlans } from "@/hooks/useSupabaseCommercialPlans";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { productsRepository, type SupabaseProduct } from "@/repositories/productsRepository";
 import { commercialPlansRepository, type SupabaseCommercialPlan } from "@/repositories/commercialPlansRepository";
-import { CatalogUnavailableError } from "@/repositories/catalogRepositoryShared";
+import { CatalogUnavailableError, toCatalogError } from "@/repositories/catalogRepositoryShared";
 
 vi.mock("@/hooks/useCurrentWorkspace", () => ({ useCurrentWorkspace: vi.fn() }));
 vi.mock("@/repositories/productsRepository", () => ({
@@ -73,6 +73,16 @@ describe("useSupabaseProducts", () => {
     expect(result.current.products).toEqual([]);
     expect(result.current.error).toMatch(/não está disponível/i);
     expect(productsRepository.listProducts).toHaveBeenCalledTimes(1);
+  });
+
+  it("G95: erro de leitura que NÃO é tabela ausente ⇒ `error` com a causa real, e unavailable = false", async () => {
+    vi.mocked(productsRepository.listProducts).mockRejectedValue(
+      toCatalogError({ code: "42501", message: "permission denied for table products" }),
+    );
+    const { result } = renderHook(() => useSupabaseProducts(), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.error).toBeTruthy());
+    expect(result.current.unavailable).toBe(false);
+    expect(result.current.error).toContain("permission denied for table products");
   });
 
   it("[G30/G37/G56] create: payload completo, source_local_id nativo, resposta vai pro cache sem refetch; update/remove idem", async () => {

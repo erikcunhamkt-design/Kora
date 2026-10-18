@@ -3,6 +3,7 @@
 // descartes e, sobretudo, SCHEMA PENDENTE (pacote §8-b): aviso legível e import BLOQUEADO (G29).
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { vi, describe, it, expect, beforeEach } from "vitest";
+import { toast } from "sonner";
 
 import { LocalCatalogImportCard } from "@/components/settings/LocalCatalogImportCard";
 import { useLocalCatalogImport } from "@/hooks/useLocalCatalogImport";
@@ -105,6 +106,25 @@ describe("LocalCatalogImportCard", () => {
     expect(status).toHaveTextContent("Planos: 1 importado(s)");
     expect(status).toHaveTextContent("1 item(ns) de plano DESCARTADO(S)");
     expect(status).toHaveTextContent("Studio: Fantasma");
+  });
+
+  it("G95: relatório lista cada falha com o nome do item e a CAUSA; o toast leva o primeiro erro", async () => {
+    const failing = emptyCatalogImportReport();
+    failing.failed.service = ["svc-1"];
+    failing.failures = [{ kind: "service", localId: "svc-1", label: "Logo", message: "Alguns dados não atendem às regras de validação. (violates check constraint \"services_billing_type_known_chk\")" }];
+    const { importSelected } = mockHook({ report: failing });
+    importSelected.mockResolvedValue(failing);
+    render(<LocalCatalogImportCard />);
+    open();
+    const status = screen.getByRole("status", { name: "Relatório do último import" });
+    expect(status).toHaveTextContent("1 item(ns) com FALHA");
+    expect(status).toHaveTextContent("Serviços · Logo: Alguns dados não atendem às regras de validação.");
+    expect(status).toHaveTextContent("services_billing_type_known_chk");
+
+    fireEvent.click(screen.getByRole("button", { name: "Selecionar todas as novas" }));
+    fireEvent.click(screen.getByRole("button", { name: "Importar selecionados" }));
+    await waitFor(() => expect(toast.warning).toHaveBeenCalled());
+    expect(String(vi.mocked(toast.warning).mock.calls[0][0])).toContain("Primeiro erro (Logo):");
   });
 
   describe("schema pendente (pacote §8-b) — G29", () => {

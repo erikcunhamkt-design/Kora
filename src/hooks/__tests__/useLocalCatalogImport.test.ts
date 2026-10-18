@@ -8,7 +8,7 @@ import { serviceCategoriesRepository } from "@/repositories/serviceCategoriesRep
 import { servicesRepository } from "@/repositories/servicesRepository";
 import { productsRepository } from "@/repositories/productsRepository";
 import { commercialPlansRepository } from "@/repositories/commercialPlansRepository";
-import { CatalogUnavailableError } from "@/repositories/catalogRepositoryShared";
+import { CatalogUnavailableError, toCatalogError } from "@/repositories/catalogRepositoryShared";
 import { CATALOG_IMPORT_META_KEY } from "@/services/catalog/catalogImport";
 
 const WS = "2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9";
@@ -92,6 +92,30 @@ describe("useLocalCatalogImport", () => {
     await act(async () => { await result.current.analyze(); });
     expect(result.current.schemaPending).toBeNull();
     expect(result.current.error).toBeTruthy();
+  });
+
+  it("G95: erro de RLS na sonda ⇒ mensagem com a causa real (e não schemaPending)", async () => {
+    vi.mocked(productsRepository.listProducts).mockRejectedValue(
+      toCatalogError({ code: "42501", message: 'permission denied for table products' }),
+    );
+    const { result } = renderHook(() => useLocalCatalogImport());
+    await act(async () => { await result.current.analyze(); });
+    expect(result.current.schemaPending).toBeNull();
+    expect(result.current.error).toMatch(/^Erro ao consultar o catálogo na nuvem: /);
+    expect(result.current.error).toContain("permission denied for table products");
+  });
+
+  it("G95: falha de UM item no import ⇒ relatório com o nome do item e a causa real (não só a contagem)", async () => {
+    vi.mocked(serviceCategoriesRepository.importCategory).mockRejectedValue(
+      toCatalogError({ code: "42P10", message: "there is no unique or exclusion constraint matching the ON CONFLICT specification" }),
+    );
+    const { result } = renderHook(() => useLocalCatalogImport());
+    await act(async () => { await result.current.analyze(); });
+    await act(async () => { await result.current.importSelected(ALL); });
+    const failures = result.current.report?.failures ?? [];
+    expect(failures).toHaveLength(1);
+    expect(failures[0]).toMatchObject({ kind: "category", localId: "cat-1", label: "Branding" });
+    expect(failures[0].message).toContain("no unique or exclusion constraint matching the ON CONFLICT");
   });
 
   it("importa em ORDEM, persiste a meta e a 2ª rodada tem 0 novos / 0 chamadas; descarte contado no relatório", async () => {

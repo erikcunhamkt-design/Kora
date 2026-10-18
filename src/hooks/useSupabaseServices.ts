@@ -15,13 +15,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { useSupabaseServiceCategories } from "@/hooks/useSupabaseServiceCategories";
 import { servicesRepository, type SupabaseService } from "@/repositories/servicesRepository";
-import { isCatalogUnavailable } from "@/repositories/catalogRepositoryShared";
+import { catalogErrorMessage, isCatalogUnavailable } from "@/repositories/catalogRepositoryShared";
 import {
   mapLocalServiceToSupabase,
   mapServicePatchToSupabase,
   mapSupabaseServiceToLocal,
 } from "@/services/catalog/catalogMapper";
-import { getFriendlyMessage } from "@/lib/supabase/errors";
 import { buildNativeSourceLocalId } from "@/lib/installId";
 import type { Service } from "@/hooks/useServices";
 
@@ -107,7 +106,7 @@ export function useSupabaseServices() {
     loading: query.isLoading,
     /** Tabela ainda não criada no banco — a lista vem vazia e nada quebra. */
     unavailable: isCatalogUnavailable(query.error),
-    error: query.error ? getFriendlyMessage(query.error) : null,
+    error: query.error ? catalogErrorMessage(query.error) : null,
     refresh,
 
     createService: (input: NewServiceInput) => createMutation.mutateAsync(input),

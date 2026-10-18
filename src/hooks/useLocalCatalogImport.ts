@@ -16,7 +16,7 @@ import { serviceCategoriesRepository } from "@/repositories/serviceCategoriesRep
 import { servicesRepository } from "@/repositories/servicesRepository";
 import { productsRepository } from "@/repositories/productsRepository";
 import { commercialPlansRepository } from "@/repositories/commercialPlansRepository";
-import { isCatalogUnavailable } from "@/repositories/catalogRepositoryShared";
+import { catalogErrorMessage, isCatalogUnavailable } from "@/repositories/catalogRepositoryShared";
 import {
   buildCatalogCandidates,
   emptyCatalogImportReport,
@@ -28,7 +28,6 @@ import {
   type CatalogImportRepos,
 } from "@/services/catalog/catalogImport";
 import { getInstallId } from "@/lib/installId";
-import { getFriendlyMessage } from "@/lib/supabase/errors";
 
 export interface SchemaPending {
   /** Nomes das tabelas ausentes no banco. */
@@ -85,7 +84,7 @@ export function useLocalCatalogImport() {
       });
       if (missing.length > 0) setSchemaPending({ tables: missing });
       else setSchemaPending(null);
-      if (otherError) setError(getFriendlyMessage(otherError));
+      if (otherError) setError(`Erro ao consultar o catálogo na nuvem: ${catalogErrorMessage(otherError)}`);
 
       setCandidates(buildCatalogCandidates(data, readCatalogImportMeta().maps));
     } finally {

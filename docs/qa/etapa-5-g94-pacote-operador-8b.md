@@ -568,7 +568,7 @@ FROM (SELECT workspace_id, source_local_id FROM public.services
 ### 4.1 Testar a leitura/escrita na nuvem (CT4) num navegador de teste — **sem flip**
 
 O padrão continua LOCAL para todos. Para **um** navegador de teste ver o catálogo da nuvem: Configurações → Dados →
-cards **"Catálogo (leitura)"** e **"Catálogo (escrita)"** (padrão dos outros domínios; só o valor **explícito** "Supabase"
+cards **"Catálogo comercial · fonte de dados"** e **"Catálogo comercial · escrita na nuvem"** (padrão dos outros domínios; só o valor **explícito** "Supabase"
 seleciona a nuvem). Detalhes e comportamento esperado em
 [`etapa-5-g94-ct4-fase-b.md`](etapa-5-g94-ct4-fase-b.md). **Não** habilitar para os demais usuários — o flip do
 domínio é o CT7.

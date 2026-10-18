@@ -17,6 +17,7 @@ import {
   type CatalogLocalData,
   type CatalogMaps,
 } from "@/services/catalog/catalogImport";
+import { toCatalogError } from "@/repositories/catalogRepositoryShared";
 
 const WS = "2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9";
 const INST = "0a1b2c3d-1111-4222-8333-444455556666";
@@ -220,6 +221,19 @@ describe("executeCatalogImport", () => {
     expect(maps.categories["cat-1"]).toBeUndefined();
     // o serviço sem dependência pendente (categoria demo) sobe normalmente
     expect(report.created.service).toEqual(["svc-3"]);
+  });
+
+  it("G95: a causa REAL de cada falha vai pro relatório (nome do item + mensagem), não só o id", async () => {
+    const { repos } = makeRepos();
+    repos.importCategory = async () => { throw toCatalogError({ code: "23514", message: 'new row for relation "service_categories" violates check constraint "x_chk"' }); };
+    const d = data();
+    const { report } = await executeCatalogImport({ workspaceId: WS, installId: INST, data: d, maps: emptyCatalogMaps(), selection: all(d), repos });
+    expect(report.failed.category).toEqual(["cat-1"]);
+    expect(report.failures).toHaveLength(1);
+    expect(report.failures[0]).toMatchObject({ kind: "category", localId: "cat-1", label: "Branding" });
+    expect(report.failures[0].message).toContain('violates check constraint "x_chk"');
+    // dependentes pulados NÃO viram "falha" (não houve tentativa) — ficam em skippedDependency
+    expect(report.failures.map((f) => f.kind)).toEqual(["category"]);
   });
 
   it("meta só avança APÓS sucesso: onMapped dispara por item gravado, nunca por falha", async () => {

@@ -25,6 +25,7 @@ import type { SupabaseCommercialPlan, SupabaseCommercialPlanInput } from "@/repo
 import { mapLocalServiceCategoryToSupabase, mapLocalServiceToSupabase, resolveCatalogFk } from "@/services/catalog/catalogMapper";
 import { mapLocalPlanToSupabase, mapLocalProductToSupabase } from "@/services/catalog/catalogProductPlanMapper";
 import { buildSourceLocalId } from "@/lib/installId";
+import { catalogErrorMessage } from "@/repositories/catalogRepositoryShared";
 
 export type CatalogKind = "category" | "service" | "product" | "plan";
 
@@ -225,9 +226,19 @@ export interface CatalogImportRepos {
   importPlan(ws: string, sourceLocalId: string, input: SupabaseCommercialPlanInput): Promise<SupabaseCommercialPlan>;
 }
 
+/** Falha de UM item do import, com a causa REAL (G95): nunca só "N falharam". */
+export interface CatalogImportFailure {
+  kind: CatalogKind;
+  localId: string;
+  label: string;
+  message: string;
+}
+
 export interface CatalogImportReport {
   created: Record<CatalogKind, string[]>;
   failed: Record<CatalogKind, string[]>;
+  /** Mesma lista de `failed`, com nome do item e a mensagem real do erro. */
+  failures: CatalogImportFailure[];
   /** Pulados em runtime porque a dependência falhou/não foi importada — NADA foi gravado pra eles. */
   skippedDependency: Record<CatalogKind, string[]>;
   /** Itens de plano descartados (sem tradução), por plano importado. */
@@ -239,7 +250,7 @@ function emptyBuckets(): Record<CatalogKind, string[]> {
 }
 
 export function emptyCatalogImportReport(): CatalogImportReport {
-  return { created: emptyBuckets(), failed: emptyBuckets(), skippedDependency: emptyBuckets(), discardedPlanItems: [] };
+  return { created: emptyBuckets(), failed: emptyBuckets(), failures: [], skippedDependency: emptyBuckets(), discardedPlanItems: [] };
 }
 
 export function totalDiscarded(report: CatalogImportReport): number {
@@ -277,6 +288,11 @@ export async function executeCatalogImport(args: ExecuteCatalogImportArgs): Prom
   const importable = { services: nonDemoIds(data.services), products: nonDemoIds(data.products) };
   const selected = (kind: CatalogKind, id: string) => selection.has(candidateKey(kind, id));
 
+  const fail = (kind: CatalogKind, localId: string, label: string, error: unknown) => {
+    report.failed[kind].push(localId);
+    report.failures.push({ kind, localId, label, message: catalogErrorMessage(error) });
+  };
+
   const record = (kind: CatalogKind, localId: string, uuid: string) => {
     maps[MAP_KEY[kind]][localId] = uuid;
     report.created[kind].push(localId);
@@ -290,8 +306,8 @@ export async function executeCatalogImport(args: ExecuteCatalogImportArgs): Prom
         try {
           const created = await repos.importCategory(workspaceId, buildSourceLocalId(installId, c.id), mapLocalServiceCategoryToSupabase(c));
           record("category", c.id, created.id);
-        } catch {
-          report.failed.category.push(c.id);
+        } catch (error) {
+          fail("category", c.id, c.name, error);
         }
       }
     } else if (kind === "service") {
@@ -302,8 +318,8 @@ export async function executeCatalogImport(args: ExecuteCatalogImportArgs): Prom
         try {
           const created = await repos.importService(workspaceId, buildSourceLocalId(installId, s.id), mapLocalServiceToSupabase(s, { categories: maps.categories }));
           record("service", s.id, created.id);
-        } catch {
-          report.failed.service.push(s.id);
+        } catch (error) {
+          fail("service", s.id, s.name, error);
         }
       }
     } else if (kind === "product") {
@@ -314,8 +330,8 @@ export async function executeCatalogImport(args: ExecuteCatalogImportArgs): Prom
         try {
           const created = await repos.importProduct(workspaceId, buildSourceLocalId(installId, p.id), mapLocalProductToSupabase(p, { categories: maps.categories }));
           record("product", p.id, created.id);
-        } catch {
-          report.failed.product.push(p.id);
+        } catch (error) {
+          fail("product", p.id, p.name, error);
         }
       }
     } else {
@@ -328,8 +344,8 @@ export async function executeCatalogImport(args: ExecuteCatalogImportArgs): Prom
           const created = await repos.importPlan(workspaceId, buildSourceLocalId(installId, pl.id), input);
           record("plan", pl.id, created.id);
           if (discarded.length > 0) report.discardedPlanItems.push({ planId: pl.id, planName: pl.name, items: discarded });
-        } catch {
-          report.failed.plan.push(pl.id);
+        } catch (error) {
+          fail("plan", pl.id, pl.name, error);
         }
       }
     }

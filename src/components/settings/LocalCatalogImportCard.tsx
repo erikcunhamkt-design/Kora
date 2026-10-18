@@ -74,7 +74,12 @@ export function LocalCatalogImportCard() {
     const failed = CATALOG_IMPORT_ORDER.reduce((n, k) => n + result.failed[k].length, 0);
     const skipped = CATALOG_IMPORT_ORDER.reduce((n, k) => n + result.skippedDependency[k].length, 0);
     if (created > 0) toast.success(`${created} item(ns) do catálogo importado(s) com sucesso`);
-    if (failed > 0) toast.warning(`${failed} item(ns) falharam ao importar — nada foi gravado para eles.`);
+    if (failed > 0) {
+      const first = result.failures[0];
+      toast.warning(
+        `${failed} item(ns) falharam ao importar — nada foi gravado para eles.${first ? ` Primeiro erro (${first.label}): ${first.message}` : ""}`,
+      );
+    }
     if (skipped > 0) toast.warning(`${skipped} item(ns) não foram importados porque a dependência falhou — nada foi gravado para eles.`);
     const discarded = totalDiscarded(result);
     if (discarded > 0) toast.warning(`${discarded} item(ns) de plano foram DESCARTADOS (sem serviço/produto correspondente na nuvem).`);
@@ -184,6 +189,18 @@ export function LocalCatalogImportCard() {
                     );
                   })}
                 </ul>
+                {report.failures.length > 0 && (
+                  <div className="text-destructive">
+                    <p className="font-medium">{report.failures.length} item(ns) com FALHA — nada foi gravado para eles:</p>
+                    <ul className="list-disc pl-5">
+                      {report.failures.map((f) => (
+                        <li key={`${f.kind}:${f.localId}`}>
+                          {CATALOG_KIND_LABEL[f.kind]} · {f.label}: {f.message}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 {report.discardedPlanItems.length > 0 && (
                   <div className="text-amber-700 dark:text-amber-400">
                     <p className="font-medium">

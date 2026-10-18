@@ -22,7 +22,7 @@ import { serviceCategoriesRepository } from "@/repositories/serviceCategoriesRep
 import { servicesRepository } from "@/repositories/servicesRepository";
 import { productsRepository } from "@/repositories/productsRepository";
 import { commercialPlansRepository } from "@/repositories/commercialPlansRepository";
-import { CatalogUnavailableError } from "@/repositories/catalogRepositoryShared";
+import { CatalogUnavailableError, toCatalogError } from "@/repositories/catalogRepositoryShared";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), warning: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 vi.mock("@/hooks/useCurrentWorkspace", () => ({ useCurrentWorkspace: () => ({ workspace: { id: "2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9" } }) }));
@@ -267,6 +267,76 @@ describe("fonte NUVEM + escrita LIGADA", () => {
     expect(ok).toBe(false);
     expect(vi.mocked(toast.error).mock.calls[0][0]).toMatch(/catálogo na nuvem ainda não está disponível/i);
     expect(result.current.svc.services.map((s) => s.id)).toEqual([SVC]);
+  });
+
+  // G95 — toda escrita falha com "Erro ao <ação> no catálogo (Supabase): <causa real>", nunca um genérico.
+  it("G95: CHECK do banco ⇒ toast com a AÇÃO e o nome da constraint (não 'Ocorreu um erro inesperado')", async () => {
+    cloudOn(true);
+    vi.mocked(servicesRepository.importService).mockRejectedValue(
+      toCatalogError({ code: "23514", message: 'new row for relation "services" violates check constraint "services_billing_type_known_chk"' }),
+    );
+    const { result } = renderHook(() => useAll(), { wrapper: wrapper() });
+    await waitFor(() => expect(result.current.svc.services).toHaveLength(1));
+
+    await act(async () => {
+      expect(await result.current.svc.addService({ name: "X", description: "", category: "", price: 1, billingType: "único", deliveryDays: 1, active: true })).toBe(false);
+    });
+    const msg = String(vi.mocked(toast.error).mock.calls[0][0]);
+    expect(msg).toMatch(/^Erro ao criar o serviço no catálogo \(Supabase\): /);
+    expect(msg).toContain("services_billing_type_known_chk");
+    expect(msg).not.toBe("Ocorreu um erro inesperado. Tente novamente.");
+  });
+
+  it.each([
+    ["editar o serviço", { code: "42501", message: 'new row violates row-level security policy for table "services"' }, () => 0],
+    ["editar o serviço", { code: "42P10", message: "there is no unique or exclusion constraint matching the ON CONFLICT specification" }, () => 0],
+  ])("G95: RLS/índice ausente em %s ⇒ a causa técnica aparece no toast", async (action, pgError) => {
+    cloudOn(true);
+    vi.mocked(servicesRepository.updateService).mockRejectedValue(toCatalogError(pgError));
+    const { result } = renderHook(() => useAll(), { wrapper: wrapper() });
+    await waitFor(() => expect(result.current.svc.services).toHaveLength(1));
+    await act(async () => { expect(await result.current.svc.updateService(SVC, { price: 5 })).toBe(false); });
+    const msg = String(vi.mocked(toast.error).mock.calls[0][0]);
+    expect(msg.startsWith(`Erro ao ${action} no catálogo (Supabase): `)).toBe(true);
+    expect(msg).toContain(pgError.message);
+  });
+
+  it("G95: cada operação nomeia a sua ação no toast de erro (15 operações)", async () => {
+    cloudOn(true);
+    const boom = toCatalogError({ code: "XX000", message: "causa-especifica-xyz" });
+    for (const fn of [
+      servicesRepository.importService, servicesRepository.updateService, servicesRepository.softDeleteService,
+      productsRepository.importProduct, productsRepository.updateProduct, productsRepository.softDeleteProduct,
+      serviceCategoriesRepository.importCategory, serviceCategoriesRepository.updateCategory, serviceCategoriesRepository.softDeleteCategory,
+      commercialPlansRepository.importPlan, commercialPlansRepository.updatePlan, commercialPlansRepository.softDeletePlan,
+    ]) vi.mocked(fn).mockRejectedValue(boom);
+    const { result } = renderHook(() => useAll(), { wrapper: wrapper() });
+    await waitFor(() => expect(result.current.plans.plans).toHaveLength(1));
+
+    const ops: Array<[string, () => unknown]> = [
+      ["criar o serviço", () => result.current.svc.addService({ name: "X", description: "", category: "", price: 1, billingType: "único", deliveryDays: 1, active: true })],
+      ["editar o serviço", () => result.current.svc.updateService(SVC, { price: 2 })],
+      ["duplicar o serviço", () => result.current.svc.duplicateService(SVC)],
+      ["arquivar/ativar o serviço", () => result.current.svc.toggleActive(SVC)],
+      ["excluir o serviço", () => result.current.svc.removeService(SVC)],
+      ["criar o produto", () => result.current.prods.addProduct({ name: "P", description: "", price: 1, type: "digital", status: "active" })],
+      ["editar o produto", () => result.current.prods.updateProduct(PROD, { price: 2 })],
+      ["excluir o produto", () => result.current.prods.removeProduct(PROD)],
+      ["criar a categoria", () => result.current.cats.addCategory({ name: "C", color: "#000000" })],
+      ["editar a categoria", () => result.current.cats.updateCategory(CAT, { name: "D" })],
+      ["excluir a categoria", () => result.current.cats.removeCategory(CAT)],
+      ["criar o plano", () => result.current.plans.addPlan({ name: "P", description: "", billingCycle: "monthly", price: 1, items: [], highlight: false, status: "active" })],
+      ["editar o plano", () => result.current.plans.updatePlan(PLAN, { highlight: true })],
+      ["duplicar o plano", () => result.current.plans.duplicatePlan(PLAN)],
+      ["excluir o plano", () => result.current.plans.removePlan(PLAN)],
+    ];
+    for (const [action, op] of ops) {
+      vi.mocked(toast.error).mockClear();
+      await act(async () => { expect(await op()).toBe(false); });
+      const msg = String(vi.mocked(toast.error).mock.calls[0]?.[0]);
+      expect(msg, action).toMatch(new RegExp(`^Erro ao ${action.replace(/[/]/g, "\\/")} no catálogo \\(Supabase\\): `));
+      expect(msg, action).toContain("causa-especifica-xyz");
+    }
   });
 });
 

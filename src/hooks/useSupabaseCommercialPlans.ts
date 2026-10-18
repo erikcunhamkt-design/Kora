@@ -12,13 +12,12 @@ import {
   commercialPlansRepository,
   type SupabaseCommercialPlan,
 } from "@/repositories/commercialPlansRepository";
-import { isCatalogUnavailable } from "@/repositories/catalogRepositoryShared";
+import { catalogErrorMessage, isCatalogUnavailable } from "@/repositories/catalogRepositoryShared";
 import {
   mapLocalPlanToSupabase,
   mapPlanPatchToSupabase,
   mapSupabasePlanToLocal,
 } from "@/services/catalog/catalogProductPlanMapper";
-import { getFriendlyMessage } from "@/lib/supabase/errors";
 import { buildNativeSourceLocalId } from "@/lib/installId";
 import type { CommercialPlan, PlanItem } from "@/hooks/useCommercialPlans";
 
@@ -96,7 +95,7 @@ export function useSupabaseCommercialPlans() {
     loading: query.isLoading,
     /** Tabela ainda não criada no banco — a lista vem vazia e nada quebra. */
     unavailable: isCatalogUnavailable(query.error),
-    error: query.error ? getFriendlyMessage(query.error) : null,
+    error: query.error ? catalogErrorMessage(query.error) : null,
     refresh,
 
     createPlan: (input: NewPlanInput) => createMutation.mutateAsync(input),

@@ -10,7 +10,7 @@
 //    devolvem lista vazia + esse erro, e NENHUMA tela quebra (nada consome ainda).
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { AppError, normalizeSupabaseError } from "@/lib/supabase/errors";
+import { AppError, getRealErrorMessage, normalizeSupabaseError } from "@/lib/supabase/errors";
 
 export const catalogDb = supabase as unknown as SupabaseClient;
 
@@ -48,4 +48,22 @@ export function toCatalogError(error: unknown): AppError {
 
 export function isCatalogUnavailable(error: unknown): boolean {
   return error instanceof AppError && error.code === CATALOG_UNAVAILABLE_CODE;
+}
+
+/**
+ * G95 (classe "mensagem genérica sem a causa") no domínio do catálogo. `getRealErrorMessage` devolve a mensagem
+ * real de `Error`/`{message}`, mas os repositórios já convertem tudo em `AppError` (`toCatalogError` →
+ * `normalizeSupabaseError`): para código desconhecido a `.message` vira "Ocorreu um erro inesperado" e para os
+ * conhecidos perde o nome da constraint/policy — justamente o que a homologação precisa ler (ex.: o CHECK
+ * `services_billing_type_known_chk`, a RLS, o 42P10 de índice único ausente). A causa técnica fica em
+ * `technicalMessage`; aqui ela é anexada. `CatalogUnavailableError` já é específico e legível — não leva apêndice.
+ */
+export function catalogErrorMessage(error: unknown): string {
+  const message = getRealErrorMessage(error);
+  if (isCatalogUnavailable(error)) return message;
+  if (error instanceof AppError) {
+    const technical = error.technicalMessage;
+    if (technical && technical !== message && !message.includes(technical)) return `${message} (${technical})`;
+  }
+  return message;
 }

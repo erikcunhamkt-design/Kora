@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 
 import { CatalogSupabaseSourceToggleCard, CatalogSupabaseWriteToggleCard } from "@/components/settings/CatalogSupabaseToggleCards";
+import { CATALOG_WRITE_BLOCKED_MESSAGE } from "@/hooks/useBifurcatedCatalog";
 import { CATALOG_DATA_SOURCE_KEY, CATALOG_WRITE_FLAG_KEY, getCatalogDataSource, getCatalogWriteEnabled } from "@/config/flags";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), warning: vi.fn(), error: vi.fn() } }));
@@ -30,6 +31,14 @@ describe("flags do catálogo (config/flags.ts)", () => {
   it("chaves reservadas pela Fase B", () => {
     expect(CATALOG_DATA_SOURCE_KEY).toBe("kora.catalog.dataSource.v1");
     expect(CATALOG_WRITE_FLAG_KEY).toBe("kora.catalog.supabaseWrite.v1");
+  });
+});
+
+describe("textos que apontam pros cards (G29)", () => {
+  it("o toast de escrita bloqueada cita o título REAL do card de escrita", () => {
+    render(<CatalogSupabaseWriteToggleCard />);
+    expect(screen.getByText("Catálogo comercial · escrita na nuvem")).toBeInTheDocument();
+    expect(CATALOG_WRITE_BLOCKED_MESSAGE).toContain("“Catálogo comercial · escrita na nuvem”");
   });
 });
 

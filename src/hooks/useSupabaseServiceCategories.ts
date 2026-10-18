@@ -14,12 +14,11 @@ import {
   serviceCategoriesRepository,
   type SupabaseServiceCategory,
 } from "@/repositories/serviceCategoriesRepository";
-import { isCatalogUnavailable } from "@/repositories/catalogRepositoryShared";
+import { catalogErrorMessage, isCatalogUnavailable } from "@/repositories/catalogRepositoryShared";
 import {
   mapLocalServiceCategoryToSupabase,
   mapSupabaseServiceCategoryToLocal,
 } from "@/services/catalog/catalogMapper";
-import { getFriendlyMessage } from "@/lib/supabase/errors";
 import { buildNativeSourceLocalId } from "@/lib/installId";
 import type { ServiceCategory } from "@/hooks/useServiceCategories";
 
@@ -94,7 +93,7 @@ export function useSupabaseServiceCategories() {
     loading: query.isLoading,
     /** Tabela ainda não criada no banco — a lista vem vazia e nada quebra. */
     unavailable: isCatalogUnavailable(query.error),
-    error: query.error ? getFriendlyMessage(query.error) : null,
+    error: query.error ? catalogErrorMessage(query.error) : null,
     refresh,
 
     createCategory: (input: NewServiceCategoryInput) => createMutation.mutateAsync(input),

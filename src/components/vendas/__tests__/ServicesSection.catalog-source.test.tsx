@@ -13,7 +13,7 @@ import { serviceCategoriesRepository } from "@/repositories/serviceCategoriesRep
 import { servicesRepository } from "@/repositories/servicesRepository";
 import { productsRepository } from "@/repositories/productsRepository";
 import { commercialPlansRepository } from "@/repositories/commercialPlansRepository";
-import { CatalogUnavailableError } from "@/repositories/catalogRepositoryShared";
+import { CatalogUnavailableError, toCatalogError } from "@/repositories/catalogRepositoryShared";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), warning: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 vi.mock("@/hooks/useCurrentWorkspace", () => ({ useCurrentWorkspace: () => ({ workspace: { id: "2dc45e1a-6170-4a37-8c95-e2a6bb83f5f9" } }) }));
@@ -125,6 +125,32 @@ describe("Catálogo · fonte NUVEM", () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
     expect(toast.success).not.toHaveBeenCalled();
     expect(screen.getByText("Salvar serviço")).toBeInTheDocument();
+  });
+
+  it("G95: o toast de falha diz a ação e a CAUSA real (CHECK), não um genérico", async () => {
+    localStorage.setItem(CATALOG_DATA_SOURCE_KEY, "supabase");
+    localStorage.setItem(CATALOG_WRITE_FLAG_KEY, "true");
+    vi.mocked(servicesRepository.importService).mockRejectedValue(
+      toCatalogError({ code: "23514", message: 'new row for relation "services" violates check constraint "services_price_nonneg_chk"' }),
+    );
+    renderCatalog();
+    await screen.findByText("Serviço da Nuvem");
+
+    fillAndSaveNewService();
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    const msg = String(vi.mocked(toast.error).mock.calls[0][0]);
+    expect(msg).toMatch(/^Erro ao criar o serviço no catálogo \(Supabase\): /);
+    expect(msg).toContain("services_price_nonneg_chk");
+  });
+
+  it("G95: erro de LEITURA (RLS) aparece no banner com a causa, e a tela segue em modo nuvem", async () => {
+    localStorage.setItem(CATALOG_DATA_SOURCE_KEY, "supabase");
+    vi.mocked(servicesRepository.listServices).mockRejectedValue(
+      toCatalogError({ code: "42501", message: 'permission denied for table services' }),
+    );
+    renderCatalog();
+    const banner = await screen.findByText(/Não foi possível carregar o catálogo da nuvem/);
+    expect(banner).toHaveTextContent("permission denied for table services");
   });
 
   it("schema pendente (tabela ausente): alerta 'Schema pendente (pacote §8-b)' + tabelas, e a tela exibe/grava o catálogo LOCAL", async () => {

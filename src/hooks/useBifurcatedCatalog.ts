@@ -20,27 +20,30 @@ import { useProducts, type Product } from "@/hooks/useProducts";
 import { useServiceCategories, type ServiceCategory } from "@/hooks/useServiceCategories";
 import { useCommercialPlans, type CommercialPlan } from "@/hooks/useCommercialPlans";
 import { useCatalogCloud, useCatalogMode, type CatalogModeInfo } from "@/hooks/catalogCloudContext";
-import { getFriendlyMessage } from "@/lib/supabase/errors";
+import { catalogErrorMessage } from "@/repositories/catalogRepositoryShared";
 
 /** `true` = persistiu. Sempre já avisou o usuário quando `false`. */
 export type CatalogWriteResult = boolean | Promise<boolean>;
 
 export const CATALOG_WRITE_BLOCKED_MESSAGE =
-  "Gravação do catálogo na nuvem está desligada — nada foi salvo. Ative “Catálogo · escrita na nuvem” em Configurações → Dados ou volte a fonte para Local.";
+  "Gravação do catálogo na nuvem está desligada — nada foi salvo. Ative “Catálogo comercial · escrita na nuvem” em Configurações → Dados ou volte a fonte para Local.";
 
 function blocked(): false {
   toast.warning(CATALOG_WRITE_BLOCKED_MESSAGE);
   return false;
 }
 
-/** Executa uma escrita na nuvem sem nunca lançar; falha vira toast legível e `false`. */
-async function cloudWrite<T>(fn: () => Promise<T>, after?: (value: T) => void): Promise<boolean> {
+/**
+ * Executa uma escrita na nuvem sem nunca lançar. Falha vira `false` + toast "Erro ao <ação> no catálogo
+ * (Supabase): <causa real>" (G95 — nunca um genérico sem a causa: o usuário distingue RLS, CHECK, índice, rede).
+ */
+async function cloudWrite<T>(action: string, fn: () => Promise<T>, after?: (value: T) => void): Promise<boolean> {
   try {
     const value = await fn();
     after?.(value);
     return true;
   } catch (error) {
-    toast.error(getFriendlyMessage(error));
+    toast.error(`Erro ao ${action} no catálogo (Supabase): ${catalogErrorMessage(error)}`);
     return false;
   }
 }
@@ -71,11 +74,11 @@ export function useBifurcatedServiceCategories() {
   return {
     categories: useCloud ? cloud.categories : local.categories,
     addCategory: (data: Omit<ServiceCategory, "id" | "isDemo">): CatalogWriteResult =>
-      pick(mode, !!cloud, () => local.addCategory(data), () => cloudWrite(() => cloud!.createCategory(data))),
+      pick(mode, !!cloud, () => local.addCategory(data), () => cloudWrite("criar a categoria", () => cloud!.createCategory(data))),
     updateCategory: (id: string, patch: Partial<ServiceCategory>): CatalogWriteResult =>
-      pick(mode, !!cloud, () => local.updateCategory(id, patch), () => cloudWrite(() => cloud!.updateCategory(id, patch))),
+      pick(mode, !!cloud, () => local.updateCategory(id, patch), () => cloudWrite("editar a categoria", () => cloud!.updateCategory(id, patch))),
     removeCategory: (id: string): CatalogWriteResult =>
-      pick(mode, !!cloud, () => local.removeCategory(id), () => cloudWrite(() => cloud!.removeCategory(id))),
+      pick(mode, !!cloud, () => local.removeCategory(id), () => cloudWrite("excluir a categoria", () => cloud!.removeCategory(id))),
     mode,
   };
 }
@@ -91,16 +94,16 @@ export function useBifurcatedServices() {
   return {
     services: useCloud ? cloud.services : local.services,
     addService: (data: Omit<Service, "id" | "isDemo">): CatalogWriteResult =>
-      pick(mode, !!cloud, () => local.addService(data), () => cloudWrite(() => cloud!.createService(data))),
+      pick(mode, !!cloud, () => local.addService(data), () => cloudWrite("criar o serviço", () => cloud!.createService(data))),
     updateService: (id: string, patch: Partial<Service>): CatalogWriteResult =>
-      pick(mode, !!cloud, () => local.updateService(id, patch), () => cloudWrite(() => cloud!.updateService(id, patch))),
+      pick(mode, !!cloud, () => local.updateService(id, patch), () => cloudWrite("editar o serviço", () => cloud!.updateService(id, patch))),
     duplicateService: (id: string): CatalogWriteResult =>
-      pick(mode, !!cloud, () => local.duplicateService(id), () => cloudWrite(() => cloud!.duplicateService(id))),
+      pick(mode, !!cloud, () => local.duplicateService(id), () => cloudWrite("duplicar o serviço", () => cloud!.duplicateService(id))),
     /** "Arquivar/ativar": alterna `active` (não apaga). */
     toggleActive: (id: string): CatalogWriteResult =>
-      pick(mode, !!cloud, () => local.toggleActive(id), () => cloudWrite(() => cloud!.toggleActive(id))),
+      pick(mode, !!cloud, () => local.toggleActive(id), () => cloudWrite("arquivar/ativar o serviço", () => cloud!.toggleActive(id))),
     removeService: (id: string): CatalogWriteResult =>
-      pick(mode, !!cloud, () => local.removeService(id), () => cloudWrite(() => cloud!.removeService(id))),
+      pick(mode, !!cloud, () => local.removeService(id), () => cloudWrite("excluir o serviço", () => cloud!.removeService(id))),
     mode,
   };
 }
@@ -116,11 +119,11 @@ export function useBifurcatedProducts() {
   return {
     products: useCloud ? cloud.products : local.products,
     addProduct: (data: Omit<Product, "id" | "isDemo" | "createdAt" | "updatedAt">): CatalogWriteResult =>
-      pick(mode, !!cloud, () => local.addProduct(data), () => cloudWrite(() => cloud!.createProduct(data))),
+      pick(mode, !!cloud, () => local.addProduct(data), () => cloudWrite("criar o produto", () => cloud!.createProduct(data))),
     updateProduct: (id: string, patch: Partial<Product>): CatalogWriteResult =>
-      pick(mode, !!cloud, () => local.updateProduct(id, patch), () => cloudWrite(() => cloud!.updateProduct(id, patch))),
+      pick(mode, !!cloud, () => local.updateProduct(id, patch), () => cloudWrite("editar o produto", () => cloud!.updateProduct(id, patch))),
     removeProduct: (id: string): CatalogWriteResult =>
-      pick(mode, !!cloud, () => local.removeProduct(id), () => cloudWrite(() => cloud!.removeProduct(id))),
+      pick(mode, !!cloud, () => local.removeProduct(id), () => cloudWrite("excluir o produto", () => cloud!.removeProduct(id))),
     mode,
   };
 }
@@ -146,17 +149,17 @@ export function useBifurcatedCommercialPlans() {
         mode,
         !!cloud,
         () => local.addPlan(data),
-        () => cloudWrite(() => cloud!.createPlan(data), (r) => warnDiscarded(r.discarded.length)),
+        () => cloudWrite("criar o plano", () => cloud!.createPlan(data), (r) => warnDiscarded(r.discarded.length)),
       ),
     updatePlan: (id: string, patch: Partial<CommercialPlan>): CatalogWriteResult =>
       pick(
         mode,
         !!cloud,
         () => local.updatePlan(id, patch),
-        () => cloudWrite(() => cloud!.updatePlan(id, patch), (r) => warnDiscarded(r.discarded.length)),
+        () => cloudWrite("editar o plano", () => cloud!.updatePlan(id, patch), (r) => warnDiscarded(r.discarded.length)),
       ),
     removePlan: (id: string): CatalogWriteResult =>
-      pick(mode, !!cloud, () => local.removePlan(id), () => cloudWrite(() => cloud!.removePlan(id))),
+      pick(mode, !!cloud, () => local.removePlan(id), () => cloudWrite("excluir o plano", () => cloud!.removePlan(id))),
     /** Linha NOVA (`source_local_id` nativo) com o nome "<nome> (cópia)" — nunca upsert sobre a original (G56). */
     duplicatePlan: (id: string): CatalogWriteResult =>
       pick(
@@ -172,6 +175,7 @@ export function useBifurcatedCommercialPlans() {
           const { id: _id, isDemo: _isDemo, createdAt: _c, updatedAt: _u, ...rest } = src;
           void _id; void _isDemo; void _c; void _u;
           return cloudWrite(
+            "duplicar o plano",
             () => cloud!.createPlan({ ...rest, name: `${src.name} (cópia)` }),
             (r) => warnDiscarded(r.discarded.length),
           );

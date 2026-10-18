@@ -9,13 +9,12 @@ import { useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
 import { productsRepository, type SupabaseProduct } from "@/repositories/productsRepository";
-import { isCatalogUnavailable } from "@/repositories/catalogRepositoryShared";
+import { catalogErrorMessage, isCatalogUnavailable } from "@/repositories/catalogRepositoryShared";
 import {
   mapLocalProductToSupabase,
   mapProductPatchToSupabase,
   mapSupabaseProductToLocal,
 } from "@/services/catalog/catalogProductPlanMapper";
-import { getFriendlyMessage } from "@/lib/supabase/errors";
 import { buildNativeSourceLocalId } from "@/lib/installId";
 import type { Product } from "@/hooks/useProducts";
 
@@ -85,7 +84,7 @@ export function useSupabaseProducts() {
     loading: query.isLoading,
     /** Tabela ainda não criada no banco — a lista vem vazia e nada quebra. */
     unavailable: isCatalogUnavailable(query.error),
-    error: query.error ? getFriendlyMessage(query.error) : null,
+    error: query.error ? catalogErrorMessage(query.error) : null,
     refresh,
 
     createProduct: (input: NewProductInput) => createMutation.mutateAsync(input),
