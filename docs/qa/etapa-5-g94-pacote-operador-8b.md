@@ -13,7 +13,7 @@
 > são idempotentes (`CREATE POLICY`/`CREATE TRIGGER`/`ADD CONSTRAINT` falham se já existem), então aqui vão em blocos
 > `DO $$ … IF NOT EXISTS … $$` — **não** `DROP … IF EXISTS`, para uma reaplicação nunca sobrescrever uma policy
 > que o operador tenha endurecido (variante admin, §2.2).
-> Colunas, tipos, defaults, CHECKs e nomes de constraint/índice/policy são os dos drafts.
+> Colunas, tipos, defaults, CHECKs e nomes de constraint/índice/policy são os dos drafts. **Exceção:** o §2.4 (`clients.library_assets`, draft 6.8) é **verbatim** — sem envoltório `DO` (re-execução do `ADD CONSTRAINT` dá "already exists", esperado; ver a nota do §2.4).
 >
 > **Gate de aplicação — vale pra tudo aqui:**
 > 1. Code não roda DDL/DML contra produção (protocolo §0/§6/§8-b) — tudo abaixo é do operador (SQL Editor/CLI).
@@ -330,23 +330,23 @@ Coluna JSONB em `clients` (a UI já trabalha por "substitui a lista inteira"); s
 lock instantâneo). O CHECK limita a 200 itens; entra `NOT VALID` e é validado em seguida (nenhuma linha existente
 tem a coluna preenchida, então a validação é trivial).
 
+**SQL VERBATIM do draft 6.8 da Fase A** (as duas instruções do draft, sem envoltório `DO`):
+
 ```sql
 ALTER TABLE public.clients
   ADD COLUMN IF NOT EXISTS library_assets JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE public.clients
+  ADD CONSTRAINT clients_library_assets_array_chk
+  CHECK (jsonb_typeof(library_assets) = 'array' AND jsonb_array_length(library_assets) <= 200) NOT VALID;
+```
 
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint
-                 WHERE conrelid = 'public.clients'::regclass AND conname = 'clients_library_assets_array_chk') THEN
-    ALTER TABLE public.clients
-      ADD CONSTRAINT clients_library_assets_array_chk
-      CHECK (jsonb_typeof(library_assets) = 'array' AND jsonb_array_length(library_assets) <= 200) NOT VALID;
-  END IF;
-END
-$$;
+Depois (execução separada — o draft deixa isto como o comentário "VALIDATE depois"), com §1.4/§3.5 conferidos de que nenhuma linha existente tem a coluna preenchida:
 
+```sql
 ALTER TABLE public.clients VALIDATE CONSTRAINT clients_library_assets_array_chk;
 ```
+
+> **Reaplicação:** `ADD COLUMN IF NOT EXISTS` é no-op; o `ADD CONSTRAINT` **não** é idempotente — numa 2ª execução dá *"constraint … already exists"*, o que é **esperado e inofensivo** (a constraint já está lá — confira em §3.5). **Não** improvisar `DROP CONSTRAINT`. O `VALIDATE` pode ser repetido sem erro.
 
 > **Atenção:** a coluna existir **não** liga a Biblioteca na nuvem. O código (whitelist de `clients`, mapper, leitura/
 > escrita e import da Biblioteca) é a trilha **M1–M4** — rodada própria. Até lá a Biblioteca segue no store local por
