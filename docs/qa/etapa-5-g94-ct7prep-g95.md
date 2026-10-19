@@ -1,5 +1,7 @@
 # Etapa 5 · G94 — rodada CT7-prep + G95 no catálogo (+ "mais usado" pendente da lane B)
 
+> **[Status 2026-10-18 — varredura G29 do mapa do estado real]** A seção (c) "PENDENTE da lane B (G98)" está **feita**: `22f3400` (mapper de `service_id`) + `cdd8de7` (CT5 e "Mais usado" por `serviceId`); "CT5/CT6/CT7 e M1–M4 em aberto" → resta só o **CT7** (flip) e a homologação da Biblioteca; M1–M3 estão em `939afa3`.
+
 Branch `etapa-5-g94-ct7prep-g95-maisusado`, a partir de `21349fe` (pacote §8-b + CT4 em `main`). **Sem DDL, sem flip.**
 
 > **Congelamento de Fichas respeitado.** **Não tocados:** `QuotesSection`/`quoteMapper`, Clientes/Biblioteca (lane E em M1–M3), WhatsApp*. Arquivos existentes editados: só do domínio do catálogo (hooks nativos e bifurcados, import, card do import, `catalogRepositoryShared`) + docs.

@@ -1,5 +1,7 @@
 # Etapa 9 · Item 4 — cobertura do simulador do fluxo ("Simular mensagem")
 
+> **[Status 2026-10-18 — varredura G29 do mapa do estado real]** O cabeçalho ("a UI não foi tocada", "fora de escopo: UI do simulador") está superado pelo próprio §7: **U1–U4 fechados por `818a2c3`**; os ícones citados como sem uso já não estão no import.
+
 > **Pergunta da rodada:** o simulador (`WhatsAppBotConfig` → `whatsapp-bot-reply`
 > com `isTest: true`) exercita o nó **menu** (R3) e o **handover** (R4)?
 >

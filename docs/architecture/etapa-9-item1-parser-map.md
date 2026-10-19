@@ -1,5 +1,7 @@
 # Etapa 9 · Item 1 — Levantamento do parser Gemini (somente leitura)
 
+> **[Status 2026-10-18 — varredura G29 do mapa do estado real]** "Anthropic: não implementado / Fase B só com novo vai" está superado: **implementado em `99822b9`** (`_shared/anthropicParser.ts`, ramo `anthropic` em `whatsapp-bot-reply`).
+
 > **Zero código alterado nesta rodada.** Preparação da migração de provider do Robô IA
 > (Gemini → Claude/API Anthropic), registrada como
 > [Etapa 9 §6](kora-roadmap.md#6-etapa-9--robô-ia-decisão-do-operador-13ago2026) do roadmap.

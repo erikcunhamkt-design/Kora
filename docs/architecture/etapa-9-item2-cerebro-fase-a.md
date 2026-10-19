@@ -1,5 +1,7 @@
 # Etapa 9 — item 2: "Cérebro" do robô — Fase A (desenho, somente leitura)
 
+> **[Status 2026-10-18 — varredura G29 do mapa do estado real]** "`ai_brain_profiles` é proposta" e "se a Fase B implementar" estão superados: **Fase B feita em `9fb3079`** (migration `20260815000000_…` no repo; types regenerados em `8e6260e`). Aplicação da migration: só a mensagem do commit `8e6260e` — a confirmar com o operador.
+
 > Molde: mesma profundidade de `docs/architecture/etapa-5-flip-financeiro-fase-a.md`/`etapa-5-flip-tarefas-fase-a.md`, adaptado de "inventário de flip" para "desenho de feature nova". Zero código tocado nesta rodada — só desenho e doc. Item 1 (provider Anthropic) já está em `main` (`99822b9`), teste ao vivo pendente de API key do operador.
 
 Branch: `etapa-9-item2-cerebro-fase-a`, a partir do tip real de `origin/main` em `c56428a` (merge de `99822b9` — Etapa 9 item 1 — com a auditoria R2 de Tarefas da Lane B).

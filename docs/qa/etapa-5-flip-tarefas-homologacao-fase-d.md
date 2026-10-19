@@ -1,5 +1,7 @@
 # Etapa 5 · G1/Tarefas · Homologação Fase D — execução ao vivo, placar final
 
+> **[Status 2026-10-18 — varredura G29 do mapa do estado real]** Registro datado de 2026-08-30 (preservado). **Follow-ups 1–4 fechados depois:** mapper das 4 colunas `3a5796b` (G81); G78 + G79 `86bbc03`; Caso 7.2/starter tasks `5be5c3d` + `91c227d`; Caso 7.3 `e783912`. Ver G78/G79/G81 no catálogo (a **verificação ao vivo do G79** segue pendente — V2.1 caso 3.6).
+
 > **Execução real, ao vivo, com o operador** — contra `docs/qa/etapa-5-flip-tarefas-runbook.md`
 > (`7143da5`, "fechado — pronto pra execução"). Servidor confirmado
 > `[Kora] BUILD f1fe83f`, workspace de QA

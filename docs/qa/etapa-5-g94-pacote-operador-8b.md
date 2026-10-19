@@ -1,5 +1,7 @@
 # Etapa 5 · G94 — catálogo comercial (serviços, produtos, categorias, planos) + Biblioteca de Materiais — pacote do operador (§8-b)
 
+> **[Status 2026-10-18 — varredura G29 do mapa do estado real]** O código do catálogo não é só CT1–CT4: inclui **CT5** (`cdd8de7`) e a **Biblioteca M1–M3** (`939afa3`, que **lê e escreve `clients.library_assets` com degradação** — `LibraryUnavailableError`; sem a coluna cai no armazenamento local M0 com aviso). As frases "nenhum código lê/escreve a coluna", "M1–M4 ainda não escrevem nela" e o rollback "hoje nada" estão **superadas**; a coluna continua **não aplicada**. O SELECT 3.5 (esperado 0 linhas **antes** do import) segue válido como pré-prova.
+
 > **Nada aplicado.** Este doc junta tudo que depende de ação do operador contra o banco de produção
 > para o **catálogo na nuvem** ficar VIVO: 4 tabelas novas, índices únicos do import, a FK
 > `quote_items.service_id → services` e a coluna `clients.library_assets` (Biblioteca de Materiais).

@@ -1,5 +1,7 @@
 # Etapa 5 · G94 — Catálogo comercial + Biblioteca de Materiais — Runbook da Fase D (**CT7-prep: executável até onde o código existe**)
 
+> **[Status 2026-10-18 — varredura G29 do mapa do estado real]** **Biblioteca M1–M3 está em código** (`939afa3`; M0 `40769fd`): "nenhum código lê/escreve `library_assets`" e "só quando M2 existir" estão superados — **faltam casos de Biblioteca neste runbook** (M4, homologação, sem casos escritos). "Quando CT5 existir": CT5 = `cdd8de7`. O robô continua lendo só "itens já orçados" (não o catálogo) — essa linha segue correta.
+
 > **Status:** os casos do **catálogo que já existe em código (CT1–CT5 + import CT3 + G95 + G98)** estão fechados com os
 > **caminhos reais** da tela e são executáveis **depois do pacote §8-b**. O que ainda **não existe** (Checkout na nuvem, robô, flip do default CT7, Biblioteca M1–M4) continua marcado **[pendente — …]** na seção
 > "Fora do alcance de hoje". Molde: [`etapa-5-flip-tarefas-runbook.md`](etapa-5-flip-tarefas-runbook.md) /

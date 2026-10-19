@@ -1,5 +1,7 @@
 # Etapa 5 · Fichas Técnicas — rodada FP1 (G83: round-trip) + G86 (deep link de Clientes)
 
+> **[Status 2026-10-18 — varredura G29 do mapa do estado real]** "`accesses`: FP2 pendente de decisão" está superado: FP2 implementada em `90142a4`; flip F4 em `ccd6326`.
+
 Branch `etapa-5-fichas-fp1-g83-g86`, a partir de `83eb061`. Plano: [`etapa-5-flip-fichas-fase-a.md`](../architecture/etapa-5-flip-fichas-fase-a.md) §3.B / §4 (FP1). **Sem DDL** — nenhuma migration foi aplicada nem é necessária.
 
 ## G83 — o que escreve passa a ler de volta (varredura da classe G37)

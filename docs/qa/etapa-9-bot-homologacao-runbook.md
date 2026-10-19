@@ -51,7 +51,7 @@
 
 ## Referências (com o porquê de cada uma)
 
-- [`etapa-9-bot-pacote-operador-8b.md`](etapa-9-bot-pacote-operador-8b.md) — **fonte primária do Bloco 2**: migrations (§2), SELECTs de prova (§3), deploy + pré-prova de hash (§4), smoke 1→16 (§5.2), logs proibidos (§5.3), rollback (§7).
+- [`etapa-9-bot-pacote-operador-8b.md`](etapa-9-bot-pacote-operador-8b.md) — **fonte primária do Bloco 2**: migrations (§2), SELECTs de prova (§3), deploy + pré-prova de hash (§4), smoke 1→28 (§5.2), logs proibidos (§5.3), rollback (§7).
 - [`etapa-9-bot-fluxo-r6-canvas-xyflow.md`](etapa-9-bot-fluxo-r6-canvas-xyflow.md), [`…-r7-no-mensagem.md`](etapa-9-bot-fluxo-r7-no-mensagem.md), [`…-r8-destinos-handover-ai.md`](etapa-9-bot-fluxo-r8-destinos-handover-ai.md), [`…-r9-saida-modo-ia.md`](etapa-9-bot-fluxo-r9-saida-modo-ia.md), [`…-r10-validacao-exemplo.md`](etapa-9-bot-fluxo-r10-validacao-exemplo.md) — o desenho de cada rodada (o "esperado" dos casos vem daqui, conferido contra o código).
 - [`etapa-9-bot-simulador-fluxo-cobertura.md`](etapa-9-bot-simulador-fluxo-cobertura.md) — contrato `simState` do simulador.
 - [`etapa-9-item3-r1-base-conhecimento-liga.md`](etapa-9-item3-r1-base-conhecimento-liga.md) — bloco de conhecimento, categoria A.
@@ -333,7 +333,7 @@ Log (Dashboard → Edge Functions → `whatsapp-bot-reply` → Logs): `human han
 
 | Passo | Ação | Esperado | Prova |
 |---|---|---|---|
-| 25.1 | Abrir a conversa de teste em Atendimento (WhatsApp) | Banner **"Entregue a atendimento humano desde …"**; **badge "Humano"** na lista de conversas | Visual + o SELECT do Caso 24 (`handover_at` preenchido) |
+| 25.1 | Abrir a conversa de teste em Atendimento (WhatsApp) | Banner **"Entregue a atendimento humano desde …"**; na lista, o badge **"Aguardando humano"** (entregue e **sem** atendente — `b40bb5a`); o badge calmo **"Humano"** só aparece quando há atendente atribuído (se algum humano já tinha escrito na conversa, o handover a atribui sozinho — `assignment_origin = 'auto'`) | Visual + o SELECT do Caso 24 (`handover_at` preenchido) |
 | 25.2 | Clicar **"Devolver ao robô"** (print pré-clique) | Toast **"Conversa devolvida ao robô"**; banner some; badge some | `SELECT bot_flow_state, handover_at FROM public.whatsapp_conversations WHERE … contact_phone = '<TEL_TESTE>';` → **ambos NULL** |
 | 25.3 | Cliente envia `oi` | **Menu de novo, do zero** | `bot_flow_state` volta a `{"currentNodeId":…,"attempts":0}` |
 
@@ -392,7 +392,7 @@ Log (Dashboard → Edge Functions → `whatsapp-bot-reply` → Logs): `human han
   - **Caso 9.9** — importar grava no banco antes de "Salvar Fluxo", ou apaga/substitui algo existente;
   - **Caso 30** — qualquer log proibido depois das migrations.
 - **Ressalva (não bloqueia):** mecanismo já provado por outra via (teste automatizado + outra observação) e só uma recaptura específica não foi refeita. A decisão de não reabrir é registrada explicitamente. **Ressalvas pré-declaradas** (não são vermelho se não reproduzidas): `destino-removido` e `entrada-invalida` (Caso 6, não provocáveis pela UI); `sem-caminho-humano-ia` (6.12, raro por desenho); passo 28 (opcional).
-- **Achado catalogado, não é bug:** comportamento real, documentado, decisão de produto. **Já conhecidos:** (a) **sem saída do modo IA** além da palavra de retorno, do operador "devolvendo ao robô" ou de desabilitar o nó ai; (b) palavra de retorno que colide com palavra-chave de handover **vence** (aviso na validação, R9/R10); (c) a atribuição automática ao último atendente (`assignment_origin = 'auto'`) **ainda não existe** — o Caso do pacote §5.2 passo 16 só exercita a lógica adormecida; (d) exportar/importar **adiciona**, não restaura os 4 fixos (R11).
+- **Achado catalogado, não é bug:** comportamento real, documentado, decisão de produto. **Já conhecidos:** (a) **sem saída do modo IA** além da palavra de retorno, do operador "devolvendo ao robô" ou de desabilitar o nó ai; (b) palavra de retorno que colide com palavra-chave de handover **vence** (aviso na validação, R9/R10); (c) a atribuição automática ao último atendente (`assignment_origin = 'auto'`) **existe desde `b40bb5a`** (handover) e `df023a3` (G101: controle de atribuição no painel; G102: assumir ao responder) e **só age com a 4ª migration**; este runbook **não a cobre** — o pacote 8-b, passos 17–28, sim; (d) exportar/importar **adiciona**, não restaura os 4 fixos (R11).
 - **Pré-condição não satisfeita ≠ vermelho:** function antiga (Caso 11.3), IA sem credencial (§1.4), migration/deploy faltando (gate do Bloco 2). Registrar e parar o bloco.
 - **Placar de fechamento (formato herdado):** `N/M casos verdes por bloco` — 1A (Casos 1–9), 1B (11–17), 2 (20–30) — **com** os Casos 2–4 (gestos do canvas, primeira prova real), 9.2 (sem credencial no arquivo) e 24 (handover ponta a ponta, com `SELECT handover_at`) **obrigatoriamente** incluídos e nenhum fechado como "assumido correto". Ressalvas e achados ficam listados no sign-off.
 - **Rollback:** código — `git revert` do commit da rodada que falhou (nunca de vários juntos); banco/functions — [pacote §7](etapa-9-bot-pacote-operador-8b.md). Dado de teste: Caso 40.
@@ -400,6 +400,6 @@ Log (Dashboard → Edge Functions → `whatsapp-bot-reply` → Logs): `human han
 ## O que este doc NÃO faz
 
 - Não executa nenhum caso, não aplica DDL/DML e não faz deploy (protocolo §0/§6/§8-b) — as SQLs de escrita (Caso 40.2/40.4) são **do operador**.
-- Não cobre atribuição automática ao último atendente (G48 — ainda não implementada) nem os consentimentos B–E da base de conhecimento (desabilitados na UI).
+- Não cobre a atribuição automática (G48 D1, `b40bb5a`/`df023a3` — ver pacote 8-b, passos 17–28) nem os consentimentos B–E da base de conhecimento (desabilitados na UI).
 - Não substitui os gates permanentes do protocolo (EXPORT MANUAL, PRINT PRÉ-CLIQUE, prova de servidor §17).
 - Não promove as migrations a `supabase/migrations/*.sql` (pacote §8.1, outra rodada).

@@ -1,5 +1,7 @@
 # Etapa 5 · Fichas Técnicas — Fase A pós-F2/F3: levantamento do estado real e proposta de F4
 
+> **[Status 2026-10-18 — varredura G29 do mapa do estado real]** As "decisões pendentes" (flip, `accesses`, Dialog órfão) foram **resolvidas**: FP2 `accessesLocalStore` (`90142a4`), flip F4 (`ccd6326`), Dialog órfão removido (`6b0616f`, G84). `competitors`/teto de `raw_payload`/gate de papel seguem como drafts opcionais, não aplicados.
+
 > **Doc-only, zero código.** Complementa (não substitui)
 > [`docs/qa/etapa-5-flip-fichas-pacote.md`](../qa/etapa-5-flip-fichas-pacote.md) — o pacote
 > original (inventário + G63 + plano F1-F3 + revalidação). Este documento parte do que F2/F3

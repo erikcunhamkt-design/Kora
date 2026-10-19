@@ -1,5 +1,7 @@
 # Etapa 5 · G1/Tarefas · Pacote do Flip — Runbook das Fases C/D (EXECUTADO — HOMOLOGADO)
 
+> **[Status 2026-10-18 — varredura G29 do mapa do estado real]** Re-executar este runbook hoje dá falso vermelho/ressalva: (a) **Caso 9 superado** — o mapper lê/escreve `scope/tags/recurrence/reminder_*` desde `3a5796b` (G81 FECHADO); reexecutar 9.1/9.2 esperando os valores **gravados**; (b) **G78** FECHADO por `86bbc03` (o comentário do `ProjectDetailDrawer` foi reescrito); (c) **Casos 7.2/7.3** — `QuoteToProjectDialog` (projeto + starter tasks nativos, `5be5c3d`, dedupe `91c227d`) e o `ProjectDetailDrawer` (escrita nativa de Tarefas, `e783912`) **não são mais local-only**; "follow-ups: mapper de 4 colunas (ALTA)" está feito.
+
 > **Atualização — execução ao vivo concluída.** Ver
 > [`etapa-5-flip-tarefas-homologacao-fase-d.md`](etapa-5-flip-tarefas-homologacao-fase-d.md)
 > pro placar completo (12/12 casos sem vermelho, 2 ressalvas) e o veredito

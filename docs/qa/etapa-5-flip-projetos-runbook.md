@@ -1,5 +1,7 @@
 # Etapa 5 · G1/Projetos · Pacote do Flip — Runbook das Fases C/D (preparação)
 
+> **[Status 2026-10-18 — varredura G29 do mapa do estado real]** "Fase C ainda não existe" / "pacote ainda não mesclado" estão superados: **Fase C = `b90f86a`** (2026-08-13); **Fase D homologada 7/7** (`6abc7e9`, 2026-08-15); Fase A do pacote mesclada (`6858b94`).
+
 > **Escopo desta rodada: doc-only, zero código.** Este doc NÃO executa nada —
 > prepara o roteiro pra que a Fase C (flip dos defaults) e a Fase D
 > (homologação B.3) não precisem improvisar formato, critério ou passo

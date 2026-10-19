@@ -1,5 +1,7 @@
 # Etapa 5 · G94 — Catálogo comercial (Serviços/Produtos/…) e Biblioteca de Materiais do cliente — Fase A (inventário + proposta)
 
+> **[Status 2026-10-18 — varredura G29 do mapa do estado real]** A numeração CT1..CT7 / M1..M3 das tabelas 9.1/9.2 **não bate com o que foi entregue** (reslicing): CT1 = mapper/repositórios/hooks de categorias e serviços (`40769fd`); CT2 = produtos + planos e CT3 = import assistido (`3c33022`); CT4 = leitura bifurcada + escrita nativa (`5fdda90`); CT5 = ponte orçamento↔catálogo (`cdd8de7`); M0 `40769fd`; M1–M3 `939afa3`. Ver `docs/qa/etapa-5-g94-*.md`.
+
 > **Doc-only, zero código, nenhuma migration aplicada.** Molde: `etapa-5-flip-tarefas-pacote.md`,
 > `etapa-5-flip-fichas-fase-a.md`, `etapa-5-flip-materiais-pacote.md`. O G94 diz: "serviços e produtos
 > vivem só no `localStorage`" e "Biblioteca de Materiais do cliente (G75) idem". Esta Fase A confirma,

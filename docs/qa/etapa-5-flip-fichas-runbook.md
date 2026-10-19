@@ -1,5 +1,7 @@
 # Etapa 5 · Fichas Técnicas · Pacote do Flip — Runbook da Fase D (pronto pra execução)
 
+> **[Status 2026-10-18 — varredura G29 do mapa do estado real]** O **F4 já está mesclado** (`90142a4` pré-requisitos FP2/FP4/FP5 + `ccd6326` flip dos defaults): "só executa depois do vai + merge do F4" está superado — o que falta é **executar o runbook ao vivo** (Fase D; Casos 0/4/6 fecham G82/G83), com o operador.
+
 > **Status:** fechado contra o código da branch do F4 (`etapa-5-fichas-f4-flip`) — todos os antigos
 > `[completar pós-F4]` foram resolvidos (comportamento real de FP0/FP1/FP2/FP4/FP5 + flip dos
 > defaults). **Só executa depois do "vai" do revisor + merge do F4**, com o operador, em cima do

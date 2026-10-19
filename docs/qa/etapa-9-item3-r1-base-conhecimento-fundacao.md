@@ -1,5 +1,7 @@
 # Etapa 9 · Item 3 — Base de conhecimento do robô — R1 (fundação)
 
+> **[Status 2026-10-18 — varredura G29 do mapa do estado real]** "NÃO liguei UI nem server" e "`kora.ai.knowledgeBase.enabled` ainda não existe em `flags.ts`" valem **só para a fundação** (`893ddc7`): a flag existe (`flags.ts:57`) e UI + servidor foram ligados em `5aa4652` (R1 "liga", categoria A).
+
 > **Zero DDL/DML, zero deploy, zero mudança de comportamento em runtime.** Esta
 > rodada executa a primeira fatia que a Fase A
 > ([`etapa-9-item3-base-conhecimento-fase-a.md`](../architecture/etapa-9-item3-base-conhecimento-fase-a.md))

@@ -1,5 +1,7 @@
 # Etapa 9 · Item 4 — Construtor de fluxo scriptado — R4 (handover REAL — fecha o G48)
 
+> **[Status 2026-10-18 — varredura G29 do mapa do estado real]** "UI não implementada" e "pra quem atribuir" foram resolvidos depois: UI `a7e2e3e` (banner/"Devolver ao robô"); atribuição `b40bb5a` + `df023a3` (G48 D1, G101/G102).
+
 > **Nada aplicado em banco, nada deployado.** Esta rodada implementa, no
 > server, o handover de verdade: a conversa passa a um estado persistido de
 > "entregue a humano" e o robô fica em silêncio nela até alguém devolver.

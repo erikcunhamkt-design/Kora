@@ -1,5 +1,7 @@
 # Etapa 9 · Itens 3 e 4 — fluxo scriptado + handover + base de conhecimento — pacote do operador (§8-b)
 
+> **[Status 2026-10-18 — varredura G29 do mapa do estado real]** (1) A atribuição automática **existe**: o texto que diz "ainda não existe… nada grava `'auto'`" (§0, 4ª migration) está superado — `'auto'` é gravado desde `b40bb5a` (handover) e `df023a3` (assumir ao responder); só age com a 4ª migration. (2) **Passo 5 do smoke (§5.2, e a linha do deploy do app):** conversa entregue **sem atendente** mostra o badge **"Aguardando humano"**, não "Humano" (`b40bb5a`; "Humano" só com atendente atribuído) — esperar "Humano" aqui dá falso vermelho. (3) **§5.1:** a UI **manda** `simState` desde `818a2c3`; uma function antiga o ignora e devolve só a resposta da IA (ver o runbook do bot, 1B.0).
+
 > **Nada aplicado, nada deployado.** Este doc junta tudo que depende de ação do
 > operador contra o banco/infra de produção pra o **fluxo scriptado (nó
 > "menu", R1/R3)**, o **handover real (R4, fecha o G48)** e a **base de

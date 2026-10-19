@@ -1,5 +1,7 @@
 # Etapa 9 · Item 4 — R8: destinos "handover" e "ai" a partir de menu/mensagem
 
+> **[Status 2026-10-18 — varredura G29 do mapa do estado real]** O ponto em aberto "saída do modo IA para o cliente: não há" (§6) foi **fechado na R9** (`8e06894`, palavra de retorno do nó ai).
+
 Branch: `etapa-9-bot-fluxo-r8-destinos-handover-ai` (a partir de `origin/main` =
 `cd5daa5`, que já contém a R7). Lane C. Sem DDL/DML (§0/§6): o modo IA reaproveita
 o jsonb `bot_flow_state` (mesmo formato `{ currentNodeId, attempts }`).

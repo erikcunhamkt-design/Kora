@@ -1,5 +1,7 @@
 # Etapa 5 · G92 — consumidores de oportunidades/leads fora do CRM leem a fonte do CRM
 
+> **[Status 2026-10-18 — varredura G29 do mapa do estado real]** "`updateLead`/`addLead` fora do CRM segue local, fora do escopo" foi tratado depois: **G93 corrigido em código por `e7f6084`** (lane B); confirmação ao vivo pendente (V2.1).
+
 Branch `etapa-5-g92-leads-bifurcados`, a partir de `b0101e9`. Sem DDL. **`CRM.tsx` intocado** (lane B, G91).
 
 ## Problema

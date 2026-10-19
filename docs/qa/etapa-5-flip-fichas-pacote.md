@@ -1,5 +1,7 @@
 # Etapa 5 — G1/Fichas Técnicas — Fase A (inventário) — SOMENTE LEITURA
 
+> **[Status 2026-10-18 — varredura G29 do mapa do estado real]** "F4 — decisão de produto" está resolvido: F4 mesclado (`90142a4` + `ccd6326`); `accesses` ficou **só local por dispositivo** (FP2, decisão do revisor).
+
 > Zero código tocado. Molde de `docs/qa/etapa-5-flip-tarefas-pacote.md`/`etapa-5-flip-clientes-pacote.md`
 > — inventário do domínio + mapeamento de assimetrias local↔nuvem usando o catálogo de classes de
 > bug já conhecidas (G37/G40/G49/G52/G56) como checklist, não descoberta às cegas.

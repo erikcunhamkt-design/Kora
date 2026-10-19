@@ -1,5 +1,7 @@
 # Etapa 5 · Fichas Técnicas — rodada FP0 (fix do G82: vínculo cliente→uuid)
 
+> **[Status 2026-10-18 — varredura G29 do mapa do estado real]** "`accesses`: FP2 pendente de decisão" está superado: FP2 implementada em `90142a4` (armazenamento local por dispositivo + aviso); flip F4 em `ccd6326`.
+
 Branch `etapa-5-fichas-fp0-g82`. Plano e achados: [`etapa-5-flip-fichas-fase-a.md`](../architecture/etapa-5-flip-fichas-fase-a.md) §3.A / §4 (FP0). Catálogo: G82 (**continua ABERTO** até a confirmação ao vivo — Caso 0 de [`etapa-5-flip-fichas-runbook.md`](etapa-5-flip-fichas-runbook.md)).
 
 ## O que mudou

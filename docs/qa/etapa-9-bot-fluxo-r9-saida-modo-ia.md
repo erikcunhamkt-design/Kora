@@ -1,5 +1,7 @@
 # Etapa 9 · Item 4 — R9: saída do modo IA (palavra de retorno)
 
+> **[Status 2026-10-18 — varredura G29 do mapa do estado real]** O "limite conhecido: sem aviso na UI de colisão com palavra-chave de handover" foi **tratado na R10** (`eea06d4`): `validateFlow` emite o aviso `retorno-colide-handover`.
+
 Branch: `etapa-9-bot-fluxo-r9-saida-modo-ia` (a partir de `origin/main` = `3f2aaab`,
 que já contém R6/R7/R8). Lane C. Sem DDL/DML (§0/§6): a palavra mora em `flow_data`
 (jsonb existente) e o marcador de modo IA continua sendo o mesmo `bot_flow_state`

@@ -1,5 +1,7 @@
 # Etapa 9 — item 4: Construtor de fluxo SEM IA — Fase A (desenho, doc-only)
 
+> **[Status 2026-10-18 — varredura G29 do mapa do estado real]** O §1 descreve o estado **PRÉ-R1** (`f615bb6`) — "grade fixa de 4 cards", "transbordo = só cortesia", "não existe nó de pergunta com opções" — e **está superado**: menu R1/R3, handover real R4 (`530423b`, fecha G48), canvas R6 (`423a0d2`), nó de mensagem R7 (`cd5daa5`), destinos R8 (`0448442`/`3f2aaab`), palavra de retorno R9 (`8e06894`), validação R10 (`eea06d4`), exportar/importar R11 (`053f6c1`), atribuição automática (`b40bb5a`). Mapa: `kora-roadmap.md` §6.
+
 > **Zero código tocado nesta rodada** — só desenho e doc, mesmo molde de profundidade de
 > `etapa-9-item2-cerebro-fase-a.md`/`etapa-9-item3-base-conhecimento-fase-a.md`, adaptado de
 > "desenho condicionado a perguntas obrigatórias" para "desenho condicionado a um insumo de

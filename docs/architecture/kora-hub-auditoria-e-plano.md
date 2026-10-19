@@ -4,11 +4,22 @@
 
 **Regra de ouro deste plano:** cada etapa é isolada, reversível e só é dada como concluída quando `npx tsc --noEmit` passa, o lint **não regride** (teto atual ~35–37 erros legados) e o app sobe sem regressão. Nada de refatoração "big bang".
 
+> **[Status 2026-10-18]** O gate de hoje é `npm run gates` (`tsc -p tsconfig.app.json --noEmit && lint && vitest` — o `tsc --noEmit` da raiz era um gate vazio, G9; protocolo §19; `gates:quiet` — G100) e o teto de lint **chegou a 0 erros / 0 `any`**.
+
+> **Status em 2026-10-18 — leia antes do resto.** Este documento é o **catálogo técnico (G/O) e o plano ORIGINAL de agosto** — o
+> diagnóstico de partida (§0–§2 abaixo) está **preservado como histórico**, não reescrito. O **estado real** (o que está na nuvem,
+> o que está homologado, o que depende do operador, o que nunca foi definido) vive em
+> [`kora-roadmap.md`](kora-roadmap.md) — comece por lá. Resumo de uma linha: **7 domínios de negócio já usam a nuvem como
+> default** (Clientes, CRM, Quotes, Fichas, Financeiro, Projetos, Tarefas); lint em **0/0**; o robô tem as 4 frentes da Etapa 9 em `main`;
+> o que falta é majoritariamente **ação do operador** (DDL §8-b, deploys, homologações) — ver a tabela de pendências do roadmap §2.
+
 ---
 
 ## 0. Veredito em uma frase
 
 O Kora Hub é um SPA React/TypeScript bem organizado na superfície, mas **não está pronto para escala nacional pelo motivo estrutural nº 1: a fonte de verdade dos dados de negócio ainda é o `localStorage` do navegador**, com o Supabase entrando de forma híbrida e experimental atrás de dezenas de feature flags. Isso, somado à ausência de fila/worker, rate limiting e índices verificados, é o que trava a escala. A base de segurança (RLS multi-tenant, segredos no backend) está desenhada corretamente — precisa de verificação e endurecimento, não de reconstrução.
+
+> **[Status 2026-10-18]** Superado em grande parte: a fonte de verdade de 7 domínios já é o Supabase (default), fila/rate limit/índices foram tratados (Etapas 3 e 6) e há CI com type-check real. O que resta do veredito é o **modo local ainda mantido em paralelo** (ver G1/G3 e o roadmap §2.2) e a homologação/DDL pendentes do operador.
 
 ---
 
@@ -27,7 +38,7 @@ O Kora Hub é um SPA React/TypeScript bem organizado na superfície, mas **não 
 | **BANCO DE DADOS** | `supabase/migrations/` | Schema, RLS, triggers, funções SQL (`is_workspace_member`) |
 | **BACKEND (serverless)** | `supabase/functions/` | Edge Functions Deno: `whatsapp-webhook`, `whatsapp-bot-reply`, `whatsapp-campaign-v2-sender`, `whatsapp-instance`…, mais `_shared/` (`cors`, `vertex.ts`) |
 | **Config backend** | `supabase/config.toml` | `verify_jwt`, roteamento de functions |
-| **Documentação** | raiz do projeto | Vários `SUPABASE-*.md`, `INTEGRATIONS-ROADMAP.md` espalhados |
+| **Documentação** | raiz do projeto | Vários `SUPABASE-*.md`, `INTEGRATIONS-ROADMAP.md` espalhados *(**[Status 2026-10-18]** centralizada em `docs/` na Etapa 1: `docs/architecture`, `docs/qa`, `docs/database`…)* |
 
 **Modelo de dados (Postgres):** `profiles`, `workspaces`, `workspace_members` (controle de acesso) → `clients`, `client_contacts`, `client_technical_sheets`, `client_assets`, `client_activity_logs`, `opportunities`, `quotes`, `quote_items`, `transactions`/`financial_transactions`, `projects`, `project_deliverables`, `tasks`, além do domínio WhatsApp (`whatsapp_*`).
 
@@ -39,6 +50,8 @@ O Kora Hub é um SPA React/TypeScript bem organizado na superfície, mas **não 
 
 **G1 — `localStorage` como fonte de verdade dos dados de negócio. [CRÍTICO]**
 Clientes, leads, orçamentos, financeiro, projetos e tarefas ainda vivem em `localStorage` (chaves `kora.*` / `orbyt.*`). Isso é incompatível com escala: ~5–10 MB por navegador, sem multi-dispositivo, sem colaboração em equipe, sem backup, sem consultas/agregações no servidor, e perda total se o usuário limpar o navegador. **Enquanto isso for verdade, "escala nacional" é impossível por definição.** O Supabase existe mas só atrás de flags experimentais.
+
+> **[Status 2026-10-18]** Resolvido para 7 dos domínios: Clientes, CRM, Quotes, Fichas técnicas, Financeiro, Projetos e Tarefas leem e escrevem na nuvem **por default** (flip reversível por flag). Hashes do flip, sign-offs e o que ainda falta, domínio a domínio: [`kora-roadmap.md` §3](kora-roadmap.md). Permanecem **locais por decisão** o Catálogo comercial (flip = CT7, não feito) e o Checkout.
 
 **G2 — Filtragem e agregação no cliente. [ALTO]**
 Hooks como `useClients`/`useLeads` carregam **todos** os registros e filtram em JS (`.some()`, `.filter()`, `.useMemo` sobre arrays inteiros — ex.: `KoraOnboarding.tsx`). É O(n) no cliente: aceitável com dezenas de registros, lento e pesado com milhares. Precisa virar paginação/filtro/ordenação **no servidor** (Postgres + índices).

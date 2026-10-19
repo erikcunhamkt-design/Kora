@@ -1,5 +1,7 @@
 # Etapa 5 — G1/Tarefas — Fase B, fatia B1 — drafts de migration
 
+> **[Status 2026-10-18 — varredura G29 do mapa do estado real]** **APLICADAS em 2026-08-30** (sessão §8-b): "Nada aplicado" e "pendentes na próxima sessão" estão superados — espelho em `supabase/migrations/20260830000100…000500` e o Caso 2 da homologação provou o CHECK em produção. A prova da aplicação é a confirmação do revisor fora do repo (`migrations-espelho-8b.md`).
+
 > **Nada aplicado.** Este doc guarda os 5 DRAFTS de migration da fatia B1 do
 > pacote do Flip de Tarefas ([`etapa-5-flip-tarefas-pacote.md`](etapa-5-flip-tarefas-pacote.md)
 > §1.1 — os 4 campos bloqueantes — e §3.1 item 2 — CHECK de vocabulário de

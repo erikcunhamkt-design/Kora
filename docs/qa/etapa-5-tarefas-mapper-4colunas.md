@@ -1,5 +1,7 @@
 # Etapa 5 · Tarefas — liga o mapper às 4 colunas novas (scope/tags/recurrence/reminder)
 
+> **[Status 2026-10-18 — varredura G29 do mapa do estado real]** O ID pedido ao revisor virou **G81** (catálogo, `4ddf8eb`; fechado por `3a5796b`).
+
 > **Achado #1 da homologação, agravado.** `scope`/`tags`/`recurrence`/os 3
 > campos de lembrete tinham coluna real em `public.tasks` desde a fatia B1
 > (`etapa-5-flip-tarefas-migrations-drafts.md` §1-4, aplicadas pelo operador

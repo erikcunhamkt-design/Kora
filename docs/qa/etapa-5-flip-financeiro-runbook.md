@@ -1,5 +1,7 @@
 # Etapa 5 · G1/Financeiro · Pacote do Flip — Runbook das Fases C/D (preparação)
 
+> **[Status 2026-10-18 — varredura G29 do mapa do estado real]** "Fase C… que ainda não existe" e o baseline `dea8c75` como "fechamento da Fase B" são do momento da escrita: **Fase C = `fc55c20`** (flip dos 2 defaults, 2026-08-15); **Fase D homologada 8/8** (`4a76600`, 2026-08-16).
+
 > **Escopo desta rodada: doc-only, zero código.** Este doc NÃO executa nada —
 > prepara o roteiro pra que a Fase C (flip dos defaults) e a Fase D
 > (homologação B.3) não precisem improvisar formato, critério ou passo

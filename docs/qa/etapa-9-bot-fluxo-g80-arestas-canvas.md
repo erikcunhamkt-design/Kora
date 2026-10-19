@@ -1,5 +1,7 @@
 # Etapa 9 · Item 4 — G80: arestas REAIS no canvas do construtor de fluxo
 
+> **[Status 2026-10-18 — varredura G29 do mapa do estado real]** "O canvas é grade CSS… desenho de linhas = evolução futura" e a **"dívida R3: sem aresta de entrada"** foram **entregues na R6** (`423a0d2`): canvas React Flow com linhas e posições reais; `flowCanvasEdges.ts` emite a aresta `entry` e o motor lê `trigger.properties.nextNodeId`.
+
 > Fix de **render** (zero mudança de runtime). Achado original: R5
 > (`etapa-9-bot-fluxo-scriptado-r1-fundacao.md` + commit `f8358a3`) — o
 > conector do canvas ligava `node[index] → node[index+1]` por POSIÇÃO NO

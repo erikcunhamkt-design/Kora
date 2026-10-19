@@ -1,5 +1,7 @@
 # Etapa 5 · Fichas Técnicas — F4: flip dos defaults (pacote da rodada)
 
+> **[Status 2026-10-18 — varredura G29 do mapa do estado real]** "O flip só mescla com vai" está superado: **F4 mesclado** (`90142a4` + `ccd6326`, 2026-10-09; registrado em `a2e1134`). Pendente: a homologação Fase D com o operador.
+
 Branch `etapa-5-fichas-f4-flip`, a partir de `be2e6cb`. **Decisão do revisor (FP2):** `accesses` só-local com aviso; invariante `accesses[].password` nunca na nuvem (já garantida pelo FP1/G63). Proposta original: [`etapa-5-flip-fichas-fase-a.md`](../architecture/etapa-5-flip-fichas-fase-a.md) §4/§5. Runbook de homologação (Fase D): [`etapa-5-flip-fichas-runbook.md`](etapa-5-flip-fichas-runbook.md).
 
 > **O flip só mescla com "vai" explícito do revisor** e vira homologação Fase D de Fichas com o operador.

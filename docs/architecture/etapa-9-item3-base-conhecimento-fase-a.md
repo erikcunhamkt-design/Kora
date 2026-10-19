@@ -1,5 +1,7 @@
 # Etapa 9 — item 3: Base de Conhecimento — Fase A (LGPD, escopo, custo)
 
+> **[Status 2026-10-18 — varredura G29 do mapa do estado real]** "Ainda não implementada" está superado **em parte**: fundação `893ddc7` + categoria A ("itens já orçados") `5aa4652`; as categorias B–E seguem **desabilitadas e nunca definidas**.
+
 > **Zero código tocado nesta rodada** — só desenho e doc, mesmo molde de profundidade de
 > `etapa-5-flip-financeiro-fase-a.md`/`etapa-9-item2-cerebro-fase-a.md`, adaptado de "inventário
 > de flip"/"desenho de feature nova" para "desenho condicionado a 3 perguntas obrigatórias"
