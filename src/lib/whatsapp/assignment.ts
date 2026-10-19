@@ -8,7 +8,7 @@
 // importada, não copiada, pra não divergir.
 import { isAssignableRole } from "../../../supabase/functions/_shared/botAssignment";
 import type { WorkspaceAttendant } from "../../../supabase/functions/_shared/workspaceAttendants";
-import type { InvokeFn } from "./handover";
+import { readServerError, type InvokeFn } from "./handover";
 
 export { isAssignableRole };
 export type { WorkspaceAttendant };
@@ -119,26 +119,13 @@ export type AssignResult =
   | { kind: "ok"; originRecorded: boolean }
   | { kind: "error"; message: string };
 
-// O servidor responde 400/404/500 com { error: "..." } no corpo; supabase-js só expõe o
-// genérico ("Edge Function returned a non-2xx status code") e deixa o Response em
-// `error.context`. Tenta o corpo; cai na mensagem do erro.
-async function readServerError(error: unknown): Promise<string> {
-  const fallback =
-    error && typeof error === "object" && typeof (error as { message?: unknown }).message === "string"
-      ? (error as { message: string }).message
-      : "Falha ao atribuir a conversa.";
-  const context = error && typeof error === "object" ? (error as { context?: unknown }).context : null;
-  const json = context && typeof context === "object" ? (context as { json?: unknown }).json : null;
-  if (typeof json !== "function") return fallback;
-  try {
-    const body = (await (json as () => Promise<unknown>).call(context)) as { error?: unknown } | null;
-    return body && typeof body.error === "string" && body.error ? body.error : fallback;
-  } catch {
-    return fallback;
-  }
-}
+const ASSIGN_FALLBACK_ERROR = "Falha ao atribuir a conversa.";
 
-/** Nunca lança: o chamador decide o toast a partir do `kind`. `userId = null` remove a atribuição. */
+/**
+ * Nunca lança: o chamador decide o toast a partir do `kind`. `userId = null` remove a atribuição.
+ * Erro do servidor (400 alvo inelegível, 403 gate de papel, 404, 500) sai com a causa REAL do corpo
+ * (`readServerError`, compartilhado com handover.ts).
+ */
 export async function assignConversation(
   invoke: InvokeFn,
   workspaceId: string,
@@ -149,11 +136,11 @@ export async function assignConversation(
     const { data, error } = await invoke("whatsapp-instance", {
       body: { action: "assign_conversation", workspaceId, conversationId, userId },
     });
-    if (error) return { kind: "error", message: await readServerError(error) };
+    if (error) return { kind: "error", message: await readServerError(error, ASSIGN_FALLBACK_ERROR) };
     const originRecorded = !(data && typeof data === "object" && (data as { originRecorded?: unknown }).originRecorded === false);
     return { kind: "ok", originRecorded };
   } catch (e) {
-    return { kind: "error", message: await readServerError(e) };
+    return { kind: "error", message: await readServerError(e, ASSIGN_FALLBACK_ERROR) };
   }
 }
 

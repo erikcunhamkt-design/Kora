@@ -110,7 +110,8 @@ describe("whatsapp-instance — assign_conversation (G101): o servidor confere o
   });
 
   it("a checagem vem ANTES de gravar, e só quando há alvo (desatribuir não precisa)", () => {
-    expect(block).toContain("if (assignUserId) {");
+    // (o gate de papel — assignmentPermission — decide antes; só o admin ainda consulta o alvo)
+    expect(block).toContain('if (permission.scope === "any" && assignUserId) {');
     expect(block.indexOf("isAssignableRole(")).toBeLessThan(block.indexOf("assigned_to: assignUserId ?? null"));
   });
 

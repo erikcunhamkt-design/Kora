@@ -41,7 +41,12 @@ export type EndHandoverResult =
   | { kind: "ok"; unassigned: boolean; botStillMuted: boolean }
   /** 409 — `handover_at` ainda não existe no banco (migration §8-b pendente). */
   | { kind: "migration_pending" }
-  /** Qualquer outra falha (rede, 403, 400, 5xx...). */
+  /**
+   * 403 — o papel do usuário (viewer) não permite devolver (gate de papel do servidor). `message`
+   * é a causa REAL devolvida pelo servidor — não é falha de rede nem erro genérico.
+   */
+  | { kind: "forbidden"; message: string }
+  /** Qualquer outra falha (rede, 400, 5xx...). */
   | { kind: "error"; message: string };
 
 // Forma mínima do `supabase.functions.invoke` — injetada pra manter isto puro.
@@ -73,6 +78,28 @@ function readMessage(error: unknown): string {
   return "Falha ao devolver a conversa ao robô.";
 }
 
+/**
+ * O servidor responde 400/403/404/500 com `{ error: "..." }` no corpo; supabase-js só expõe o
+ * genérico ("Edge Function returned a non-2xx status code") e deixa o Response em `error.context`.
+ * Tenta o corpo; cai na mensagem do erro e, sem nada, em `fallback`. Nunca lança.
+ * (Compartilhado com `assignConversation` — era uma cópia privada em assignment.ts.)
+ */
+export async function readServerError(error: unknown, fallback = "Falha ao concluir a ação."): Promise<string> {
+  const base =
+    error && typeof error === "object" && typeof (error as { message?: unknown }).message === "string"
+      ? (error as { message: string }).message
+      : fallback;
+  const context = error && typeof error === "object" ? (error as { context?: unknown }).context : null;
+  const json = context && typeof context === "object" ? (context as { json?: unknown }).json : null;
+  if (typeof json !== "function") return base;
+  try {
+    const body = (await (json as () => Promise<unknown>).call(context)) as { error?: unknown } | null;
+    return body && typeof body.error === "string" && body.error ? body.error : base;
+  } catch {
+    return base;
+  }
+}
+
 // Chama a ação `end_human_handover` de whatsapp-instance (server da R4).
 // Nunca lança: o chamador decide o toast a partir do `kind` — em especial o
 // 409, que NÃO é um erro genérico (é "migration pendente") e merece mensagem
@@ -89,7 +116,11 @@ export async function endHumanHandover(
     if (!error) {
       return { kind: "ok", unassigned: readFlag(data, "unassigned"), botStillMuted: readFlag(data, "botStillMuted") };
     }
-    if (readHttpStatus(error) === 409) return { kind: "migration_pending" };
+    const status = readHttpStatus(error);
+    if (status === 409) return { kind: "migration_pending" };
+    if (status === 403) {
+      return { kind: "forbidden", message: await readServerError(error, "Seu papel no workspace não permite devolver conversas ao robô.") };
+    }
     return { kind: "error", message: readMessage(error) };
   } catch (e) {
     return { kind: "error", message: readMessage(e) };

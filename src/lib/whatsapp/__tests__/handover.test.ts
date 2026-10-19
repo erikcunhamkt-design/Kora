@@ -11,6 +11,7 @@ import {
   getHandoverAt,
   isAwaitingHuman,
   isHandedOver,
+  readServerError,
   type InvokeFn,
 } from "@/lib/whatsapp/handover";
 
@@ -69,8 +70,8 @@ describe("endHumanHandover (ação 'Devolver ao robô')", () => {
     expect(result).toEqual({ kind: "migration_pending" });
   });
 
-  it("outros não-2xx (403/500) -> { kind: 'error' } com a mensagem do erro", async () => {
-    for (const status of [400, 403, 500]) {
+  it("outros não-2xx (400/404/500; o 403 agora é 'forbidden', ver abaixo) -> { kind: 'error' } com a mensagem do erro", async () => {
+    for (const status of [400, 404, 500]) {
       const error = Object.assign(new Error(`falhou com ${status}`), { context: { status } });
       const invoke = vi.fn().mockResolvedValue({ data: null, error });
       const result = await endHumanHandover(invoke as unknown as InvokeFn, "ws-1", "conv-1");
@@ -100,6 +101,58 @@ describe("endHumanHandover (ação 'Devolver ao robô')", () => {
     expect(END_HANDOVER_MIGRATION_PENDING_MESSAGE).toMatch(/migration/i);
     expect(END_HANDOVER_MIGRATION_PENDING_MESSAGE).toMatch(/operador/i);
     expect(END_HANDOVER_MIGRATION_PENDING_MESSAGE).toMatch(/Nada foi alterado/);
+  });
+
+  // Gate de papel do servidor: viewer recebe 403 com a causa no corpo.
+  describe("403 (gate de papel) -> { kind: 'forbidden' } com a causa REAL", () => {
+    const err403 = (body: unknown) =>
+      Object.assign(new Error("Edge Function returned a non-2xx status code"), {
+        context: { status: 403, json: async () => body },
+      });
+    const run = (error: unknown) =>
+      endHumanHandover(vi.fn().mockResolvedValue({ data: null, error }) as unknown as InvokeFn, "ws-1", "conv-1");
+
+    it("usa a mensagem do corpo do servidor, não o genérico do supabase-js", async () => {
+      const message = "Seu papel no workspace (somente leitura) não permite devolver conversas ao robô.";
+      expect(await run(err403({ error: message, reason: "role-cannot-return" }))).toEqual({ kind: "forbidden", message });
+    });
+
+    it("corpo ilegível ou sem {error}: continua 'forbidden' (o status manda), com a mensagem do próprio erro", async () => {
+      for (const error of [
+        Object.assign(new Error("sem corpo"), { context: { status: 403 } }),
+        Object.assign(new Error("sem corpo"), { context: { status: 403, json: async () => { throw new Error("não é json"); } } }),
+        Object.assign(new Error("sem corpo"), { context: { status: 403, json: async () => ({ outra: "coisa" }) } }),
+      ]) {
+        expect(await run(error)).toEqual({ kind: "forbidden", message: "sem corpo" });
+      }
+    });
+
+    it("sem mensagem nenhuma: usa o texto próprio sobre o papel", async () => {
+      expect(await run({ context: { status: 403 } })).toEqual({
+        kind: "forbidden",
+        message: "Seu papel no workspace não permite devolver conversas ao robô.",
+      });
+    });
+
+    it("NÃO confunde com 409 (migration pendente) nem com erro genérico (500)", async () => {
+      expect(await run(Object.assign(new Error("x"), { context: { status: 409 } }))).toEqual({ kind: "migration_pending" });
+      expect((await run(Object.assign(new Error("x"), { context: { status: 500 } }))).kind).toBe("error");
+    });
+  });
+
+  describe("readServerError — a causa do corpo, com fallback", () => {
+    it("corpo {error} vence; sem corpo usa a mensagem do erro; sem nada usa o fallback; nunca lança", async () => {
+      const withBody = Object.assign(new Error("genérico"), { context: { json: async () => ({ error: "causa real" }) } });
+      expect(await readServerError(withBody, "fb")).toBe("causa real");
+      expect(await readServerError(new Error("só a mensagem"), "fb")).toBe("só a mensagem");
+      expect(await readServerError({}, "fb")).toBe("fb");
+      expect(await readServerError(null, "fb")).toBe("fb");
+      expect(await readServerError(undefined)).toBe("Falha ao concluir a ação.");
+      const badBody = Object.assign(new Error("genérico"), { context: { json: async () => { throw new Error("x"); } } });
+      expect(await readServerError(badBody, "fb")).toBe("genérico");
+      const emptyError = Object.assign(new Error("genérico"), { context: { json: async () => ({ error: "" }) } });
+      expect(await readServerError(emptyError, "fb")).toBe("genérico");
+    });
   });
 
   // Os 3 desfechos da devolução (contrato do servidor: { ok, cleared, unassigned, botStillMuted }).

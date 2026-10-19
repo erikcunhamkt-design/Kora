@@ -10,6 +10,12 @@ import {
   resolveRespondAllFromSettings,
   shouldUnassignOnReturn,
 } from "../_shared/botAssignment.ts";
+import {
+  PERMISSION_DENY_MESSAGES,
+  decideAssignPermission,
+  decideReturnPermission,
+  isAdminRole,
+} from "../_shared/assignmentPermission.ts";
 import { buildClaimUpdate, claimConversationOnReply } from "../_shared/claimOnReply.ts";
 import { buildAttendants } from "../_shared/workspaceAttendants.ts";
 
@@ -927,10 +933,35 @@ Deno.serve(async (req) => {
     if (action === "assign_conversation") {
       const { conversationId, userId: assignUserId } = body as { conversationId?: string; userId?: string | null };
       if (!conversationId) return json({ error: "conversationId is required" }, 400);
+      // GATE DE PAPEL (varredura G60/G68; _shared/assignmentPermission.ts, docs/qa/etapa-9-bot-
+      // varredura-gate-papel-servidor.md): a UI só mostra o controle a admin, mas antes o servidor
+      // aceitava QUALQUER membro. Régua: owner/admin atribuem a qualquer elegível e removem qualquer
+      // atribuição; member só atribui A SI MESMO ou remove a PRÓPRIA; viewer 403. A decisão vem ANTES
+      // de qualquer escrita. Pra um member REMOVER precisamos saber de quem é a atribuição atual.
+      let currentAssignedTo: string | null | undefined;
+      if (!isAdminRole(memberRole) && !assignUserId) {
+        const { data: current, error: currentErr } = await admin
+          .from("whatsapp_conversations")
+          .select("assigned_to")
+          .eq("id", conversationId)
+          .eq("workspace_id", workspaceId)
+          .maybeSingle();
+        if (currentErr) return json({ error: "failed to read conversation" }, 500);
+        if (!current) return json({ error: "Conversation not found" }, 404);
+        currentAssignedTo = (current as { assigned_to?: string | null }).assigned_to ?? null;
+      }
+      const permission = decideAssignPermission({
+        role: memberRole,
+        callerId: userId,
+        targetUserId: assignUserId ?? null,
+        currentAssignedTo,
+      });
+      if (!permission.allow) return json({ error: permission.message, reason: permission.reason }, permission.status);
       // G101: o painel passou a ter o controle, então o servidor confere o que a UI promete —
       // só vira dono quem é membro DESTE workspace com papel que atende (§3.5: owner/admin/
-      // member; `viewer` não). Desatribuir (userId nulo) não precisa de checagem.
-      if (assignUserId) {
+      // member; `viewer` não). Desatribuir (userId nulo) não precisa de checagem. O member que
+      // atribui a si mesmo já passou pelo gate (o papel dele atende), então só o admin consulta.
+      if (permission.scope === "any" && assignUserId) {
         const { data: target, error: targetErr } = await admin
           .from("workspace_members")
           .select("role")
@@ -944,14 +975,26 @@ Deno.serve(async (req) => {
       }
       // Antes o erro deste UPDATE era descartado e a ação respondia ok mesmo sem gravar;
       // com um controle na tela, "Conversa atribuída" tem que ser verdade.
-      const { data: assignedRows, error: assignErr } = await admin
+      let assignQuery = admin
         .from("whatsapp_conversations")
         .update({ assigned_to: assignUserId ?? null, updated_at: new Date().toISOString() })
         .eq("id", conversationId)
-        .eq("workspace_id", workspaceId)
-        .select("id");
+        .eq("workspace_id", workspaceId);
+      // member removendo a PRÓPRIA atribuição: o UPDATE é condicional a ela ainda ser dele (se alguém
+      // reatribuiu entre a leitura e a escrita, não pisa).
+      if (permission.scope === "own-only") assignQuery = assignQuery.eq("assigned_to", userId);
+      const { data: assignedRows, error: assignErr } = await assignQuery.select("id");
       if (assignErr) return json({ error: assignErr.message }, 500);
-      if (!Array.isArray(assignedRows) || assignedRows.length === 0) return json({ error: "Conversation not found" }, 404);
+      if (!Array.isArray(assignedRows) || assignedRows.length === 0) {
+        // own-only que não casou = a atribuição deixou de ser dele (corrida perdida): 403 honesto
+        if (permission.scope === "own-only") {
+          return json(
+            { error: PERMISSION_DENY_MESSAGES["member-can-only-remove-own"], reason: "member-can-only-remove-own" },
+            403,
+          );
+        }
+        return json({ error: "Conversation not found" }, 404);
+      }
       // Origem da atribuição (G48, docs/architecture/etapa-9-handover-assigned-to-
       // proposta.md): atribuir por aqui é decisão de uma PESSOA => 'manual'
       // (desatribuir zera). UPDATE SEPARADO: se `assignment_origin` ainda não
@@ -1009,6 +1052,11 @@ Deno.serve(async (req) => {
     if (action === "end_human_handover") {
       const { conversationId } = body as { conversationId?: string };
       if (!conversationId) return json({ error: "conversationId is required" }, 400);
+      // Gate de papel: quem ATENDE (owner/admin/member) pode devolver; viewer 403. Devolver NÃO atribui
+      // a ninguém — só encerra o handover e desfaz o que o próprio sistema fez (a atribuição
+      // automática); atribuição manual nunca é tocada. Checado antes de qualquer UPDATE e do 409.
+      const returnPermission = decideReturnPermission(memberRole);
+      if (!returnPermission.allow) return json({ error: returnPermission.message, reason: returnPermission.reason }, returnPermission.status);
 
       const cleared: Record<string, boolean> = {};
       for (const update of buildHandoverReturnUpdates(new Date().toISOString())) {

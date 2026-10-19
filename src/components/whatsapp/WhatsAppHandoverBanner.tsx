@@ -12,14 +12,19 @@ import { formatDateTime as intlDateTime } from "@/lib/format";
 // G101: `assignmentLabel` (de `assignmentLabel()` em lib/whatsapp/assignment.ts) mostra de quem é
 // a conversa — "Atribuída a Maria (automática)" ou "Sem atendente atribuído" — com o NOME real,
 // não um genérico. Ausente (chamadores antigos) = a frase não aparece.
+//
+// Gate de papel: `canReturn` (default true) — o servidor responde 403 a `viewer` em
+// `end_human_handover`; o botão some pra quem não pode, em vez de oferecer uma ação que falha.
 export function WhatsAppHandoverBanner({
   handedOverAt,
   assignmentLabel,
+  canReturn = true,
   returning,
   onReturn,
 }: {
   handedOverAt: string | null;
   assignmentLabel?: string;
+  canReturn?: boolean;
   returning: boolean;
   onReturn: () => void;
 }) {
@@ -39,16 +44,18 @@ export function WhatsAppHandoverBanner({
         </span>
         {assignmentLabel && <span className="ml-1 font-medium text-foreground/80">{assignmentLabel}.</span>}
       </p>
-      <Button
-        size="sm"
-        variant="outline"
-        className="h-7 text-xs gap-1.5 flex-shrink-0"
-        disabled={returning}
-        onClick={onReturn}
-      >
-        {returning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Bot className="h-3.5 w-3.5" />}
-        Devolver ao robô
-      </Button>
+      {canReturn && (
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 text-xs gap-1.5 flex-shrink-0"
+          disabled={returning}
+          onClick={onReturn}
+        >
+          {returning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Bot className="h-3.5 w-3.5" />}
+          Devolver ao robô
+        </Button>
+      )}
     </div>
   );
 }

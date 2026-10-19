@@ -612,3 +612,85 @@ describe("WhatsApp.tsx · G101 — atribuição pelo painel de contato", () => {
     });
   });
 });
+
+// Gate de papel no servidor (assign_conversation / end_human_handover): a UI acompanha — o botão
+// "Devolver ao robô" some pro viewer (o servidor responde 403) e o 403 aparece com a causa real.
+describe("WhatsApp.tsx · gate de papel da devolução", () => {
+  const HANDED = "2026-10-02T12:00:00.000Z";
+
+  beforeEach(() => {
+    Element.prototype.hasPointerCapture = Element.prototype.hasPointerCapture || (() => false);
+    Element.prototype.scrollIntoView = Element.prototype.scrollIntoView || (() => {});
+    vi.clearAllMocks();
+    invoke.mockResolvedValue({ data: null, error: null } as never);
+    vi.mocked(useWhatsAppInstance).mockReturnValue({
+      instance: {
+        id: "inst-1", workspace_id: "ws-1", status: "connected",
+        phone: "5511999999999", phone_name: "Linha QA", qr_code: null,
+        connected_at: "2024-01-01T00:00:00Z", last_status_at: "2024-01-01T00:00:00Z",
+        created_at: "2024-01-01T00:00:00Z", updated_at: "2024-01-01T00:00:00Z",
+      },
+      loading: false,
+    } as never);
+    mockConversations([makeConversation({ handover_at: HANDED })], "conv-1");
+  });
+
+  const asRole = (role: string | null) =>
+    vi.mocked(useCurrentWorkspace).mockReturnValue({
+      workspace: mockWorkspace, membership: role ? { role } : null, loading: false, error: null,
+    } as never);
+
+  it.each(["owner", "admin", "member", null])("papel %s -> o botão 'Devolver ao robô' aparece (quem atende devolve; papel ainda desconhecido não esconde)", (role) => {
+    asRole(role);
+    renderPage();
+
+    expect(screen.getByRole("button", { name: /Devolver ao robô/ })).toBeInTheDocument();
+  });
+
+  it("viewer -> o botão some, mas o banner (estado e atribuição) continua visível", () => {
+    asRole("viewer");
+    renderPage();
+
+    expect(screen.getByText(/Entregue a atendimento humano/)).toBeInTheDocument();
+    expect(screen.getByText("Sem atendente atribuído.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Devolver ao robô/ })).not.toBeInTheDocument();
+  });
+
+  it("403 do servidor (papel mudou depois de a tela abrir) -> toast 'Sem permissão' com a causa REAL, não o 'Falha' genérico", async () => {
+    asRole("member");
+    const message = "Seu papel no workspace (somente leitura) não permite devolver conversas ao robô.";
+    const error = Object.assign(new Error("Edge Function returned a non-2xx status code"), {
+      context: { status: 403, json: async () => ({ error: message, reason: "role-cannot-return" }) },
+    });
+    mockEndHandover(Promise.resolve({ data: null, error }));
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: /Devolver ao robô/ }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Sem permissão para devolver", { description: message }));
+    expect(toast.error).toHaveBeenCalledTimes(1);
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(toast.warning).not.toHaveBeenCalled();
+  });
+
+  it("403 na ATRIBUIÇÃO (gate de papel do servidor): a mensagem do servidor chega ao toast", async () => {
+    asRole("admin");
+    mockConversations([makeConversation()], "conv-1");
+    const message = "Membros só podem atribuir a conversa a si mesmos; para atribuir a outra pessoa é preciso ser administrador.";
+    const error = Object.assign(new Error("Edge Function returned a non-2xx status code"), {
+      context: { status: 403, json: async () => ({ error: message, reason: "member-can-only-assign-self" }) },
+    });
+    mockActions({
+      list_attendants: Promise.resolve(TEAM_RESPONSE),
+      assign_conversation: Promise.resolve({ data: null, error }),
+    });
+    renderPage();
+    fireEvent.click(screen.getByTitle("Mostrar painel"));
+    await waitFor(() => expect(callsOf("list_attendants")).toHaveLength(1));
+
+    fireEvent.click(screen.getByText("stub-atribuir-ana"));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Falha", { description: message }));
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+});

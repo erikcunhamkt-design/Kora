@@ -112,7 +112,10 @@ export default function WhatsAppPage() {
   // G101 — atribuição: o gate de papel é o de sempre (`useWorkspaceRole().isAdmin`, o mesmo do
   // Robô IA); a lista de atendentes vem do servidor (RLS de profiles não deixa o navegador
   // montá-la) e serve também pra mostrar o NOME de quem está atribuído (banner e aviso).
-  const { isAdmin } = useWorkspaceRole();
+  const { role, isAdmin } = useWorkspaceRole();
+  // Devolver ao robô: o servidor nega ao viewer (403); o botão some pra ele. Papel ainda
+  // desconhecido (carregando) NÃO esconde — o servidor decide de qualquer forma.
+  const canReturn = role !== "viewer";
   const { attendants } = useWorkspaceAttendants(workspace?.id);
 
   type MainTab = "chat" | "audiences" | "campaigns" | "templates" | "bot";
@@ -491,6 +494,9 @@ export default function WhatsAppPage() {
         }
       } else if (result.kind === "migration_pending") {
         toast.error("Migration pendente", { description: END_HANDOVER_MIGRATION_PENDING_MESSAGE });
+      } else if (result.kind === "forbidden") {
+        // Gate de papel do servidor (403): a causa REAL, não o "Falha" genérico.
+        toast.error("Sem permissão para devolver", { description: result.message });
       } else {
         toast.error("Falha ao devolver ao robô", { description: result.message });
       }
@@ -854,6 +860,7 @@ export default function WhatsAppPage() {
                   <WhatsAppHandoverBanner
                     handedOverAt={getHandoverAt(selected)}
                     assignmentLabel={assignmentLabel(selected.assigned_to, attendants, getAssignmentOrigin(selected))}
+                    canReturn={canReturn}
                     returning={returningHandoverId === selected.id}
                     onReturn={() => handleEndHandover(selected.id)}
                   />

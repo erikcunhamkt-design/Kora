@@ -42,6 +42,28 @@ describe("WhatsAppHandoverBanner", () => {
     fireEvent.click(btn);
     expect(onReturn).not.toHaveBeenCalled();
   });
+
+  it("gate de papel: canReturn=false (viewer) esconde o botão, mas o indicador e a atribuição continuam visíveis", () => {
+    render(
+      <WhatsAppHandoverBanner
+        handedOverAt="2026-10-02T12:00:00.000Z"
+        assignmentLabel="Sem atendente atribuído"
+        canReturn={false}
+        returning={false}
+        onReturn={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: /Devolver ao robô/ })).not.toBeInTheDocument();
+    expect(screen.getByText(/Entregue a atendimento humano/)).toBeInTheDocument();
+    expect(screen.getByText("Sem atendente atribuído.")).toBeInTheDocument();
+  });
+
+  it("canReturn ausente (chamador antigo) = true: o botão aparece como sempre", () => {
+    render(<WhatsAppHandoverBanner handedOverAt="2026-10-02T12:00:00.000Z" returning={false} onReturn={vi.fn()} />);
+
+    expect(screen.getByRole("button", { name: /Devolver ao robô/ })).toBeInTheDocument();
+  });
 });
 
 describe("WhatsAppConversationItem — badges 'Humano' / 'Aguardando humano'", () => {
