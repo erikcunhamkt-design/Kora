@@ -394,7 +394,7 @@ npx supabase functions deploy whatsapp-webhook   --project-ref ewamvzncsloagtcvk
 
 (`project-ref` conferido contra `supabase/config.toml` — `project_id = "ewamvzncsloagtcvkbxv"`.)
 
-**Commits desta parte do pacote (hashes em `main`):** `sender_id` nos 4 inserts de saída + origem da atribuição `c393d02`; atribuição automática no handover + devolução com `unassigned`/`botStillMuted` + badge "Aguardando humano" `b40bb5a`. **G101** (controle de atribuição no painel) e **G102** (assumir ao responder): implementados na branch `etapa-9-item4-g101-g102`, **aguardando merge** (hash entra aqui depois do "vai"); ABERTOS no catálogo até a confirmação ao vivo (passos 22–28).
+**Commits desta parte do pacote (hashes em `main`):** `sender_id` nos 4 inserts de saída + origem da atribuição `c393d02`; atribuição automática no handover + devolução com `unassigned`/`botStillMuted` + badge "Aguardando humano" `b40bb5a`. **G101** (controle de atribuição no painel) e **G102** (assumir ao responder): implementados em `df023a3`; confirmação ao vivo pendente (passos 22–28).
 
 | Function | O que muda | Arquivos que DEVEM aparecer no output do deploy (no mínimo) |
 |---|---|---|

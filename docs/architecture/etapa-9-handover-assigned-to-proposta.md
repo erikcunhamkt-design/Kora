@@ -80,7 +80,7 @@ Proposta original: quando `handover_at` está preenchido **e** `assigned_to` é 
 | **2b.** DRAFT da coluna `assignment_origin` | ✅ no pacote §8-b como **4ª migration** — **NÃO aplicada** |
 | **2c.** **Atribuição automática** no handover (último atendente por `sender_id`, UPDATE único e condicional) | ✅ **FEITO (código)** em `b40bb5a` — **só age depois que a coluna existir** (coluna ausente ⇒ só entrega, sem dono; §10) |
 | **3.** UI: badge **"Aguardando humano"** na lista, confirmação/aviso na devolução (§9, §10.4) | ✅ **FEITO** em `b40bb5a` — sem aba nova de filtro (§10.5) |
-| **4.** Controle de atribuição no painel de contato (**G101**) e "assumir ao responder" (**G102**) — §11 | ✅ **FEITOS em código** (branch `etapa-9-item4-g101-g102`, aguardando "vai") — **ABERTOS** no catálogo até o merge e a confirmação ao vivo; o G102 também **só age com a coluna aplicada** |
+| **4.** Controle de atribuição no painel de contato (**G101**) e "assumir ao responder" (**G102**) — §11 | ✅ **FEITOS em código** em `df023a3` — confirmação ao vivo pendente (pacote 8-b, passos 22–28); o G102 também **só age com a coluna aplicada** |
 
 **Ordem obrigatória:** a atribuição automática só **produz efeito** depois da coluna aplicada **e** de existir histórico com `sender_id` (a fatia 1 precisa estar no ar há algum tempo, senão toda conversa cai em "sem atendente"). Antes disso o código é inerte: o único efeito visível é o badge "Aguardando humano" nas conversas entregues e sem dono.
 
