@@ -201,6 +201,22 @@ Entregue e **sem atendente** ⇒ badge preenchido **"Aguardando humano"** (âmba
 
 ### 11.3 O que continua em aberto
 - A **4ª migration** (`assignment_origin`) segue DRAFT: sem ela o G102 e a atribuição do handover **não agem** (só o G101 manual, sem origem, e os avisos).
-- **Gate de servidor** em `assign_conversation` (hoje qualquer membro pode chamar; a UI limita a admin).
+- ~~Gate de servidor em `assign_conversation`~~ → **feito, §11.4**. Sobra o que um gate de edge function **não** alcança: a RLS de `whatsapp_conversations` é de nível membro (§11.4, "limite").
 
-**Esta proposta não altera runtime por si;** o código das fatias 1–3 está em `main` atrás da degradação e as da §11 aguardam merge. Sem a 4ª migration os efeitos visíveis são o badge, as confirmações/avisos da devolução e o controle manual de atribuição.
+### 11.4 Gate de papel no servidor (`assign_conversation` e `end_human_handover`)
+Antes: a UI mostrava o controle só a admin, mas o servidor aceitava **qualquer membro** (inclusive `viewer`) — gate só de UI (classe G60/G68). Agora `whatsapp-instance` aplica a régua, com a **mesma** `isAssignableRole` do resto do servidor (módulo puro `_shared/assignmentPermission.ts`; padrão de `whatsapp-official-credentials`):
+
+| Papel | `assign_conversation` | `end_human_handover` |
+|---|---|---|
+| **owner / admin** | atribui a **qualquer** elegível; remove **qualquer** atribuição | pode devolver |
+| **member** | só atribui **a si mesmo**, ou remove **a própria** atribuição (o UPDATE é condicional a ela ainda ser dele; corrida perdida = 403) | pode devolver |
+| **viewer** / papel desconhecido | **403** | **403** |
+
+- **Resposta de negação:** `403 { error: <mensagem em português>, reason }` — `role-cannot-assign`, `member-can-only-assign-self`, `member-can-only-remove-own`, `role-cannot-return`. A UI mostra a causa real (toast "Sem permissão para devolver" / "Falha" + a mensagem).
+- **A decisão vem antes de qualquer escrita** (e, na devolução, antes do 409 de migration pendente). Um member que remove precisa que o servidor leia o dono atual da conversa (404 se a conversa não existe).
+- **Quem pode devolver — decisão e justificativa.** *Qualquer papel que atende* (owner/admin/member). Devolver **não atribui a ninguém**: encerra o handover e desfaz só o que o **próprio sistema** fez (a atribuição automática); a atribuição manual — decisão humana — nunca é tocada. Exigir admin aqui travaria o atendente comum que acabou de resolver o caso, sem proteger nada que a devolução já não proteja (D2). O **viewer** é somente leitura; o botão "Devolver ao robô" some pra ele (`canReturn`).
+- **O member pode tomar uma conversa que já é de outro** (atribuir a si mesmo não exige que esteja sem dono) — é a regra pedida ("só `assigned_to = userId`"). Se não for desejado, é exigir `assigned_to IS NULL` ou ser o dono atual nesse ramo.
+- **A UI de atribuição continua só para admin** (`canAssign`): o servidor já aceita o member atribuir a si mesmo, mas ainda não há botão "assumir" na tela (o G102 cobre o caso comum, ao responder).
+- **Limite (honesto):** o gate vale para chamadas ao **edge function**. As policies de escrita de `whatsapp_conversations` (e `whatsapp_instances`, `whatsapp_messages`) são `is_workspace_member` — um `viewer` ainda consegue `supabase.from("whatsapp_conversations").update({ assigned_to })` direto pelo PostgREST. Fechar de verdade é **DDL** (pacote §8-b do operador). Varredura completa e fatiamento em [`etapa-9-bot-varredura-gate-papel-servidor.md`](../qa/etapa-9-bot-varredura-gate-papel-servidor.md).
+
+**Esta proposta não altera runtime por si;** o código das fatias 1–4 (inclusive §11.1–11.2) está em `main` atrás da degradação; o gate de papel do servidor (§11.4) aguarda merge. Sem a 4ª migration os efeitos visíveis são o badge, as confirmações/avisos da devolução e o controle manual de atribuição.

@@ -193,6 +193,10 @@ POST /functions/v1/whatsapp-instance
   pelo gate de atribuição; é o mesmo gate do robô (`shouldBotYieldToAssignee`)
   aplicado ao estado de depois (proposta §9/§10.4). Servidor antigo não manda o campo:
   a UI trata ausência como `false`.
+- **403** `{ error: "<mensagem>", reason: "role-cannot-return" }` — **gate de papel** (proposta
+  `assigned_to` §11.4): `viewer` (ou papel desconhecido) não devolve; owner/admin/member sim —
+  devolver não atribui a ninguém e desfaz só a atribuição automática. Checado **antes** de
+  qualquer escrita e do 409.
 - **409** `{ ok: false, error: "handover state unavailable (migration pending)", cleared: {...} }`
   — `handover_at` ainda não existe (migration §8-b pendente). Diferente do
   bot (que degrada em silêncio), a ação é EXPLÍCITA: reporta em vez de
