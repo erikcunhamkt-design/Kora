@@ -219,4 +219,17 @@ Antes: a UI mostrava o controle só a admin, mas o servidor aceitava **qualquer 
 - **A UI de atribuição continua só para admin** (`canAssign`): o servidor já aceita o member atribuir a si mesmo, mas ainda não há botão "assumir" na tela (o G102 cobre o caso comum, ao responder).
 - **Limite (honesto):** o gate vale para chamadas ao **edge function**. As policies de escrita de `whatsapp_conversations` (e `whatsapp_instances`, `whatsapp_messages`) são `is_workspace_member` — um `viewer` ainda consegue `supabase.from("whatsapp_conversations").update({ assigned_to })` direto pelo PostgREST. Fechar de verdade é **DDL** (pacote §8-b do operador). Varredura completa e fatiamento em [`etapa-9-bot-varredura-gate-papel-servidor.md`](../qa/etapa-9-bot-varredura-gate-papel-servidor.md).
 
+### 11.5 Decisões do revisor após o gate de papel (rodada G103) — OFICIAIS
+Registradas a partir da resposta do revisor ao §11.4 e à varredura. *(A numeração "decisão 1/2" é a do revisor; as demais seguem a ordem do pedido.)*
+
+| # | Decisão | Substitui / complementa | Onde |
+|---|---|---|---|
+| **1** | **Auto-atribuição de `member` só com `assigned_to IS NULL`** — UPDATE condicional; se a conversa tem dono, **403** | substitui a regra "member atribui a si mesmo mesmo sobre conversa de outro" do §11.4 (e o "pode tomar conversa de outro", acima) | G103, rodada seguinte |
+| **2** | **`get` das credenciais oficiais (`whatsapp-official-credentials`) → admin** | hoje `get` é member-level e devolve `verify_token` (varredura §2) | G103 |
+| **3** | **Ações de instância → owner/admin no servidor:** `create`, `connect`, `set_webhook`, `disconnect`, `delete`, `import` (403 honesto antes de qualquer efeito); a UI esconde/desabilita para não-admin (G29) | varredura §3/§6 item 1 | G103 fatia 1 |
+| **4** | **`viewer` somente-leitura em TODAS as escritas operacionais de `whatsapp-instance`** (enviar, apagar mensagem, arquivar, atribuir, devolver, etc.): 403; a UI esconde os controles; leitura (listar, `get` sem segredo) segue `member` | varredura §3/§6 item 2 | G103 fatia 2 |
+| **5** | **RLS de escrita das tabelas `whatsapp_*` = DRAFT** (5ª migration do pacote §8-b-bot; NÃO aplicar): `whatsapp_instances` escrita admin; `conversations`/`messages` escrita membro que atende (viewer só SELECT) | §11.4 "Limite" | **G104** |
+
+O operador pode vetar qualquer uma (sessão §8-b). Status: decisões 1–4 em implementação na rodada G103; a 5 é só documento.
+
 **Esta proposta não altera runtime por si;** o código das fatias 1–4 (inclusive §11.1–11.2) está em `main` atrás da degradação; o gate de papel do servidor (§11.4) aguarda merge. Sem a 4ª migration os efeitos visíveis são o badge, as confirmações/avisos da devolução e o controle manual de atribuição.
