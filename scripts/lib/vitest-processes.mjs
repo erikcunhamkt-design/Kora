@@ -84,3 +84,35 @@ export function describeProc(p) {
   const cmd = p.command.replace(/\s+/g, " ").trim();
   return `pid ${p.pid}: ${cmd.length > 110 ? `${cmd.slice(0, 107)}…` : cmd}`;
 }
+
+export const GATES_QUIET_USAGE = [
+  "Uso: npm run gates:quiet [-- opções]",
+  "",
+  "Roda `npm run gates` (tsc → lint → vitest) só se NÃO houver outro vitest ativo na máquina (G100/O13).",
+  "",
+  "Opções:",
+  "  --wait[=segundos]  espera ficar quieto (padrão 600 s, confere a cada 5 s) e então roda",
+  "  --force            roda mesmo com outro vitest ativo, mas avisa que o resultado NÃO vale",
+  "  -h, --help         mostra este texto e sai SEM rodar os gates",
+  "",
+  "Códigos de saída: os do `npm run gates`; 2 = recusado (outro vitest ativo); 64 = opção desconhecida.",
+].join("\n");
+
+/**
+ * Interpreta os argumentos do `gates:quiet`. Opção desconhecida NUNCA cai em "rodar os gates":
+ * volta em `unknown` e o script recusa (exit 64) — um `--help` que rodasse a suíte inteira foi
+ * justamente o incidente que motivou isto.
+ * @param {string[]} argv
+ * @returns {{ help: boolean, force: boolean, waitSeconds: number, unknown: string[] }}
+ */
+export function parseGatesQuietArgs(argv) {
+  const out = { help: false, force: false, waitSeconds: 0, unknown: [] };
+  for (const arg of argv) {
+    if (arg === "--help" || arg === "-h") out.help = true;
+    else if (arg === "--force") out.force = true;
+    else if (arg === "--wait") out.waitSeconds = 600;
+    else if (/^--wait=\d+$/.test(arg)) out.waitSeconds = Number(arg.split("=")[1]);
+    else out.unknown.push(arg);
+  }
+  return out;
+}

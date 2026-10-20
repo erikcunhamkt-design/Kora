@@ -1,10 +1,12 @@
 // G100 — testes da detecção de outro vitest (lib pura de `npm run gates:quiet`).
 import { describe, it, expect } from "vitest";
 import {
+  GATES_QUIET_USAGE,
   describeProc,
   findOtherVitest,
   isVitestCommand,
   ownTreePids,
+  parseGatesQuietArgs,
   parsePsOutput,
   parseWindowsProcessJson,
 } from "./vitest-processes.mjs";
@@ -88,5 +90,28 @@ describe("describeProc", () => {
     const text = describeProc({ pid: 5, ppid: 1, command: `node ${"x".repeat(300)}` });
     expect(text.startsWith("pid 5: node ")).toBe(true);
     expect(text.length).toBeLessThan(130);
+  });
+});
+
+describe("parseGatesQuietArgs — --help e opção desconhecida NUNCA rodam os gates", () => {
+  it("sem argumentos: roda normal (nada de help, force, wait ou desconhecido)", () => {
+    expect(parseGatesQuietArgs([])).toEqual({ help: false, force: false, waitSeconds: 0, unknown: [] });
+  });
+  it("--help e -h pedem o uso", () => {
+    expect(parseGatesQuietArgs(["--help"]).help).toBe(true);
+    expect(parseGatesQuietArgs(["-h"]).help).toBe(true);
+  });
+  it("--force, --wait (600 s) e --wait=N", () => {
+    expect(parseGatesQuietArgs(["--force"]).force).toBe(true);
+    expect(parseGatesQuietArgs(["--wait"]).waitSeconds).toBe(600);
+    expect(parseGatesQuietArgs(["--wait=120"]).waitSeconds).toBe(120);
+  });
+  it("opção desconhecida (inclusive --wait=abc e typos) vai pra `unknown` — o script recusa em vez de rodar", () => {
+    expect(parseGatesQuietArgs(["--hepl"]).unknown).toEqual(["--hepl"]);
+    expect(parseGatesQuietArgs(["--wait=abc"]).unknown).toEqual(["--wait=abc"]);
+    expect(parseGatesQuietArgs(["--force", "foo"])).toMatchObject({ force: true, unknown: ["foo"] });
+  });
+  it("o texto de uso documenta --help, --wait, --force e os códigos de saída", () => {
+    for (const piece of ["--help", "--wait", "--force", "64", "2"]) expect(GATES_QUIET_USAGE).toContain(piece);
   });
 });

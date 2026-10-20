@@ -10,16 +10,30 @@
 //   npm run gates:quiet -- --wait        espera ficar quieto (até 10 min, confere a cada 5 s) e roda
 //   npm run gates:quiet -- --wait=120    idem, com limite de 120 s
 //   npm run gates:quiet -- --force       roda mesmo assim, MAS avisa que o resultado não vale
+//   npm run gates:quiet -- --help        mostra o uso e sai (NÃO roda os gates)
 //
-// Códigos de saída: 0/1/… = os do `npm run gates`; 2 = recusado por haver outro vitest ativo.
+// Códigos de saída: 0/1/… = os do `npm run gates`; 2 = recusado por haver outro vitest ativo; 64 = opção desconhecida.
 
 import { spawn } from "node:child_process";
-import { describeProc, findOtherVitest, listProcesses } from "./lib/vitest-processes.mjs";
+import {
+  GATES_QUIET_USAGE,
+  describeProc,
+  findOtherVitest,
+  listProcesses,
+  parseGatesQuietArgs,
+} from "./lib/vitest-processes.mjs";
 
-const args = process.argv.slice(2);
-const force = args.includes("--force");
-const waitArg = args.find((a) => a === "--wait" || a.startsWith("--wait="));
-const waitSeconds = waitArg ? (waitArg.includes("=") ? Number(waitArg.split("=")[1]) : 600) : 0;
+const { help, force, waitSeconds, unknown } = parseGatesQuietArgs(process.argv.slice(2));
+// --help / opção desconhecida NUNCA rodam os gates (rodar a suíte inteira por causa de um `--help` foi um incidente real).
+if (help) {
+  console.log(GATES_QUIET_USAGE);
+  process.exit(0);
+}
+if (unknown.length > 0) {
+  console.error(`[gates:quiet] opção desconhecida: ${unknown.join(" ")}\n`);
+  console.error(GATES_QUIET_USAGE);
+  process.exit(64);
+}
 
 function othersNow() {
   try {
