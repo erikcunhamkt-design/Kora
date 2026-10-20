@@ -575,7 +575,7 @@ npx supabase functions deploy whatsapp-webhook   --project-ref ewamvzncsloagtcvk
 
 (`project-ref` conferido contra `supabase/config.toml` — `project_id = "ewamvzncsloagtcvkbxv"`.)
 
-**Commits desta parte do pacote (hashes em `main`):** `sender_id` nos 4 inserts de saída + origem da atribuição `c393d02`; atribuição automática no handover + devolução com `unassigned`/`botStillMuted` + badge "Aguardando humano" `b40bb5a`. **G101** (controle de atribuição no painel) e **G102** (assumir ao responder): implementados em `df023a3`; confirmação ao vivo pendente (passos 22–28). **Gate de papel no servidor** (`assign_conversation`/`end_human_handover`): `3bb9a72`; confirmação ao vivo pendente (passos 29–30).
+**Commits desta parte do pacote (hashes em `main`):** `sender_id` nos 4 inserts de saída + origem da atribuição `c393d02`; atribuição automática no handover + devolução com `unassigned`/`botStillMuted` + badge "Aguardando humano" `b40bb5a`. **G101** (controle de atribuição no painel) e **G102** (assumir ao responder): implementados em `df023a3`; confirmação ao vivo pendente (passos 22–28). **Gate de papel no servidor** (`assign_conversation`/`end_human_handover`): `3bb9a72`; confirmação ao vivo pendente (passos 29–30). **G103 fatias 1+2 (gate central de papel em `whatsapp-instance`, `get` das credenciais oficiais → admin, UI por papel) e o DRAFT da 5ª migration (G104, §2.5):** `fd98bc7`; confirmação ao vivo pendente (passos 31–35; 36–38 só se a 5ª for aplicada).
 
 | Function | O que muda | Arquivos que DEVEM aparecer no output do deploy (no mínimo) |
 |---|---|---|
@@ -704,6 +704,8 @@ itens distintos, se houver). B/C/D/E aparecem **desabilitadas** na tela — não
 | 35 | **Decisão 2:** **member**/**viewer** chamam `whatsapp-official-credentials` com `{"action":"get","workspaceId":"<WS>"}`; na tela, Automações → "WhatsApp Cloud API (Meta Oficial)" como member | **403** `{"error":"Admin role required"}`; o cartão mostra "Apenas administradores do workspace veem e alteram a configuração do WhatsApp oficial…" (**não** "Não configurado"). **admin**: o cartão como antes |
 
 **Smoke da 5ª migration (G104) — só se foi aplicada (§2.5):**
+
+> ⚠ **ORDEM OBRIGATÓRIA — UI por papel no ar ANTES da 5ª migration.** O app com a UI por papel (G103: composer/ações/tags/card de conexão por papel) precisa estar **deployado e confirmado** (passos 31–35) antes de aplicar a §2.5. Motivo: com a 5ª migration, um `UPDATE` bloqueado por RLS afeta **0 linhas SEM erro** — o `viewer` ainda veria controles que parecem funcionar (ex.: "Vincular cliente" aparentemente salva e não persiste). Escritas diretas que ainda não são gateadas na tela (notas internas, criar cliente/oportunidade, respostas rápidas, "Vincular cliente", `markRead`) estão inventariadas no **G112** e continuam um follow-up de UI — aplicar a 5ª migration **antes** de o G112 estar em `main` deixa o `viewer` com botões que falham em silêncio.
 
 | # | Ação | Esperado |
 |---|---|---|

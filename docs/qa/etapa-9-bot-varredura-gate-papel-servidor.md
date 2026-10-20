@@ -1,8 +1,8 @@
 # Varredura da classe "a UI gateia, o servidor aceita qualquer membro" (G60/G68) — gate de papel no servidor
 
 > **Status:** gate da **atribuição** em `main` (`3bb9a72`); **G103 fatias 1+2** (instância owner/admin + `viewer` somente-leitura +
-> `get` das credenciais oficiais → admin) e a regra revisada do `member` **implementadas na branch `etapa-9-item4-g103`, aguardando
-> "vai"** (o hash entra aqui depois do merge). **G104** (RLS) = DRAFT, **não aplicado**. Ver
+> `get` das credenciais oficiais → admin) e a regra revisada do `member` **em `main` (`fd98bc7`)**, confirmação ao vivo pendente
+> (pacote 8-b, passos 31–35). **G104** (RLS) = DRAFT, **não aplicado**. Ver
 > [`etapa-9-handover-assigned-to-proposta.md`](../architecture/etapa-9-handover-assigned-to-proposta.md) §11.4–§11.5 e a 5ª migration em
 > [`etapa-9-bot-pacote-operador-8b.md`](etapa-9-bot-pacote-operador-8b.md) §2.5.
 
@@ -101,8 +101,8 @@ ação nova sem linha na tabela.
 | Fatia | Status |
 |---|---|
 | Atribuição: `assign_conversation` / `end_human_handover` | ✅ em `main` (`3bb9a72`) |
-| **1.** Instância → owner/admin (`create`, `connect`, `set_webhook`, `disconnect`, `delete`, `import`) + UI | ✅ implementada (branch G103), aguarda "vai" |
-| **2.** `viewer` somente-leitura em todas as escritas operacionais + UI | ✅ implementada (branch G103), aguarda "vai" |
+| **1.** Instância → owner/admin (`create`, `connect`, `set_webhook`, `disconnect`, `delete`, `import`) + UI | ✅ em `main` (`fd98bc7`) |
+| **2.** `viewer` somente-leitura em todas as escritas operacionais + UI | ✅ em `main` (`fd98bc7`) |
 | `member` só se atribui com `assigned_to IS NULL` (decisão 1) | ✅ implementada (branch G103) |
 | `get` das credenciais oficiais → admin (decisão 2) | ✅ implementada (branch G103) |
 | **3.** RLS de escrita das tabelas `whatsapp_*` (**G104**) | 🟡 DRAFT (5ª migration), **não aplicado** — só o operador (§8-b) |
