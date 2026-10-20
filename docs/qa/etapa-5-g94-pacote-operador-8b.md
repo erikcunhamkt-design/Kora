@@ -342,7 +342,7 @@ ALTER TABLE public.clients
   CHECK (jsonb_typeof(library_assets) = 'array' AND jsonb_array_length(library_assets) <= 200) NOT VALID;
 ```
 
-Depois (execução separada — o draft deixa isto como o comentário "VALIDATE depois"), com §1.4/§3.5 conferidos de que nenhuma linha existente tem a coluna preenchida:
+Depois (execução separada — o draft deixa isto como o comentário "VALIDATE depois"), **somente depois de rodar as provas 1–3 da lane E (§3.5, "Prova 6.8") e confirmar `0` na prova 3** (nenhuma linha viola o CHECK). Este é o **único** `VALIDATE` do pacote:
 
 ```sql
 ALTER TABLE public.clients VALIDATE CONSTRAINT clients_library_assets_array_chk;
@@ -521,9 +521,30 @@ SELECT (SELECT count(*) FROM public.service_categories) AS categorias,
 -- Esperado logo após §2 (ANTES do import de §4): 0 / 0 / 0 / 0.
 ```
 
+#### Prova 6.8 — lane E (verbatim, numerada) — `clients.library_assets`
+
+Estas são as provas que a lane E mandou para o 6.8, **sem alteração** (a numeração 1–4 é a dela). **Quando rodar:** as provas **1–3** entram **entre** o `ADD CONSTRAINT … NOT VALID` e o `VALIDATE` do §2.4 — a **3** é a pré-condição do `VALIDATE`. A prova **4** é o próprio `VALIDATE` e **não se repete aqui**: ele existe **uma vez só, no passo de aplicação (§2.4)**. (Os SELECTs acima, `convalidated = true` etc., são a prova **depois** do `VALIDATE` — complementares, não duplicam.)
+
+```sql
+-- 1) coluna existe, tipo/default certos
+SELECT column_name, data_type, column_default, is_nullable
+FROM information_schema.columns
+WHERE table_schema = 'public' AND table_name = 'clients' AND column_name = 'library_assets';
+-- 2) CHECK existe
+SELECT conname, pg_get_constraintdef(oid)
+FROM pg_constraint
+WHERE conrelid = 'public.clients'::regclass AND conname = 'clients_library_assets_array_chk';
+-- 3) nenhuma linha viola o CHECK antes do VALIDATE (esperado: 0)
+SELECT count(*) FROM public.clients
+WHERE NOT (jsonb_typeof(library_assets) = 'array' AND jsonb_array_length(library_assets) <= 200);
+-- 4) VALIDATE: só depois de confirmar 0 na query 3 — executado UMA vez, no §2.4 (não repetido aqui).
+```
+
+**Esperado:** (1) `library_assets | jsonb | '[]'::jsonb | NO`; (2) 1 linha, `CHECK (((jsonb_typeof(library_assets) = 'array'::text) AND (jsonb_array_length(library_assets) <= 200)))` (o Postgres pode reformatar o texto; o que vale é a lógica: array **e** ≤ 200); (3) **0**.
+
 **Regra de parada:** §3.1 com ≠ 4 tabelas ou contagem de colunas diferente; §3.2 com ≠ 4 RLS ligadas / ≠ 16 policies / GRANT
 vazio; §3.3 com ≠ 4 índices ou qualquer `indisvalid = false`/`parcial = true`; §3.4 com `tem_unico_com_acento = false`;
-§3.5 com `convalidated = false` ou contagens > 0 antes do import → **parar e reportar**; não seguir pra §4.
+§3.5 com `convalidated = false` ou contagens > 0 antes do import → **parar e reportar**; não seguir pra §4. **Prova 3 da lane E ≠ 0 → NÃO rodar o `VALIDATE` do §2.4** (há linha violando o CHECK): reportar.
 
 ---
 
