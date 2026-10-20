@@ -1631,6 +1631,36 @@ Achado da varredura pedida pelo revisor depois do gate de papel da atribuição:
 
 ---
 
+**G105 — Logs locais write-only sem leitor, achados na Fase A da aposentadoria do modo local: 5 chaves em CRM (`kora.crm.supabaseArchives/SoftDeletes/StageMoves/Creates/Edits.v1`, todas em `CRM.tsx`, mais o import morto de `supabaseCrmAuditLog.ts`/`kora.crm.supabaseActions.v1`, cujos métodos nunca são chamados apesar do `CrmSupabaseOperationalToggleCard.tsx` prometer essa auditoria ao usuário), 2 flags mortas de Vendas (`quotesSupabaseExperimental`/`quotesSupabaseApproval.enabled`, confirmadas sem efeito por teste próprio) + 3 logs write-only (`kora.quotes.supabaseApprovals/Rejections/Receivables.v1`), e 1 log órfão de Financeiro (`kora.quotes.supabaseReceivables.v1`, mesma classe que o G85 já removeu do lado de Projetos, nunca limpo deste lado). [BAIXO — ABERTO; grep exaustivo confirma zero leitor em todos os casos]**
+Achado da Fase A da aposentadoria do modo local (`docs/architecture/etapa-6-aposentadoria-modo-local-fase-a.md` §1.3 R5, §1.4 V6/V7, §1.7 N7) — classe G84 (dead-code por confirmação exaustiva de grep, estática e dinâmica).
+
+- **Mecanismo:** cada chave é escrita em exatamente 1 handler, após sucesso da operação Supabase correspondente, em formato append-only sem teto de crescimento; nenhuma tela/hook lê qualquer uma delas.
+- **Correção prevista:** remoção direta (zero consumidor, zero rollback associado) — mas **NÃO iniciar enquanto a varredura global de código morto via `knip` (lane B, mesma classe G84) não mesclar em `main`**: ela provavelmente cobre as mesmas chaves; aguardar evita trabalho duplicado/conflito. Fatia RL1 do doc da Fase A.
+- **Decisão pendente à parte:** `CrmSupabaseOperationalToggleCard.tsx` promete ao usuário uma auditoria que hoje não é gravada — religar `supabaseCrmAuditLog.ts` de verdade ou corrigir o texto da UI (G29-like) é decisão do operador, independente da remoção dos logs mortos.
+- **Referência:** G84, G85 (precedente de limpeza equivalente em Projetos), doc Fase A §1.3/§1.4/§1.7, RL1.
+
+---
+
+**G106 — Tarefas: o "rollback nível 1" (`kora.tasks.dataSource.v1=local`) NÃO é sem perda — diferente de Projetos/Financeiro/Fichas Técnicas, o domínio Tarefas nunca teve espelho (padrão G22): tarefas criadas/editadas nativamente na nuvem não têm cópia local, então setar a flag de volta pra "local" faz essas tarefas desaparecerem da tela (não "voltam depois" — simplesmente não têm pra onde voltar). [MÉDIO — ABERTO; achado da Fase A da aposentadoria do modo local, classe "rollback documentado/assumido como seguro mas não é"]**
+Achado da Fase A (`etapa-6-aposentadoria-modo-local-fase-a.md` §1.8 T7), confirmado por comentário explícito em `QuoteToProjectDialog.tsx:69-86` e por teste (`QuoteToProjectDialog.cutover.test.tsx`: "nunca mais local+espelho pras tasks, que nunca tiveram espelho nenhum").
+
+- **Mecanismo:** nenhum `mirrorTaskToSupabase` existe (grep exaustivo, zero resultado em código de produção); além disso Tarefas é o único domínio sem nenhuma UI de toggle em Configurações para `kora.tasks.dataSource.v1`/`kora.tasks.supabaseWrite.v1` — o rollback hoje só é possível via devtools/console.
+- **Correção interina (texto apenas, sem mudança de comportamento):** 1 linha honesta nos textos/comentários de Tarefas avisando que voltar pro Local não traz as tarefas criadas na nuvem.
+- **Decisão de produto definitiva, pendente:** construir o espelho que falta (equivalente ao G22 de Projetos) ou aceitar formalmente essa perda como comportamento esperado — nenhuma das duas foi decidida ainda.
+- **Referência:** G85 (padrão espelho em Projetos, por contraste), doc Fase A §1.8 T1/T2/T7, RL5.
+
+---
+
+**G107 — Financeiro: o espelho local→nuvem de "Gerar recebível" (`QuoteToReceivableDialog.tsx`/`CreateReceivableDialog.tsx`, padrão G22, sempre-ligado por desenho) não tem nenhuma decisão de produto registrada sobre quando/se pode ser removido — ao contrário do espelho equivalente de Projetos, que o G85 já trava explicitamente até a aposentadoria do modo local. [BAIXO — ABERTO; gap de documentação, não de código]**
+Achado da Fase A (`etapa-6-aposentadoria-modo-local-fase-a.md` §1.7 N5) — mesma lógica causal do G85 (local sempre autoritativo ⇒ espelho sustenta o rollback nível 1 ⇒ não remover até aposentar o modo local) se aplica por construção, mas nunca foi escrita formalmente para este domínio; quem lê só o catálogo não encontra essa trava.
+
+- **Mecanismo:** os 2 diálogos gravam local primeiro (`fin.addTransaction`) e tentam espelhar na nuvem depois, **independente** de `kora.finance.supabaseWrite.enabled` (G41/nota-e do próprio código) — diferente do padrão de Projetos, aqui não há plano de cutover registrado.
+- **Agravante estrutural (achado colateral):** Financeiro bifurca de forma aditiva, não exclusiva — as abas principais de recebíveis/pagáveis (`TransactionsTab`) leem **sempre** o local, independente da dataSource flag; não é um fallback, é a fonte primária da tela hoje.
+- **Correção prevista:** nenhuma — é decisão de produto a tomar (registrar aqui, por analogia ao G85, se o espelho de Financeiro deve sair algum dia ou ficar permanente por desenho).
+- **Referência:** G85, G41, doc Fase A §1.7 N1/N5, RL5/RL7.
+
+---
+
 ## 3. Segurança / vulnerabilidades (verificar e endurecer)
 
 > Vários itens abaixo são **"confirmar no código"** — a arquitetura está certa, mas a implementação precisa ser auditada arquivo a arquivo pelo Code.
