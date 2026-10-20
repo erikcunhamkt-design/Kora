@@ -25,6 +25,14 @@ import { useCallback, useEffect, useState } from "react";
  * Synced across tabs via `storage`, e dentro da mesma aba via um evento
  * customizado `kora:tasks-supabase-write-flag` — mesmo padrão de
  * `useSupabaseFinanceWriteFlag.ts`/`useSupabaseProjectsWriteFlag.ts`.
+ *
+ * **Aviso honesto (G106):** esta flag (e `TASKS_DATA_SOURCE_KEY` em
+ * `config/flags.ts`) não têm, hoje, nenhum card de toggle em Configurações
+ * — diferente dos domínios irmãos. E diferente deles também no comporta-
+ * mento do rollback: Tarefas nunca teve espelho local→nuvem (padrão G22),
+ * então desligar/voltar pra local não é "seguro" — tarefas só-nuvem ficam
+ * invisíveis até a flag voltar. Ver
+ * `docs/architecture/etapa-6-aposentadoria-modo-local-fase-a.md` §1.8 (T1/T2/T7).
  */
 
 export const TASKS_SUPABASE_WRITE_FLAG_KEY = "kora.tasks.supabaseWrite.v1";

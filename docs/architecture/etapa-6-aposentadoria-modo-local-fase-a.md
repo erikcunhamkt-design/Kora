@@ -173,6 +173,20 @@ Ordem sugerida, da menor pra maior dependência/risco. Cada fatia é independent
 - **RL8 — Catálogo, mesma sequência de RL6/RL7, depois que RL4 tiver rodado.**
 - **RL9 — Decisão de produto final: "aposentar" significa remover todo fallback local (virar 100%-nuvem sempre) OU manter a bifurcação como feature permanente de resiliência (sem internet / sem workspace) e só limpar os resíduos classe (a)/(b) condicionados?** Esta Fase A não decide isso — expõe a pergunta. A resposta determina se RL7/RL8 terminam removendo código de bifurcação (classe c também vira removível) ou só os resíduos mortos.
 
+### RL1 — checklist executável (detalhado nesta rodada, 2026-10-19)
+
+**Antes de executar qualquer item**: confirmar que a varredura global de código morto via `knip` da lane B (classe G84) já mesclou em `main` (`git log --grep=knip` ou o relatório que ela enviar) e **re-rodar o grep de prova de cada item** — se a B já tiver removido, pular (não duplicar trabalho); se sobrou algo, remover só o que sobrar. G105 (catálogo) registra este checklist como ABERTO até essa confirmação.
+
+| # | Item | Chave(s)/arquivo(s) | Grep de prova (zero leitor esperado fora da própria escrita) | Ação |
+|---|---|---|---|---|
+| 1 | CRM — 5 logs write-only | `kora.crm.supabaseArchives/SoftDeletes/StageMoves/Creates/Edits.v1`, todos em `src/pages/CRM.tsx` | `grep -rn "kora\.crm\.supabase\(Archives\|SoftDeletes\|StageMoves\|Creates\|Edits\)\.v1" src/` — esperado: só o par get/set dentro de `CRM.tsx` | Remover os 5 pares get/set e as 5 chamadas de log nos handlers correspondentes |
+| 2 | CRM — import morto | `supabaseCrmAuditLog.ts` (`kora.crm.supabaseActions.v1`), importado em `CRM.tsx` | `grep -rn "supabaseCrmAuditLog" src/` — esperado: só a importação, sem `.log(`/`.list(`/`.clear(` chamados | **Decisão do operador antes de remover**: religar de verdade (chamar `.log()` nos 5 handlers do item 1, cumprindo o texto de `CrmSupabaseOperationalToggleCard.tsx`) OU remover o import morto e corrigir o texto da UI que promete essa auditoria. Esta rodada não decide — só documenta a bifurcação |
+| 3 | Vendas — 2 flags mortas | `quotesSupabaseExperimental`, `quotesSupabaseApproval` em `BOOLEAN_FLAG_KEYS` (`src/config/flags.ts`) | `grep -rn "quotesSupabaseExperimental\|quotesSupabaseApproval" src/` — esperado: só a definição em `flags.ts` + os testes que já fixam "sem efeito" (`useSupabaseQuotesWriteFlag.test.ts`), zero produtor de comportamento | Remover as 2 entradas de `BOOLEAN_FLAG_KEYS`; remover/atualizar os testes que hoje fixam "sem efeito" (deixam de fazer sentido, não de passar) |
+| 4 | Vendas — 2 logs write-only | `kora.quotes.supabaseApprovals.v1`, `kora.quotes.supabaseRejections.v1` — escritos em `LinkedQuotesSection.tsx` e `SupabaseQuotesViewerCard.tsx` (2 lugares cada) | `grep -rn "kora\.quotes\.supabase\(Approvals\|Rejections\)\.v1" src/` — esperado: só as 4 escritas (2 chaves × 2 arquivos) | Remover os pares get/set + chamadas de escrita nos 2 arquivos |
+| 5 | Financeiro/Vendas — log órfão (ponte) | `kora.quotes.supabaseReceivables.v1`, escrito só em `CreateReceivableDialog.tsx` (pasta `crm/`, mas grava em Financeiro) | `grep -rn "kora\.quotes\.supabaseReceivables\.v1" src/` — esperado: só a escrita em `CreateReceivableDialog.tsx` | Remover o par get/set + a chamada de escrita. **Mesmo item relatado por 2 ângulos (N7 em Financeiro, B6 em Vendas) — não duplicar a remoção** |
+
+Itens **fora** deste checklist RL1 (não são classe "a", não entram nesta fatia): qualquer store/flag/espelho classificado (b)/(c)/(d) nas tabelas de §1 — esses dependem de homologação, decisão de produto, ou ficam permanentes por desenho.
+
 ## §4 Referências
 
 - `docs/architecture/kora-hub-auditoria-e-plano.md` — G22 (origem do padrão espelho), G85 (única decisão de aposentadoria já registrada, Projetos), G75/G94/G97 (Biblioteca de Materiais do cliente), G92 (leitor bifurcado/produtor local, leads+parcial de quotes), G41 (dual-write de Financeiro), G76/G77/G78/G79 (Tarefas).
@@ -185,3 +199,5 @@ Ordem sugerida, da menor pra maior dependência/risco. Cada fatia é independent
 ---
 
 **Status desta Fase A**: investigação concluída, zero código alterado. Commit local apenas deste documento, **sem push/merge** (§18) — parado aguardando "vai" do revisor.
+
+**Adendo (rodada de coordenação, 2026-10-19):** G106 (Tarefas, rollback nível 1 sem espelho) recebeu correção interina de TEXTO — comentários honestos em `src/config/flags.ts` (`TASKS_DATA_SOURCE_KEY`) e `src/hooks/useSupabaseTasksWriteFlag.ts`, sem mudança de comportamento. **Não existe card de toggle de Tarefas em Configurações** (confirmado nesta rodada — nenhum dos cards montados ali, `LocalTasksImportCard` e `QuotesSupabaseBaseTasksToggleCard`, é sobre `dataSource`/`supabaseWrite` de Tarefas), então a parte do pedido sobre "cards" não pôde ser cumprida literalmente — só a parte sobre comentários de código. Checklist executável de RL1 adicionado acima. Commit local, **sem push/merge** (§18) — parado aguardando "vai".

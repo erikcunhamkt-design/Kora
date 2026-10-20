@@ -167,6 +167,15 @@ export const FINANCE_DATA_SOURCE_KEY = "kora.finance.dataSource.v1";
  * explícito escolhe local). Sessões que já têm o valor gravado (qualquer um
  * dos dois) não são afetadas — só quem nunca tocou no seletor herda o novo
  * default.
+ *
+ * **Aviso honesto (G106):** diferente dos domínios irmãos (Projetos/
+ * Financeiro/Fichas Técnicas), Tarefas NUNCA teve espelho local→nuvem
+ * (padrão G22) — setar esta flag de volta para "local" não traz as tarefas
+ * criadas/editadas nativamente na nuvem; elas simplesmente deixam de
+ * aparecer até a flag voltar para "supabase" (não há cópia local
+ * correspondente). Também não existe hoje nenhuma UI de toggle em
+ * Configurações para esta flag (rollback só via `localStorage` direto) —
+ * ver `docs/architecture/etapa-6-aposentadoria-modo-local-fase-a.md` §1.8.
  */
 export const TASKS_DATA_SOURCE_KEY = "kora.tasks.dataSource.v1";
 
