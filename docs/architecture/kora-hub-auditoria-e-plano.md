@@ -1691,6 +1691,38 @@ Achado da Fase A (`etapa-6-aposentadoria-modo-local-fase-a.md` §1.7 N5) — mes
 
 ---
 
+**G108 — Vazamento entre clientes no painel do contato do WhatsApp: `WhatsAppContactPanel.tsx:274` consulta `quotes` só por `workspace_id`; a seção "Orçamentos recentes" mostra orçamentos de outros clientes (título e valor) sob o cliente vinculado. [MÉDIO — corrigido em código (rodada G108, lane C; hash no commit de fechamento do catálogo); confirmação ao vivo pendente; classe G92/G93 (consumidor sem o escopo certo) com agravante de privacidade]**
+Achado da Fase A das categorias B–E da base de conhecimento (`docs/architecture/etapa-9-item3-categorias-b-e-fase-a.md` §10) — o erro de escopo que o robô **não** pode repetir já existia **para humanos**.
+
+- **Sintoma:** o atendente que abre a conversa do cliente X vê, em "Orçamentos recentes", os 5 orçamentos **mais recentes do workspace** (título + valor) — inclusive de Y e Z. As consultas irmãs de projetos e financeiro filtravam `client_id`; a de orçamentos não.
+- **Causa:** `supabase.from("quotes").select(...).eq("workspace_id", …).order("created_at", …).limit(5)` — sem `.eq("client_id", clientId)`.
+- **Correção (rodada G108):** `.eq("client_id", clientId)` na consulta de `quotes`; **sem cliente vinculado nada é consultado** e "Orçamentos recentes" mostra a frase que o painel já usa na seção "Cliente" — **"Nenhum cliente vinculado."** (G75: nunca "Nenhum orçamento." quando na verdade não há vínculo). Vocabulário literal da UI preservado (nenhum label novo).
+- **Varredura da classe (G60/G68) — o que foi encontrado, mesmo o que já estava certo** (`WhatsAppContactPanel.tsx`, único componente que mostra dado "do cliente" a partir de uma conversa; `pages/WhatsApp.tsx` só o monta, 2×, sem `key`):
+
+  | Consulta | Antes | Depois |
+  | :-- | :-- | :-- |
+  | `quotes` (l.274) | ❌ só `workspace_id` | ✅ + `client_id` |
+  | `clients` por id (l.273) | só `id` (RLS cobria) | ✅ + `workspace_id` (defesa em profundidade) |
+  | `projects` (l.275) | ✅ `client_id` | ✅ inalterada |
+  | `financial_transactions` (l.276) | ✅ `client_id` | ✅ inalterada |
+  | `whatsapp_internal_notes` (l.226) | ✅ por `conversation_id` | ✅ inalterada |
+  | `clients` — busca do diálogo "Vincular cliente" (l.294) | workspace inteiro, **por desenho** (é o seletor) | ✅ inalterada |
+  | `clients` — sugestão por telefone (l.248) | ⚠️ ver estado abaixo | ✅ reset (o resto: observação 1) |
+  | `whatsapp_conversations.update({client_id})` (l.311), `crm_opportunities.insert` (l.383, `client_id: clientId`) | ✅ | ✅ inalteradas |
+
+  **Estado que atravessava conversas (o painel NÃO remonta ao trocar de conversa)** — corrigido junto, pois é a mesma falha (dado de *outro* cliente na tela): (a) `client`, `quotes`, `projects`, `finance` do cliente **anterior** ficavam visíveis sob o novo vínculo durante o carregamento — **e para sempre** se a busca falhasse ou o cliente não existisse mais (`if (c.data) setClient(...)`); (b) o cliente da conversa anterior sobrevivia como **"sugestão por telefone"** numa conversa sem vínculo, e o botão "Vincular a esta conversa" ligava a conversa nova **a ele**. Agora: "vinculado" exige `client.id === clientId`; as listas e o cliente são limpos ao trocar; a sugestão é zerada antes de buscar.
+
+  **Outros painéis/consumidores:** varridos `src/components/whatsapp/**`, `src/pages/WhatsApp.tsx`, `src/lib/whatsapp/**` e os hooks de conversa — **nenhum outro** componente consulta dado de cliente a partir de uma conversa (`whatsappAudiencesRepository` lê `clients` por workspace para cruzar telefones de audiência — estatístico, por desenho; `useWhatsAppConversations`/`useWhatsAppUnansweredAlert` não tocam dado de cliente). O sentido inverso (tela de cliente listando conversas) **não existe** fora do módulo WhatsApp.
+- **Observações da varredura — NÃO corrigidas nesta rodada (fora do escopo "escopo por cliente"; pedir IDs ao revisor):**
+  1. **Sugestão por telefone é aproximada e "primeiro vence"** (`ilike %últimos 8 dígitos%` em `phone`/`whatsapp`, `limit(1)`): dois cadastros com o mesmo final, ou um DDD diferente, produzem uma sugestão arbitrária ("Encontramos um cliente com este telefone") sem aviso de ambiguidade. Não vaza dado (só nome/empresa para a equipe e exige o clique "Vincular"), mas é a **mesma fragilidade** que a Fase A de B–E exige que o resolvedor do robô **não** tenha (falhar fechado).
+  2. **Estado local do painel que também atravessa conversas e NÃO foi tocado:** `panelTags` (`useState(initialTags)` nunca re-sincroniza — as tags da conversa anterior aparecem e **`onUpdateTags(next)` grava essa lista na conversa nova**) e o rascunho de `newNote` (uma nota digitada na conversa A pode ser salva na B). Mesma causa (sem `key`/reset por `conversationId`); **corrompe dado**, gravidade a avaliar.
+  3. **As 3 consultas do painel ignoram `deleted_at`** (orçamento/projeto/transação **excluídos** aparecem; os repositórios filtram `.is("deleted_at", null)`).
+- **Testes** (`WhatsAppContactPanel.g108-escopo-cliente.test.tsx`, 11): banco **fake funcional** com 2+ clientes (ids uuid, G82) e orçamentos de todos (inclusive de outro workspace) — painel no cliente X ⇒ só os de X (título e valor), a consulta leva `client_id` **e** `workspace_id`; cliente sem orçamentos ⇒ "Nenhum orçamento." sem emprestar os de Y; **sem vínculo ⇒ zero consulta** a quotes/projects/financial_transactions e texto honesto; desvincular limpa tudo; **X→Y** (nada de X durante o carregamento — respostas retidas), X→cliente inexistente, X→sem vínculo (sem "sugestão" herdada); projetos/financeiro continuam escopados; sugestão por telefone legítima preservada. **Prova fail→fix→pass por patch (G65, sem `git stash`):** implementação revertida ⇒ **8 falharam, 3 passaram** (as 3 guardas que já eram verdadeiras) → `git apply` ⇒ **11/11**.
+- **Confirmação ao vivo (a executar pelo operador):** workspace com orçamentos de 2+ clientes → abrir a conversa vinculada ao cliente X → "Orçamentos recentes" lista **só** os de X; conversa sem vínculo → "Nenhum cliente vinculado." nas duas seções; alternar entre conversas de clientes diferentes sem recarregar → nada do anterior aparece.
+- **Referência:** G92/G93 (consumidor sem escopo), G75 (nunca "vazio" quando o motivo é outro), G82 (ids uuid), Fase A de B–E §3 (resolvedor conversa→cliente) e §10.
+
+---
+
 ## 3. Segurança / vulnerabilidades (verificar e endurecer)
 
 > Vários itens abaixo são **"confirmar no código"** — a arquitetura está certa, mas a implementação precisa ser auditada arquivo a arquivo pelo Code.

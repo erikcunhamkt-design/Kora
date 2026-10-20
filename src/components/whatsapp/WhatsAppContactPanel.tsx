@@ -244,10 +244,11 @@ export function WhatsAppContactPanel({
 
   // Try to auto-resolve client by phone if not linked
   useEffect(() => {
-    if (clientId || !workspaceId || !contactPhone) {
-      if (!clientId) setClient(null);
-      return;
-    }
+    if (clientId) return;
+    // G108 — o painel NÃO é remontado ao trocar de conversa: sem este reset, o cliente da conversa
+    // anterior ficava como "sugestão" (e o botão "Vincular a esta conversa" ligava a conversa nova a ele).
+    setClient(null);
+    if (!workspaceId || !contactPhone) return;
     const digits = contactPhone.replace(/\D/g, "");
     if (!digits) return;
     let active = true;
@@ -269,21 +270,31 @@ export function WhatsAppContactPanel({
   // Load full client + quotes + projects + finance when linked
   useEffect(() => {
     if (!clientId) {
+      // Sem cliente vinculado NENHUMA consulta de dado de cliente é feita (G108/G75).
       setQuotes([]);
       setProjects([]);
       setFinance([]);
       return;
     }
+    // G108 — trocou de cliente (outra conversa): limpa o cliente e as listas do ANTERIOR antes de
+    // buscar; senão elas ficavam na tela (e, se a busca falhasse, ficavam pra sempre) sob o novo vínculo.
+    setClient((prev) => (prev && prev.id === clientId ? prev : null));
+    setQuotes([]);
+    setProjects([]);
+    setFinance([]);
     let active = true;
     (async () => {
       const [c, q, p, f] = await Promise.all([
-        supabase.from("clients").select("id, name, email, phone, whatsapp, company").eq("id", clientId).maybeSingle(),
-        supabase.from("quotes").select("id, title, total, status, created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(5),
+        supabase.from("clients").select("id, name, email, phone, whatsapp, company").eq("workspace_id", workspaceId).eq("id", clientId).maybeSingle(),
+        // G108 — ESCOPO POR CLIENTE: antes só `workspace_id`, e a lista mostrava os 5 orçamentos mais
+        // recentes do workspace (título e valor) sob o cliente vinculado.
+        supabase.from("quotes").select("id, title, total, status, created_at").eq("workspace_id", workspaceId).eq("client_id", clientId).order("created_at", { ascending: false }).limit(5),
         supabase.from("projects").select("id, title, status").eq("workspace_id", workspaceId).eq("client_id", clientId).order("created_at", { ascending: false }).limit(5),
         supabase.from("financial_transactions").select("id, title, amount, status, due_date").eq("workspace_id", workspaceId).eq("client_id", clientId).neq("status", "paid").order("due_date", { ascending: true }).limit(5),
       ]);
       if (!active) return;
-      if (c.data) setClient(c.data as ClientLite);
+      // vínculo apontando pra cliente que não existe mais/não é do workspace: não deixa sobrar o anterior
+      setClient(c.data ? (c.data as ClientLite) : null);
       setQuotes((q.data ?? []) as QuoteLite[]);
       setProjects((p.data ?? []) as ProjectLite[]);
       setFinance((f.data ?? []) as FinanceLite[]);
@@ -413,7 +424,9 @@ export function WhatsAppContactPanel({
     toast.success("Telefone copiado");
   }
 
-  const linkedClient = clientId ? client : null;
+  // G108 — "vinculado" exige que o cliente carregado seja o do vínculo (id igual): nunca o da
+  // conversa anterior nem a sugestão por telefone.
+  const linkedClient = clientId && client?.id === clientId ? client : null;
 
   return (
     <aside className="w-[320px] flex-shrink-0 border-l border-border/40 bg-card/20 flex flex-col">
@@ -683,6 +696,13 @@ export function WhatsAppContactPanel({
         </Section>
 
         {/* Orçamentos */}
+        {!clientId && (
+          // G108/G75 — sem vínculo NÃO se consulta nada; "Nenhum orçamento." seria falso (não há cliente
+          // pra ter ou não orçamento). Mesma frase da seção "Cliente".
+          <Section title="Orçamentos recentes" icon={FileText}>
+            <p className="text-[11px] text-muted-foreground italic">Nenhum cliente vinculado.</p>
+          </Section>
+        )}
         {linkedClient && (
           <Section title="Orçamentos recentes" icon={FileText}>
             {quotes.length === 0 ? (
