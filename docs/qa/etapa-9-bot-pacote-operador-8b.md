@@ -25,7 +25,8 @@
 | # | Passo | Quem | Onde |
 |---|---|---|---|
 | 1 | Verificação prévia (SELECTs read-only) | operador | §1 |
-| 2 | 4 migrations (`bot_flow_state`, `handover_at`, `ai_knowledge_consents`, `assignment_origin`) — **mesma sessão** | operador | §2 |
+| 2 | 4 migrations (`bot_flow_state`, `handover_at`, `ai_knowledge_consents`, `assignment_origin`) — **mesma sessão** | operador | §2.1–§2.4 |
+| 2b | **5ª migration — RLS de escrita das tabelas `whatsapp_*` por papel (G104)** — **independente das 4 acima** (endurecimento de segurança, não pré-requisito do bot); aplicar **depois** do app com a UI por papel (G103) no ar; pode ser vetada/adiada | operador | §2.5 (pré-prova §1.6, prova §3.6) |
 | 3 | SELECTs de prova depois | operador | §3 |
 | 4 | Deploy de 3 functions (`whatsapp-instance`, `whatsapp-bot-reply`, `whatsapp-webhook`) | operador | §4 |
 | 5 | Verificação ao vivo + smoke ponta a ponta | operador | §5 |
@@ -60,6 +61,8 @@ como antes** (testado: tabela-verdade completa). Ela prepara a **atribuição
 automática ao último atendente** (G48, [proposta](../architecture/etapa-9-handover-assigned-to-proposta.md)),
 que **ainda não existe**: hoje nada grava `'auto'`; só `assign_conversation` grava
 `'manual'`. Aplicá-la agora é seguro e deixa a próxima rodada sem uma sessão §8-b a mais.
+
+**A 5ª migration (G104 — RLS de escrita por papel) é DIFERENTE das quatro:** não cria coluna nem tabela, **troca policies existentes** das tabelas `whatsapp_instances`, `whatsapp_conversations` e `whatsapp_messages` (hoje de escrita liberada a qualquer membro, `viewer` incluso) por escrita só de admin (instância) / só de quem atende (conversas e mensagens), mais uma função helper `is_workspace_attendant`. É o **único** modo de impedir que um `viewer` escreva **direto pelo PostgREST** (o gate de papel do G103 vale para as chamadas ao edge function e não alcança isso). **Nada do bot depende dela**; as edge functions usam service role (ignoram RLS). Por mudar permissões de verdade, tem pré-prova própria (§1.6), prova (§3.6), smoke (§5.2, passos 36–38) e rollback (§7) — e está **fora** da frase "mesma sessão" das quatro: o operador decide quando.
 
 ---
 
@@ -126,12 +129,34 @@ WHERE table_schema = 'public'
 -- Esperado: 0 linhas.
 ```
 
+### 1.6 Estado atual das policies de `whatsapp_*` e a função helper (pré-prova da 5ª migration — G104)
+
+```sql
+-- (a) As 12 policies atuais (4 por tabela). Esperado: 12 linhas; as de INSERT/UPDATE/DELETE
+--     com is_workspace_member(workspace_id) no USING/WITH CHECK (escrita liberada a qualquer membro).
+SELECT tablename, policyname, cmd, qual, with_check
+FROM pg_policies
+WHERE schemaname = 'public'
+  AND tablename IN ('whatsapp_instances', 'whatsapp_conversations', 'whatsapp_messages')
+ORDER BY tablename, cmd, policyname;
+
+-- (b) A função helper ainda não existe. Esperado: 0 linhas.
+SELECT proname FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+WHERE n.nspname = 'public' AND p.proname = 'is_workspace_attendant';
+
+-- (c) Quem seria afetado: quantos membros são viewer hoje (perdem a escrita DIRETA; leitura intacta).
+SELECT role, count(*) FROM public.workspace_members GROUP BY role ORDER BY role;
+```
+
+**Se (a) NÃO devolver exatamente estas 12 policies** (nomes `wa_instances_*`, `wa_conv_*`, `wa_msg_*`), o banco real diverge do repositório — **parar**: o `DROP POLICY IF EXISTS` da §2.5 não removeria o que existe e as policies antigas (member-level) continuariam valendo ao lado das novas (RLS permissivo soma policies).
+
 ---
 
-## 2. As 4 migrations (verbatim dos docs de origem; idempotentes)
+## 2. As 5 migrations (verbatim dos docs de origem; idempotentes)
 
-Rodar **nesta ordem**, no SQL Editor do dashboard (ou via CLI). Podem ir numa
-única execução. As colunas usam `ADD COLUMN IF NOT EXISTS` e a tabela usa
+Rodar **nesta ordem**, no SQL Editor do dashboard (ou via CLI). As **quatro primeiras**
+(§2.1–§2.4) podem ir numa única execução; a **5ª (§2.5, G104) é independente**, tem a
+sua própria transação e a sua própria pré-prova (§1.6) — rodar à parte, quando o operador decidir. As colunas usam `ADD COLUMN IF NOT EXISTS` e a tabela usa
 `CREATE TABLE IF NOT EXISTS`: reaplicar é no-op (o Postgres só emite um
 `NOTICE ... already exists, skipping`). Coluna nullable sem default — não reescreve
 a tabela, lock instantâneo. **Atenção à 3ª:** `CREATE POLICY` e `CREATE TRIGGER` **não**
@@ -289,6 +314,101 @@ ALTER TABLE public.whatsapp_conversations
     CHECK (assignment_origin IN ('auto', 'manual'));
 ```
 
+### 2.5 RLS de escrita de `whatsapp_*` por papel — **5ª migration, G104** (origem: [catálogo G104](../architecture/kora-hub-auditoria-e-plano.md) e [varredura §4](etapa-9-bot-varredura-gate-papel-servidor.md))
+
+**Independente das quatro anteriores** (ver §0) e **DRAFT — NÃO aplicada**. Troca as 9 policies de escrita (3 por tabela) de nível "membro" por nível de papel e cria a função helper `is_workspace_attendant` (mesmo desenho de `is_workspace_admin`). **O que muda para o usuário:** só a escrita **direta** do navegador (PostgREST) — o `viewer` deixa de conseguir escrever; o `member` continua escrevendo em conversas/mensagens e **deixa** de escrever em `whatsapp_instances` (só admin). **O que NÃO muda:** nenhum SELECT (leitura e realtime iguais), nenhuma edge function (service role), o fluxo do bot.
+
+```sql
+-- Etapa 9 · Item 4 (G104) — RLS de ESCRITA das tabelas whatsapp_* POR PAPEL.
+-- Hoje (migration 20260602004057) INSERT/UPDATE/DELETE de whatsapp_instances, whatsapp_conversations e
+-- whatsapp_messages são liberados a QUALQUER membro (is_workspace_member), inclusive viewer.
+--   whatsapp_instances     : escrita só ADMIN (owner/admin)                  -> is_workspace_admin
+--   whatsapp_conversations : escrita só quem ATENDE (owner/admin/member)     -> is_workspace_attendant
+--   whatsapp_messages      : idem conversations
+--   SELECT das 3 tabelas permanece member-level (policies wa_instances_select / wa_conv_select /
+--   wa_msg_select INTOCADAS).
+-- O service role (edge functions, webhook, whatsapp-bot-reply) ignora RLS: nada do bot muda.
+-- Idempotente: CREATE OR REPLACE na função; DROP POLICY IF EXISTS + CREATE POLICY em cada policy
+-- (reaplicar recria as mesmas). Tudo numa transação: nunca existe janela sem policy de escrita.
+-- PROPOSTA — NÃO aplicada pelo Code (protocolo §0/§6/§8-b).
+BEGIN;
+
+-- Helper no mesmo desenho de is_workspace_admin (20260603174051): SECURITY DEFINER, search_path fixo.
+CREATE OR REPLACE FUNCTION public.is_workspace_attendant(w_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.workspace_members wm
+    WHERE wm.workspace_id = w_id
+      AND wm.user_id = auth.uid()
+      AND wm.role IN ('owner', 'admin', 'member')
+  );
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.is_workspace_attendant(uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.is_workspace_attendant(uuid) TO authenticated, service_role;
+
+-- ---------------------------------------------------------------- whatsapp_instances (escrita: ADMIN)
+DROP POLICY IF EXISTS "wa_instances_insert" ON public.whatsapp_instances;
+DROP POLICY IF EXISTS "wa_instances_update" ON public.whatsapp_instances;
+DROP POLICY IF EXISTS "wa_instances_delete" ON public.whatsapp_instances;
+DROP POLICY IF EXISTS "wa_instances_admin_insert" ON public.whatsapp_instances;
+DROP POLICY IF EXISTS "wa_instances_admin_update" ON public.whatsapp_instances;
+DROP POLICY IF EXISTS "wa_instances_admin_delete" ON public.whatsapp_instances;
+
+CREATE POLICY "wa_instances_admin_insert" ON public.whatsapp_instances
+  FOR INSERT TO authenticated WITH CHECK (public.is_workspace_admin(workspace_id));
+CREATE POLICY "wa_instances_admin_update" ON public.whatsapp_instances
+  FOR UPDATE TO authenticated USING (public.is_workspace_admin(workspace_id)) WITH CHECK (public.is_workspace_admin(workspace_id));
+CREATE POLICY "wa_instances_admin_delete" ON public.whatsapp_instances
+  FOR DELETE TO authenticated USING (public.is_workspace_admin(workspace_id));
+
+-- ---------------------------------------------------------------- whatsapp_conversations (escrita: ATENDE)
+DROP POLICY IF EXISTS "wa_conv_insert" ON public.whatsapp_conversations;
+DROP POLICY IF EXISTS "wa_conv_update" ON public.whatsapp_conversations;
+DROP POLICY IF EXISTS "wa_conv_delete" ON public.whatsapp_conversations;
+DROP POLICY IF EXISTS "wa_conv_attendant_insert" ON public.whatsapp_conversations;
+DROP POLICY IF EXISTS "wa_conv_attendant_update" ON public.whatsapp_conversations;
+DROP POLICY IF EXISTS "wa_conv_attendant_delete" ON public.whatsapp_conversations;
+
+CREATE POLICY "wa_conv_attendant_insert" ON public.whatsapp_conversations
+  FOR INSERT TO authenticated WITH CHECK (public.is_workspace_attendant(workspace_id));
+CREATE POLICY "wa_conv_attendant_update" ON public.whatsapp_conversations
+  FOR UPDATE TO authenticated USING (public.is_workspace_attendant(workspace_id)) WITH CHECK (public.is_workspace_attendant(workspace_id));
+CREATE POLICY "wa_conv_attendant_delete" ON public.whatsapp_conversations
+  FOR DELETE TO authenticated USING (public.is_workspace_attendant(workspace_id));
+
+-- ---------------------------------------------------------------- whatsapp_messages (escrita: ATENDE)
+DROP POLICY IF EXISTS "wa_msg_insert" ON public.whatsapp_messages;
+DROP POLICY IF EXISTS "wa_msg_update" ON public.whatsapp_messages;
+DROP POLICY IF EXISTS "wa_msg_delete" ON public.whatsapp_messages;
+DROP POLICY IF EXISTS "wa_msg_attendant_insert" ON public.whatsapp_messages;
+DROP POLICY IF EXISTS "wa_msg_attendant_update" ON public.whatsapp_messages;
+DROP POLICY IF EXISTS "wa_msg_attendant_delete" ON public.whatsapp_messages;
+
+CREATE POLICY "wa_msg_attendant_insert" ON public.whatsapp_messages
+  FOR INSERT TO authenticated WITH CHECK (public.is_workspace_attendant(workspace_id));
+CREATE POLICY "wa_msg_attendant_update" ON public.whatsapp_messages
+  FOR UPDATE TO authenticated USING (public.is_workspace_attendant(workspace_id)) WITH CHECK (public.is_workspace_attendant(workspace_id));
+CREATE POLICY "wa_msg_attendant_delete" ON public.whatsapp_messages
+  FOR DELETE TO authenticated USING (public.is_workspace_attendant(workspace_id));
+
+COMMIT;
+```
+
+**Por que os `DROP POLICY IF EXISTS` das policies antigas são parte da migration (e não "improviso"):** policies de RLS são **permissivas** e **somam** (OR) — se as `wa_*_insert/update/delete` de nível membro ficarem, as novas não restringem nada. É por isso que a §1.6(a) exige as 12 policies esperadas antes de aplicar.
+
+**Compatibilidade conhecida depois de aplicar** (não bloqueia; para o revisor/lane):
+
+- O app só escreve **direto** em `whatsapp_conversations` em dois pontos — `markRead` (`unread_count`) e "Vincular cliente" do painel (`client_id`) — e **nunca** em `whatsapp_instances`/`whatsapp_messages`. Para quem **atende**, nada muda. Para o `viewer`, um `UPDATE` bloqueado por RLS **não dá erro**: afeta 0 linhas. Efeito: o `viewer` não limpa o contador de não lidas (compartilhado — comportamento correto) e o "Vincular cliente" do painel **parece** funcionar mas não persiste. **Follow-up de UI (rodada de lane, não do operador):** esconder "Vincular/Trocar cliente" para `viewer` — o servidor/RLS já nega, a tela ainda não acompanha.
+- `member` perde a escrita direta em `whatsapp_instances` (hoje irrelevante: o app só a lê; escrita é via `whatsapp-instance`, service role).
+- **Resíduo fora do draft:** o SELECT de `whatsapp_instances` continua member-level e expõe `qr_code` (o `instance_token` já é excluído por GRANT de coluna, `20260603174051`). Policy não filtra coluna — fechar isso é outro desenho (view/RPC ou tirar `qr_code` da lista de GRANT por coluna).
+
 ---
 
 ## 3. SELECTs de prova (depois de §2)
@@ -366,9 +486,68 @@ GROUP BY assignment_origin;
 -- Depois do deploy, atribuir pela tela cria linhas 'manual' — esperado.
 ```
 
+### 3.6 A 5ª migration (G104) — função, 12 policies e nenhuma escrita de nível "membro"
+
+```sql
+-- (a) A função existe, é SECURITY DEFINER e só authenticated/service_role executam.
+SELECT p.proname, p.prosecdef AS security_definer,
+       has_function_privilege('authenticated', p.oid, 'EXECUTE') AS authenticated_executa,
+       has_function_privilege('anon', p.oid, 'EXECUTE')          AS anon_executa
+FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+WHERE n.nspname = 'public' AND p.proname = 'is_workspace_attendant';
+-- Esperado: 1 linha — security_definer = true, authenticated_executa = true, anon_executa = false.
+
+-- (b) As 12 policies: 3 SELECT intocadas + 9 de escrita com os nomes novos.
+SELECT tablename, policyname, cmd
+FROM pg_policies
+WHERE schemaname = 'public'
+  AND tablename IN ('whatsapp_instances', 'whatsapp_conversations', 'whatsapp_messages')
+ORDER BY tablename, cmd, policyname;
+-- Esperado: 12 linhas —
+--   whatsapp_conversations: wa_conv_select (SELECT) + wa_conv_attendant_{insert,update,delete}
+--   whatsapp_instances    : wa_instances_select (SELECT) + wa_instances_admin_{insert,update,delete}
+--   whatsapp_messages     : wa_msg_select (SELECT) + wa_msg_attendant_{insert,update,delete}
+
+-- (c) NENHUMA policy de escrita ainda de nível "membro". Esperado: 0 linhas.
+SELECT tablename, policyname, cmd
+FROM pg_policies
+WHERE schemaname = 'public'
+  AND tablename IN ('whatsapp_instances', 'whatsapp_conversations', 'whatsapp_messages')
+  AND cmd <> 'SELECT'
+  AND (coalesce(qual, '') ILIKE '%is_workspace_member%' OR coalesce(with_check, '') ILIKE '%is_workspace_member%');
+
+-- (d) Cada escrita usa o helper do papel certo. Esperado: instances -> is_workspace_admin;
+--     conversations/messages -> is_workspace_attendant (9 linhas).
+SELECT tablename, policyname, cmd, coalesce(qual, with_check) AS regra
+FROM pg_policies
+WHERE schemaname = 'public'
+  AND tablename IN ('whatsapp_instances', 'whatsapp_conversations', 'whatsapp_messages')
+  AND cmd <> 'SELECT'
+ORDER BY tablename, cmd;
+```
+
+**Prova de comportamento (opcional, não deixa rastro — termina em `ROLLBACK`).** Troque `<VIEWER_ID>`/`<MEMBER_ID>` (user ids de um `viewer` e de um `member` do MESMO workspace) e `<CONV>` (uma conversa dele):
+
+```sql
+BEGIN;
+SET LOCAL ROLE authenticated;
+
+SELECT set_config('request.jwt.claims', '{"sub":"<VIEWER_ID>","role":"authenticated"}', true);
+UPDATE public.whatsapp_conversations SET unread_count = unread_count WHERE id = '<CONV>';
+-- Esperado: UPDATE 0   (RLS filtra a linha: viewer não escreve)
+
+SELECT set_config('request.jwt.claims', '{"sub":"<MEMBER_ID>","role":"authenticated"}', true);
+UPDATE public.whatsapp_conversations SET unread_count = unread_count WHERE id = '<CONV>';
+-- Esperado: UPDATE 1   (member atende: escreve)
+
+ROLLBACK;
+```
+
 **Regra de parada:** §3.1 com ≠ 2 linhas, §3.2 com contagem > 0 antes do deploy, §3.4
 com ≠ 3 policies / linhas > 0, ou §3.5 com coluna/constraint ausente ou qualquer
-valor ≠ NULL antes do deploy → parar e reportar; não seguir pra §4.
+valor ≠ NULL antes do deploy → parar e reportar; não seguir pra §4. **§3.6 (só se a 5ª foi
+aplicada):** (a) ≠ 1 linha / `anon_executa = true`, (b) ≠ 12 linhas ou nomes diferentes, ou (c) > 0 linhas →
+**rollback da 5ª (§7)** e reportar — policies antigas sobrando deixam a escrita de nível "membro" valendo.
 
 ---
 
@@ -509,10 +688,28 @@ itens distintos, se houver). B/C/D/E aparecem **desabilitadas** na tela — não
 
 | # | Ação | Esperado |
 |---|---|---|
-| 29 | **member tentando atribuir a OUTRA pessoa:** `curl -X POST "https://ewamvzncsloagtcvkbxv.supabase.co/functions/v1/whatsapp-instance" -H "Authorization: Bearer <JWT_MEMBER>" -H "apikey: <ANON_KEY>" -H "Content-Type: application/json" -d '{"action":"assign_conversation","workspaceId":"<WS>","conversationId":"<CONV>","userId":"<OUTRO_USER>"}'` — e repetir com `"userId":"<O_PROPRIO_MEMBER>"` e com um **viewer** | member → outro: **403** `{"reason":"member-can-only-assign-self"}`, `assigned_to` **inalterado**; member → ele mesmo: **200** (`<member> | manual`); **viewer** em qualquer caso: **403** `{"reason":"role-cannot-assign"}`. *(member removendo a atribuição de outro: 403 `member-can-only-remove-own`; admin/owner: 200 em tudo.)* |
+| 29 | **member tentando atribuir a OUTRA pessoa:** `curl -X POST "https://ewamvzncsloagtcvkbxv.supabase.co/functions/v1/whatsapp-instance" -H "Authorization: Bearer <JWT_MEMBER>" -H "apikey: <ANON_KEY>" -H "Content-Type: application/json" -d '{"action":"assign_conversation","workspaceId":"<WS>","conversationId":"<CONV>","userId":"<OUTRO_USER>"}'` — e repetir com `"userId":"<O_PROPRIO_MEMBER>"` e com um **viewer** | member → outro: **403** `{"reason":"member-can-only-assign-self"}`, `assigned_to` **inalterado**; member → ele mesmo: **200** (`<member> | manual`) **só se a conversa está sem dono** (decisão 1; com dono: 403 `member-cannot-take-assigned`, passo 34); **viewer** em qualquer caso: **403** `{"reason":"role-cannot-assign"}`. *(member removendo a atribuição de outro: 403 `member-can-only-remove-own`; admin/owner: 200 em tudo.)* |
 | 30 | **viewer devolvendo ao robô:** `end_human_handover` com o JWT de um viewer numa conversa entregue | **403** `{"reason":"role-cannot-return"}`, `handover_at` **inalterado**; na tela o botão "Devolver ao robô" **não aparece** para o viewer. member/admin/owner devolvem normalmente |
 
-⚠ O gate vale para chamadas ao **edge function**; as policies de escrita de `whatsapp_conversations` seguem `is_workspace_member` (um `UPDATE` direto pelo PostgREST não passa por ele) — ver [`etapa-9-bot-varredura-gate-papel-servidor.md`](etapa-9-bot-varredura-gate-papel-servidor.md) §4.
+⚠ O gate vale para chamadas ao **edge function**; as policies de escrita de `whatsapp_conversations` seguem `is_workspace_member` (um `UPDATE` direto pelo PostgREST não passa por ele) até a **5ª migration (§2.5)** ser aplicada — ver [`etapa-9-bot-varredura-gate-papel-servidor.md`](etapa-9-bot-varredura-gate-papel-servidor.md) §4.
+
+**Smoke do G103 fatias 1+2 e da decisão 1** (`whatsapp-instance` + `whatsapp-official-credentials` deployados e o app com a UI por papel no ar; JWTs dos papéis testados):
+
+| # | Ação | Esperado |
+|---|---|---|
+| 31 | **member** chama uma ação de instância: `curl -X POST ".../functions/v1/whatsapp-instance" -H "Authorization: Bearer <JWT_MEMBER>" -H "apikey: <ANON_KEY>" -H "Content-Type: application/json" -d '{"action":"delete","workspaceId":"<WS>"}'` (repetir com `disconnect`, `import`, `set_webhook`) | **403** `{"reason":"role-requires-admin","action":"…"}` e **nada acontece** (a instância continua conectada). **admin/owner**: 200 |
+| 32 | **viewer** chama uma escrita operacional (`send`, `delete_message`, `archive_conversation`, `update_conversation_tags`, `sync`) e uma leitura (`status`, `load_messages`) | escritas: **403** `{"reason":"role-read-only"}` (atribuir/devolver: `role-cannot-assign` / `role-cannot-return`), nenhuma mensagem sai; leituras: **200** (o `status` do viewer vem com `qr_code: null`) |
+| 33 | Na tela, entrar como **viewer** numa conversa | composer vira "Somente leitura — …"; balões sem barra de ações; menu "Mais opções" sem Arquivar/Marcar como não lida; tags sem "×"; **nenhum** toast de erro ao abrir (a página não dispara `sync`/`refresh_avatars`/`set_webhook` para ele). Como **member**: composer normal; no card de Conexão (Automações) **só o aviso** "Somente administradores…" |
+| 34 | **Decisão 1:** **member** tenta se atribuir numa conversa que **já tem dono** (`assign_conversation` com `userId` = ele mesmo) | **403** `{"reason":"member-cannot-take-assigned"}`, `assigned_to` inalterado; numa conversa **sem dono**: 200. **admin**: reatribui qualquer uma |
+| 35 | **Decisão 2:** **member**/**viewer** chamam `whatsapp-official-credentials` com `{"action":"get","workspaceId":"<WS>"}`; na tela, Automações → "WhatsApp Cloud API (Meta Oficial)" como member | **403** `{"error":"Admin role required"}`; o cartão mostra "Apenas administradores do workspace veem e alteram a configuração do WhatsApp oficial…" (**não** "Não configurado"). **admin**: o cartão como antes |
+
+**Smoke da 5ª migration (G104) — só se foi aplicada (§2.5):**
+
+| # | Ação | Esperado |
+|---|---|---|
+| 36 | Prova de comportamento de §3.6 (BEGIN/ROLLBACK) com um **viewer** e um **member** | viewer `UPDATE 0`; member `UPDATE 1` |
+| 37 | No app como **member**: abrir uma conversa (marca como lida), responder, "Vincular cliente" | tudo funciona como antes (member atende) |
+| 38 | `whatsapp-instance` e o webhook seguem funcionando (enviar, receber, sincronizar) | sem mudança — service role ignora RLS; se falhar, rollback da 5ª (§7) e reportar |
 
 Query de observação (trocar os dois valores):
 
@@ -547,6 +744,9 @@ WHERE workspace_id = '<WORKSPACE_DE_TESTE>'
 | Código novo, **sem** a coluna `assignment_origin` | origem sempre "desconhecida" = humana: `assign_conversation` faz só a atribuição (warn no log da origem); a devolução **não** desatribui nada; **o handover só entrega — NÃO atribui** (o UPDATE único `assigned_to`+`assignment_origin` é recusado inteiro; warn `auto-assignment skipped at write`; nunca existe atribuição sem origem); o gate `respond_all=false + assigned_to` é **idêntico ao de antes** (tabela-verdade testada). A lista mostra "Aguardando humano" nas conversas entregues. **G102 (assumir ao responder): a resposta sai e nada é atribuído** (warn `claim-on-reply skipped`). **G101 (controle no painel): atribui sem origem e a UI avisa** que "Devolver ao robô" não vai desfazer |
 | Colunas/tabela aplicadas, código antigo | inerte (nenhum caminho antigo as lê) |
 | Colunas aplicadas + código novo | comportamento completo |
+| **5ª migration (G104) aplicada**, edge functions/webhook/bot | **nenhuma mudança** — usam service role (ignoram RLS) |
+| 5ª migration aplicada, app **sem** a UI por papel (G103) | `viewer` vê controles que, via RLS, deixam de escrever: `UPDATE` bloqueado afeta 0 linhas **sem erro** (ex.: "Vincular cliente" parece funcionar e não persiste) — por isso a ordem: **UI por papel no ar → 5ª migration** |
+| 5ª migration **não** aplicada | o gate de papel do edge function vale; a escrita DIRETA pelo PostgREST segue de nível "membro" (G104 aberto) |
 
 ---
 
@@ -570,6 +770,55 @@ WHERE workspace_id = '<WORKSPACE_DE_TESTE>'
   responder nelas). O app degrada sem as colunas (§6), então o DROP não derruba nada —
   mas não é reversível sem backup do que estava gravado.
 - **DDL de `assignment_origin` (só se necessário):** `ALTER TABLE public.whatsapp_conversations DROP COLUMN IF EXISTS assignment_origin;` (o `DROP` leva o CHECK junto). Perde a distinção manual/automática; **conversas já auto-atribuídas ficam atribuídas** (e passam a valer como atribuição humana — a devolução não as desfaz mais, e com `respond_all=false` voltam a calar o robô): antes do `DROP`, `UPDATE public.whatsapp_conversations SET assigned_to = NULL WHERE assignment_origin = 'auto';`. Depois disso o app degrada para "origem desconhecida" e o handover volta a só entregar (§6).
+- **DDL da 5ª migration (G104) — rollback completo (só se necessário; devolve a escrita de nível "membro" original, verbatim da migration `20260602004057`):**
+
+  ```sql
+  BEGIN;
+  DROP POLICY IF EXISTS "wa_instances_admin_insert" ON public.whatsapp_instances;
+  DROP POLICY IF EXISTS "wa_instances_admin_update" ON public.whatsapp_instances;
+  DROP POLICY IF EXISTS "wa_instances_admin_delete" ON public.whatsapp_instances;
+  DROP POLICY IF EXISTS "wa_conv_attendant_insert" ON public.whatsapp_conversations;
+  DROP POLICY IF EXISTS "wa_conv_attendant_update" ON public.whatsapp_conversations;
+  DROP POLICY IF EXISTS "wa_conv_attendant_delete" ON public.whatsapp_conversations;
+  DROP POLICY IF EXISTS "wa_msg_attendant_insert" ON public.whatsapp_messages;
+  DROP POLICY IF EXISTS "wa_msg_attendant_update" ON public.whatsapp_messages;
+  DROP POLICY IF EXISTS "wa_msg_attendant_delete" ON public.whatsapp_messages;
+
+  DROP POLICY IF EXISTS "wa_instances_insert" ON public.whatsapp_instances;
+  DROP POLICY IF EXISTS "wa_instances_update" ON public.whatsapp_instances;
+  DROP POLICY IF EXISTS "wa_instances_delete" ON public.whatsapp_instances;
+  CREATE POLICY "wa_instances_insert" ON public.whatsapp_instances
+    FOR INSERT TO authenticated WITH CHECK (is_workspace_member(workspace_id));
+  CREATE POLICY "wa_instances_update" ON public.whatsapp_instances
+    FOR UPDATE TO authenticated USING (is_workspace_member(workspace_id)) WITH CHECK (is_workspace_member(workspace_id));
+  CREATE POLICY "wa_instances_delete" ON public.whatsapp_instances
+    FOR DELETE TO authenticated USING (is_workspace_member(workspace_id));
+
+  DROP POLICY IF EXISTS "wa_conv_insert" ON public.whatsapp_conversations;
+  DROP POLICY IF EXISTS "wa_conv_update" ON public.whatsapp_conversations;
+  DROP POLICY IF EXISTS "wa_conv_delete" ON public.whatsapp_conversations;
+  CREATE POLICY "wa_conv_insert" ON public.whatsapp_conversations
+    FOR INSERT TO authenticated WITH CHECK (is_workspace_member(workspace_id));
+  CREATE POLICY "wa_conv_update" ON public.whatsapp_conversations
+    FOR UPDATE TO authenticated USING (is_workspace_member(workspace_id)) WITH CHECK (is_workspace_member(workspace_id));
+  CREATE POLICY "wa_conv_delete" ON public.whatsapp_conversations
+    FOR DELETE TO authenticated USING (is_workspace_member(workspace_id));
+
+  DROP POLICY IF EXISTS "wa_msg_insert" ON public.whatsapp_messages;
+  DROP POLICY IF EXISTS "wa_msg_update" ON public.whatsapp_messages;
+  DROP POLICY IF EXISTS "wa_msg_delete" ON public.whatsapp_messages;
+  CREATE POLICY "wa_msg_insert" ON public.whatsapp_messages
+    FOR INSERT TO authenticated WITH CHECK (is_workspace_member(workspace_id));
+  CREATE POLICY "wa_msg_update" ON public.whatsapp_messages
+    FOR UPDATE TO authenticated USING (is_workspace_member(workspace_id)) WITH CHECK (is_workspace_member(workspace_id));
+  CREATE POLICY "wa_msg_delete" ON public.whatsapp_messages
+    FOR DELETE TO authenticated USING (is_workspace_member(workspace_id));
+  COMMIT;
+  -- (a função public.is_workspace_attendant pode ficar: é inerte sem policies que a usem.
+  --  Para removê-la: DROP FUNCTION IF EXISTS public.is_workspace_attendant(uuid);)
+  ```
+
+  Não destrói dado nenhum (só policies). Reaplicar a §2.5 depois é seguro (idempotente).
 - **DDL da base de conhecimento (só se necessário):** `DROP TABLE IF EXISTS public.ai_knowledge_consents;`.
   **Apaga os registros de consentimento/revogação** (trilha de auditoria LGPD: quem ligou
   e quando) — exportar antes. O robô degrada para "nenhuma categoria ativa" (idêntico a hoje).
@@ -581,10 +830,10 @@ WHERE workspace_id = '<WORKSPACE_DE_TESTE>'
 
 ### 8.1 Espelho das migrations em `supabase/migrations/` (lane escreve, operador registra)
 
-As 4 migrations hoje vivem **só nos docs** (R1 §2 / R4 §2 / item 3 fundação §4 / este pacote §2.4) — não
+As 5 migrations hoje vivem **só nos docs** (R1 §2 / R4 §2 / item 3 fundação §4 / este pacote §2.4 e §2.5) — não
 existem em `supabase/migrations/`. Depois de aplicadas, o repo precisa refletir o banco
 (mesmo padrão de [`migrations-espelho-8b.md`](migrations-espelho-8b.md)): uma
-lane promove os 4 SQLs a arquivos com a **série real de aplicação** (a data da
+lane promove os SQLs (os 5 — ou os 4 + a 5ª quando ela for aplicada, que é independente) a arquivos com a **série real de aplicação** (a data da
 sessão §8-b — o operador informa), e o operador registra no histórico do CLI
 **sem rodar o SQL de novo**:
 
@@ -593,6 +842,7 @@ supabase migration repair --status applied <VERSÃO_bot_flow_state>
 supabase migration repair --status applied <VERSÃO_handover_at>
 supabase migration repair --status applied <VERSÃO_ai_knowledge_consents>
 supabase migration repair --status applied <VERSÃO_assignment_origin>
+supabase migration repair --status applied <VERSÃO_g104_whatsapp_rls_escrita_por_papel>   # só se a 5ª (§2.5) foi aplicada
 ```
 
 ### 8.2 Regenerar `types.ts` (operador, introspecção read-only — G10)

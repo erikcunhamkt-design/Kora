@@ -209,13 +209,13 @@ Antes: a UI mostrava o controle só a admin, mas o servidor aceitava **qualquer 
 | Papel | `assign_conversation` | `end_human_handover` |
 |---|---|---|
 | **owner / admin** | atribui a **qualquer** elegível; remove **qualquer** atribuição | pode devolver |
-| **member** | só atribui **a si mesmo**, ou remove **a própria** atribuição (o UPDATE é condicional a ela ainda ser dele; corrida perdida = 403) | pode devolver |
+| **member** | só atribui **a si mesmo E só com a conversa sem dono** (`assigned_to IS NULL`, decisão 1 — com dono: **403** `member-cannot-take-assigned`, inclusive se o dono é ele mesmo), ou remove **a própria** atribuição (UPDATE condicional; corrida perdida = 403) | pode devolver |
 | **viewer** / papel desconhecido | **403** | **403** |
 
 - **Resposta de negação:** `403 { error: <mensagem em português>, reason }` — `role-cannot-assign`, `member-can-only-assign-self`, `member-can-only-remove-own`, `role-cannot-return`. A UI mostra a causa real (toast "Sem permissão para devolver" / "Falha" + a mensagem).
 - **A decisão vem antes de qualquer escrita** (e, na devolução, antes do 409 de migration pendente). Um member que remove precisa que o servidor leia o dono atual da conversa (404 se a conversa não existe).
 - **Quem pode devolver — decisão e justificativa.** *Qualquer papel que atende* (owner/admin/member). Devolver **não atribui a ninguém**: encerra o handover e desfaz só o que o **próprio sistema** fez (a atribuição automática); a atribuição manual — decisão humana — nunca é tocada. Exigir admin aqui travaria o atendente comum que acabou de resolver o caso, sem proteger nada que a devolução já não proteja (D2). O **viewer** é somente leitura; o botão "Devolver ao robô" some pra ele (`canReturn`).
-- **O member pode tomar uma conversa que já é de outro** (atribuir a si mesmo não exige que esteja sem dono) — é a regra pedida ("só `assigned_to = userId`"). Se não for desejado, é exigir `assigned_to IS NULL` ou ser o dono atual nesse ramo.
+- ~~**O member pode tomar uma conversa que já é de outro**~~ → **revisto pela decisão 1 do revisor (§11.5):** o member só se atribui com `assigned_to IS NULL` (UPDATE condicional) e leva **403** se a conversa tem dono; admin/owner reatribuem qualquer uma. Alinha com o "assumir ao responder" (G102), que já só age sem dono.
 - **A UI de atribuição continua só para admin** (`canAssign`): o servidor já aceita o member atribuir a si mesmo, mas ainda não há botão "assumir" na tela (o G102 cobre o caso comum, ao responder).
 - **Limite (honesto):** o gate vale para chamadas ao **edge function**. As policies de escrita de `whatsapp_conversations` (e `whatsapp_instances`, `whatsapp_messages`) são `is_workspace_member` — um `viewer` ainda consegue `supabase.from("whatsapp_conversations").update({ assigned_to })` direto pelo PostgREST. Fechar de verdade é **DDL** (pacote §8-b do operador). Varredura completa e fatiamento em [`etapa-9-bot-varredura-gate-papel-servidor.md`](../qa/etapa-9-bot-varredura-gate-papel-servidor.md).
 
@@ -230,6 +230,6 @@ Registradas a partir da resposta do revisor ao §11.4 e à varredura. *(A numera
 | **4** | **`viewer` somente-leitura em TODAS as escritas operacionais de `whatsapp-instance`** (enviar, apagar mensagem, arquivar, atribuir, devolver, etc.): 403; a UI esconde os controles; leitura (listar, `get` sem segredo) segue `member` | varredura §3/§6 item 2 | G103 fatia 2 |
 | **5** | **RLS de escrita das tabelas `whatsapp_*` = DRAFT** (5ª migration do pacote §8-b-bot; NÃO aplicar): `whatsapp_instances` escrita admin; `conversations`/`messages` escrita membro que atende (viewer só SELECT) | §11.4 "Limite" | **G104** |
 
-O operador pode vetar qualquer uma (sessão §8-b). Status: decisões 1–4 em implementação na rodada G103; a 5 é só documento.
+O operador pode vetar qualquer uma (sessão §8-b). **Status:** decisões 1–4 **implementadas na rodada G103** (branch `etapa-9-item4-g103`, aguardando "vai" — o hash entra aqui depois do merge); a 5 é só documento (DRAFT). Detalhe por ação, com o papel mínimo conferido por teste contra o código: [`etapa-9-bot-varredura-gate-papel-servidor.md`](../qa/etapa-9-bot-varredura-gate-papel-servidor.md).
 
 **Esta proposta não altera runtime por si;** o código das fatias 1–4 (inclusive §11.1–11.2) está em `main` atrás da degradação; o gate de papel do servidor (§11.4) aguarda merge. Sem a 4ª migration os efeitos visíveis são o badge, as confirmações/avisos da devolução e o controle manual de atribuição.
