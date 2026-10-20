@@ -11,7 +11,7 @@
 import { toast } from "sonner";
 import { resolveLang, type Lang } from "@/lib/i18n/locale";
 
-export type SupabaseErrorLike = {
+type SupabaseErrorLike = {
   message?: string;
   code?: string;
   details?: string;

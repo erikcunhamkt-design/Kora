@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
-export interface AutomationActions {
+interface AutomationActions {
   addTag?: string;
   setNextAction?: string;
   markWon?: boolean;

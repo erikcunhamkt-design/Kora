@@ -7,7 +7,7 @@ import { mapLocalLeadToSupabaseOpportunity } from "@/services/crm/crmOpportunity
 import { getInstallId, buildSourceLocalId } from "@/lib/installId";
 import { toast } from "sonner";
 
-export interface LocalOpportunityCandidate {
+interface LocalOpportunityCandidate {
   id: number;
   name: string;
   company: string;

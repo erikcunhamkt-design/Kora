@@ -1,0 +1,24 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "supabase/functions/*/index.ts",
+    "scripts/*.mjs"
+  ],
+  "project": [
+    "src/**/*.{ts,tsx}",
+    "supabase/functions/**/*.ts",
+    "scripts/**/*.mjs"
+  ],
+  "ignore": [
+    "src/integrations/supabase/types.ts"
+  ],
+  "ignoreDependencies": [
+    "npm"
+  ],
+  "ignoreIssues": {
+    "src/components/ui/**": ["exports", "types"]
+  },
+  "rules": {
+    "duplicates": "off"
+  }
+}

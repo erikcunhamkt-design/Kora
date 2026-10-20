@@ -21,7 +21,7 @@ export type ContentApproval =
 /** legacy enum mantido para compat */
 export type ContentStatus = "idea" | "writing" | "design" | "scheduled" | "published";
 
-export interface ContentChecklistItem { text: string; done: boolean }
+interface ContentChecklistItem { text: string; done: boolean }
 
 export interface ContentItem {
   id: string;
@@ -87,7 +87,7 @@ const rawDemo: Omit<ContentItem, "isDemo">[] = [
     clientName: "Studio Zen", caption: "Guia prático.", tags: ["blog"], createdAt: addDays(-15) },
 ];
 
-export const initialContent: ContentItem[] = rawDemo.map((c) => ({ ...c, isDemo: true }));
+const initialContent: ContentItem[] = rawDemo.map((c) => ({ ...c, isDemo: true }));
 const SEED_IDS = new Set(rawDemo.map((c) => c.id));
 
 function migrate(list: ContentItem[]): ContentItem[] {
@@ -236,11 +236,3 @@ export const CONTENT_FORMAT_LABEL: Record<ContentFormat, string> = {
   video: "Vídeo", // legacy
 };
 
-/** legacy label kept */
-export const CONTENT_STATUS_LABEL: Record<ContentStatus, string> = {
-  idea: "Ideia",
-  writing: "Escrevendo",
-  design: "Design",
-  scheduled: "Agendado",
-  published: "Publicado",
-};

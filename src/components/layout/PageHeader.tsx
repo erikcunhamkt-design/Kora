@@ -20,12 +20,12 @@ export interface PageHeaderAction {
   disabled?: boolean;
 }
 
-export interface PageHeaderBadge {
+interface PageHeaderBadge {
   label: string;
   variant?: "default" | "secondary" | "outline" | "success" | "warning" | "destructive";
 }
 
-export interface PageHeaderBreadcrumb {
+interface PageHeaderBreadcrumb {
   label: string;
   href?: string;
 }

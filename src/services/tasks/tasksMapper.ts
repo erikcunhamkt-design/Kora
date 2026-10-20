@@ -34,7 +34,7 @@ export interface TaskImportMaps {
   projects: Record<string, string>;
 }
 
-export const EMPTY_TASK_IMPORT_MAPS: TaskImportMaps = { clients: {}, quotes: {}, projects: {} };
+const EMPTY_TASK_IMPORT_MAPS: TaskImportMaps = { clients: {}, quotes: {}, projects: {} };
 
 /**
  * Resolve um id LOCAL para o UUID Supabase via import-map.

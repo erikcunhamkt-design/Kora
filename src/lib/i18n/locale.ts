@@ -5,9 +5,9 @@
 
 export type Lang = "pt-BR" | "pt-PT" | "en" | "es";
 
-export const DEFAULT_LANG: Lang = "pt-BR";
+const DEFAULT_LANG: Lang = "pt-BR";
 
-export const LANGUAGE_STORAGE_KEY = "kora.language.v1";
+const LANGUAGE_STORAGE_KEY = "kora.language.v1";
 
 export function resolveLang(): Lang {
   try {

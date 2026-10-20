@@ -61,7 +61,7 @@ export function toIsoDate(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-export function parsePtBrDate(s?: string): string | undefined {
+function parsePtBrDate(s?: string): string | undefined {
   if (!s) return undefined;
   const m = s.toLowerCase().match(/(\d{1,2})\s+([a-zç]{3,})\.?\s+(\d{4})/);
   if (!m) return undefined;
@@ -88,7 +88,7 @@ const rawDemo: Omit<Task, "isDemo">[] = [
   { id: 5, title: "Aprovar calendário editorial", description: "Validar os 12 posts do mês.", client: "FitTrack", project: "Social Media FitTrack", priority: "alta", deadline: "15 Abr 2025", status: "concluido", createdAt: "08 Abr 2025", tags: ["social"], subtasks: [{ text: "Revisar copies", done: true }, { text: "Aprovar designs", done: true }], comments: [] },
 ];
 
-export const initialTasks: Task[] = rawDemo.map((t) => ({
+const initialTasks: Task[] = rawDemo.map((t) => ({
   ...t,
   isDemo: true,
   dueDate: parsePtBrDate(t.deadline),

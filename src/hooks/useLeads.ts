@@ -57,7 +57,7 @@ export type NewLeadInput = Omit<
   Partial<Pick<Lead, "notes" | "description" | "lastInteraction">>;
 
 /** Mapeia priority legado → temperatura. */
-export const priorityToTemperature = (p?: Priority): LeadTemperature => {
+const priorityToTemperature = (p?: Priority): LeadTemperature => {
   if (p === "alta") return "quente";
   if (p === "média") return "morno";
   if (p === "baixa") return "frio";
@@ -184,7 +184,7 @@ const rawInitialLeads: Omit<Lead, "isDemo">[] = [
   },
 ];
 
-export const initialLeads: Lead[] = rawInitialLeads.map((l) => ({
+const initialLeads: Lead[] = rawInitialLeads.map((l) => ({
   ...l,
   isDemo: true,
   pipelineId: DEFAULT_PIPELINE_ID,

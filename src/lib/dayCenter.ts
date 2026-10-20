@@ -568,13 +568,6 @@ export function computeDayCenter(inputs: DayCenterInputs): DayCenterResult {
   return { items, byCategory, topAction, counts };
 }
 
-export const DAY_PRIORITY_LABEL: Record<DayPriority, string> = {
-  critical: "Crítico",
-  high: "Alta",
-  medium: "Média",
-  low: "Baixa",
-};
-
 export const DAY_CATEGORY_LABEL: Record<DayCategory, string> = {
   task: "Tarefa",
   commercial: "Comercial",

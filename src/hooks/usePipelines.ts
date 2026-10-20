@@ -26,7 +26,7 @@ export const DEFAULT_PIPELINE_ID = "default";
 
 const now = () => new Date().toISOString();
 
-export const defaultPipeline = (): Pipeline => ({
+const defaultPipeline = (): Pipeline => ({
   id: DEFAULT_PIPELINE_ID,
   name: "Pipeline Principal",
   isDefault: true,
@@ -43,7 +43,7 @@ export const defaultPipeline = (): Pipeline => ({
 });
 
 export const newStageId = () => `s_${Math.random().toString(36).slice(2, 9)}`;
-export const newPipelineId = () => `p_${Math.random().toString(36).slice(2, 9)}`;
+const newPipelineId = () => `p_${Math.random().toString(36).slice(2, 9)}`;
 
 function load(): Pipeline[] {
   try {

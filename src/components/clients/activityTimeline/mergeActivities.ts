@@ -6,7 +6,7 @@ import {
 } from "@/hooks/useClientActivityLogs";
 import type { ClientActivityEvent, InferredEvent, ManualEvent, Tone } from "./types";
 
-export const manualTone: Record<ClientManualActivity["type"], Tone> = {
+const manualTone: Record<ClientManualActivity["type"], Tone> = {
   meeting: "primary",
   call: "primary",
   message: "neutral",

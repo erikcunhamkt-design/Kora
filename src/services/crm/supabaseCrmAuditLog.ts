@@ -7,7 +7,7 @@
  * Bounded to MAX_ENTRIES to avoid unbounded growth.
  */
 
-export type SupabaseCrmAuditEvent =
+type SupabaseCrmAuditEvent =
   | "create"
   | "update"
   | "move"

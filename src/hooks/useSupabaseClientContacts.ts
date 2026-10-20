@@ -17,7 +17,7 @@ import type { ClientContact } from "@/types/domain";
 
 type SupabaseContactRow = Awaited<ReturnType<typeof clientsRepository.listClientContacts>>[number];
 
-export function mapSupabaseContactToClientContact(row: SupabaseContactRow): ClientContact {
+function mapSupabaseContactToClientContact(row: SupabaseContactRow): ClientContact {
   return {
     id: row.id,
     name: row.name,
@@ -34,7 +34,7 @@ export function mapSupabaseContactToClientContact(row: SupabaseContactRow): Clie
   };
 }
 
-export function mapClientContactToSupabaseInput(c: ClientContact): SupabaseContactInput {
+function mapClientContactToSupabaseInput(c: ClientContact): SupabaseContactInput {
   return {
     name: c.name,
     role: c.role,

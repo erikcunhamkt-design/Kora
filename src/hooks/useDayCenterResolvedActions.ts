@@ -2,12 +2,12 @@ import { useCallback, useEffect, useState } from "react";
 
 const STORAGE_KEY = "kora.dayCenter.resolvedActions.v1";
 
-export type DayCenterResolvedActionType =
+type DayCenterResolvedActionType =
   | "task_completed"
   | "manual_followup_resolved"
   | "receivable_paid";
 
-export type DayCenterRelatedType = "task" | "manual_activity" | "finance_transaction";
+type DayCenterRelatedType = "task" | "manual_activity" | "finance_transaction";
 
 export interface DayCenterResolvedAction {
   id: string;

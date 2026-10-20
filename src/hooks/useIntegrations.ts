@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { emitNotification } from "@/lib/notify";
 
-export type IntegrationStatus = "connected" | "disconnected" | "coming_soon";
+type IntegrationStatus = "connected" | "disconnected" | "coming_soon";
 
 export interface Integration {
   id: string;

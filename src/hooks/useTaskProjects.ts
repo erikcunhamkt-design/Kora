@@ -78,5 +78,3 @@ export function useTaskProjects() {
 
   return { projects, addProject, renameProject, archiveProject, deleteProject };
 }
-
-export const TASK_PROJECT_PALETTE = PALETTE;

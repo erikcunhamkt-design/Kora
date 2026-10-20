@@ -18,7 +18,7 @@ export type InferredType =
 
 export type Tone = "neutral" | "success" | "warning" | "danger" | "primary";
 
-export interface BaseEvent {
+interface BaseEvent {
   id: string;
   category: Exclude<ActivityCategory, "all">;
   title: string;

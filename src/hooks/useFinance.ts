@@ -43,11 +43,6 @@ export interface Transaction {
   cloudTypeRaw?: string;
 }
 
-/** Legacy categorias usadas como fallback */
-export const FINANCE_CATEGORIES = [
-  "Serviços", "Produtos", "Assinaturas", "Marketing", "Ferramentas", "Impostos", "Comissões", "Outros",
-];
-
 // ============================================================
 // Storage keys
 // ============================================================
@@ -94,7 +89,7 @@ const rawDemo: Omit<Transaction, "isDemo">[] = [
   { id: "tx-demo-8", type: "expense", title: "Conta a pagar futura", description: "Impostos trimestrais DAS", amount: 1250, category: "Impostos e Taxas", dueDate: addDays(12), status: "pending", paymentMethod: "boleto", recurrence: "none", source: "manual", createdAt: addDays(-1) },
 ];
 
-export const initialTransactions: Transaction[] = rawDemo.map((t) => ({ ...t, isDemo: true }));
+const initialTransactions: Transaction[] = rawDemo.map((t) => ({ ...t, isDemo: true }));
 const SEED_IDS = new Set(rawDemo.map((t) => t.id));
 function migrate(list: Transaction[]): Transaction[] {
   return list.map((t) =>

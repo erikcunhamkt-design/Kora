@@ -29,7 +29,7 @@ export const LANG_CURRENCY: Record<Lang, string> = {
   es: "EUR",
 };
 
-export interface FormatSettings {
+interface FormatSettings {
   /** BCP-47 locale, e.g. "pt-BR", "en-US". */
   locale: string;
   /** ISO 4217 code, e.g. "BRL", "USD", "EUR". */
@@ -43,7 +43,7 @@ export interface FormatSettings {
  * Reads the same localStorage keys the LanguageProvider writes, so it stays in
  * sync with the UI. Falls back to the active language + its default currency.
  */
-export function resolveFormatSettings(): FormatSettings {
+function resolveFormatSettings(): FormatSettings {
   const locale = resolveLang();
   let currency = LANG_CURRENCY[locale] ?? "BRL";
   let timeZone: string | undefined;

@@ -134,7 +134,7 @@ const rawInitialQuotes: Omit<Quote, "isDemo">[] = [
   }),
 ];
 
-export const initialQuotes: Quote[] = rawInitialQuotes.map((q) => ({ ...q, isDemo: true }));
+const initialQuotes: Quote[] = rawInitialQuotes.map((q) => ({ ...q, isDemo: true }));
 
 const SEED_IDS = new Set(rawInitialQuotes.map((q) => q.id));
 

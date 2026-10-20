@@ -142,7 +142,7 @@ const rawInitialClients: Omit<Client, "isDemo">[] = [
   },
 ];
 
-export const initialClients: Client[] = rawInitialClients.map((c) => ({ ...c, isDemo: true }));
+const initialClients: Client[] = rawInitialClients.map((c) => ({ ...c, isDemo: true }));
 
 const SEED_IDS = new Set(rawInitialClients.map((c) => c.id));
 

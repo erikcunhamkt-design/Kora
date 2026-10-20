@@ -1,6 +1,6 @@
 // Password rules aligned with Supabase Auth config.
 // Supabase is the final authority — these client-side checks are only for UX.
-export const PASSWORD_MIN_LENGTH = 8;
+const PASSWORD_MIN_LENGTH = 8;
 
 export interface PasswordRule {
   id: string;

@@ -11,7 +11,7 @@ export type SupportTicketType =
   | "other";
 
 export type SupportTicketPriority = "low" | "medium" | "high";
-export type SupportTicketStatus = "open" | "in_review" | "resolved";
+type SupportTicketStatus = "open" | "in_review" | "resolved";
 
 export interface SupportTicket {
   id: string;
@@ -124,7 +124,7 @@ export const SUPPORT_WHATSAPP_URL: string | null = null;
 export const SUPPORT_EMAIL: string | null = null;
 
 // Future chat structure (not active yet)
-export type SupportConversationStatus = "waiting" | "assigned" | "closed";
+type SupportConversationStatus = "waiting" | "assigned" | "closed";
 
 export interface SupportConversation {
   id: string;

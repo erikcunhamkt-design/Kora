@@ -5,7 +5,7 @@ import { useSupabaseClients } from "@/hooks/useSupabaseClients";
 import { clientsRepository, type SupabaseClientInput } from "@/repositories/clientsRepository";
 import { toast } from "sonner";
 
-export interface LocalClientCandidate {
+interface LocalClientCandidate {
   id: number;
   name: string;
   company: string;
