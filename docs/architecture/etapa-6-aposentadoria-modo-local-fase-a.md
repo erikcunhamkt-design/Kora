@@ -187,6 +187,38 @@ Ordem sugerida, da menor pra maior dependência/risco. Cada fatia é independent
 
 Itens **fora** deste checklist RL1 (não são classe "a", não entram nesta fatia): qualquer store/flag/espelho classificado (b)/(c)/(d) nas tabelas de §1 — esses dependem de homologação, decisão de produto, ou ficam permanentes por desenho.
 
+### G106 fatia 2 — confirmação: "Visão Operacional Supabase (Experimental)" NÃO afeta Tarefas (2026-10-19)
+
+Investigado o card `SupabaseOperationalDashboardToggleCard.tsx` (título exibido: "Visão Operacional Supabase (Experimental)", em Configurações → Dados), que controla a flag `supabaseOperationalDashboard` (`kora.supabase.operationalDashboard.enabled`, em `BOOLEAN_FLAG_KEYS`).
+
+**Conclusão: esta flag não muda a fonte de leitura nem de escrita de Tarefas, e não faz nenhuma lista "voltar pro local".** Ela só gateia a montagem/visibilidade de um painel de consulta separado (`SupabaseOperationalDashboardCard.tsx`, montado condicionalmente em `Configuracoes.tsx:908`). Grep exaustivo (`grep -rn "supabaseOperationalDashboard" src/`) confirma que a flag só é lida em 3 lugares: a própria definição em `flags.ts:44`, o toggle card (liga/desliga + sincroniza estado visual), e o gate de montagem do painel — nenhuma ocorrência em `Tarefas.tsx`, `useBifurcatedTasks.ts`, `useSupabaseTasksWriteFlag.ts` ou `config/flags.ts` (`TASKS_DATA_SOURCE_KEY`). O painel em si busca dados via `useSupabaseProjectTasks`/`useSupabaseProjectsSummary` (hooks nativos-nuvem diretos, confirmado por leitura do arquivo), nunca via `useBifurcatedTasks`/`getTasksDataSource` — é um dashboard de consulta paralelo à tela principal, não uma segunda fonte. O próprio texto do card já é honesto sobre isso: *"As telas principais (Orçamentos, CRM, Projetos, Tarefas, Financeiro) já usam o Supabase por padrão, sem esta chave."*
+
+**G106 fica fechado só com os comentários de texto já aplicados** (`flags.ts`/`useSupabaseTasksWriteFlag.ts`) — esta fatia 2 não precisou de código, por não haver nada a corrigir.
+
+### RL5 — nota de decisão para o operador: G106 (Tarefas sem espelho) e G107 (Financeiro sem decisão registrada)
+
+Esta seção não decide — apresenta as saídas e um custo aproximado de cada uma, para o operador escolher.
+
+**G106 — Tarefas nunca teve espelho G22 (rollback nível 1 "com perda")**
+
+| Saída | O que muda | Custo aproximado | Quando cabe |
+|---|---|---|---|
+| **(i) Aceitar a perda, formalizar com aviso explícito** | Nenhuma mudança de comportamento. Documentar definitivamente (já feito nos comentários de código desta rodada) que voltar para "local" não recupera tarefas só-nuvem; opcionalmente, UI mínima em Configurações avisando isso SE algum dia um toggle for exposto. | Baixo — já praticamente feito; o que falta é só a decisão formal (fechar G106 "por design", não "corrigido"). | Se o produto aceita que o rollback nível 1 de Tarefas é só para quem nunca usou o modo Supabase (não para reverter uma sessão já migrada) — compatível com o fato de HOJE não haver nenhuma UI de toggle (ninguém troca essa flag no fluxo normal). |
+| **(ii) Construir o espelho G22 que falta** | Novo módulo `tasksCloudMirror.ts` (mesmo padrão de `projectsCloudMirror.ts`): toda escrita nativa-nuvem de tarefa passa a gravar também uma cópia local, chaveada por `source_local_id`, reaproveitando os import-maps que já existem (`kora.tasks.supabaseImport.v1`). Precisa cobrir `addTask`/`updateTask`/`moveTask`/`deleteTask` em `Tarefas.tsx`, `ProjectDetailDrawer.tsx`, `DayCenter.tsx`/`useDayCenterActions.ts`, e os 2 pontos de criação nativa em `QuoteToProjectDialog.tsx` (Caso 7.2, hoje cutover — reabriria essa decisão já tomada). | Alto — não é 1 arquivo novo, é retrofit em 5+ call sites já estáveis, mais testes de regressão equivalentes aos que Projetos tem para o próprio espelho (`projectsCloudMirror.test.ts`, suítes "padrão G22" em `ProjectsSection.test.tsx`/`ProjectDetailDrawer.test.tsx`), mais reabrir uma decisão de produto já fechada (Caso 7.2). | Se o produto decidir que Tarefas precisa do mesmo nível de segurança de rollback que Projetos/Financeiro/Fichas têm — ex.: por incidente real, ou por exigência de um cliente que depende do modo local. |
+
+**Recomendação (não é decisão):** (i) é consistente com o estado atual (nenhuma UI de toggle existe, ninguém troca a flag no fluxo normal — o risco só se materializa via override manual de localStorage) e tem custo quase zero porque já foi praticamente executado nesta rodada. (ii) só se justifica se houver um motivo concreto para expor uma UI de rollback de Tarefas no futuro — sem isso, construir o espelho é esforço sem consumidor.
+
+**G107 — Financeiro: espelho sem decisão de produto registrada**
+
+Diferente de G106, aqui o espelho **já existe e está ativo** (`QuoteToReceivableDialog.tsx`/`CreateReceivableDialog.tsx`, sempre-ligado por desenho) — a lacuna é só de documentação, não de código. As 2 saídas são sobre *registrar formalmente* o que já é verdade na prática:
+
+| Saída | O que muda | Custo |
+|---|---|---|
+| **(i) Registrar como permanente** (análogo ao G41, não ao G85) | Nenhuma mudança de código — só uma entrada no catálogo dizendo que, diferente do espelho de Projetos (G85, condicionado à aposentadoria do modo local), o de Financeiro é dual-write permanente porque a tela principal de recebíveis/pagáveis lê sempre o local (bifurcação aditiva, não exclusiva — achado §1.7 N1). Remover o espelho sem redesenhar a tela quebraria a funcionalidade primária hoje. | Baixo — é só fechar o G107 com essa redação. |
+| **(ii) Registrar como condicionado**, igual ao G85 | Equivale a assumir um projeto futuro de redesenhar `TransactionsTab` para ler bifurcado (como Projetos faz) antes de poder remover o espelho — mudança estrutural na tela principal de Financeiro, não um ajuste pontual. | Alto — abre um RL próprio, não é consequência natural do estado atual do código. |
+
+**Recomendação (não é decisão):** (i) — o achado §1.7 N1 já mostra que a bifurcação de Financeiro é estruturalmente diferente da de Projetos (aditiva, não exclusiva); tratar o espelho como "condicionado à aposentadoria" pressupõe uma mudança de arquitetura que ninguém propôs. Registrar como permanente reflete o que o código já faz, sem prometer um trabalho que não está no plano.
+
 ## §4 Referências
 
 - `docs/architecture/kora-hub-auditoria-e-plano.md` — G22 (origem do padrão espelho), G85 (única decisão de aposentadoria já registrada, Projetos), G75/G94/G97 (Biblioteca de Materiais do cliente), G92 (leitor bifurcado/produtor local, leads+parcial de quotes), G41 (dual-write de Financeiro), G76/G77/G78/G79 (Tarefas).
