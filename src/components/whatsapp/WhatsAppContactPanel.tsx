@@ -69,6 +69,12 @@ export interface WhatsAppContactPanelProps {
    */
   canAssign?: boolean;
   /**
+   * G103 (viewer somente-leitura) — pode editar as tags da conversa (`update_conversation_tags`)?
+   * Default `true` (chamador antigo). A página passa `false` pro viewer: as tags aparecem sem "×" e
+   * sem o campo de nova tag, em vez de oferecer uma ação que o servidor nega (403).
+   */
+  canEditTags?: boolean;
+  /**
    * Etapa 9 · item 4 (R4) — quando a conversa foi ENTREGUE a humano (robô em silêncio).
    * Vem de `getHandoverAt()` (leitura por `unknown`: a coluna `handover_at` é DRAFT de
    * migration §8-b). `null`/ausente = não entregue OU coluna inexistente → nada é mostrado.
@@ -174,6 +180,7 @@ export function WhatsAppContactPanel({
   assignmentOrigin,
   attendants,
   canAssign,
+  canEditTags = true,
   handoverAt,
   avatarUrl,
   lastActivity,
@@ -614,21 +621,29 @@ export function WhatsAppContactPanel({
         <Section title="Tags" icon={Tag}>
           <div className="flex flex-wrap gap-1.5">
             {panelTags.length > 0 ? (
-              panelTags.map((t) => (
-                <Badge key={t} variant="outline" className="text-[10px] h-5 border-border/60 cursor-pointer hover:border-destructive hover:text-destructive"
-                  onClick={() => {
-                    const next = panelTags.filter((x) => x !== t);
-                    setPanelTags(next);
-                    onUpdateTags?.(next);
-                  }}
-                >
-                  {t} ×
-                </Badge>
-              ))
+              panelTags.map((t) =>
+                canEditTags ? (
+                  <Badge key={t} variant="outline" className="text-[10px] h-5 border-border/60 cursor-pointer hover:border-destructive hover:text-destructive"
+                    onClick={() => {
+                      const next = panelTags.filter((x) => x !== t);
+                      setPanelTags(next);
+                      onUpdateTags?.(next);
+                    }}
+                  >
+                    {t} ×
+                  </Badge>
+                ) : (
+                  // somente leitura (viewer): a tag aparece, mas não é clicável nem tem "×" (G29: nada que dê 403)
+                  <Badge key={t} variant="outline" className="text-[10px] h-5 border-border/60">
+                    {t}
+                  </Badge>
+                ),
+              )
             ) : (
               <span className="text-[11px] text-muted-foreground italic">Sem tags</span>
             )}
           </div>
+          {canEditTags && (
           <div className="flex items-center gap-1.5 mt-2">
             <Input
               value={newTag}
@@ -664,6 +679,7 @@ export function WhatsAppContactPanel({
               <Plus className="h-3 w-3" />
             </Button>
           </div>
+          )}
         </Section>
 
         {/* Orçamentos */}

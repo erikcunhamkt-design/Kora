@@ -10,7 +10,9 @@
 //
 // A régua (a elegibilidade é a MESMA `isAssignableRole` de sempre — §3.5):
 //   owner / admin  => atribuem a QUALQUER elegível e removem qualquer atribuição;
-//   member         => só atribuem A SI MESMOS, ou removem a PRÓPRIA atribuição;
+//   member         => só atribuem A SI MESMOS e SÓ se a conversa NÃO tem dono (`assigned_to IS NULL`,
+//                     decisão 1 do revisor — não toma conversa de outro; 403 se tiver dono, inclusive
+//                     o próprio), ou removem a PRÓPRIA atribuição;
 //   viewer / outro => 403 (somente leitura).
 // Devolver ao robô (`end_human_handover`): qualquer papel que ATENDE (owner/admin/member); viewer 403.
 // Justificativa: devolver NÃO atribui a ninguém — só encerra o estado de handover e desfaz o que o
@@ -32,6 +34,7 @@ export function isAdminRole(role: unknown): boolean {
 export type PermissionDenyReason =
   | "role-cannot-assign"
   | "member-can-only-assign-self"
+  | "member-cannot-take-assigned"
   | "member-can-only-remove-own"
   | "role-cannot-return";
 
@@ -40,6 +43,8 @@ export const PERMISSION_DENY_MESSAGES: Record<PermissionDenyReason, string> = {
   "role-cannot-assign": "Seu papel no workspace (somente leitura) não permite atribuir conversas.",
   "member-can-only-assign-self":
     "Membros só podem atribuir a conversa a si mesmos; para atribuir a outra pessoa é preciso ser administrador.",
+  "member-cannot-take-assigned":
+    "Esta conversa já tem atendente; só um administrador pode reatribuí-la.",
   "member-can-only-remove-own":
     "Membros só podem remover a própria atribuição; para remover a de outra pessoa é preciso ser administrador.",
   "role-cannot-return": "Seu papel no workspace (somente leitura) não permite devolver conversas ao robô.",
@@ -47,8 +52,9 @@ export const PERMISSION_DENY_MESSAGES: Record<PermissionDenyReason, string> = {
 
 export type PermissionDecision =
   /**
-   * `scope`: "any" = sem restrição de alvo; "self" = member atribuindo a si mesmo; "own-only" =
-   * member removendo a PRÓPRIA atribuição (o UPDATE deve ser condicional a `assigned_to = <ele>`).
+   * `scope`: "any" = sem restrição de alvo; "self" = member atribuindo a si mesmo a uma conversa SEM
+   * dono (o UPDATE deve ser condicional a `assigned_to IS NULL`); "own-only" = member removendo a
+   * PRÓPRIA atribuição (o UPDATE deve ser condicional a `assigned_to = <ele>`).
    */
   | { allow: true; scope: "any" | "self" | "own-only" }
   | { allow: false; status: 403; reason: PermissionDenyReason; message: string };
@@ -63,8 +69,9 @@ export function decideAssignPermission(input: {
   /** Alvo da atribuição; `null`/`undefined` = REMOVER a atribuição. */
   targetUserId: string | null | undefined;
   /**
-   * `assigned_to` atual da conversa — obrigatório pra um member REMOVER (só pode a própria).
-   * `undefined` (não lido) é tratado como "não é dele": na dúvida, nega.
+   * `assigned_to` atual da conversa — obrigatório pra um member em QUALQUER operação (atribuir a si
+   * só se está sem dono; remover só a própria). `null` = lida e sem dono; `undefined` = NÃO lida:
+   * na dúvida, nega.
    */
   currentAssignedTo?: string | null;
 }): PermissionDecision {
@@ -73,7 +80,8 @@ export function decideAssignPermission(input: {
 
   // Daqui pra baixo o papel é `member`.
   if (input.targetUserId) {
-    return input.targetUserId === input.callerId ? { allow: true, scope: "self" } : deny("member-can-only-assign-self");
+    if (input.targetUserId !== input.callerId) return deny("member-can-only-assign-self");
+    return input.currentAssignedTo === null ? { allow: true, scope: "self" } : deny("member-cannot-take-assigned");
   }
   return input.currentAssignedTo && input.currentAssignedTo === input.callerId
     ? { allow: true, scope: "own-only" }

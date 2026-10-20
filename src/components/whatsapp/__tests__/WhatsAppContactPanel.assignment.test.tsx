@@ -232,3 +232,34 @@ describe("WhatsAppContactPanel — o que 'Devolver ao robô' faz com esta atribu
     expect(hint()).not.toBeInTheDocument();
   });
 });
+
+// G103 (fatia 2): papel `viewer` = somente leitura — as tags aparecem, mas sem "×" e sem campo de nova tag
+// (`update_conversation_tags` dá 403 para esse papel; a tela não oferece o que o servidor nega).
+describe("WhatsAppContactPanel — tags e somente leitura (G103)", () => {
+  it("padrão (canEditTags ausente): a tag tem '×' e há o campo 'Nova tag...'", () => {
+    const onUpdateTags = vi.fn();
+    renderPanel({ tags: ["vip"], onUpdateTags });
+
+    fireEvent.click(screen.getByText("vip ×"));
+    expect(onUpdateTags).toHaveBeenCalledWith([]);
+    expect(screen.getByPlaceholderText("Nova tag...")).toBeInTheDocument();
+  });
+
+  it("canEditTags=false: a tag aparece SEM '×', não é clicável e não há campo de nova tag", () => {
+    const onUpdateTags = vi.fn();
+    renderPanel({ tags: ["vip"], canEditTags: false, onUpdateTags });
+
+    expect(screen.getByText("vip")).toBeInTheDocument();
+    expect(screen.queryByText("vip ×")).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("Nova tag...")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText("vip"));
+    expect(onUpdateTags).not.toHaveBeenCalled();
+  });
+
+  it("canEditTags=false sem tags: 'Sem tags' e nenhum campo", () => {
+    renderPanel({ tags: [], canEditTags: false });
+
+    expect(screen.getByText("Sem tags")).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("Nova tag...")).not.toBeInTheDocument();
+  });
+});

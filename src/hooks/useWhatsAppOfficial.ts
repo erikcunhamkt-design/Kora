@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentWorkspace } from "@/hooks/useCurrentWorkspace";
+import { useWorkspaceRole } from "@/hooks/useWorkspaceRole";
 
 export type WAOfficialStatus = "not_configured" | "configured" | "verified";
 
@@ -30,12 +31,21 @@ async function call<T = unknown>(action: string, workspaceId: string, extra: Rec
 
 export function useWhatsAppOfficial() {
   const { workspace } = useCurrentWorkspace();
+  const { isAdmin, loading: roleLoading } = useWorkspaceRole();
   const [credentials, setCredentials] = useState<WAOfficialCredentials | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
-    if (!workspace) return;
+    if (!workspace || roleLoading) return;
+    // G103 (decisão 2): a função `whatsapp-official-credentials` passou a exigir admin em TODAS as
+    // ações, inclusive `get` (antes devolvia o `verify_token` a qualquer membro). Não-admin não chama
+    // `get` — seria um 403 — e o cartão mostra o aviso em vez de um "Não configurado" que seria mentira.
+    if (!isAdmin) {
+      setCredentials(null);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const data = await call<{ credentials: WAOfficialCredentials | null }>("get", workspace.id);
@@ -45,7 +55,7 @@ export function useWhatsAppOfficial() {
     } finally {
       setLoading(false);
     }
-  }, [workspace]);
+  }, [workspace, isAdmin, roleLoading]);
 
   useEffect(() => { void load(); }, [load]);
 

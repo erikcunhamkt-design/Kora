@@ -38,6 +38,11 @@ export interface WhatsAppMessageBubbleProps {
   onJumpTo?: (messageId: string) => void;
   onDelete?: (messageId: string) => void;
   onForward?: (messageId: string) => void;
+  /**
+   * G103 — papel somente leitura (`viewer`): some a barra de ações (reagir, responder, encaminhar, fixar,
+   * excluir) e a estrela de figurinha favorita — todas são escritas que o servidor nega (403).
+   */
+  readOnly?: boolean;
 }
 
 const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏", "🔥", "👏"];
@@ -105,6 +110,7 @@ export function WhatsAppMessageBubble({
   onJumpTo,
   onDelete,
   onForward,
+  readOnly = false,
 }: WhatsAppMessageBubbleProps) {
   const outbound = direction === "outbound";
   const t = (type ?? "text").toLowerCase();
@@ -234,7 +240,7 @@ export function WhatsAppMessageBubble({
     }
   };
 
-  const HoverToolbar = (
+  const HoverToolbar = readOnly ? null : (
     <div
       className={cn(
         "absolute -top-3 flex items-center gap-0.5 rounded-full border border-border/60 bg-popover shadow-md px-1 py-0.5 opacity-0 group-hover:opacity-100 transition z-10",
@@ -352,7 +358,7 @@ export function WhatsAppMessageBubble({
               {downloading ? <Loader2 className="h-5 w-5 animate-spin" /> : (downloadError ?? "🧩")}
             </div>
           )}
-          {effectiveMediaUrl && (
+          {effectiveMediaUrl && !readOnly && (
             <button
               type="button"
               onClick={handleFavoriteSticker}

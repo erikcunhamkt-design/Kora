@@ -24,6 +24,8 @@ import { toastError } from "@/lib/supabase/errors";
 
 const WEBHOOK_URL = `https://ewamvzncsloagtcvkbxv.supabase.co/functions/v1/whatsapp-official-webhook`;
 const ADMIN_ONLY_MESSAGE = "Apenas administradores do workspace podem alterar esta configuração.";
+const RESTRICTED_MESSAGE =
+  "Apenas administradores do workspace veem e alteram a configuração do WhatsApp oficial (credenciais da Meta e token do webhook).";
 
 export function OfficialWhatsAppCard() {
   // G71 (adendo de backlog de UI) — 3ª tela do backlog: mesmo achado do
@@ -35,7 +37,7 @@ export function OfficialWhatsAppCard() {
   // credentials (useWhatsAppOfficial.ts, supabase.functions.invoke) — o
   // gate de UI aqui é uma melhoria própria, não uma duplicação 1:1 da RLS
   // (que se aplica a chamadas PostgREST diretas, não à function).
-  const { isAdmin } = useWorkspaceRole();
+  const { isAdmin, loading: roleLoading } = useWorkspaceRole();
   const { credentials, loading, busy, save, verify, remove } = useWhatsAppOfficial();
   const [phoneNumberId, setPhoneNumberId] = useState("");
   const [wabaId, setWabaId] = useState("");
@@ -103,10 +105,24 @@ export function OfficialWhatsAppCard() {
     }
   };
 
-  if (loading) {
+  // (o papel ainda carregando também segura o spinner: não pisca o aviso "restrito" pra um admin)
+  if (loading || roleLoading) {
     return (
       <Card className="p-5 flex items-center justify-center min-h-[200px]">
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </Card>
+    );
+  }
+
+  // G103 (decisão 2): o servidor só entrega a configuração (inclusive o verify_token) a admin. Para os
+  // demais papéis o cartão diz isso — não mostra "Não configurado", que seria falso quando há credencial.
+  if (!isAdmin) {
+    return (
+      <Card className="p-5 space-y-2">
+        <h3 className="font-semibold">WhatsApp Cloud API (Meta Oficial)</h3>
+        <p role="note" className="text-xs text-muted-foreground">
+          {RESTRICTED_MESSAGE}
+        </p>
       </Card>
     );
   }

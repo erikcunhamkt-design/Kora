@@ -19,6 +19,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import type { WhatsAppInstance } from "@/hooks/useWhatsAppInstance";
+import { useWhatsAppPermissions } from "@/hooks/useWhatsAppPermissions";
+import { ADMIN_ONLY_INSTANCE_MESSAGE } from "@/lib/whatsapp/permissions";
 
 interface WhatsAppConnectionCardProps {
   instance: WhatsAppInstance | null;
@@ -53,6 +55,10 @@ export function WhatsAppConnectionCard({
   const [importSubdomain, setImportSubdomain] = useState("free");
   const [importing, setImporting] = useState(false);
   const [removing, setRemoving] = useState(false);
+  // G103: papel → o que a tela oferece (mesma tabela do servidor). Papel desconhecido nunca vira admin.
+  const { canManageInstance, canWrite, role } = useWhatsAppPermissions();
+  // O aviso só aparece com o papel CONHECIDO (sem piscar "somente administradores" pra admin enquanto carrega).
+  const showAdminOnlyNote = role !== null && !canManageInstance;
 
   const status = instance?.status ?? "disconnected";
   const qrCode = instance?.qr_code ?? null;
@@ -141,21 +147,28 @@ export function WhatsAppConnectionCard({
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            {status === "connected" && showSync && onSync && (
+            {status === "connected" && showSync && onSync && canWrite && (
               <Button variant="outline" onClick={() => void onSync()} disabled={syncing}>
                 {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCw className="h-4 w-4" />}
                 Sincronizar conversas
               </Button>
             )}
-            {status === "connected" && (
+            {/* G103 — administrar a instância (conectar, desconectar, QR, importar token, remover) é
+                owner/admin no servidor (403 para os demais): a tela não oferece o botão (G29). */}
+            {showAdminOnlyNote && (
+              <p role="note" className="max-w-sm text-xs text-muted-foreground">
+                {ADMIN_ONLY_INSTANCE_MESSAGE}
+              </p>
+            )}
+            {canManageInstance && status === "connected" && (
               <Button variant="outline" onClick={handleDisconnect} disabled={busy}>Desconectar</Button>
             )}
-            {instance && status !== "connected" && (
+            {canManageInstance && instance && status !== "connected" && (
               <Button variant="outline" onClick={() => setQrOpen(true)} disabled={busy}>
                 <QrCode className="h-4 w-4" /> Ver QR
               </Button>
             )}
-            {instance && (
+            {canManageInstance && instance && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button variant="outline" disabled={busy || removing}>
@@ -177,7 +190,7 @@ export function WhatsAppConnectionCard({
                 </AlertDialogContent>
               </AlertDialog>
             )}
-            {status !== "connected" && (
+            {canManageInstance && status !== "connected" && (
               <>
                 <Button variant="outline" onClick={() => setImportOpen(true)} disabled={busy}>
                   <Download className="h-4 w-4" /> Importar token

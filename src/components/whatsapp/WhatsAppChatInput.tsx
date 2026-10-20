@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
-import { Loader2, Paperclip, Send, Mic, Square, X, Image as ImageIcon, FileText, Sticker } from "lucide-react";
+import { Loader2, Lock, Paperclip, Send, Mic, Square, X, Image as ImageIcon, FileText, Sticker } from "lucide-react";
+import { READ_ONLY_COMPOSER_MESSAGE } from "@/lib/whatsapp/permissions";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -52,7 +53,13 @@ export function WhatsAppChatInput({
   contactName,
   contactPhone,
   placeholder,
+  readOnly,
 }: {
+  /**
+   * G103 — papel somente leitura (`viewer`): em vez do composer, um aviso. O servidor nega toda escrita
+   * a esse papel (403), então a tela não oferece enviar texto, mídia, áudio nem figurinha.
+   */
+  readOnly?: boolean;
   disabled?: boolean;
   sending?: boolean;
   onSend: (text: string) => Promise<void> | void;
@@ -172,6 +179,18 @@ export function WhatsAppChatInput({
   };
 
   const busy = disabled || sending || uploading;
+
+  if (readOnly) {
+    return (
+      <div
+        role="status"
+        className="px-5 py-3 border-t border-border/40 bg-card/30 text-xs text-muted-foreground flex items-center gap-2"
+      >
+        <Lock className="h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" />
+        {READ_ONLY_COMPOSER_MESSAGE}
+      </div>
+    );
+  }
 
   return (
     <div className="px-5 py-3 border-t border-border/40 bg-card/30 backdrop-blur-sm">

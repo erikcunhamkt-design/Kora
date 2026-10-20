@@ -21,7 +21,6 @@ vi.mock("sonner", () => ({
 import { OfficialWhatsAppCard } from "@/components/automacoes/OfficialWhatsAppCard";
 import { toast } from "sonner";
 
-const ADMIN_ONLY = "Apenas administradores do workspace podem alterar esta configuração.";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -56,24 +55,34 @@ function baseHookReturn(overrides: Record<string, unknown> = {}) {
   };
 }
 
+// G103 (decisão 2 do revisor): `get` da função passou a exigir admin — o não-admin NÃO recebe a
+// configuração (nem o verify_token). Antes, o cartão mostrava a configuração com os 3 controles
+// desabilitados (G71 adendo); agora mostra só o aviso. Os testes de admin abaixo ficam como estavam.
+const RESTRICTED = /Apenas administradores do workspace veem e alteram a configuração do WhatsApp oficial/;
+
 describe("OfficialWhatsAppCard · G71 (adendo) — role-gate, credenciais já configuradas", () => {
-  it("não-admin: Remover, Atualizar credenciais e Testar conexão desabilitados, com aviso explícito (title)", async () => {
+  it("não-admin: SÓ o aviso de restrição — sem controles e sem vazar a configuração (verify_token, número)", async () => {
     mocks.useWorkspaceRoleMock.mockReturnValue({ role: "member", isAdmin: false, loading: false });
     mocks.useWhatsAppOfficialMock.mockReturnValue(baseHookReturn());
 
     render(<OfficialWhatsAppCard />);
 
-    const removeButton = await screen.findByRole("button", { name: /Remover/ });
-    expect(removeButton).toBeDisabled();
-    expect(removeButton).toHaveAttribute("title", ADMIN_ONLY);
+    expect(await screen.findByText(RESTRICTED)).toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue("tok-abc")).not.toBeInTheDocument();
+    expect(screen.queryByText(/\+55 11 90000-0000/)).not.toBeInTheDocument();
+    // e NÃO diz "Não configurado" (seria falso quando há credencial)
+    expect(screen.queryByText("Não configurado")).not.toBeInTheDocument();
+  });
 
-    const updateButton = screen.getByRole("button", { name: /Atualizar credenciais/ });
-    expect(updateButton).toBeDisabled();
-    expect(updateButton).toHaveAttribute("title", ADMIN_ONLY);
+  it("viewer: o mesmo aviso (nenhum papel abaixo de admin vê a configuração)", async () => {
+    mocks.useWorkspaceRoleMock.mockReturnValue({ role: "viewer", isAdmin: false, loading: false });
+    mocks.useWhatsAppOfficialMock.mockReturnValue(baseHookReturn());
 
-    const verifyButton = screen.getByRole("button", { name: /Testar conexão/ });
-    expect(verifyButton).toBeDisabled();
-    expect(verifyButton).toHaveAttribute("title", ADMIN_ONLY);
+    render(<OfficialWhatsAppCard />);
+
+    expect(await screen.findByText(RESTRICTED)).toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
   it("admin: os 3 controles continuam habilitados, comportamento original preservado", async () => {
@@ -87,27 +96,27 @@ describe("OfficialWhatsAppCard · G71 (adendo) — role-gate, credenciais já co
     expect(screen.getByRole("button", { name: /Testar conexão/ })).not.toBeDisabled();
   });
 
-  it("loading do papel: continua desabilitado, nunca pisca habilitado", async () => {
+  it("loading do papel: segura o spinner — nem pisca o aviso de restrição pro admin, nem habilita controle", async () => {
     mocks.useWorkspaceRoleMock.mockReturnValue({ role: null, isAdmin: false, loading: true });
     mocks.useWhatsAppOfficialMock.mockReturnValue(baseHookReturn());
 
     render(<OfficialWhatsAppCard />);
 
-    expect(await screen.findByRole("button", { name: /Atualizar credenciais/ })).toBeDisabled();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.queryByText(RESTRICTED)).not.toBeInTheDocument();
   });
 });
 
 describe("OfficialWhatsAppCard · G71 (adendo) — role-gate, sem credenciais (1º cadastro)", () => {
-  it("não-admin: Salvar credenciais desabilitado (Remover/Testar não existem ainda, credentials=null)", async () => {
+  it("não-admin: aviso de restrição, sem 'Salvar credenciais' (quem não é admin não cadastra nem vê)", async () => {
     mocks.useWorkspaceRoleMock.mockReturnValue({ role: "member", isAdmin: false, loading: false });
     mocks.useWhatsAppOfficialMock.mockReturnValue(baseHookReturn({ credentials: null }));
 
     render(<OfficialWhatsAppCard />);
 
-    const saveButton = await screen.findByRole("button", { name: /Salvar credenciais/ });
-    expect(saveButton).toBeDisabled();
-    expect(saveButton).toHaveAttribute("title", ADMIN_ONLY);
-    expect(screen.queryByRole("button", { name: /Remover/ })).not.toBeInTheDocument();
+    expect(await screen.findByText(RESTRICTED)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Salvar credenciais/ })).not.toBeInTheDocument();
+    expect(screen.queryByText("Não configurado")).not.toBeInTheDocument();
   });
 });
 

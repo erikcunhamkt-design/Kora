@@ -48,6 +48,11 @@ Deno.serve(async (req) => {
     if (!member) return json({ error: "Forbidden" }, 403);
     const isAdmin = member.role === "owner" || member.role === "admin";
 
+    // G103 (decisão 2 do revisor): TODAS as ações — inclusive `get` — exigem admin. Antes o `get` era
+    // member-level e devolvia o `verify_token` (credencial do webhook) a qualquer membro, inclusive
+    // viewer. A UI (OfficialWhatsAppCard) não chama `get` para não-admin e mostra o aviso.
+    if (!isAdmin) return json({ error: "Admin role required" }, 403);
+
     if (action === "get") {
       const { data } = await admin
         .from("whatsapp_official_credentials")
@@ -60,8 +65,6 @@ Deno.serve(async (req) => {
         : null;
       return json({ credentials: safe });
     }
-
-    if (!isAdmin) return json({ error: "Admin role required" }, 403);
 
     if (action === "upsert") {
       const { phone_number_id, waba_id, access_token, app_secret } = body as {

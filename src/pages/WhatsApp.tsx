@@ -71,7 +71,7 @@ import {
   getAssignmentOrigin,
 } from "@/lib/whatsapp/assignment";
 import { useWorkspaceAttendants } from "@/hooks/useWorkspaceAttendants";
-import { useWorkspaceRole } from "@/hooks/useWorkspaceRole";
+import { useWhatsAppPermissions } from "@/hooks/useWhatsAppPermissions";
 import { WhatsAppStatusBadge } from "@/components/whatsapp/WhatsAppStatusBadge";
 import { WhatsAppChatInput } from "@/components/whatsapp/WhatsAppChatInput";
 import { WhatsAppContactPanel } from "@/components/whatsapp/WhatsAppContactPanel";
@@ -109,13 +109,13 @@ export default function WhatsAppPage() {
   const { instance, loading: loadingInstance } = useWhatsAppInstance();
   const { conversations, messages, selectedId, setSelectedId, loading, markRead } =
     useWhatsAppConversations(workspace?.id, instance?.id);
-  // G101 — atribuição: o gate de papel é o de sempre (`useWorkspaceRole().isAdmin`, o mesmo do
-  // Robô IA); a lista de atendentes vem do servidor (RLS de profiles não deixa o navegador
-  // montá-la) e serve também pra mostrar o NOME de quem está atribuído (banner e aviso).
-  const { role, isAdmin } = useWorkspaceRole();
-  // Devolver ao robô: o servidor nega ao viewer (403); o botão some pra ele. Papel ainda
-  // desconhecido (carregando) NÃO esconde — o servidor decide de qualquer forma.
-  const canReturn = role !== "viewer";
+  // G101/G103 — permissões por papel, derivadas da MESMA tabela que o servidor impõe
+  // (supabase/functions/_shared/instanceRoles.ts): `canWrite` (viewer = somente leitura),
+  // `canManageInstance` (owner/admin), `canAssign` (owner/admin), `canReturn` (quem atende). Papel ainda
+  // desconhecido (carregando) não esconde leitura/escrita operacional e NUNCA presume admin.
+  // A lista de atendentes vem do servidor (RLS de profiles não deixa o navegador montá-la) e serve
+  // também pra mostrar o NOME de quem está atribuído (banner e aviso).
+  const { canWrite, canManageInstance, canAssign, canReturn } = useWhatsAppPermissions();
   const { attendants } = useWorkspaceAttendants(workspace?.id);
 
   type MainTab = "chat" | "audiences" | "campaigns" | "templates" | "bot";
@@ -256,10 +256,12 @@ export default function WhatsAppPage() {
     if (!workspace || !instance) return;
     if (status !== "connected") return;
     if (conversations.length > 0) return;
+    // `sync` é escrita operacional: viewer receberia 403 (e um toast de falha) a cada abertura.
+    if (!canWrite) return;
     autoSyncedRef.current = true;
     void handleSync();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadingInstance, loading, workspace, instance, status, conversations.length]);
+  }, [loadingInstance, loading, workspace, instance, status, conversations.length, canWrite]);
 
 
   const refreshAvatars = async (force = false) => {
@@ -298,11 +300,16 @@ export default function WhatsAppPage() {
   useEffect(() => {
     if (webhookRegisteredRef.current) return;
     if (!workspace || !instance || status !== "connected") return;
+    // `set_webhook` é ação de ADMINISTRAÇÃO da instância (owner/admin, G103): quem não é admin não a
+    // dispara (seria um 403 a cada abertura). Consequência assumida: esta verificação "uma vez por sessão"
+    // só roda quando um admin abre a página; o papel ainda carregando (canManageInstance=false) re-executa
+    // este efeito quando resolve.
+    if (!canManageInstance) return;
     webhookRegisteredRef.current = true;
     void supabase.functions
       .invoke("whatsapp-instance", { body: { action: "set_webhook", workspaceId: workspace.id } })
       .catch(() => { webhookRegisteredRef.current = false; });
-  }, [workspace, instance, status]);
+  }, [workspace, instance, status, canManageInstance]);
 
   // Backfill avatars for already-cached conversations once on mount
   const avatarsRefreshedRef = useRef(false);
@@ -310,12 +317,13 @@ export default function WhatsAppPage() {
     if (avatarsRefreshedRef.current) return;
     if (!workspace || status !== "connected") return;
     if (conversations.length === 0) return;
+    if (!canWrite) return; // `refresh_avatars` é escrita operacional (viewer = 403)
     const missing = conversations.some((c) => !c.avatar_url);
     if (!missing) return;
     avatarsRefreshedRef.current = true;
     void refreshAvatars(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspace, status, conversations.length]);
+  }, [workspace, status, conversations.length, canWrite]);
 
   const handleSend = async (text: string) => {
     if (!text.trim() || !selectedId || !workspace) return;
@@ -824,23 +832,27 @@ export default function WhatsAppPage() {
                               {density === d && <Check className="h-3.5 w-3.5 text-primary" />}
                             </DropdownMenuItem>
                           ))}
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={() => handleArchive(selected.id, selected.status !== "archived")}
-                            className="text-xs gap-2"
-                          >
-                            {selected.status === "archived" ? (
-                              <><ArchiveRestore className="h-3.5 w-3.5" /> Desarquivar</>
-                            ) : (
-                              <><Archive className="h-3.5 w-3.5" /> Arquivar conversa</>
-                            )}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handleMarkUnread(selected.id, true)}
-                            className="text-xs gap-2"
-                          >
-                            <MailOpen className="h-3.5 w-3.5" /> Marcar como não lida
-                          </DropdownMenuItem>
+                          {canWrite && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => handleArchive(selected.id, selected.status !== "archived")}
+                                className="text-xs gap-2"
+                              >
+                                {selected.status === "archived" ? (
+                                  <><ArchiveRestore className="h-3.5 w-3.5" /> Desarquivar</>
+                                ) : (
+                                  <><Archive className="h-3.5 w-3.5" /> Arquivar conversa</>
+                                )}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleMarkUnread(selected.id, true)}
+                                className="text-xs gap-2"
+                              >
+                                <MailOpen className="h-3.5 w-3.5" /> Marcar como não lida
+                              </DropdownMenuItem>
+                            </>
+                          )}
                           <DropdownMenuItem
                             onClick={() => setSoundEnabled((s) => !s)}
                             className="text-xs gap-2 justify-between"
@@ -970,6 +982,7 @@ export default function WhatsAppPage() {
                             setForwardMessageId(msgId);
                             setForwardOpen(true);
                           }}
+                          readOnly={!canWrite}
                         />
                         </div>
 
@@ -1004,6 +1017,7 @@ export default function WhatsAppPage() {
 
                   {/* Input */}
                   <WhatsAppChatInput
+                    readOnly={!canWrite}
                     disabled={status !== "connected"}
                     sending={sending}
                     onSend={handleSend}
@@ -1044,7 +1058,8 @@ export default function WhatsAppPage() {
                   assignedTo={selected.assigned_to}
                   assignmentOrigin={getAssignmentOrigin(selected)}
                   attendants={attendants}
-                  canAssign={isAdmin}
+                  canAssign={canAssign}
+                  canEditTags={canWrite}
                   handoverAt={getHandoverAt(selected)}
                   avatarUrl={selected.avatar_url}
                   lastActivity={selected.last_message_at}
@@ -1070,7 +1085,8 @@ export default function WhatsAppPage() {
                     assignedTo={selected.assigned_to}
                     assignmentOrigin={getAssignmentOrigin(selected)}
                     attendants={attendants}
-                    canAssign={isAdmin}
+                    canAssign={canAssign}
+                    canEditTags={canWrite}
                     handoverAt={getHandoverAt(selected)}
                     avatarUrl={selected.avatar_url}
                     lastActivity={selected.last_message_at}

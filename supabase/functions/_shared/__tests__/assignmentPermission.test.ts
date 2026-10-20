@@ -38,8 +38,40 @@ describe("decideAssignPermission — a régua do assign_conversation", () => {
     }
   });
 
-  it("member: atribui A SI MESMO (scope self)", () => {
-    expect(decideAssignPermission({ role: "member", callerId: ME, targetUserId: ME })).toEqual({ allow: true, scope: "self" });
+  it("member: atribui A SI MESMO só se a conversa está SEM dono (decisão 1 do revisor; scope self)", () => {
+    expect(decideAssignPermission({ role: "member", callerId: ME, targetUserId: ME, currentAssignedTo: null })).toEqual({
+      allow: true,
+      scope: "self",
+    });
+  });
+
+  it("member: conversa que JÁ tem dono => 403 'member-cannot-take-assigned' — de outro E até a própria (não toma, não reafirma)", () => {
+    for (const currentAssignedTo of [OTHER, ME]) {
+      const d = decideAssignPermission({ role: "member", callerId: ME, targetUserId: ME, currentAssignedTo });
+      expect(d).toEqual({
+        allow: false,
+        status: 403,
+        reason: "member-cannot-take-assigned",
+        message: PERMISSION_DENY_MESSAGES["member-cannot-take-assigned"],
+      });
+      expect(d.allow === false && d.message).toMatch(/administrador/);
+    }
+  });
+
+  it("member: dono NÃO lido (undefined) => nega — na dúvida, não atribui", () => {
+    expect(decideAssignPermission({ role: "member", callerId: ME, targetUserId: ME })).toMatchObject({
+      allow: false,
+      reason: "member-cannot-take-assigned",
+    });
+  });
+
+  it("admin/owner NÃO são afetados pela decisão 1: reatribuem mesmo conversa com dono", () => {
+    for (const role of ["owner", "admin"]) {
+      expect(decideAssignPermission({ role, callerId: ME, targetUserId: ME, currentAssignedTo: OTHER })).toEqual({
+        allow: true,
+        scope: "any",
+      });
+    }
   });
 
   it("member tentando atribuir a OUTRA pessoa => 403 com a causa", () => {

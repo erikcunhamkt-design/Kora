@@ -17,6 +17,7 @@ import {
   isAdminRole,
 } from "../_shared/assignmentPermission.ts";
 import { buildClaimUpdate, claimConversationOnReply } from "../_shared/claimOnReply.ts";
+import { decideInstanceAction } from "../_shared/instanceRoles.ts";
 import { buildAttendants } from "../_shared/workspaceAttendants.ts";
 
 const ADMIN_TOKEN = Deno.env.get("UAZAPI_ADMIN_TOKEN")!;
@@ -124,6 +125,13 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (!member) return json({ error: "Forbidden" }, 403);
     const memberRole = (member as { role?: unknown }).role;
+
+    // GATE DE PAPEL CENTRAL (G103; _shared/instanceRoles.ts é a tabela de papel mínimo por ação, e
+    // docs/qa/etapa-9-bot-varredura-gate-papel-servidor.md a versão em prosa): ANTES de qualquer
+    // efeito. admin = create/connect/set_webhook/disconnect/delete/import; member (atende) = escritas
+    // operacionais; viewer = só leitura. Ação fora da tabela passa e cai no "Unknown action" lá embaixo.
+    const roleGate = decideInstanceAction(action, memberRole);
+    if (!roleGate.allow) return json({ error: roleGate.message, reason: roleGate.reason, action }, roleGate.status);
 
     // Load existing instance
     const { data: existing } = await admin
@@ -265,6 +273,10 @@ Deno.serve(async (req) => {
         .eq("id", existing.id)
         .select()
         .single();
+      // O QR pareia o número com a instância: só admin (quem pode `connect`) o recebe; para os demais
+      // papéis o campo sai nulo (o painel de leitura do status não precisa dele). (A leitura direta da
+      // linha por SELECT member-level é o resíduo do G104.)
+      if (updated && !isAdminRole(memberRole)) return json({ instance: { ...updated, qr_code: null } });
       return json({ instance: updated });
     }
 
@@ -936,10 +948,11 @@ Deno.serve(async (req) => {
       // GATE DE PAPEL (varredura G60/G68; _shared/assignmentPermission.ts, docs/qa/etapa-9-bot-
       // varredura-gate-papel-servidor.md): a UI só mostra o controle a admin, mas antes o servidor
       // aceitava QUALQUER membro. Régua: owner/admin atribuem a qualquer elegível e removem qualquer
-      // atribuição; member só atribui A SI MESMO ou remove a PRÓPRIA; viewer 403. A decisão vem ANTES
-      // de qualquer escrita. Pra um member REMOVER precisamos saber de quem é a atribuição atual.
+      // atribuição; member só atribui A SI MESMO e SÓ se a conversa está sem dono (decisão 1 do
+      // revisor: não toma conversa de outro) ou remove a PRÓPRIA; viewer 403. A decisão vem ANTES de
+      // qualquer escrita. Pra um member (atribuir OU remover) precisamos saber o dono atual.
       let currentAssignedTo: string | null | undefined;
-      if (!isAdminRole(memberRole) && !assignUserId) {
+      if (!isAdminRole(memberRole)) {
         const { data: current, error: currentErr } = await admin
           .from("whatsapp_conversations")
           .select("assigned_to")
@@ -983,13 +996,22 @@ Deno.serve(async (req) => {
       // member removendo a PRÓPRIA atribuição: o UPDATE é condicional a ela ainda ser dele (se alguém
       // reatribuiu entre a leitura e a escrita, não pisa).
       if (permission.scope === "own-only") assignQuery = assignQuery.eq("assigned_to", userId);
+      // member atribuindo a SI MESMO: condicional a conversa continuar SEM dono (alguém pode ter
+      // assumido entre a leitura e a escrita — perdeu a corrida, 403; nunca toma de outro).
+      if (permission.scope === "self") assignQuery = assignQuery.is("assigned_to", null);
       const { data: assignedRows, error: assignErr } = await assignQuery.select("id");
       if (assignErr) return json({ error: assignErr.message }, 500);
       if (!Array.isArray(assignedRows) || assignedRows.length === 0) {
-        // own-only que não casou = a atribuição deixou de ser dele (corrida perdida): 403 honesto
+        // corrida perdida de um member: 403 honesto (a conversa existe — acabamos de lê-la)
         if (permission.scope === "own-only") {
           return json(
             { error: PERMISSION_DENY_MESSAGES["member-can-only-remove-own"], reason: "member-can-only-remove-own" },
+            403,
+          );
+        }
+        if (permission.scope === "self") {
+          return json(
+            { error: PERMISSION_DENY_MESSAGES["member-cannot-take-assigned"], reason: "member-cannot-take-assigned" },
             403,
           );
         }

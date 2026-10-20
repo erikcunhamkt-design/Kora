@@ -49,8 +49,9 @@ describe("whatsapp-instance — assign_conversation: gate de papel ANTES de qual
     expect(decideAt).toBeLessThan(block.indexOf("buildManualAssignmentOriginUpdate"));
   });
 
-  it("member REMOVENDO: lê o dono atual da conversa (do workspace) pra decidir; conversa inexistente é 404, não 403", () => {
-    expect(block).toContain("!isAdminRole(memberRole) && !assignUserId");
+  it("member (atribuir OU remover): lê o dono atual da conversa (do workspace) pra decidir; conversa inexistente é 404, não 403", () => {
+    expect(block).toContain("if (!isAdminRole(memberRole)) {");
+    expect(block).not.toContain("!isAdminRole(memberRole) && !assignUserId");
     const readAt = block.indexOf('.select("assigned_to")');
     expect(readAt).toBeGreaterThan(-1);
     expect(readAt).toBeLessThan(block.indexOf("decideAssignPermission({"));
@@ -63,6 +64,13 @@ describe("whatsapp-instance — assign_conversation: gate de papel ANTES de qual
     expect(block).toContain('.eq("assigned_to", userId)');
     // e a corrida perdida é 403 honesto (member-can-only-remove-own), não "não encontrada"
     expect(block).toContain('PERMISSION_DENY_MESSAGES["member-can-only-remove-own"]');
+  });
+
+  it("scope self (decisão 1): o UPDATE é condicional a `assigned_to IS NULL`; corrida perdida = 403 'member-cannot-take-assigned'", () => {
+    expect(block).toContain('permission.scope === "self"');
+    expect(block).toContain('.is("assigned_to", null)');
+    expect(block).toContain('PERMISSION_DENY_MESSAGES["member-cannot-take-assigned"]');
+    expect(block).toContain('reason: "member-cannot-take-assigned"');
   });
 
   it("só o admin passa pelo check de elegibilidade do alvo (member só atribui a si mesmo, que já atende)", () => {
